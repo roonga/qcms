@@ -1,6 +1,5 @@
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 
-import { authUser } from "../schema/index.js";
 import { signInLinks } from "../schema/control/sign-in-links.js";
 import type { SignInLinkDelivery, SignInLinkPurpose } from "../schema/control/sign-in-links.js";
 import type { Executor } from "./executor.js";
@@ -31,13 +30,21 @@ const columns = {
 } as const;
 
 /**
- * Take the account's row for the duration of the caller's transaction, so that issuing and
- * invalidating links for one account is serialized. Without it two concurrent resends each
- * read no live link to supersede and both insert, leaving two usable links.
+ * Serialize every write that decides on an account's links, password or claim, for the
+ * duration of the caller's transaction. Without it two concurrent resends each read no live
+ * link to supersede and both insert, leaving two usable links. An advisory lock rather than
+ * the user row's: the claim holds it while the auth library writes the credential and the
+ * user row on its own connection, which a row lock held here would block.
  */
-async function lockAccountLinks(exec: Executor, userId: string): Promise<void> {
-  await exec.execute(sql`select 1 from ${authUser} where ${authUser.id} = ${userId} for update`);
+export async function lockAccount(exec: Executor, userId: string): Promise<void> {
+  await exec.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${ACCOUNT_LOCK_CLASS}), hashtext(${userId}))`,
+  );
 }
+
+// The two-argument lock space, so these never meet the one-argument session locks the
+// respondent path takes.
+const ACCOUNT_LOCK_CLASS = "qcms.account";
 
 /** Supersede every link the account still holds, which the claim does once it completes. */
 export async function invalidateLiveSignInLinks(
@@ -45,7 +52,7 @@ export async function invalidateLiveSignInLinks(
   userId: string,
   now: Date,
 ): Promise<void> {
-  await lockAccountLinks(exec, userId);
+  await lockAccount(exec, userId);
   await exec
     .update(signInLinks)
     .set({ invalidatedAt: now })

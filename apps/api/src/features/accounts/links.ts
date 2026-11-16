@@ -1,4 +1,4 @@
-import { issueSignInLink, recordSignInLinkDelivery } from "@roonga/qcms-db";
+import { issueSignInLink, lockAccount, recordSignInLinkDelivery } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
@@ -14,7 +14,9 @@ export type SignInLinkDeliveryOutcome = "sent" | "undeliverable";
 /**
  * Mint one link, store its digest and email it. The token exists only in this function's
  * frame and in the message: it is never returned, logged or written to a row, so no screen
- * and no audit can show it to the administrator who asked for it.
+ * and no audit can show it to the administrator who asked for it. `withinIssue` runs in the
+ * issuing transaction under the account's lock, before the link is written and before any
+ * mail is sent, so a check it makes holds for the issue and a row it writes commits with it.
  */
 export async function issueAndSendSignInLink(
   deps: Deps,
@@ -25,21 +27,24 @@ export async function issueAndSendSignInLink(
     readonly purpose: SignInLinkPurpose;
     readonly issuedBy: string;
   },
+  withinIssue?: (tx: Executor) => Promise<void>,
 ): Promise<SignInLinkDeliveryOutcome> {
   if (!deps.config.mail.configured) throw new Error("outbound mail is not configured");
   const now = deps.clock.now();
   const token = mintSignInToken();
   const tokenHash = await signInTokenHash(token);
-  const link = await exec.transaction((tx) =>
-    issueSignInLink(tx, {
+  const link = await exec.transaction(async (tx) => {
+    await lockAccount(tx, input.userId);
+    await withinIssue?.(tx);
+    return issueSignInLink(tx, {
       userId: input.userId,
       tokenHash,
       purpose: input.purpose,
       expiresAt: new Date(now.getTime() + SIGN_IN_LINK_TTL_HOURS * HOUR_MS),
       issuedBy: input.issuedBy,
       now,
-    }),
-  );
+    });
+  });
 
   const result = await deps.mailer.send(
     signInLinkMessage(

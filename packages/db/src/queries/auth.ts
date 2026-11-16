@@ -1,4 +1,4 @@
-import { and, count, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 
 import { authSession, authTwoFactor, authUser, twoFactorResets } from "../schema/index.js";
 import type { Executor } from "./executor.js";
@@ -112,6 +112,25 @@ export async function clearMustChangePassword(exec: Executor, userId: string): P
  */
 export async function markAccountClaimed(exec: Executor, userId: string, at: Date): Promise<void> {
   await exec.update(authUser).set({ claimedAt: at, updatedAt: at }).where(eq(authUser.id, userId));
+}
+
+/**
+ * Delete every session the account holds except `keepToken`'s, or all of them when it is
+ * `undefined`. The admin gate resolves a session by its row on every request, so a deleted
+ * row stops answering at once.
+ */
+export async function revokeAccountSessions(
+  exec: Executor,
+  userId: string,
+  keepToken: string | undefined,
+): Promise<void> {
+  await exec
+    .delete(authSession)
+    .where(
+      keepToken === undefined
+        ? eq(authSession.userId, userId)
+        : and(eq(authSession.userId, userId), ne(authSession.token, keepToken)),
+    );
 }
 
 /** The `user.role` value of a Site administrator; an account holds nothing by default. */

@@ -42,11 +42,11 @@ export function adminAuthFor(deps: Deps): AdminAuth {
   return built;
 }
 
-/** The account a response's own session belongs to, read back off its `Set-Cookie` headers. */
-async function accountOfIssuedSession(
+/** The session a response issues, read back off its `Set-Cookie` headers. */
+async function issuedSession(
   auth: AdminAuth,
   response: Response,
-): Promise<string | undefined> {
+): Promise<{ readonly userId: string; readonly token: string } | undefined> {
   const cookie = response.headers
     .getSetCookie()
     .map((value) => value.split(";")[0])
@@ -54,7 +54,7 @@ async function accountOfIssuedSession(
     .join("; ");
   if (cookie === "") return undefined;
   const session = await auth.api.getSession({ headers: new Headers({ cookie }) });
-  return session?.user.id;
+  return session === null ? undefined : { userId: session.user.id, token: session.session.token };
 }
 
 export function authSubPath(url: string): string {
@@ -92,9 +92,17 @@ export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
     if (endpoint === TOTP_VERIFY_ENDPOINT && response.ok) {
       // The session the response issues is read as well, so a verification posted on the
       // pending-second-factor cookie, which resolves to none, still finishes a claim whose
-      // write did not land when the factor was first enrolled.
-      const verified = enrolling?.user.id ?? (await accountOfIssuedSession(auth, response));
-      if (verified !== undefined) await claimAfterFactorVerified(deps, verified);
+      // write did not land when the factor was first enrolled. It is also the one session
+      // the claim keeps.
+      const issued = await issuedSession(auth, response);
+      const verified = enrolling?.user.id ?? issued?.userId;
+      if (verified !== undefined) {
+        await claimAfterFactorVerified(
+          deps,
+          verified,
+          issued?.token ?? enrolling?.session.token,
+        );
+      }
     }
     return response;
   });

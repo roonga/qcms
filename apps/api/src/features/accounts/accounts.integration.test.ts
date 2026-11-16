@@ -186,6 +186,21 @@ async function liveSessionTokenFor(userId: string): Promise<string> {
   return newest;
 }
 
+async function sessionTokensFor(userId: string): Promise<string[]> {
+  const rows = await testDb.db
+    .select({ token: authSession.token })
+    .from(authSession)
+    .where(eq(authSession.userId, userId));
+  return rows.map((row) => row.token);
+}
+
+/** The session token a cookie header carries, without the signature better-auth appends. */
+function sessionTokenOf(cookie: string): string {
+  const match = /session_token=([^;]+)/.exec(cookie);
+  if (match?.[1] === undefined) throw new Error(`no session cookie in: ${cookie}`);
+  return decodeURIComponent(match[1]).split(".")[0] ?? "";
+}
+
 /**
  * Drive the claim to completion: the password, then the factor that finishes it. The
  * cookie is carried forward step by step, because verifying the factor replaces the
@@ -531,6 +546,64 @@ describe("claiming an account (criteria 52, 53, 54)", { timeout: CLAIM_TIMEOUT_M
   });
 });
 
+describe("sessions minted before the factor", { timeout: CLAIM_TIMEOUT_MS }, () => {
+  it("does not carry an earlier link's session into the account", async () => {
+    const created = await createAccount("stale.session@example.test");
+    const first = await authPost("/claim", { token: created.token, password: freshPassword() });
+    expect(first.status, await first.clone().text()).toBe(200);
+    const [stale] = await sessionTokensFor(created.userId);
+    if (stale === undefined) throw new Error("the first claim minted no session");
+
+    expect((await adminPost(`/admin/accounts/${created.userId}/sign-in-link`, siteAdminToken)).status).toBe(200);
+    const { cookie } = await finishClaim(tokenFromNewestMessage(), freshPassword());
+    expect((await accountRow(created.userId)).claimedAt).toBeInstanceOf(Date);
+
+    expect(await sessionTokensFor(created.userId)).not.toContain(stale);
+    expect((await adminGet("/admin/me/access", stale)).status).toBe(401);
+
+    const kept = sessionTokenOf(cookie);
+    expect(await sessionTokensFor(created.userId)).toEqual([kept]);
+    expect((await adminGet("/admin/me/access", kept)).status).toBe(200);
+  });
+
+  it("revokes a password sign-in made before the factor was enrolled", async () => {
+    const password = freshPassword();
+    const created = await createAccount("early.sign-in@example.test");
+    const claimed = await authPost("/claim", { token: created.token, password });
+    expect(claimed.status, await claimed.clone().text()).toBe(200);
+    const claiming = sessionTokenOf(cookieHeader(claimed));
+
+    const early = await authPost("/sign-in/email", {
+      email: "early.sign-in@example.test",
+      password,
+    });
+    expect(early.status, await early.clone().text()).toBe(200);
+    const earlyToken = sessionTokenOf(cookieHeader(early));
+    expect(earlyToken).not.toBe(claiming);
+    expect(await sessionTokensFor(created.userId)).toContain(earlyToken);
+
+    let cookie = cookieHeader(claimed);
+    const enabled = await authPost("/two-factor/enable", { password }, cookie);
+    expect(enabled.status, await enabled.clone().text()).toBe(200);
+    const { totpURI } = (await enabled.json()) as { totpURI: string };
+    cookie = cookieHeader(enabled) === "" ? cookie : cookieHeader(enabled);
+    const secret = new URL(totpURI).searchParams.get("secret") ?? "";
+    const verified = await authPost(
+      "/two-factor/verify-totp",
+      { code: await generate({ secret }) },
+      cookie,
+    );
+    expect(verified.status, await verified.clone().text()).toBe(200);
+    expect((await accountRow(created.userId)).claimedAt).toBeInstanceOf(Date);
+
+    expect(await sessionTokensFor(created.userId)).not.toContain(earlyToken);
+    expect((await adminGet("/admin/me/access", earlyToken)).status).toBe(401);
+    const kept = sessionTokenOf(cookieHeader(verified));
+    expect(await sessionTokensFor(created.userId)).toEqual([kept]);
+    expect((await adminGet("/admin/me/access", kept)).status).toBe(200);
+  });
+});
+
 describe(
   "the SEC-1 breach lookup runs on the chosen password",
   { timeout: CLAIM_TIMEOUT_MS },
@@ -626,7 +699,7 @@ describe("resending the link", { timeout: CLAIM_TIMEOUT_MS }, () => {
       expect((await authPost("/claim", { token: fresh, password: freshPassword() })).status).toBe(
         200,
       );
-      expect(await siteAuditDetails(created.userId)).toContain("act=resend delivery=sent");
+      expect(await siteAuditDetails(created.userId)).toContain("act=resend");
     },
     CLAIM_TIMEOUT_MS,
   );

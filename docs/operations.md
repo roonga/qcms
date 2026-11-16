@@ -472,6 +472,15 @@ have the limiter off entirely, and in the default production shape it is on but 
 a constant. Both are warned about; neither is the intended posture for a deployment
 serving real administrators.
 
+### Ingress access logs hold live sign-in links
+
+An account-creation email carries its single-use token in the link's query string, which
+is where an emailed link has to put it. QCMS keeps it out of referrers and telemetry, but
+an ingress or reverse proxy in front of the admin that logs full request lines records a
+live token until the claim spends it. Treat such a log as credential material for the
+72 hours a link lives, or log the admin's paths without their query strings. The
+reasoning is in [`docs/SECURITY_DESIGN.md`](SECURITY_DESIGN.md) section 2.1.
+
 ## Environment reference
 
 Generated from the code that reads each variable, and asserted against it by

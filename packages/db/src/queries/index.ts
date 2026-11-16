@@ -14,6 +14,7 @@ export {
   countSiteAdministrators,
   makeSiteAdministrator,
   markAccountClaimed,
+  revokeAccountSessions,
 } from "./auth.js";
 
 export {
@@ -155,6 +156,7 @@ export {
   findSignInLinkByHash,
   invalidateLiveSignInLinks,
   issueSignInLink,
+  lockAccount,
   recordSignInLinkDelivery,
   signInLinkIsLive,
 } from "./sign-in-links.js";
