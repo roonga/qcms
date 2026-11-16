@@ -32,6 +32,7 @@ function access(...workspaces: MyAccessWorkspace[]): MyAccess {
       siteConfiguration: false,
     },
     workspaces,
+    siteAdministrators: [],
   };
 }
 

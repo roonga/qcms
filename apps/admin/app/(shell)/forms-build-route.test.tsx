@@ -70,6 +70,7 @@ function myAccess(roles: readonly string[], workspaceId = "org_default_workspace
           environments: [],
         },
       ],
+      siteAdministrators: [],
     },
   };
 }
