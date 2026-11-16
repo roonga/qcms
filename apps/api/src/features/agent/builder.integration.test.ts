@@ -37,7 +37,7 @@ import { AGENT_BUILDER_TOOL_NAMES } from "./tools/registry.js";
 import type { AssistEvent } from "./types.js";
 
 /**
- * The agent builder over HTTP (task 112): who is offered the edit tools and the wizard, the
+ * The agent builder over HTTP: who is offered the edit tools and the wizard, the
  * edits a turn yields applied through the one draft save path, a library write kept on its
  * card, and an injected publish that reaches no publish, release or wizard execution.
  */
