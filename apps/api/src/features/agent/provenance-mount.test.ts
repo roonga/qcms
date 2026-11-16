@@ -110,7 +110,10 @@ describe("the provenance middleware as the admin group mounts it", () => {
 
 describe("the edit middleware as the admin group mounts it", () => {
   it("serves a request carrying no edit token unchanged, flag on or off", async () => {
-    for (const middleware of [agentEditProvenance(depsWith("fake")), agentEditDisabled(depsWith(undefined))]) {
+    for (const middleware of [
+      agentEditProvenance(depsWith("fake")),
+      agentEditDisabled(depsWith(undefined)),
+    ]) {
       const res = await post(appWith(middleware));
       expect(res.status).toBe(200);
     }
