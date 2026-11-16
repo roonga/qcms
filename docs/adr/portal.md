@@ -43,10 +43,10 @@ Nothing else in this decision moves. Continue advances one **view**, Back return
 - **Nothing above moves.** Continue, Back and Submit keep their contract, and answering still never changes the rendered page by itself: a step turning "Not needed" changes the rail's label, not the page served. The no-JS path renders the completed steps as plain links.
 - **The serve-step response gains an ordered `steps` list** with each step's label and state, because `progress: {stepIndex, totalVisibleSteps}` cannot name a step. The rail is one of the progress modes (side rail, top indicator, none); the narrow layout folds it.
 
-**Readings task 119 had to take, asserted by tests in `apps/api/src/features/responses/serve-step/`.**
+**Two readings of the amendment, confirmed by the Code Owner and asserted by tests in `apps/api/src/features/responses/serve-step/`.**
 
-1. **"Forward" is measured against what Continue could reach**, not against the rendered page: a cursor past the last view of the first step still missing a required answer (or still owed a roster mint) is refused, and the response serves the view a request with no cursor would. A step holding only unanswered optional questions is no barrier, because Continue passes it. The refusal serves rather than errors, as an out-of-range index already did, so an answer post carrying its cursor can never fail on it.
-2. **A completed step is one behind the rendered page, or one between it and the resume point**, which is where a back-jump leaves the steps it passed over. Only a completed step carries a `cursor`, so the rail links nothing else. With no appearance on the pinned version the mode is the top indicator, which is the portal as it was.
+1. **"Forward" is measured against what Continue could reach**, not against the rendered page: a cursor past the last view of the first step still missing a required answer (or still owed a roster mint) is refused, and the response serves the view a request with no cursor would. A step holding only unanswered optional questions is no barrier, because Continue passes it. The refusal serves rather than errors, as an out-of-range index already did, so an answer post carrying its cursor can never fail on it. A later repeat's page can therefore open early on a per-instance step.
+2. **A completed step is one behind the rendered page, or one between it and the resume point**, which is where a back-jump leaves the steps it passed over. Only a completed step carries a `cursor`, so the rail links nothing else. An optional-only step skipped by Continue shows as done. With no appearance on the pinned version the mode is the top indicator, which is the portal as it was.
 
 ### ADR-30 - Portal theming
 

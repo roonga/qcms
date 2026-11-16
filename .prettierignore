@@ -24,6 +24,16 @@ packages/db/migrations/meta/
 # Only format template sources; generated transforms may change wrapping and must remain byte-exact.
 packages/create-qcms-app/templates/
 
+# The model reads these bytes: Prettier rewrites Markdown emphasis and wrapping, which
+# would edit the prompt. `pnpm check:prompts` and `pnpm check:no-em-dash` gate them.
+apps/api/src/features/agent/prompts/system/
+apps/api/src/features/agent/prompts/tools/
+apps/api/src/features/agent/prompts/actions/
+apps/api/src/features/agent/prompts/recipes/
+
+# Written by the agent's tests as the prompt the model is sent; reviewed as a diff.
+apps/api/src/features/agent/prompts/rendered/
+
 # Preserve vendored upstream bytes and generated snapshots.
 packages/ui/src/components/a2ui/
 **/__snapshots__/

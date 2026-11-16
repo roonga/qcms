@@ -2,7 +2,19 @@ import { csvFieldAlwaysQuoted } from "@roonga/qcms-csv";
 
 import type { MessageKey } from "../i18n/en.ts";
 
-import type { LinkState, MintedLink } from "./types.ts";
+import type { FormAvailability, LinkState, MintedLink } from "./types.ts";
+
+/** Why the mint control is offered or withheld; the API refuses the last two whatever the screen shows. */
+export type MintAvailability = "available" | "no-version" | "not-live";
+
+export function mintAvailability(form: {
+  readonly status: FormAvailability;
+  readonly versions: readonly unknown[];
+}): MintAvailability {
+  if (form.versions.length === 0) return "no-version";
+  if (form.status === "unreleased") return "not-live";
+  return "available";
+}
 
 const STATE_LABELS: Readonly<Record<LinkState, MessageKey>> = {
   active: "forms.links.state.active",

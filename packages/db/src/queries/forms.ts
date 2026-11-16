@@ -156,6 +156,20 @@ export async function getDraft(exec: Executor, formId: FormId): Promise<FormDraf
   return row;
 }
 
+/** The open draft, locked against a concurrent save until the transaction ends. */
+export async function getDraftForUpdate(
+  exec: Executor,
+  formId: FormId,
+): Promise<FormDraftRow | undefined> {
+  const [row] = await exec
+    .select()
+    .from(formDrafts)
+    .where(eq(formDrafts.formId, formId))
+    .limit(1)
+    .for("update");
+  return row;
+}
+
 /** Delete the open draft for a form. Returns whether a row was removed. */
 export async function deleteDraft(exec: Executor, formId: FormId): Promise<boolean> {
   const deleted = await exec

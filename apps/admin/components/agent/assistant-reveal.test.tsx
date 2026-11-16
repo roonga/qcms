@@ -93,8 +93,8 @@ const REVOKE = proposal("prp_revoke", {
 });
 
 function actionStream(plan: Record<string, unknown>): Response {
-  const event = JSON.stringify({ type: "action", proposal: plan });
-  return new Response(`event: action\ndata: ${event}\n\n`, {
+  const event = JSON.stringify({ type: "plan", proposal: plan });
+  return new Response(`event: plan\ndata: ${event}\n\n`, {
     status: 200,
     headers: { "content-type": "text/event-stream" },
   });

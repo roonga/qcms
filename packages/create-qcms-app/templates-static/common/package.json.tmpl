@@ -13,6 +13,12 @@
     "logs": "docker compose logs -f",
     "migrate": "docker compose run --rm migrate",
     "build": "{{recursiveBuild}}",
-    "typecheck": "{{recursiveTypecheck}}"
+    "typecheck": "{{recursiveTypecheck}}",
+    "prompts:generate": "node scripts/generate-prompts.mjs --write",
+    "check:prompts": "node scripts/generate-prompts.mjs --check",
+    "verify": "pnpm check:prompts && pnpm build && pnpm typecheck"
+  },
+  "devDependencies": {
+    "prettier": "^3.10.1"
   }
 }
