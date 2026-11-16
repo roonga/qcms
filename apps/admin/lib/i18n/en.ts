@@ -1601,6 +1601,11 @@ export const messages = {
   "forms.assist.step.read_workspace": "Reading a workspace",
   "forms.assist.step.question_recipes": "Checking how to set up these questions",
   "forms.assist.step.propose_plan": "Preparing a plan for you to confirm",
+  "forms.assist.step.edit_question": "Placing a question on the draft",
+  "forms.assist.step.edit_step": "Changing a step of the draft",
+  "forms.assist.step.edit_rule": "Changing a rule of the draft",
+  "forms.assist.step.edit_copy": "Rewording the draft",
+  "forms.assist.step.open_publish_wizard": "Opening the publish screen",
 
   "forms.assist.diffCount.one": "1 change proposed.",
   "forms.assist.diffCount.other": "{count} changes proposed.",
