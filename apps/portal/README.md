@@ -47,6 +47,7 @@ open registration links, hydrating into the shared `@roonga/qcms-ui` renderer. T
 | `/s/:sessionId`           | SSR flow page (real step content), hydrates for answering  |
 | `/s/:sessionId/answers`   | BFF proxy: submit one answer, return re-evaluated step     |
 | `/s/:sessionId/submit`    | BFF proxy: submit session, store receipt, go to `/done`    |
+| `/logo/:key`              | BFF: serve a stored appearance logo from this origin       |
 | `/done`                   | Completion receipt (submittedAt + contentHash)             |
 | `/link-error`, `/expired` | Friendly typed-error pages                                 |
 

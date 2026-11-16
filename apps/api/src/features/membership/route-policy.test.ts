@@ -284,7 +284,7 @@ describe("every row names an action the policy declares", () => {
     expect(read?.installationOnly).toBeUndefined();
   });
 
-  it("names exactly nine installation-only rows", () => {
+  it("names exactly ten installation-only rows", () => {
     expect(
       ROUTE_POLICIES.filter((row) => row.installationOnly === true).map(
         (row) => `${row.method} ${row.path}`,
@@ -296,6 +296,7 @@ describe("every row names an action the policy declares", () => {
       "POST /admin/workspaces",
       "PUT /admin/workspaces/{id}/shared",
       "PUT /admin/release-workflow",
+      "DELETE /admin/logos/{key}",
       "GET /admin/site-audit",
       "GET /admin/outbox/dead-letters",
       "GET /admin/erasures",
@@ -389,6 +390,42 @@ describe("the audit column and the response routes agree (criterion 8)", () => {
   it("marks the workspace settings route as the `setting` kind (criterion 22)", () => {
     const row = policyForRequest("PUT", "/admin/workspaces/org_x/settings");
     expect(row?.audit).toBe("setting");
+  });
+
+  it("gives every theme route Edit forms and the lock the administrator's cell (criteria 118, 120)", () => {
+    for (const [method, path] of [
+      ["GET", "/admin/workspaces/org_x/themes"],
+      ["POST", "/admin/workspaces/org_x/themes"],
+      ["GET", "/admin/workspaces/org_x/themes/thm_x"],
+      ["PUT", "/admin/workspaces/org_x/themes/thm_x"],
+      ["DELETE", "/admin/workspaces/org_x/themes/thm_x"],
+      ["POST", "/admin/workspaces/org_x/themes/thm_x/logo"],
+    ] as const) {
+      expect(policyForRequest(method, path), `${method} ${path}`).toMatchObject({
+        resource: "form",
+        action: "write",
+        workspace: "path",
+      });
+    }
+
+    const lock = policyForRequest("PUT", "/admin/workspaces/org_x/appearance-lock");
+    expect(lock).toMatchObject({
+      resource: "workspace",
+      action: "update",
+      workspace: "path",
+      audit: "setting",
+    });
+    expect(lock?.installationOnly).toBeUndefined();
+  });
+
+  it("puts the logo takedown out of every role's reach", () => {
+    const row = policyForRequest("DELETE", `/admin/logos/${"a".repeat(64)}`);
+    expect(row).toMatchObject({
+      resource: "workspace",
+      action: "update",
+      workspace: "installation",
+      installationOnly: true,
+    });
   });
 
   it("marks the archive route as the `setting` kind, as a rename is (section 11)", () => {

@@ -19,6 +19,8 @@ export const SITE_AUDIT_KINDS = [
   "approval",
   /** A workspace marked or unmarked as the shared question library. */
   "library",
+  /** A stored appearance logo taken down, which deletes the bytes site-wide. */
+  "logo",
 ] as const;
 
 /** One of {@link SITE_AUDIT_KINDS}. */
@@ -30,7 +32,10 @@ export const SITE_AUDIT_KIND_CHECK = "site_audit_kind";
 /** The table name, for the grant emitter and the migration that creates it. */
 export const SITE_AUDIT_TABLE = "site_audit";
 
-/** One row per audited site-level act on accounts, Site administrators or the shared library. */
+/**
+ * One row per audited site-level act on accounts, Site administrators, the shared library
+ * or the appearance logo store.
+ */
 export const siteAudit = controlSchema.table(
   SITE_AUDIT_TABLE,
   {
@@ -54,7 +59,7 @@ export const siteAudit = controlSchema.table(
   (t) => [
     check(
       SITE_AUDIT_KIND_CHECK,
-      sql`${t.kind} in ('account', 'administrator', 'approval', 'library')`,
+      sql`${t.kind} in ('account', 'administrator', 'approval', 'library', 'logo')`,
     ),
   ],
 );

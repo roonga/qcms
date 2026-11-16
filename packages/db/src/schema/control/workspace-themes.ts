@@ -29,6 +29,27 @@ export type LogoContentType = (typeof LOGO_CONTENT_TYPES)[number];
 /** The largest logo the store accepts, pinned by a CHECK so no caller can raise it. */
 export const LOGO_MAX_BYTES = 524_288;
 
+/**
+ * The `SECURITY DEFINER` function migration 0012 creates, the one delete path open to an
+ * application role on {@link appearanceLogos}: the trigger admits only the table owner
+ * (read from `pg_catalog.pg_class`, `pg_temp` last), which this runs as, for one key.
+ * The owner itself can disable the trigger, so it is not bound by this.
+ */
+export const APPEARANCE_LOGO_TAKEDOWN_FUNCTION = "control.appearance_logo_takedown";
+
+/**
+ * The transaction-local key the takedown function sets for its one delete. Not a
+ * credential: the trigger also requires `current_user` to be the table owner, so any
+ * other role that sets it by hand, one holding `DELETE` included, is still refused.
+ */
+export const APPEARANCE_LOGO_TAKEDOWN_SETTING = "qcms.appearance_logo_takedown";
+
+/** The name of the error the store raises for an upload of a taken-down digest. */
+export const APPEARANCE_LOGOS_TAKEN_DOWN = "appearance_logos_taken_down";
+
+/** The themes' foreign key onto {@link appearanceLogos}. */
+export const WORKSPACE_THEMES_LOGO_KEY_FK = "workspace_themes_logo_key_appearance_logos_key_fk";
+
 export const APPEARANCE_LOGOS_KEY_CHECK = "appearance_logos_key_hex";
 export const APPEARANCE_LOGOS_DIGEST_CHECK = "appearance_logos_key_matches_bytes";
 export const APPEARANCE_LOGOS_CONTENT_TYPE_CHECK = "appearance_logos_content_type";
@@ -72,6 +93,25 @@ export const appearanceLogos = controlSchema.table(
     // Content addressing is a database invariant, not a caller's promise.
     check(APPEARANCE_LOGOS_DIGEST_CHECK, sql`${t.key} = encode(sha256(${t.bytes}), 'hex')`),
   ],
+);
+
+/** The table name, for the migration that creates it and the trigger that reads it. */
+export const APPEARANCE_LOGO_TOMBSTONES_TABLE = "appearance_logo_tombstones";
+
+/**
+ * One row per taken-down digest, written by the takedown function alone. The store refuses
+ * a later upload of the same bytes, so a takedown cannot be undone by uploading them again.
+ * No application role holds any privilege here.
+ */
+export const appearanceLogoTombstones = controlSchema.table(
+  APPEARANCE_LOGO_TOMBSTONES_TABLE,
+  {
+    key: text("key").primaryKey(),
+    takenDownAt: timestamp("taken_down_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [check("appearance_logo_tombstones_key_hex", sql`${t.key} ~ '^[0-9a-f]{64}$'`)],
 );
 
 /**

@@ -887,8 +887,8 @@ so a role an operator created last week comes out of that migration holding all 
 This recipe and the environment-create command carry the sixth clause guarded on the table
 existing, the way the SEC-15 audit's clauses are, because the baseline runs before that
 migration.
-**The logo store's clause is a COLUMN grant, and no role may delete a logo (Code Owner,
-2026-11-15).**
+**The logo store's clause is a COLUMN grant, and a takedown is the only delete (Code
+Owner, 2026-11-15, revised 2026-11-16).**
 `control.appearance_logos` arrives with task 108's migration, which grants every
 environment role in the live set `SELECT` on `key`, `content_type` and `bytes` and on no
 other column, by the same enumeration of `control.environments`, because the logo route
@@ -897,12 +897,31 @@ rather than `created_by` or `created_at`.
 That clause is guarded on the table existing in both places too.
 The control role holds `SELECT` and `INSERT` there and nothing more, `UPDATE` and `DELETE`
 are revoked from every `qcms_app%` role by prefix, and two triggers reject both against
-every role including the migration credential, so **a stored logo is permanent and there is
-no cleanup path**: the key is the SHA-256 of the bytes, pinned by a CHECK, and a key a
-draft, a theme or a published version carries has to resolve to the same image forever
-(ADR-07).
-An operator who must remove one is making a migration-level decision, not running an
-operation.
+every role including the migration credential: the key is the SHA-256 of the bytes, pinned
+by a CHECK, so a key a draft, a theme or a published version carries resolves to the same
+image for as long as it is stored (ADR-07).
+**An `UPDATE` is still impossible for every role, and the one sanctioned delete is a
+takedown**, which `DELETE /admin/logos/{key}` performs and a **Site administrator alone**
+may call: the store is site-wide, so a takedown removes the image from every workspace at
+once and is not reversible: the digest is recorded as a tombstone in
+`control.appearance_logo_tombstones`, and an insert trigger refuses those bytes from then on.
+It is an operation rather than a migration-level decision, and it writes one `logo` row in
+the site audit, mirrored into each workspace whose themes lost the logo.
+Migration 0012 adds the mechanism: a `SECURITY DEFINER` function owned by the migration
+credential, `EXECUTE` revoked from `PUBLIC` and granted to `qcms_app_control` alone, which
+sets a key-scoped flag, deletes that one key, clears the flag and writes the tombstone.
+The delete trigger admits a row only when the flag names it and `current_user` is the table
+owner, which the function runs as, so a role later granted `DELETE` that sets the flag by
+hand, calls a same-named function of its own, or shadows `pg_class` with a temporary table,
+is still refused: every 0012 function schema-qualifies its catalog reads and pins
+`search_path` to `pg_catalog, pg_temp`. The table owner (the
+migration credential) is not bound: it can disable the trigger, so guard that credential.
+No application role holds any privilege on the tombstone table.
+No application role gains `DELETE` on the table, so a direct `DELETE FROM
+control.appearance_logos` is still refused on every application pool; the least-privilege
+and restore-drill e2e suites assert exactly that.
+A draft or a published version that still carries a taken-down key keeps it and is served
+the same uniform 404 an unknown key is served; a theme that named it stops naming one.
 That migration also makes the release history **append-only** at the database: two triggers
 in `control` reject an `UPDATE` and a `DELETE` on `form_releases`, the same division
 `control.form_versions` already uses, so the grant stays the DML this role has on `control`

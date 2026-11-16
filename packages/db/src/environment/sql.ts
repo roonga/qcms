@@ -21,7 +21,11 @@ import { sqlLiteral as literal } from "../sql-literal.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import { AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
 import { SITE_AUDIT_TABLE } from "../schema/control/site-audit.js";
-import { APPEARANCE_LOGOS_TABLE } from "../schema/control/workspace-themes.js";
+import {
+  APPEARANCE_LOGOS_TABLE,
+  APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
+  APPEARANCE_LOGO_TOMBSTONES_TABLE,
+} from "../schema/control/workspace-themes.js";
 import {
   APPLICATION_ROLE_PREFIX,
   CONTROL_ROLE,
@@ -443,6 +447,20 @@ export function grantAppearanceLogosStatements(): string[] {
   ];
 }
 
+/**
+ * The takedown function's `EXECUTE`, revoked from `PUBLIC` and given to the control role
+ * alone. The tombstones are taken back from every `qcms_app%` role, because the control
+ * role's schema-wide grant would otherwise let it delete one and re-admit those bytes.
+ */
+export function grantAppearanceLogoTakedownStatements(): string[] {
+  const fn = `${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}(text)`;
+  return [
+    `REVOKE ALL ON FUNCTION ${fn} FROM PUBLIC;`,
+    guardedOnRole(CONTROL_ROLE, [`GRANT EXECUTE ON FUNCTION ${fn} TO ${quote(CONTROL_ROLE)}`]),
+    revokeAllFromApplicationRolesStatement(APPEARANCE_LOGO_TOMBSTONES_TABLE),
+  ];
+}
+
 function appendOnlyAuditGrantStatements(auditTable: string): string[] {
   const table = `${quote(CONTROL_SCHEMA)}.${quote(auditTable)}`;
   return [
@@ -603,6 +621,10 @@ $$;`;
  * table out of a schema.
  */
 export function revokeMigrateOnlyStatement(): string {
+  return revokeAllFromApplicationRolesStatement("two_factor_resets");
+}
+
+function revokeAllFromApplicationRolesStatement(table: string): string {
   return `DO $$
 DECLARE application_role text;
 BEGIN
@@ -610,7 +632,7 @@ BEGIN
 \t\tSELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms\\_app%'
 \tLOOP
 \t\tEXECUTE format(
-\t\t\t'REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE ${CONTROL_SCHEMA}.two_factor_resets FROM %I',
+\t\t\t'REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE ${CONTROL_SCHEMA}.${table} FROM %I',
 \t\t\tapplication_role);
 \tEND LOOP;
 END

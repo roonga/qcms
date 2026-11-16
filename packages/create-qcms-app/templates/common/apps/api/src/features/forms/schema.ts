@@ -75,11 +75,26 @@ export const CreateFormBody = z
   })
   .openapi("CreateFormBody");
 
+/**
+ * Opaque like the definition, so the handler answers with the coded 422 of 107's schema
+ * and of the contrast check rather than a bare 400.
+ */
+const OpaqueAppearance = z.record(z.string(), z.unknown()).nullable().openapi("AppearanceInput", {
+  description:
+    "A form's appearance: the four palettes, logo key, face, corners, density, text size, progress mode and page tint. Validated against the shared appearance schema and the WCAG contrast check. Null clears it.",
+});
+
 export const DraftBody = z
   .strictObject({
     definition: OpaqueDefinition,
     /** Sticky provenance for the human who publishes: an ordinary later save never clears it. */
     agentAssisted: z.boolean().optional(),
+    /**
+     * Omitted keeps the appearance the form already carries, so a client that knows
+     * nothing of appearance never clears one. A change is refused while the workspace's
+     * appearance lock is set.
+     */
+    appearance: OpaqueAppearance.optional(),
   })
   .openapi("DraftBody");
 
@@ -294,6 +309,10 @@ export const FormDetailResponse = z
     draftSource: z.enum(["open", "seeded", "none"]).openapi({ example: "open" }),
     /** Always false for a seeded draft. */
     draftAgentAssisted: z.boolean().openapi({ example: false }),
+    /** The open draft's appearance, else the seeded version's, else null. */
+    appearance: z.unknown(),
+    /** While set, this form's appearance may not be changed by any actor. */
+    appearanceLocked: z.boolean().openapi({ example: false }),
     /**
      * Bumped on every save, and null when there is no open draft. A publish confirmation
      * carries it back, so a draft saved in between is refused rather than published unseen.
@@ -346,6 +365,8 @@ export const SavedDraftResponse = z
      */
     warnings: z.array(PublishWarningEntry),
     agentAssisted: z.boolean().openapi({ example: false }),
+    /** As stored: an omitted request field leaves whatever the form already carried. */
+    appearance: z.unknown(),
     updatedAt: z.string().openapi({ example: "2026-08-01T09:00:00.000Z" }),
   })
   .openapi("SavedDraftResponse");

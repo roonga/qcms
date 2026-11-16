@@ -48,6 +48,7 @@ const MIRROR_KIND: Readonly<Record<SiteAuditKind, AccessAuditKind>> = {
   administrator: "administrator",
   approval: "approval",
   library: "setting",
+  logo: "setting",
 };
 
 // The workspace audit has no `subject` column, so the mirrored row carries it in `detail`.

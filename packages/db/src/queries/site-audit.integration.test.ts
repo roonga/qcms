@@ -97,7 +97,13 @@ describe("the site audit writer and its mirror", () => {
     ).rejects.toThrow(/site_audit_kind/);
   });
 
-  it("pins the four kinds this log holds", () => {
-    expect([...SITE_AUDIT_KINDS]).toEqual(["account", "administrator", "approval", "library"]);
+  it("pins the five kinds this log holds", () => {
+    expect([...SITE_AUDIT_KINDS]).toEqual([
+      "account",
+      "administrator",
+      "approval",
+      "library",
+      "logo",
+    ]);
   });
 });

@@ -115,18 +115,30 @@ export async function createForm(
  */
 export async function upsertDraft(
   exec: Executor,
-  input: { formId: FormId; definition: FormDefinition; agentAssisted?: boolean },
+  input: {
+    formId: FormId;
+    definition: FormDefinition;
+    agentAssisted?: boolean;
+    /** Required, so no save path can drop a form's appearance by forgetting the field. */
+    appearance: Appearance | null;
+  },
 ): Promise<FormDraftRow> {
   const agentAssisted = input.agentAssisted ?? false;
   const [row] = await exec
     .insert(formDrafts)
-    .values({ formId: input.formId, definition: input.definition, agentAssisted })
+    .values({
+      formId: input.formId,
+      definition: input.definition,
+      agentAssisted,
+      appearance: input.appearance,
+    })
     .onConflictDoUpdate({
       target: formDrafts.formId,
       // `agent_assisted` is sticky: a later ordinary save must not erase that provenance
       // before a human publishes.
       set: {
         definition: input.definition,
+        appearance: input.appearance,
         agentAssisted: sql`${formDrafts.agentAssisted} or ${agentAssisted}`,
         // Bumped here rather than by the caller, so no save path can forget it and leave a
         // publish confirmation unable to tell that the draft moved.

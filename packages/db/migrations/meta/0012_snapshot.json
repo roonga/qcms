@@ -1,5 +1,5 @@
 {
-  "id": "3822cd26-ca48-4ab2-a0e4-22db0d7b1c3d",
+  "id": "a1b0c73e-e1ad-4caa-be0a-d1800637c0b2",
   "prevId": "da6d8bc4-d90f-4410-bde0-5213cda84877",
   "version": "7",
   "dialect": "postgresql",
@@ -1756,131 +1756,7 @@
       "checkConstraints": {
         "site_audit_kind": {
           "name": "site_audit_kind",
-          "value": "\"control\".\"site_audit\".\"kind\" in ('account', 'administrator', 'approval', 'library')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "control.sign_in_links": {
-      "name": "sign_in_links",
-      "schema": "control",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "purpose": {
-          "name": "purpose",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "used_at": {
-          "name": "used_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "invalidated_at": {
-          "name": "invalidated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "delivery": {
-          "name": "delivery",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "issued_by": {
-          "name": "issued_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "sign_in_links_user_idx": {
-          "name": "sign_in_links_user_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "sign_in_links_user_id_user_id_fk": {
-          "name": "sign_in_links_user_id_user_id_fk",
-          "tableFrom": "sign_in_links",
-          "tableTo": "user",
-          "schemaTo": "control",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "sign_in_links_token_hash_unique": {
-          "name": "sign_in_links_token_hash_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "sign_in_links_purpose": {
-          "name": "sign_in_links_purpose",
-          "value": "\"control\".\"sign_in_links\".\"purpose\" in ('account-created', 'reactivated', 'reset')"
-        },
-        "sign_in_links_delivery": {
-          "name": "sign_in_links_delivery",
-          "value": "\"control\".\"sign_in_links\".\"delivery\" in ('pending', 'sent', 'undeliverable')"
+          "value": "\"control\".\"site_audit\".\"kind\" in ('account', 'administrator', 'approval', 'library', 'logo')"
         }
       },
       "isRLSEnabled": false
@@ -2402,6 +2278,37 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "control.appearance_logo_tombstones": {
+      "name": "appearance_logo_tombstones",
+      "schema": "control",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "taken_down_at": {
+          "name": "taken_down_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "appearance_logo_tombstones_key_hex": {
+          "name": "appearance_logo_tombstones_key_hex",
+          "value": "\"control\".\"appearance_logo_tombstones\".\"key\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
       "isRLSEnabled": false
     },
     "control.appearance_logos": {

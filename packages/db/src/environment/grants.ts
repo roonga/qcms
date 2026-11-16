@@ -16,6 +16,7 @@ import {
 } from "../schema/control/release-workflow.js";
 import {
   APPEARANCE_LOGOS_TABLE,
+  APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
   WORKSPACE_THEMES_TABLE,
 } from "../schema/control/workspace-themes.js";
 import { CONTROL_ROLE, CONTROL_SCHEMA } from "../schema/schemas.js";
@@ -27,6 +28,7 @@ import {
 import {
   grantAccessAuditStatements,
   grantAgentActionsStatements,
+  grantAppearanceLogoTakedownStatements,
   grantAppearanceLogosStatements,
   grantControlTableStatements,
   grantEnvironmentStatements,
@@ -209,7 +211,13 @@ export const GRANT_SOURCES: readonly GrantSource[] = [
     statements: grantSiteAuditStatements,
   },
   {
-    name: `${CONTROL_SCHEMA}.${SIGN_IN_LINKS_TABLE} (migration 0012)`,
+    name: `${APPEARANCE_LOGO_TAKEDOWN_FUNCTION} (migration 0012)`,
+    scope: "installation",
+    inMigrationTree: true,
+    statements: grantAppearanceLogoTakedownStatements,
+  },
+  {
+    name: `${CONTROL_SCHEMA}.${SIGN_IN_LINKS_TABLE} (migration 0013)`,
     scope: "installation",
     inMigrationTree: true,
     statements: () => grantControlTableStatements(SIGN_IN_LINKS_TABLE),

@@ -72,6 +72,7 @@ const CONTROL_TABLE_OBJECTS: readonly PgTable[] = [
   releaseWorkflowModule.releaseWorkflowRules,
   releaseBatchesModule.releaseBatches,
   workspaceThemesModule.appearanceLogos,
+  workspaceThemesModule.appearanceLogoTombstones,
   workspaceThemesModule.workspaceThemes,
 ];
 

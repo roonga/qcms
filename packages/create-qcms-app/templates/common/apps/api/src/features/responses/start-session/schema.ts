@@ -42,6 +42,11 @@ export const StartSessionResponse = z
     sessionId: z.string().openapi({ example: "ses_9f3a2b1c" }),
     sessionToken: z.string(),
     formVersion: z.number().int().positive().openapi({ example: 1 }),
+    /**
+     * The appearance frozen with the pinned version, or null. Carried here so the first
+     * page is drawn in the right theme, and fixed for the life of the session (ADR-07).
+     */
+    appearance: z.unknown(),
     expiresAt: z.iso.datetime().openapi({ example: "2026-07-21T00:00:00.000Z" }),
   })
   .openapi("StartSessionResponse");
