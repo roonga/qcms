@@ -117,7 +117,6 @@ function RailItem({
   );
 }
 
-/** The ordered steps list; `questions` adds the current step's question links. */
 export function StepList({
   steps,
   navigation,
@@ -161,7 +160,6 @@ export function StepList({
   );
 }
 
-/** The wide layout's rail, beside the step card. */
 export function SideRail({
   steps,
   navigation,
