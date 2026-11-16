@@ -160,8 +160,8 @@ export function recordingLogger(): { logger: Logger; lines: Array<Record<string,
 
 /**
  * Writes rows directly because the API does not link better-auth; no password hash, so no
- * credential. Seeds a full-authority administrator by default: under ADR-41 a session alone
- * reaches only the membership surface.
+ * credential. Seeds an account with workspace grants and no site role by default: under ADR-41
+ * a session alone reaches only the membership surface.
  */
 export async function seedAdminSession(
   exec: Executor,
@@ -182,7 +182,7 @@ export async function seedAdminSession(
     readonly owner?: boolean;
     readonly workspaceId?: string;
     readonly membership?: boolean;
-    /** `false` seeds an account that is not a Site administrator, as every new account is. */
+    /** `true` seeds a Site administrator; the default has no site role, as every new account. */
     readonly claim?: boolean;
   } = {},
 ): Promise<{ token: string; userId: string }> {
@@ -201,7 +201,7 @@ export async function seedAdminSession(
     updatedAt: at,
     twoFactorEnabled: options.twoFactorEnabled ?? true,
     mustChangePassword: options.mustChangePassword ?? false,
-    role: options.claim === false ? null : SITE_ADMINISTRATOR_ROLE,
+    role: options.claim === true ? SITE_ADMINISTRATOR_ROLE : null,
     ...(options.disabledAt === undefined ? {} : { disabledAt: options.disabledAt }),
     claimedAt: options.claimed === false ? null : at,
   });
