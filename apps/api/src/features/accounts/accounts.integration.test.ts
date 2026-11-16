@@ -554,7 +554,9 @@ describe("sessions minted before the factor", { timeout: CLAIM_TIMEOUT_MS }, () 
     const [stale] = await sessionTokensFor(created.userId);
     if (stale === undefined) throw new Error("the first claim minted no session");
 
-    expect((await adminPost(`/admin/accounts/${created.userId}/sign-in-link`, siteAdminToken)).status).toBe(200);
+    expect(
+      (await adminPost(`/admin/accounts/${created.userId}/sign-in-link`, siteAdminToken)).status,
+    ).toBe(200);
     const { cookie } = await finishClaim(tokenFromNewestMessage(), freshPassword());
     expect((await accountRow(created.userId)).claimedAt).toBeInstanceOf(Date);
 

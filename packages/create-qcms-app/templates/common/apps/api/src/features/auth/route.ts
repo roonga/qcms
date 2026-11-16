@@ -97,11 +97,7 @@ export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
       const issued = await issuedSession(auth, response);
       const verified = enrolling?.user.id ?? issued?.userId;
       if (verified !== undefined) {
-        await claimAfterFactorVerified(
-          deps,
-          verified,
-          issued?.token ?? enrolling?.session.token,
-        );
+        await claimAfterFactorVerified(deps, verified, issued?.token ?? enrolling?.session.token);
       }
     }
     return response;
