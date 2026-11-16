@@ -104,7 +104,7 @@
       "properties": {
         "types": {
           "minItems": 1,
-          "maxItems": 10,
+          "maxItems": 29,
           "type": "array",
           "items": {
             "type": "string",
@@ -2794,7 +2794,7 @@
   },
   {
     "name": "list_workspaces",
-    "description": "List the workspaces this caller administers, with whether each is the shared library and whether it has second approval on for a publish to production.",
+    "description": "List the workspaces this caller administers, with whether each is the shared library and whether it has Second approval on for a publish to prod.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -2820,7 +2820,7 @@
   },
   {
     "name": "propose_plan",
-    "description": "Propose an ordered plan of actions for the user to review and confirm once. A single action is a plan of one step. It runs nothing: the user sees a card with every step and every argument in full and confirms it on the screen's own control. An argument may reference an earlier step's result as { fromStep, field }, at most one such reference per step. The plan stops at the first failure. Returns whether the proposal was accepted, or the reason it was refused.",
+    "description": "Propose an ordered plan of actions for the user to review and confirm once. A single action is a plan of one step. It runs nothing: the user sees a card with every step and every argument in full and confirms it on the screen's own control. An argument may reference an earlier step's result as { fromStep, field }, at most one such reference per step. The plan stops at the first failure. Returns whether the proposal was accepted, or the reason it was refused. The sentence you write immediately before this call is quoted on the card as its reason and stays there after the card has run, so make it say WHY the plan does what it does and never what state the card is in: the card reports for itself that it is waiting, and \"waiting for your Confirm\" is wrong the moment they confirm it.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -3324,7 +3324,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Mint one-time or reusable respondent links in the current environment. The URLs are shown to the user once and are never returned to you."
+                "description": "Mint one-time or reusable respondent links for a form, in the environment the person's screen is set to. You do not choose that environment and cannot name another one. A link reaches the form only where that form is already live, so read the form first and say which environment the links are for before they confirm. The URLs are shown to the user once and are never returned to you."
               },
               {
                 "type": "object",
@@ -4274,7 +4274,7 @@
                         "anyOf": [
                           {
                             "type": "boolean",
-                            "description": "Whether a publish to production and a response self-grant need a second account."
+                            "description": "Whether a publish to prod and a response self-grant need a second account."
                           },
                           {
                             "$ref": "#/$defs/StepReference_d3"
@@ -4294,7 +4294,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Change the workspace's second-approval switch: whether a publish to production and a response self-grant need a second account."
+                "description": "Change the workspace's Second approval switch: whether a publish to prod and a response self-grant need a second account."
               },
               {
                 "type": "object",

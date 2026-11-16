@@ -57,6 +57,17 @@ export const TOOL_STEP_LABELS: Readonly<Record<string, MessageKey>> = {
   propose_plan: "forms.assist.step.propose_plan",
 };
 
+/**
+ * A call the assistant made again and got right is a retry, not a failure: the turn
+ * succeeded, and a failure mark beside a timeline that ended in a card reads as a fault
+ * the person has to act on.
+ */
+export function wasRetried(steps: readonly TurnStep[], at: number): boolean {
+  const step = steps[at];
+  if (step === undefined || step.state !== "failed") return false;
+  return steps.slice(at + 1).some((later) => later.label === step.label && later.state === "done");
+}
+
 export function toolStepLabel(tool: string | undefined): MessageKey {
   return (tool === undefined ? undefined : TOOL_STEP_LABELS[tool]) ?? "forms.assist.step.other";
 }

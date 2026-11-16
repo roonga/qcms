@@ -14,6 +14,7 @@ import {
 } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
+  appendAnswer,
   createForm,
   createQuestion,
   createQuestionVersion,
@@ -287,18 +288,34 @@ describe("a step whose every item is a repeating group is reachable (Q30)", () =
     expect(body.rosters.find((entry) => entry.groupId === "grp_only")?.instances).toEqual([]);
   });
 
-  it("does NOT move an explicit cursor, even onto an unopened group's step", async () => {
-    const formId = await publish(defineGroupFirst("frm_group_first_cursor"), "group-first-cursor");
+  it("does NOT move an explicit cursor onto an unopened group's step", async () => {
+    const formId = await publish(define("frm_lead_cursor", "stacked", true), "lead-cursor");
     const session = await newSession(formId, "cursor");
-    const withCursor = await readStep(session, 1);
-    expect(withCursor.step?.stepId).toBe("stp_after");
-    expect(withCursor.progress.stepIndex).toBe(1);
+    await appendAnswer(testDb.db, {
+      sessionId: SessionId.parse(session.sessionId),
+      questionId: FLEET.questionId,
+      value: "Acme",
+    });
+    const withCursor = await readStep(session, 0);
+    expect(withCursor.step?.stepId).toBe("stp_lead");
+    expect(withCursor.progress.stepIndex).toBe(0);
     expect(withCursor.rosters.find((entry) => entry.groupId === "grp_only")?.instances).toEqual([]);
     const withoutCursor = await readStep(session);
     expect(withoutCursor.step?.stepId).toBe("stp_only");
     expect(
       withoutCursor.rosters.find((entry) => entry.groupId === "grp_only")?.instances,
     ).toHaveLength(2);
+  });
+
+  it("refuses a cursor past an unopened group's step, serving and minting that step", async () => {
+    const formId = await publish(defineGroupFirst("frm_group_first_cursor"), "group-first-cursor");
+    const session = await newSession(formId, "forward");
+    const forward = await readStep(session, 1);
+    expect(forward.step?.stepId).toBe("stp_only");
+    expect(forward.progress.stepIndex).toBe(0);
+    expect(forward.rosters.find((entry) => entry.groupId === "grp_only")?.instances).toHaveLength(
+      2,
+    );
   });
 
   it("PER-INSTANCE, the only step: identical, so the fix is not this presentation's", async () => {

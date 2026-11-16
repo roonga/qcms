@@ -30,9 +30,20 @@ import { defaultAnswerMessage, firstAnswerRejection } from "@/lib/validation-mes
  * unprefixed form and an unprefixed redirect would send a non-prod respondent to
  * `prod`'s address, where their session does not exist.
  */
-async function backToStep(request: Request, sessionId: string): Promise<NextResponse> {
+async function backToStep(
+  request: Request,
+  sessionId: string,
+  cursor?: number,
+): Promise<NextResponse> {
   const basePath = await currentBasePath();
-  return NextResponse.redirect(new URL(`${basePath}/s/${sessionId}`, request.url), 303);
+  const query = cursor === undefined ? "" : `?step=${String(cursor)}`;
+  return NextResponse.redirect(new URL(`${basePath}/s/${sessionId}${query}`, request.url), 303);
+}
+
+/** The step a rail link opened; a post from it that is refused returns there. */
+function postedCursor(request: Request): number | undefined {
+  const raw = new URL(request.url).searchParams.get("step");
+  return raw !== null && /^\d{1,6}$/.test(raw) ? Number(raw) : undefined;
 }
 
 // Omitting `step` serves the first incomplete step, which is what a blocked Submit
@@ -194,6 +205,7 @@ export async function POST(
     return await backToStep(request, sessionId);
   }
   const { answers, extras, fields } = decodeStepForm(form);
+  const cursor = postedCursor(request);
   const { values, errors, constraints, last, fatal } = await forwardAnswers(
     sessionId,
     token,
@@ -210,7 +222,7 @@ export async function POST(
       missingRequired: [],
       notice: "step.notSaved",
     });
-    return await backToStep(request, sessionId);
+    return await backToStep(request, sessionId, cursor);
   }
 
   // `missingRequired` and `readyToSubmit` are the API's, never recomputed here (R2).
@@ -220,15 +232,12 @@ export async function POST(
       ? []
       : missingOnPostedStep(projection.flowState.missingRequired, fields, errors);
 
-  if (
-    projection === undefined ||
-    Object.keys(errors).length > 0 ||
-    missingRequired.length > 0 ||
-    !projection.flowState.readyToSubmit
-  ) {
+  const refused =
+    projection === undefined || Object.keys(errors).length > 0 || missingRequired.length > 0;
+  if (refused || !projection.flowState.readyToSubmit) {
     const context: StepContext = { values, errors, constraints, missingRequired };
     await writeStepContext(context);
-    return await backToStep(request, sessionId);
+    return await backToStep(request, sessionId, refused ? cursor : undefined);
   }
 
   try {

@@ -57,6 +57,22 @@ export interface ApiStepView {
   readonly instanceId: string | null;
 }
 
+export type ApiRailState = "completed" | "current" | "ahead" | "notNeeded";
+
+/**
+ * One step of the pinned version, in form order (ADR-28). `cursor` is set on a completed
+ * step only, and `questions` on the current one only.
+ */
+export interface ApiRailStep {
+  readonly stepId: string;
+  readonly label: string;
+  readonly state: ApiRailState;
+  readonly cursor: number | null;
+  readonly questions?: readonly { readonly key: string; readonly label: string }[];
+}
+
+export type ApiProgressMode = "side-rail" | "top-indicator" | "none";
+
 export interface StepResponse {
   readonly step: ApiStepDocument | null;
   readonly values: ApiHeldValues;
@@ -65,6 +81,8 @@ export interface StepResponse {
   readonly rosters: readonly ApiGroupRoster[];
   readonly view: ApiStepView;
   readonly progress: ApiProgress;
+  readonly steps: readonly ApiRailStep[];
+  readonly progressMode: ApiProgressMode;
 }
 
 export interface BatchAnswerEntry {

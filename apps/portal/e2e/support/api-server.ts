@@ -16,6 +16,7 @@ import {
   seedRepeatFleetForm,
   seedRepeatTourForm,
   seedRepeatTableForm,
+  seedRailForm,
   seedUnpublishedPinForm,
   startTestDb,
   MOUNT,
@@ -94,6 +95,9 @@ export interface PortalFixtures {
   readonly repeatFleetSlug: string;
   readonly repeatTourSlug: string;
   readonly repeatTableSlug: string;
+  /** The kitchen sink as a side rail, and again with no progress shown. */
+  readonly railSlug: string;
+  readonly railNoneSlug: string;
   readonly databaseUrl: string;
   readonly validToken: string;
   readonly expiredToken: string;
@@ -180,6 +184,16 @@ export async function startApiServer(): Promise<void> {
   const { slug: repeatFleetSlug } = await seedRepeatFleetForm(testDb.db);
   const { slug: repeatTourSlug } = await seedRepeatTourForm(testDb.db);
   const { slug: repeatTableSlug } = await seedRepeatTableForm(testDb.db);
+  const { slug: railSlug } = await seedRailForm(testDb.db, {
+    formId: "frm_rail",
+    slug: "rail",
+    progress: "side-rail",
+  });
+  const { slug: railNoneSlug } = await seedRailForm(testDb.db, {
+    formId: "frm_rail_none",
+    slug: "rail-none",
+    progress: "none",
+  });
 
   const nowMs = NOW.getTime();
   const oneHour = 60 * 60 * 1000;
@@ -255,6 +269,8 @@ export async function startApiServer(): Promise<void> {
     repeatFleetSlug,
     repeatTourSlug,
     repeatTableSlug,
+    railSlug,
+    railNoneSlug,
     databaseUrl: testDb.connectionUri,
     validToken,
     expiredToken,

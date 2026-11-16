@@ -4,6 +4,7 @@
   "goal": "A step does not run, and the person asks why. The reason is on the card and not in the assistant's hands.",
   "mode": "scripted",
   "screen": "/forms",
+  "environment": "test",
   "cards": "confirm",
   "messages": [
     {
@@ -20,10 +21,16 @@
     "requires": "The form released to test at version 1, so version 9 does not exist.",
     "fixtures": "Fake clinic data only."
   },
-  "budget": { "turns": 2 },
+  "budget": {
+    "turns": 2
+  },
   "expect": {
     "endState": [
-      { "check": "released", "title": "Larkmead new patient sign-up", "environment": "test" },
+      {
+        "check": "released",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test"
+      },
       {
         "check": "linkCount",
         "title": "Larkmead new patient sign-up",

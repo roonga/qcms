@@ -106,6 +106,7 @@ function factsPreamble(ctx: AgentContext): string {
   const defaults = defaultIds(ctx.defaults);
   return [
     `The user is now on the ${ctx.screen} screen.`,
+    ...(ctx.today === undefined ? [] : [`Today is ${ctx.today} where this installation runs.`]),
     "A tool call that names no subject takes these ids:",
     ...defaults.map((line) => `- ${line}`),
     ...(ctx.defaults.formId === undefined
