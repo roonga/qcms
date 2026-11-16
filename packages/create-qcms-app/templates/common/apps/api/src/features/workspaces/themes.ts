@@ -7,6 +7,7 @@ import {
   insertAppearanceLogo,
   insertWorkspaceTheme,
   isLogoTakenDown,
+  isThemeLogoKeyViolation,
   listWorkspaceThemes,
   setWorkspaceAppearanceLock,
   updateWorkspaceTheme,
@@ -100,11 +101,6 @@ function hasCode(err: unknown, code: string): boolean {
 
 function isUniqueViolation(err: unknown): boolean {
   return hasCode(err, "23505");
-}
-
-/** A takedown that commits between the logo check and the theme write. */
-function isLogoForeignKeyViolation(err: unknown): boolean {
-  return hasCode(err, "23503");
 }
 
 function view(row: WorkspaceThemeRow): {
@@ -221,7 +217,7 @@ export function makeCreateWorkspaceThemeHandler(
       return c.json({ theme: view(row) }, 201);
     } catch (err: unknown) {
       if (isUniqueViolation(err)) throw fail.nameTaken(input.name);
-      if (isLogoForeignKeyViolation(err)) throw fail.unknownLogo();
+      if (isThemeLogoKeyViolation(err)) throw fail.unknownLogo();
       throw err;
     }
   };
@@ -250,7 +246,7 @@ export function makeUpdateWorkspaceThemeHandler(
       return c.json({ theme: view(row) }, 200);
     } catch (err: unknown) {
       if (isUniqueViolation(err)) throw fail.nameTaken(input.name);
-      if (isLogoForeignKeyViolation(err)) throw fail.unknownLogo();
+      if (isThemeLogoKeyViolation(err)) throw fail.unknownLogo();
       throw err;
     }
   };
@@ -336,7 +332,7 @@ export function makeUploadThemeLogoHandler(
       });
     } catch (err: unknown) {
       if (isLogoTakenDown(err)) throw fail.takenDown();
-      if (isLogoForeignKeyViolation(err)) throw fail.takenDown();
+      if (isThemeLogoKeyViolation(err)) throw fail.takenDown();
       throw err;
     }
 
