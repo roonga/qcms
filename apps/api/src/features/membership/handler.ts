@@ -20,11 +20,8 @@ import {
   listAccessGroupHolders,
   listAccessGroups,
   listAccessGroupsHeldIn,
-<<<<<<< HEAD
   listActiveAdministratorsFor,
-=======
   listActiveSiteAdministrators,
->>>>>>> origin/main
   listAgentActions,
   listEnvironmentNames,
   listGrantsForUser,
