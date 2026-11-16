@@ -16,7 +16,8 @@ export const DEFAULT_ROOT_NAME = "qcms-agent-scratch";
 
 /**
  * Bounded so a long name cannot push the path past a filesystem limit. The slug is lossy,
- * which is safe only because worktree folder names are unique within one checkout.
+ * which is safe only because worktree folder names rarely collide; the same folder name under
+ * different parents shares a lane, and `--lane` separates them.
  *
  * @param {string} name
  * @returns {string}
@@ -49,6 +50,7 @@ export function resolveLane(directory, environment) {
   try {
     top = execFileSync("git", ["-C", directory, "rev-parse", "--show-toplevel"], {
       encoding: "utf8",
+      windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     }).trim();
   } catch (error) {
