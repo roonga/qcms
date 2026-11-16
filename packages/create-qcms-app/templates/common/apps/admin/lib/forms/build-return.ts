@@ -57,7 +57,6 @@ export function rememberedBuilderReturn(pathname: string, search: string): strin
   return `${pathname}${search}`;
 }
 
-/** The form page Edit by hand opens. */
 export function editByHandHref(formId: string): string {
   return formPage(formId);
 }

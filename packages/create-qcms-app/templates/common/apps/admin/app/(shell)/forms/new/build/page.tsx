@@ -22,7 +22,7 @@ export default async function NewFormBuildPage() {
     readMyAccess(session),
     currentWorkspaceId(session),
   ]);
-  if (!holdsEditForms(access.ok ? access.data : undefined, workspaceId)) notFound();
+  if (!access.ok || !holdsEditForms(access.data, workspaceId)) notFound();
 
   return (
     <BuilderShell

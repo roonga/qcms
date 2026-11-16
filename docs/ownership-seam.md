@@ -93,24 +93,26 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (773 files common to both shapes)
+### Scaffolded paths (781 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 10    |
-| `apps/`                                                                         | 758   |
-| `apps/admin/`                                                                   | 402   |
-| `apps/admin/app/`                                                               | 106   |
-| `apps/admin/app/(shell)/`                                                       | 80    |
-| `apps/admin/app/(shell)/@rail/`                                                 | 34    |
-| `apps/admin/app/(shell)/@rail/forms/`                                           | 9     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/`                                  | 7     |
+| `apps/`                                                                         | 766   |
+| `apps/admin/`                                                                   | 410   |
+| `apps/admin/app/`                                                               | 110   |
+| `apps/admin/app/(shell)/`                                                       | 84    |
+| `apps/admin/app/(shell)/@rail/`                                                 | 36    |
+| `apps/admin/app/(shell)/@rail/forms/`                                           | 11    |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/`                                  | 8     |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/build/`                            | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/preview/`                          | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/publish/`                          | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/rules/`                            | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/versions/`                         | 2     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/versions/[version]/`               | 1     |
-| `apps/admin/app/(shell)/@rail/forms/new/`                                       | 1     |
+| `apps/admin/app/(shell)/@rail/forms/new/`                                       | 2     |
+| `apps/admin/app/(shell)/@rail/forms/new/build/`                                 | 1     |
 | `apps/admin/app/(shell)/@rail/me/`                                              | 1     |
 | `apps/admin/app/(shell)/@rail/me/access/`                                       | 1     |
 | `apps/admin/app/(shell)/@rail/operations/`                                      | 8     |
@@ -138,15 +140,17 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/settings/`               | 1     |
 | `apps/admin/app/(shell)/@rail/workspaces/all/`                                  | 1     |
 | `apps/admin/app/(shell)/assist/`                                                | 2     |
-| `apps/admin/app/(shell)/forms/`                                                 | 14    |
-| `apps/admin/app/(shell)/forms/[formId]/`                                        | 7     |
+| `apps/admin/app/(shell)/forms/`                                                 | 16    |
+| `apps/admin/app/(shell)/forms/[formId]/`                                        | 8     |
 | `apps/admin/app/(shell)/forms/[formId]/assist/`                                 | 1     |
+| `apps/admin/app/(shell)/forms/[formId]/build/`                                  | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/preview/`                                | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/publish/`                                | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/rules/`                                  | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/versions/`                               | 2     |
 | `apps/admin/app/(shell)/forms/[formId]/versions/[version]/`                     | 1     |
-| `apps/admin/app/(shell)/forms/new/`                                             | 2     |
+| `apps/admin/app/(shell)/forms/new/`                                             | 3     |
+| `apps/admin/app/(shell)/forms/new/build/`                                       | 1     |
 | `apps/admin/app/(shell)/me/`                                                    | 1     |
 | `apps/admin/app/(shell)/me/access/`                                             | 1     |
 | `apps/admin/app/(shell)/operations/`                                            | 8     |
@@ -196,25 +200,25 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
-| `apps/admin/components/`                                                        | 146   |
+| `apps/admin/components/`                                                        | 147   |
 | `apps/admin/components/access/`                                                 | 7     |
 | `apps/admin/components/agent/`                                                  | 12    |
-| `apps/admin/components/forms/`                                                  | 41    |
+| `apps/admin/components/forms/`                                                  | 42    |
 | `apps/admin/components/membership/`                                             | 9     |
 | `apps/admin/components/ops/`                                                    | 19    |
 | `apps/admin/components/questions/`                                              | 16    |
 | `apps/admin/components/shell/`                                                  | 6     |
 | `apps/admin/components/test-support/`                                           | 3     |
-| `apps/admin/lib/`                                                               | 143   |
+| `apps/admin/lib/`                                                               | 146   |
 | `apps/admin/lib/agent/`                                                         | 14    |
-| `apps/admin/lib/forms/`                                                         | 31    |
+| `apps/admin/lib/forms/`                                                         | 33    |
 | `apps/admin/lib/i18n/`                                                          | 2     |
 | `apps/admin/lib/membership/`                                                    | 6     |
 | `apps/admin/lib/ops/`                                                           | 16    |
 | `apps/admin/lib/pwa/`                                                           | 4     |
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 33    |
-| `apps/admin/lib/shell/`                                                         | 7     |
+| `apps/admin/lib/shell/`                                                         | 8     |
 | `apps/api/`                                                                     | 281   |
 | `apps/api/src/`                                                                 | 278   |
 | `apps/api/src/features/`                                                        | 246   |
@@ -312,7 +316,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (773)</summary>
+<summary>Every scaffolded file (781)</summary>
 
 ```
 .dockerignore
@@ -323,6 +327,7 @@ repository, and no scaffolded message names a script your project does not defin
 .prettierrc.json
 apps/admin/.gitignore
 apps/admin/app/(shell)/@rail/default.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/build/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/preview/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/publish/page.tsx
@@ -330,6 +335,7 @@ apps/admin/app/(shell)/@rail/forms/[formId]/rail-slot.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/rules/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/versions/[version]/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/versions/page.tsx
+apps/admin/app/(shell)/@rail/forms/new/build/page.tsx
 apps/admin/app/(shell)/@rail/forms/new/page.tsx
 apps/admin/app/(shell)/@rail/forms/page.tsx
 apps/admin/app/(shell)/@rail/me/access/page.tsx
@@ -359,6 +365,7 @@ apps/admin/app/(shell)/@rail/workspaces/page.tsx
 apps/admin/app/(shell)/assist/route.ts
 apps/admin/app/(shell)/assist/titles.ts
 apps/admin/app/(shell)/forms/[formId]/assist/route.ts
+apps/admin/app/(shell)/forms/[formId]/build/page.tsx
 apps/admin/app/(shell)/forms/[formId]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/preview/page.tsx
 apps/admin/app/(shell)/forms/[formId]/publish/page.tsx
@@ -368,6 +375,7 @@ apps/admin/app/(shell)/forms/[formId]/versions/page.tsx
 apps/admin/app/(shell)/forms/actions.ts
 apps/admin/app/(shell)/forms/form-row-menu.tsx
 apps/admin/app/(shell)/forms/forms-table.tsx
+apps/admin/app/(shell)/forms/new/build/page.tsx
 apps/admin/app/(shell)/forms/new/create-form.tsx
 apps/admin/app/(shell)/forms/new/page.tsx
 apps/admin/app/(shell)/forms/page.tsx
@@ -465,6 +473,7 @@ apps/admin/components/forms/assist-icon-button.tsx
 apps/admin/components/forms/assist-mark.tsx
 apps/admin/components/forms/assist-markdown.tsx
 apps/admin/components/forms/assist-tip.tsx
+apps/admin/components/forms/builder-shell.tsx
 apps/admin/components/forms/condition-editor.tsx
 apps/admin/components/forms/condition-json-pane.tsx
 apps/admin/components/forms/draft-preview.tsx
@@ -602,6 +611,8 @@ apps/admin/lib/forms/assist-markdown.ts
 apps/admin/lib/forms/assist-stream.ts
 apps/admin/lib/forms/assist-turn.ts
 apps/admin/lib/forms/autosave.ts
+apps/admin/lib/forms/build-access.ts
+apps/admin/lib/forms/build-return.ts
 apps/admin/lib/forms/builder-bridge.ts
 apps/admin/lib/forms/builder-state.ts
 apps/admin/lib/forms/condition.ts
@@ -710,6 +721,7 @@ apps/admin/lib/settings-panel.ts
 apps/admin/lib/settings-sections.ts
 apps/admin/lib/shell/area-rails.ts
 apps/admin/lib/shell/breadcrumbs.ts
+apps/admin/lib/shell/builder-subject.ts
 apps/admin/lib/shell/context.ts
 apps/admin/lib/shell/leave-operations.ts
 apps/admin/lib/shell/modes.ts

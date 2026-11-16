@@ -36,8 +36,9 @@ import {
 } from "@/lib/shell/modes";
 
 /**
- * The top bar after the wordmark: the application navigation, where Operations becomes one group
- * of title, environment and Exit, then the trailing tools.
+ * The top bar after the wordmark: the workspace switcher, the application navigation, where
+ * Operations becomes one group of title, environment and Exit, then the trailing tools. The agent
+ * builder shows its own group alone.
  */
 export function ShellChrome({
   capabilities,
@@ -46,6 +47,7 @@ export function ShellChrome({
   environment,
   environmentName,
   trailing,
+  workspace,
   multipleWorkspaces,
 }: {
   readonly capabilities: ShellCapabilities;
@@ -55,6 +57,7 @@ export function ShellChrome({
   /** The selected environment's name, empty when it is unknown. */
   readonly environmentName: string;
   readonly trailing: ReactNode;
+  readonly workspace?: ReactNode;
   /** Whether this caller may open more than one workspace, which decides the area's name. */
   readonly multipleWorkspaces: boolean;
 }) {
@@ -62,8 +65,9 @@ export function ShellChrome({
   const search = useSearchParams().toString();
   const focused = focusedModeForPath(pathname, rememberedMode);
   const inOperations = focused === "operations";
+  const inBuilder = focused === "builder";
   const cameFrom = useOperationsReturn(pathname, search, inOperations);
-  const builderCameFrom = useBuilderReturn(pathname, search, focused === "builder");
+  const builderCameFrom = useBuilderReturn(pathname, search, inBuilder);
 
   const remember = rememberableMode(pathname, capabilities);
   useEffect(() => {
@@ -80,8 +84,9 @@ export function ShellChrome({
 
   return (
     <>
+      {!inBuilder && workspace}
       <div className="qcms-topbar__nav">
-        {focused === "builder" ? (
+        {inBuilder ? (
           <BuilderGroup pathname={pathname} cameFrom={builderCameFrom} />
         ) : (
           <AdminNav
@@ -120,7 +125,7 @@ export function ShellChrome({
           />
         )}
       </div>
-      <div className="qcms-topbar__tools">{trailing}</div>
+      {!inBuilder && <div className="qcms-topbar__tools">{trailing}</div>}
       {inOperations && (
         <LeaveOperationsGuard
           environment={environmentName}
