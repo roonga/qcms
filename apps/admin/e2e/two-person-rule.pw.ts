@@ -100,7 +100,7 @@ async function setTwoPersonSwitch(page: Page, on: boolean): Promise<void> {
   const control = twoPersonControl(page);
   // Click the label: React Aria hides the checkbox input, so input-targeted actions cannot reach it.
   if ((await control.isChecked()) !== on) {
-    await page.getByText("Require a second approver for production", { exact: true }).click();
+    await page.getByText("Second approval in production", { exact: true }).click();
   }
   await expect(control).toBeChecked({ checked: on });
   await page.getByRole("button", { name: "Save settings" }).click();
@@ -110,7 +110,7 @@ async function setTwoPersonSwitch(page: Page, on: boolean): Promise<void> {
 
 function twoPersonControl(page: Page) {
   return page.getByRole("checkbox", {
-    name: "Require a second approver for production",
+    name: "Second approval in production",
     exact: true,
   });
 }
@@ -169,7 +169,7 @@ test("a prod endpoint change is stored waiting, and nothing is live", async ({ p
   await page.getByRole("button", { name: "I have copied it" }).click();
 
   await expect(pendingPanel(page)).toContainText(AGREED_URL);
-  await expect(pendingPanel(page)).toContainText("Waiting for a second approver");
+  await expect(pendingPanel(page)).toContainText("Waiting for an Approver");
   await expect(pendingPanel(page)).toContainText("Add this endpoint");
 
   // Assert absence by this URL: other specs' deactivated endpoints can still occupy the shared table.
@@ -206,11 +206,11 @@ test("the account that proposed it cannot confirm it, and is told why", async ({
     "You proposed this change, so you cannot confirm it",
   );
 
-  await expect(pendingPanel(page)).toContainText("Waiting for a second approver");
+  await expect(pendingPanel(page)).toContainText("Waiting for an Approver");
   await expect(endpointRowFor(page, AGREED_URL)).toHaveCount(0);
 });
 
-test("a second approver confirms it, and the endpoint goes live", async ({ page }) => {
+test("an Approver confirms it, and the endpoint goes live", async ({ page }) => {
   test.setTimeout(300_000);
   approverSecret = await enrollNewAdmin(page, APPROVER);
   await page.goto(`/operations/forms/${FORM_ID}/webhooks`);

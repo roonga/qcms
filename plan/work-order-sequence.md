@@ -42,7 +42,7 @@ Gates:
 | 101  | Admin Site administrators, requests          | 086, 092, 099, 100          | O      | V, B, E       | batch 4      | no        |
 | 102  | Admin account menu                           | 090, 097                    | O      | V, B          | batch 5      | no        |
 | 103  | Admin forms-area states and phone widths     | 093, 094, 097 to 102        | O      | V, B          | batches 6, 7 | no        |
-| 104  | Access vocabulary sweep                      | 085                         | S      | V, B          | batch 1      | no        |
+| 104  | Access vocabulary sweep                      | 085                         | S      | V, B, D       | batch 1      | no        |
 | 105  | Access docs and acceptance                   | 084 to 104                  | O      | V, D, B, E, M | no           | no        |
 | 106  | W1 and S1: decision bundle and design system | spec                        | F      | V             | no           | no        |
 | 107  | A1: appearance module                        | 106                         | O      | V, B          | no           | no        |
