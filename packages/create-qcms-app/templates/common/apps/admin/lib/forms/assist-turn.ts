@@ -55,6 +55,11 @@ export const TOOL_STEP_LABELS: Readonly<Record<string, MessageKey>> = {
   read_workspace: "forms.assist.step.read_workspace",
   question_recipes: "forms.assist.step.question_recipes",
   propose_plan: "forms.assist.step.propose_plan",
+  edit_question: "forms.assist.step.edit_question",
+  edit_step: "forms.assist.step.edit_step",
+  edit_rule: "forms.assist.step.edit_rule",
+  edit_copy: "forms.assist.step.edit_copy",
+  open_publish_wizard: "forms.assist.step.open_publish_wizard",
 };
 
 /**
