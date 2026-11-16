@@ -204,6 +204,7 @@ describe("query helper import surface", () => {
     "deleteAccountPassword",
     "holdsAccountPassword",
     "deletePendingTwoFactorSignIns",
+    "deleteTrustedDevices",
     "issuedPendingResetLink",
     "signInLinkHold",
     "wasSentResetOrReactivationLink",

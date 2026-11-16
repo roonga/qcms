@@ -161,6 +161,15 @@ export async function deletePendingTwoFactorSignIns(exec: Executor, userId: stri
   );
 }
 
+/** Delete every device the vendor remembers as having passed the account's second factor. */
+export async function deleteTrustedDevices(exec: Executor, userId: string): Promise<void> {
+  await exec
+    .delete(authVerification)
+    .where(
+      and(like(authVerification.identifier, "trust-device-%"), eq(authVerification.value, userId)),
+    );
+}
+
 /** The purpose of the newest link the account was sent, or `undefined` when it has none. */
 export async function newestSignInLinkPurpose(
   exec: Executor,

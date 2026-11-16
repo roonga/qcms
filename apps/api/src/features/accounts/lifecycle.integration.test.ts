@@ -20,8 +20,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ADMIN_SESSION_HEADER } from "../../middleware/admin-auth.js";
+import { REQUEST_ENVIRONMENT_HEADER } from "../../middleware/request-environment.js";
 import { appGroups } from "../../registrars.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
+import { argumentsDigest, signProposalToken } from "../agent/proposal-token.js";
+import { PROPOSAL_HEADER, PROPOSAL_STEP_HEADER } from "../agent/provenance.js";
 import { ROUTE_POLICIES } from "../membership/route-policy.js";
 import type { Mailer, MailMessage } from "../email/mailer.js";
 
@@ -356,6 +359,36 @@ async function signInThroughLink(
   person.session = sessionTokenOf(enrolled.cookie);
 }
 
+async function removeHold(token: string, group: string, userId: string, workspace = workspaceId) {
+  const response = await adminSend(
+    "DELETE",
+    `/admin/workspaces/${workspace}/access-groups/${group}/holders/${userId}`,
+    token,
+  );
+  expect(response.status, await response.clone().text()).toBe(204);
+}
+
+async function editGroup(
+  token: string,
+  group: string,
+  body: { name: string; roles: string[]; environments: string[] },
+  workspace = workspaceId,
+): Promise<void> {
+  const response = await adminSend(
+    "PUT",
+    `/admin/workspaces/${workspace}/access-groups/${group}`,
+    token,
+    body,
+  );
+  expect(response.status, await response.clone().text()).toBe(200);
+}
+
+/** Who a suspended hold answers to, `null` for a live hold, `undefined` for none. */
+async function suspendedBy(group: string, userId: string): Promise<string | null | undefined> {
+  const hold = await findHoldSuspension(testDb.db, group, userId);
+  return hold?.suspendedAt === null ? null : hold?.suspendedBy;
+}
+
 async function reconfirm(token: string, group: string, userId: string, workspace = workspaceId) {
   return adminSend(
     "POST",
@@ -366,7 +399,11 @@ async function reconfirm(token: string, group: string, userId: string, workspace
 
 beforeAll(async () => {
   testDb = await startTestDb();
-  const env = validEnv({ DATABASE_URL: testDb.connectionUri, ...RELAY });
+  const env = validEnv({
+    DATABASE_URL: testDb.connectionUri,
+    QCMS_FLAG_AGENT_AUTHORING: "fake",
+    ...RELAY,
+  });
   deps = makeDeps({
     db: testDb.db,
     env,
@@ -772,6 +809,104 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
     FLOW_TIMEOUT_MS,
   );
 
+  it(
+    "deletes second-factor challenges again when the link is spent, so one put back cannot finish the reset",
+    async () => {
+      const person = await createAndClaim("reset.challenge@example.test");
+      const begun = await authPost("/sign-in/email", {
+        email: person.email,
+        password: person.password,
+      });
+      expect(begun.status).toBe(200);
+      const challenges = await pendingChallenges(person.userId);
+      expect(challenges.length).toBeGreaterThan(0);
+
+      const reset = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/reset`,
+        siteAdminToken,
+        { password: true, factor: false },
+      );
+      expect(reset.status, await reset.clone().text()).toBe(200);
+      expect(await pendingChallenges(person.userId)).toEqual([]);
+      await testDb.db.insert(authVerification).values(challenges);
+
+      const claimed = await authPost("/claim", {
+        token: tokenFromNewestMessage(),
+        password: freshPassword(),
+      });
+      expect(claimed.status, await claimed.clone().text()).toBe(200);
+      const code = await freshCode(person.secret, person.lastCode);
+      const finished = await authPost("/two-factor/verify-totp", { code }, cookieHeader(begun));
+      expect(finished.status).toBe(401);
+      expect((await accountRow(person.userId)).claimedAt).toBeNull();
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
+  it(
+    "forgets every remembered device on a factor reset",
+    async () => {
+      const person = await createAndClaim("reset.trusted@example.test");
+      const begun = await authPost("/sign-in/email", {
+        email: person.email,
+        password: person.password,
+      });
+      const code = await freshCode(person.secret, person.lastCode);
+      const trusted = await authPost(
+        "/two-factor/verify-totp",
+        { code, trustDevice: true },
+        cookieHeader(begun),
+      );
+      expect(trusted.status, await trusted.clone().text()).toBe(200);
+      person.lastCode = code;
+      const device = cookieHeader(trusted)
+        .split("; ")
+        .filter((cookie) => cookie.includes("trust_device"))
+        .join("; ");
+      expect(device).not.toBe("");
+      const remembered = await authPost(
+        "/sign-in/email",
+        { email: person.email, password: person.password },
+        device,
+      );
+      expect(remembered.status).toBe(200);
+      expect(
+        ((await remembered.json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect,
+      ).toBeUndefined();
+
+      const reset = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/reset`,
+        siteAdminToken,
+        { password: false, factor: true },
+      );
+      expect(reset.status, await reset.clone().text()).toBe(200);
+      const devices = await testDb.db
+        .select({ id: authVerification.id })
+        .from(authVerification)
+        .where(
+          and(
+            like(authVerification.identifier, "trust-device-%"),
+            eq(authVerification.value, person.userId),
+          ),
+        );
+      expect(devices).toEqual([]);
+
+      await signInThroughLink(person, "keep-password", { factorKept: false });
+      const after = await authPost(
+        "/sign-in/email",
+        { email: person.email, password: person.password },
+        device,
+      );
+      expect(after.status).toBe(200);
+      expect(((await after.json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect).toBe(
+        true,
+      );
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
   it("refuses an unclaimed, a disabled and your own account, and a Site administrator", async () => {
     const unclaimed = await adminSend("POST", "/admin/accounts", siteAdminToken, {
       email: "never.claimed@example.test",
@@ -1080,6 +1215,135 @@ describe("re-confirming a suspended membership (criteria 60, 61, 62, 63)", () =>
       } finally {
         await testDb.db.update(authUser).set({ role: null }).where(eq(authUser.id, person.userId));
       }
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
+  it(
+    "keeps a hold suspended when the resetter adds a response role to a group the account holds",
+    async () => {
+      const person = await createAndClaim("reconfirm.groupedit@example.test");
+      const name = "Group edit target";
+      const target = await createGroup(workspaceId, name, ["forms.editor"], []);
+      await grant(target, person.userId);
+      const reset = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/reset`,
+        siteAdminToken,
+        { password: false, factor: true },
+      );
+      expect(reset.status, await reset.clone().text()).toBe(200);
+      expect(await suspendedBy(target, person.userId)).toBeNull();
+
+      await editGroup(siteAdminToken, target, {
+        name,
+        roles: ["forms.editor", "responses.viewer"],
+        environments: ["prod"],
+      });
+      expect(await suspendedBy(target, person.userId)).toBe(siteAdminId);
+
+      await signInThroughLink(person, "keep-password", { factorKept: false });
+      expect((await myAccess(person.session)).workspaces.get(workspaceId)?.groups).not.toContain(
+        name,
+      );
+      const byResetter = await reconfirm(siteAdminToken, target, person.userId);
+      expect(await errorCodeOf(byResetter)).toBe("RECONFIRM_BY_PERFORMER_REFUSED");
+      const byOther = await reconfirm(secondSiteAdminToken, target, person.userId);
+      expect(byOther.status, await byOther.clone().text()).toBe(200);
+      expect((await myAccess(person.session)).workspaces.get(workspaceId)?.groups).toContain(name);
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
+  it(
+    "never lets the subject lift their own suspension by a re-add, a group edit or an agent step",
+    async () => {
+      const person = await createAndClaim("reconfirm.selfreadd@example.test");
+      const created = await adminSend("POST", "/admin/workspaces", siteAdminToken, {
+        name: "Reconfirm self",
+        slug: "reconfirm-self",
+        firstAdministratorEmail: person.email,
+      });
+      expect(created.status, await created.clone().text()).toBe(201);
+      const own = ((await created.json()) as { workspace: { workspaceId: string } }).workspace
+        .workspaceId;
+      const settings = await adminSend("PUT", `/admin/workspaces/${own}/settings`, siteAdminToken, {
+        requireSecondApprover: false,
+      });
+      expect(settings.status, await settings.clone().text()).toBe(200);
+      const viewers = await createGroup(own, "Self viewers", ["responses.viewer"], ["prod"]);
+      const editors = await createGroup(own, "Self editors", ["forms.editor"], []);
+      await grant(viewers, person.userId, own);
+      await grant(editors, person.userId, own);
+      const reset = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/reset`,
+        siteAdminToken,
+        { password: false, factor: true },
+      );
+      expect(reset.status, await reset.clone().text()).toBe(200);
+      await signInThroughLink(person, "keep-password", { factorKept: false });
+
+      await removeHold(person.session, viewers, person.userId, own);
+      const readded = await adminSend(
+        "POST",
+        `/admin/workspaces/${own}/access-groups/${viewers}/holders`,
+        person.session,
+        { email: person.email },
+      );
+      expect(readded.status, await readded.clone().text()).toBe(201);
+      expect(await suspendedBy(viewers, person.userId)).toBe(person.userId);
+      expect((await myAccess(person.session)).workspaces.get(own)?.groups).toEqual([
+        "Self editors",
+      ]);
+      const byOwn = await reconfirm(person.session, viewers, person.userId, own);
+      expect(await errorCodeOf(byOwn)).toBe("RECONFIRM_OWN_REFUSED");
+      const byResetter = await reconfirm(siteAdminToken, viewers, person.userId, own);
+      expect(await errorCodeOf(byResetter)).toBe("RECONFIRM_BY_PERFORMER_REFUSED");
+
+      await editGroup(
+        person.session,
+        editors,
+        { name: "Self editors", roles: ["forms.editor", "responses.viewer"], environments: ["prod"] },
+        own,
+      );
+      expect(await suspendedBy(editors, person.userId)).toBe(person.userId);
+
+      const byOther = await reconfirm(secondSiteAdminToken, viewers, person.userId, own);
+      expect(byOther.status, await byOther.clone().text()).toBe(200);
+      await removeHold(person.session, viewers, person.userId, own);
+      const args = { workspaceId: own, teamId: viewers, email: person.email };
+      const proposalId = "prp_lifecycle_self";
+      const token = await signProposalToken(deps.config.keys.app, {
+        sub: person.userId,
+        pid: proposalId,
+        steps: [
+          { kind: "access.grant", argsDigest: await argumentsDigest(args), environment: "prod" },
+        ],
+        formId: undefined,
+        issuedAt: deps.clock.now(),
+      });
+      const byAgent = await app.request(
+        `/admin/workspaces/${own}/access-groups/${viewers}/holders`,
+        {
+          method: "POST",
+          headers: {
+            ...adminHeaders(person.session),
+            [REQUEST_ENVIRONMENT_HEADER]: "prod",
+            [PROPOSAL_HEADER]: token,
+            [PROPOSAL_STEP_HEADER]: "0",
+          },
+          body: JSON.stringify({ email: person.email }),
+        },
+      );
+      expect(byAgent.status, await byAgent.clone().text()).toBe(201);
+      const steps = await testDb.client.query(
+        "select kind from control.agent_actions where proposal_id = $1",
+        [proposalId],
+      );
+      expect(steps.rows).toEqual([{ kind: "access.grant" }]);
+      expect(await suspendedBy(viewers, person.userId)).toBe(person.userId);
+      expect((await myAccess(person.session)).workspaces.get(own)?.groups).toEqual([]);
     },
     FLOW_TIMEOUT_MS,
   );

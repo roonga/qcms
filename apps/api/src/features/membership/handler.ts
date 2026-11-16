@@ -30,6 +30,7 @@ import {
   listWorkspaceAdministrators,
   listWorkspaceMembers,
   lockWorkspaceMembership,
+  newestSignInLinkPurpose,
   normaliseEnvironmentSet,
   reconfirmHold,
   refuseAccessGroupName,
@@ -298,6 +299,24 @@ async function validateGroup(
   return { roles: input.roles, environments: normaliseEnvironmentSet(input.environments, live) };
 }
 
+// The account's newest links being reset or reactivation links stands in for a stored
+// suspension, and the subject is held to it as the performer is.
+async function grantStaysSuspended(
+  tx: Executor,
+  userId: string,
+  grantorId: string,
+): Promise<boolean> {
+  if (grantorId === userId) {
+    const purpose = await newestSignInLinkPurpose(tx, userId);
+    return purpose === "reset" || purpose === "reactivated";
+  }
+  return issuedPendingResetLink(tx, userId, grantorId);
+}
+
+function gainsResponseRole(before: readonly string[], after: readonly string[]): boolean {
+  return after.some((role) => isResponsesRole(role) && !before.includes(role));
+}
+
 /** Whether the second-approver rule refuses this change as a self-grant. */
 function refuseSelfGrant(input: {
   readonly actorHolds: boolean;
@@ -306,10 +325,7 @@ function refuseSelfGrant(input: {
   readonly after: { readonly roles: readonly string[]; readonly environments: readonly string[] };
 }): boolean {
   if (!input.actorHolds || !input.requireSecondApprover) return false;
-  const gainedResponseRole = input.after.roles.some(
-    (role) => isResponsesRole(role) && !input.before.roles.includes(role),
-  );
-  if (gainedResponseRole) return true;
+  if (gainsResponseRole(input.before.roles, input.after.roles)) return true;
   if (!carriesResponsesRole(input.after.roles)) return false;
   return input.after.environments.some((name) => !input.before.environments.includes(name));
 }
@@ -685,6 +701,16 @@ export function makeUpdateAccessGroupHandler(
         updatedAt: deps.clock.now(),
       });
       if (row === undefined) throw fail.groupNotFound();
+      if (gainsResponseRole(existing.roles, row.roles)) {
+        for (const holder of await listAccessGroupHolders(tx, teamId)) {
+          await keepSuspensionOnGain(tx, {
+            group: row,
+            userId: holder.userId,
+            actorId: actor.userId,
+            at: deps.clock.now(),
+          });
+        }
+      }
 
       await writeAccessAuditRow(tx, {
         actor: actor.userId,
@@ -831,9 +857,10 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
   };
 }
 
-// Suspended where the grantor reset or reactivated the account, so removing a suspended hold
-// and granting it again does not lift it. The account's lock is tried after the workspace's,
-// as the re-confirmation takes them; a reset holds only the account's.
+// Suspended where the grantor reset or reactivated the account, or is the account itself, so
+// neither removing a suspended hold and granting it again nor a self-grant lifts it. The
+// account's lock is tried after the workspace's, as the re-confirmation takes them; a reset
+// holds only the account's.
 async function writeHold(
   tx: Executor,
   input: {
@@ -848,9 +875,28 @@ async function writeHold(
   if (responses && !(await tryLockAccount(tx, userId))) throw fail.accountBusy();
   await ensureWorkspaceMember(tx, group.workspaceId, userId);
   await addAccessGroupHolder(tx, group.teamId, userId);
-  if (!responses || !(await issuedPendingResetLink(tx, userId, input.actorId))) return false;
+  if (!responses || !(await grantStaysSuspended(tx, userId, input.actorId))) return false;
   await suspendHold(tx, { teamId: group.teamId, userId, by: input.actorId, at: input.at });
   return true;
+}
+
+// A group edit that gives a hold a response role grants it as an add does, so the same rule
+// suspends it; a hold already suspended keeps the performer it answers to.
+async function keepSuspensionOnGain(
+  tx: Executor,
+  input: {
+    readonly group: AccessGroupRow;
+    readonly userId: string;
+    readonly actorId: string;
+    readonly at: Date;
+  },
+): Promise<void> {
+  const { group, userId } = input;
+  if (!(await tryLockAccount(tx, userId))) throw fail.accountBusy();
+  const hold = await findHoldSuspension(tx, group.teamId, userId);
+  if (hold === undefined || hold.suspendedAt !== null) return;
+  if (!(await grantStaysSuspended(tx, userId, input.actorId))) return;
+  await suspendHold(tx, { teamId: group.teamId, userId, by: input.actorId, at: input.at });
 }
 
 export function makeRemoveHolderHandler(
@@ -909,7 +955,9 @@ export function makeReconfirmHolderHandler(
       if (hold === undefined) throw fail.notAHolder();
       if (hold.suspendedAt === null) throw fail.notSuspended();
 
-      const byPerformer = hold.suspendedBy === actor.userId;
+      const byPerformer =
+        hold.suspendedBy === actor.userId ||
+        (await issuedPendingResetLink(tx, userId, actor.userId));
       if (byPerformer) {
         const others = (await listActiveAdministratorsFor(tx, workspaceId)).filter(
           (administrator) => administrator !== actor.userId && administrator !== userId,

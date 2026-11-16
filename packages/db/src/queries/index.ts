@@ -204,6 +204,7 @@ export {
   countActiveSiteAdministrators,
   deleteAccountPassword,
   deletePendingTwoFactorSignIns,
+  deleteTrustedDevices,
   disableAccount,
   findHoldSuspension,
   holdsAccountPassword,

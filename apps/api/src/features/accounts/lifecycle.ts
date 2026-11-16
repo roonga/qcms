@@ -6,6 +6,7 @@ import {
   countActiveSiteAdministrators,
   deleteAccountPassword,
   deletePendingTwoFactorSignIns,
+  deleteTrustedDevices,
   disableAccount,
   findAccountById,
   invalidateLiveSignInLinks,
@@ -180,6 +181,7 @@ export function makeDisableAccountHandler(
       await disableAccount(tx, id, now);
       await revokeAccountSessions(tx, id, undefined);
       await deletePendingTwoFactorSignIns(tx, id);
+      await deleteTrustedDevices(tx, id);
       await invalidateLiveSignInLinks(tx, id, now);
       await writeSiteAuditWithMirror(
         tx,
@@ -226,6 +228,7 @@ export function makeReactivateAccountHandler(
         await clearAdminTwoFactor(tx, id);
         await revokeAccountSessions(tx, id, undefined);
         await deletePendingTwoFactorSignIns(tx, id);
+        await deleteTrustedDevices(tx, id);
         const suspended = await suspendResponseMemberships(tx, {
           userId: id,
           by: actor.userId,
@@ -282,6 +285,7 @@ export function makeResetAccountHandler(
         if (body.factor) await clearAdminTwoFactor(tx, id);
         await revokeAccountSessions(tx, id, undefined);
         await deletePendingTwoFactorSignIns(tx, id);
+        await deleteTrustedDevices(tx, id);
         const suspended = await suspendResponseMemberships(tx, {
           userId: id,
           by: actor.userId,

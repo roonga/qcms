@@ -189,7 +189,10 @@ export const updateAccessGroupRoute = createRoute({
   description:
     "One `group` audit row naming what the group now carries and what it carried " +
     "before. A change that would give the person making it a response role, or a new " +
-    "environment for one, is refused while the workspace requires a second approver.",
+    "environment for one, is refused while the workspace requires a second approver. " +
+    "A change that adds a response role leaves a holder's hold suspended until a different " +
+    "administrator re-confirms it, where the holder's newest sign-in links are reset or " +
+    "reactivation links and the person making the change sent one or is the holder.",
   tags,
   request: { params: AccessGroupParams, body: jsonBody(UpdateAccessGroupBody) },
   responses: {
@@ -235,7 +238,10 @@ export const addHolderRoute = createRoute({
     "An unknown account gets one generic 404, `ACCOUNT_NOT_ADDABLE`, on both the " +
     "`email` and the `userId` path, and so does an account named by `userId` that is " +
     "not yet in this workspace unless the caller is the installation administrator: " +
-    "anybody else adds a newcomer by exact address. Refused on an archived workspace.",
+    "anybody else adds a newcomer by exact address. Refused on an archived workspace. " +
+    "A response grant is written suspended, until a different administrator re-confirms " +
+    "it, where the account's newest sign-in links are reset or reactivation links and " +
+    "the caller sent one or is the account.",
   tags,
   request: { params: AccessGroupParams, body: jsonBody(AddHolderBody) },
   responses: {
