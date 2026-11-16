@@ -19,7 +19,8 @@ import {
   runAgentTool,
   ToolNotAllowedError,
 } from "./registry.js";
-import type { AssistContext, AssistEvent } from "../types.js";
+import { QUESTION_RECIPE_TYPES } from "../prompts/prompts.generated.js";
+import type { AgentContext, AssistContext, AssistEvent } from "../types.js";
 
 const FORBIDDEN = [
   "publish_form",
@@ -75,6 +76,7 @@ describe("the agent tool registry", () => {
       "propose_draft",
       "propose_plan",
       "propose_questions",
+      "question_recipes",
       "read_form",
       "read_question",
       "read_workspace",
@@ -142,6 +144,48 @@ describe("the agent tool registry", () => {
     await expect(
       runAgentTool("validate_draft", {}, builderTurnContext(ctx), state),
     ).resolves.toEqual({ valid: true, issues: [], warnings: [warning] });
+  });
+});
+
+describe("the question-type recipe lookup", () => {
+  const turn = (): AgentContext =>
+    ({ tools: ["question_recipes"], authorize: () => Promise.resolve() }) as unknown as AgentContext;
+
+  const look = async (types: unknown): Promise<{ recipes: { type: string; guidance: string }[] }> =>
+    (await runAgentTool("question_recipes", { types }, turn(), createProposalState())) as {
+      recipes: { type: string; guidance: string }[];
+    };
+
+  it("returns one recipe per type asked for, in the order asked", async () => {
+    const { recipes } = await look(["none-of-the-above", "date-of-birth"]);
+
+    expect(recipes.map((entry) => entry.type)).toEqual(["none-of-the-above", "date-of-birth"]);
+    expect(recipes[0]?.guidance).toContain("None of the above");
+    expect(recipes[1]?.guidance).toContain("Date of birth");
+  });
+
+  it("collapses a type asked for twice, so one lookup cannot pay for the same text", async () => {
+    expect((await look(["postcode", "postcode"])).recipes).toHaveLength(1);
+  });
+
+  it("refuses a type no recipe file backs, rather than answering with nothing", async () => {
+    await expect(look(["date-of-birth-ish"])).rejects.toThrow();
+    await expect(look([])).rejects.toThrow();
+  });
+
+  it("advertises the generated index as its enum, so the two cannot drift", async () => {
+    const schema = (await agentToolJsonSchemas()).question_recipes as {
+      properties: { types: { items: { enum: string[] } } };
+    };
+
+    expect(schema.properties.types.items.enum).toEqual([...QUESTION_RECIPE_TYPES]);
+  });
+
+  it("reaches every recipe the index names", async () => {
+    for (const type of QUESTION_RECIPE_TYPES) {
+      const { recipes } = await look([type]);
+      expect(recipes[0]?.guidance.length, type).toBeGreaterThan(200);
+    }
   });
 });
 

@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { ACTION_KIND_NAMES, ACTION_KINDS } from "./actions/registry.js";
 import {
   ACTION_DESCRIPTIONS,
+  QUESTION_RECIPE_TYPES,
+  QUESTION_RECIPES,
   SYSTEM_PROMPT_SECTIONS,
   TOOL_DESCRIPTIONS,
 } from "./prompts/prompts.generated.js";
@@ -27,15 +29,21 @@ function sources(directory: string): { name: string; text: string }[] {
     .map((name) => ({ name, text: readFileSync(new URL(name, base), "utf8").replace(/\n$/, "") }));
 }
 
-/** The sections the person is spoken to through, which the avoid-words rule holds. */
+/**
+ * The text the person is spoken to through, which the avoid-words rule holds: the system
+ * sections before the contracts, and every recipe, which is guidance in the same voice.
+ */
 function guidanceSources(): { name: string; text: string }[] {
   const system = sources("system");
   const contracts = system.findIndex((source) => source.text.includes(CONTRACTS_HEADING));
   expect(contracts, `no system section carries "${CONTRACTS_HEADING}"`).toBeGreaterThan(0);
-  return system.slice(0, contracts);
+  return [
+    ...system.slice(0, contracts),
+    ...sources("recipes").map((source) => ({ ...source, name: `recipes/${source.name}` })),
+  ];
 }
 
-const PROMPT_DIRS = ["system", "tools", "actions"];
+const PROMPT_DIRS = ["system", "tools", "actions", "recipes"];
 
 /** The first segment of every tool name, which is what a mention is recognised by. */
 function toolHeads(): Set<string> {
@@ -81,6 +89,16 @@ describe("the assistant's prompt sources", () => {
     expect(Object.keys(TOOL_DESCRIPTIONS).sort()).toEqual(Object.keys(TOOLS).sort());
   });
 
+  it("holds one recipe per file, with the index and the enum in step with both", () => {
+    const names = sources("recipes").map((source) => source.name.replace(/\.md$/u, ""));
+    expect(names.length).toBeGreaterThan(0);
+    expect([...QUESTION_RECIPE_TYPES]).toEqual(names);
+    expect(Object.keys(QUESTION_RECIPES)).toEqual(names);
+    for (const type of QUESTION_RECIPE_TYPES) {
+      expect(QUESTION_RECIPES[type].length, type).toBeGreaterThan(200);
+    }
+  });
+
   it("describes every action kind, and no kind outside the registry", () => {
     expect(Object.keys(ACTION_DESCRIPTIONS).sort()).toEqual([...ACTION_KIND_NAMES].sort());
     expect(Object.keys(ACTION_DESCRIPTIONS).sort()).toEqual(Object.keys(ACTION_KINDS).sort());
@@ -102,7 +120,7 @@ describe("the assistant's prompt sources", () => {
   });
 
   it("writes no em dash in any prompt source", () => {
-    for (const directory of ["system", "tools", "actions"]) {
+    for (const directory of PROMPT_DIRS) {
       for (const source of sources(directory)) {
         expect(source.text, `${directory}/${source.name} carries an em dash`).not.toContain(
           EM_DASH,

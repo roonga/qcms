@@ -8,7 +8,7 @@
 export const PROMPT_SOURCE_PREFIX = "apps/api/src/features/agent/prompts/";
 
 /** The directories holding prompt text, each one Markdown file per entry. */
-export const PROMPT_SOURCE_DIRS = ["system", "tools", "actions"];
+export const PROMPT_SOURCE_DIRS = ["system", "tools", "actions", "recipes"];
 
 /** The as-sent view of the prompt, written by the agent's tests and read as a diff. */
 export const PROMPT_RENDERED_PREFIX = `${PROMPT_SOURCE_PREFIX}rendered/`;

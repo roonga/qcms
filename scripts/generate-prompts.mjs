@@ -125,6 +125,25 @@ export function descriptionProblems(sources) {
 }
 
 /**
+ * @param {PromptSource[]} sources question-type recipes
+ * @returns {string[]} one message per recipe the lookup tool could not return
+ */
+export function recipeProblems(sources) {
+  /** @type {string[]} */
+  const problems = [];
+  for (const source of sources) {
+    if (source.text.trim() === "") problems.push(`${source.path} is empty.`);
+    if (!/^[a-z][a-z0-9-]*$/.test(source.name)) {
+      problems.push(`${source.path} is named outside the type enum's shape, a-z and hyphens.`);
+    }
+    if (placeholdersIn(source.text).length > 0) {
+      problems.push(`${source.path} uses a placeholder, and a recipe fills none.`);
+    }
+  }
+  return problems;
+}
+
+/**
  * The hash the recorded one is compared against: every source's name and bytes in a
  * fixed order, so nothing about the file system can change it.
  *
@@ -154,6 +173,31 @@ function renderRecord(name, sources) {
 }
 
 /**
+ * A record keeping each source's own line breaks, which a recipe the model reads needs and
+ * a one-line schema description does not.
+ *
+ * @param {string} name
+ * @param {PromptSource[]} sources
+ * @returns {string}
+ */
+function renderTextRecord(name, sources) {
+  const entries = sources.map(
+    (source) => `  ${JSON.stringify(source.name)}: ${JSON.stringify(source.text)},`,
+  );
+  return [`export const ${name} = {`, ...entries, "} as const;"].join("\n");
+}
+
+/**
+ * @param {string} name
+ * @param {PromptSource[]} sources
+ * @returns {string}
+ */
+function renderNameList(name, sources) {
+  const entries = sources.map((source) => `  ${JSON.stringify(source.name)},`);
+  return [`export const ${name} = [`, ...entries, "] as const;"].join("\n");
+}
+
+/**
  * @param {Record<string, PromptSource[]>} byDirectory
  * @returns {string} the module before Prettier formats it
  */
@@ -174,6 +218,12 @@ export function renderModule(byDirectory) {
     "",
     "/** One per action kind, keyed by the kind a proposed step names. */",
     renderRecord("ACTION_DESCRIPTIONS", byDirectory.actions ?? []),
+    "",
+    "/** One per common question type, keyed by the type the lookup tool names. */",
+    renderTextRecord("QUESTION_RECIPES", byDirectory.recipes ?? []),
+    "",
+    "/** The recipe index, from the file names: the lookup tool's enum, in file order. */",
+    renderNameList("QUESTION_RECIPE_TYPES", byDirectory.recipes ?? []),
     "",
   ].join("\n");
 }
@@ -248,6 +298,7 @@ async function generated() {
   const problems = [
     ...placeholderProblems(byDirectory.system ?? []),
     ...descriptionProblems([...(byDirectory.tools ?? []), ...(byDirectory.actions ?? [])]),
+    ...recipeProblems(byDirectory.recipes ?? []),
   ];
   if (problems.length > 0) {
     throw new Error(
