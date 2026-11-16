@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { makeDeps, validEnv } from "../../test-support.js";
+import { EDIT_HEADER, agentEditDisabled, agentEditProvenance } from "./edit-provenance.js";
 import { agentProvenance, agentProvenanceDisabled } from "./provenance-mount.js";
 import { PROPOSAL_HEADER, PROPOSAL_STEP_HEADER } from "./provenance.js";
 
@@ -104,5 +105,28 @@ describe("the provenance middleware as the admin group mounts it", () => {
     });
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ code: "AGENT_PROPOSAL_ROUTE" });
+  });
+});
+
+describe("the edit middleware as the admin group mounts it", () => {
+  it("serves a request carrying no edit token unchanged, flag on or off", async () => {
+    for (const middleware of [agentEditProvenance(depsWith("fake")), agentEditDisabled()]) {
+      const res = await post(appWith(middleware));
+      expect(res.status).toBe(200);
+    }
+  });
+
+  it("refuses a presented edit token with 400 when the deployment mints none", async () => {
+    const res = await post(appWith(agentEditDisabled()), { [EDIT_HEADER]: "anything" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ code: "AGENT_EDIT_DISABLED" });
+  });
+
+  it("refuses an edit token on any route but the draft save", async () => {
+    const res = await post(appWith(agentEditProvenance(depsWith("fake"))), {
+      [EDIT_HEADER]: "eyJ2IjoxfQ.sig",
+    });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ code: "AGENT_EDIT_ROUTE" });
   });
 });

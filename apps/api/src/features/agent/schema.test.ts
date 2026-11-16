@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   ActionResultTurnBody,
   ActionStepResultBody,
+  BUILDER_FACTS,
+  LayoutReportFact,
+  PreviewSelectionFact,
   ScreenAssistBody,
   conversationRefusal,
   stepResultRefusal,
@@ -152,5 +155,95 @@ describe("the turn the card sends", () => {
         steps: Array.from({ length: 26 }, () => ({ kind: "link.mint", outcome: "not-run" })),
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("the builder facts (G1)", () => {
+  const SENTINEL = "RESPONDENT-ONLY-SENTINEL-VALUE";
+  const selection = {
+    fact: "preview-selection",
+    formId: "frm_contact",
+    stepId: "stp_one",
+    questionId: "q_first_name",
+    device: "phone",
+    viewport: { width: 390, height: 844 },
+  };
+  const layout = {
+    fact: "layout-report",
+    formId: "frm_contact",
+    stepId: "stp_one",
+    device: "tablet",
+    viewport: { width: 768, height: 1024 },
+    orientation: "portrait",
+    zoomPercent: 100,
+    colorScheme: "dark",
+    highContrast: false,
+    pageHeight: 1800,
+    findings: [{ questionId: "q_first_name", issue: "truncated-label" }],
+  };
+
+  it("accepts a measured selection and layout report", () => {
+    expect(PreviewSelectionFact.safeParse(selection).success).toBe(true);
+    expect(LayoutReportFact.safeParse(layout).success).toBe(true);
+  });
+
+  it("refuses an extra key at any depth", () => {
+    expect(PreviewSelectionFact.safeParse({ ...selection, label: "First name" }).success).toBe(
+      false,
+    );
+    expect(
+      LayoutReportFact.safeParse({
+        ...layout,
+        findings: [{ questionId: "q_first_name", issue: "clipped", text: "First name" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      LayoutReportFact.safeParse({ ...layout, viewport: { width: 768, height: 1024, dpr: 2 } })
+        .success,
+    ).toBe(false);
+  });
+
+  it("refuses a free string or authored text where an id or an enum goes", () => {
+    expect(
+      PreviewSelectionFact.safeParse({ ...selection, questionId: "What is your first name?" })
+        .success,
+    ).toBe(false);
+    expect(
+      LayoutReportFact.safeParse({
+        ...layout,
+        findings: [{ questionId: "q_first_name", issue: "the label reads Jane Doe" }],
+      }).success,
+    ).toBe(false);
+    expect(LayoutReportFact.safeParse({ ...layout, device: "Jane's phone" }).success).toBe(false);
+  });
+
+  it("refuses the respondent sentinel in every string slot of both facts", () => {
+    const cases: readonly [string, typeof PreviewSelectionFact | typeof LayoutReportFact, object][] =
+      [
+        ["selection formId", PreviewSelectionFact, { ...selection, formId: SENTINEL }],
+        ["selection stepId", PreviewSelectionFact, { ...selection, stepId: SENTINEL }],
+        ["selection questionId", PreviewSelectionFact, { ...selection, questionId: SENTINEL }],
+        ["selection instanceId", PreviewSelectionFact, { ...selection, instanceId: SENTINEL }],
+        ["selection device", PreviewSelectionFact, { ...selection, device: SENTINEL }],
+        ["layout formId", LayoutReportFact, { ...layout, formId: SENTINEL }],
+        ["layout stepId", LayoutReportFact, { ...layout, stepId: SENTINEL }],
+        ["layout orientation", LayoutReportFact, { ...layout, orientation: SENTINEL }],
+        ["layout colorScheme", LayoutReportFact, { ...layout, colorScheme: SENTINEL }],
+        [
+          "layout finding",
+          LayoutReportFact,
+          { ...layout, findings: [{ questionId: SENTINEL, issue: "clipped" }] },
+        ],
+      ];
+    for (const [name, schema, value] of cases) {
+      expect(schema.safeParse(value).success, name).toBe(false);
+    }
+  });
+
+  it("lists both facts for the vocabulary walk", () => {
+    expect(BUILDER_FACTS.map((entry) => entry.name)).toEqual([
+      "fact preview-selection",
+      "fact layout-report",
+    ]);
   });
 });

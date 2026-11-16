@@ -1,0 +1,612 @@
+import { FormId, parseQuestionDefinition, QuestionId } from "@roonga/qcms-core";
+import {
+  SEED_WORKSPACE_ID,
+  createForm,
+  createQuestion,
+  createQuestionVersion,
+  insertFormVersion,
+  publishQuestionVersion,
+} from "@roonga/qcms-db";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { createApp } from "../../app.js";
+import type { Deps } from "../../deps.js";
+import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
+import {
+  REQUEST_ENVIRONMENT_HEADER,
+  registerRequestEnvironment,
+} from "../../middleware/request-environment.js";
+import {
+  disableSeededAccount,
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  seedGrants,
+  suspendSeededGrant,
+  validEnv,
+} from "../../test-support.js";
+import { registerForms } from "../forms/route.js";
+import { registerGrantCheck } from "../membership/middleware.js";
+import { registerQuestions } from "../questions/route.js";
+import { EDIT_HEADER } from "./edit-provenance.js";
+import {
+  EDIT_TOKEN_PURPOSE,
+  EDIT_TOKEN_VERSION,
+  EDIT_TTL_MS,
+  EDITS_PER_TURN,
+  mintTurnEditTokens,
+  signEditToken,
+  type EditOp,
+} from "./edit-token.js";
+import { registerAgentProvenance } from "./provenance-mount.js";
+import { PROPOSAL_HEADER, PROPOSAL_STEP_HEADER } from "./provenance.js";
+import { registerAgentChanges, registerFormsAssist } from "./route.js";
+
+const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
+const TIMEOUT_MS = 60_000;
+
+let testDb: TestDb;
+let deps: Deps;
+let app: ReturnType<typeof createApp>;
+let internalToken: string;
+let owner: { token: string; userId: string };
+let other: { token: string; userId: string };
+
+let now = new Date("2026-07-20T00:00:00.000Z");
+
+interface Caller {
+  readonly token: string;
+  readonly userId: string;
+}
+
+beforeAll(async () => {
+  testDb = await startTestDb();
+  deps = makeDeps({
+    db: testDb.db,
+    clock: { now: () => now },
+    env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }),
+  });
+  app = createApp(deps, ADMIN_ONLY, {
+    groups: {
+      admin: [
+        registerAdminAuth,
+        registerRequestEnvironment,
+        registerGrantCheck,
+        registerAgentProvenance,
+        registerQuestions,
+        registerForms,
+        registerFormsAssist,
+        registerAgentChanges,
+      ],
+    },
+  });
+  internalToken = internalTokenFor(deps.config);
+  owner = await seedAdminSession(testDb.db, { label: "edit_owner", at: now });
+  other = await seedAdminSession(testDb.db, { label: "edit_other", at: now });
+  const questionId = QuestionId.parse("q_edit_name");
+  const parsed = parseQuestionDefinition({
+    questionId: "q_edit_name",
+    type: "shortText",
+    label: { en: "Name" },
+  });
+  if (!parsed.ok) throw new Error("fixture question did not parse");
+  await createQuestion(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId,
+    slug: "edit-name",
+  });
+  await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
+  await publishQuestionVersion(testDb.db, { questionId, version: 1 });
+}, CONTAINER_BOOT_TIMEOUT_MS);
+
+afterAll(async () => {
+  await testDb?.teardown();
+}, CONTAINER_BOOT_TIMEOUT_MS);
+
+function definition(formId: string, title: string): Record<string, unknown> {
+  return {
+    formId,
+    defaultLocale: "en",
+    title: { en: title },
+    steps: [
+      {
+        stepId: "stp_one",
+        title: { en: "One" },
+        items: [{ questionId: "q_edit_name", version: 1 }],
+      },
+    ],
+    rules: [],
+  };
+}
+
+let formCounter = 0;
+
+/** A form with one human-saved draft, at revision 1. */
+async function seededForm(): Promise<string> {
+  formCounter += 1;
+  const formId = `frm_edit_${String(formCounter).padStart(3, "0")}`;
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FormId.parse(formId),
+    slug: `edit-${String(formCounter)}`,
+    defaultLocale: "en",
+  });
+  const res = await put(owner, formId, { definition: definition(formId, "Start") });
+  expect(res.status).toBe(200);
+  return formId;
+}
+
+function headers(caller: Caller, extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    "x-qcms-internal-token": internalToken,
+    [ADMIN_SESSION_HEADER]: caller.token,
+    [REQUEST_ENVIRONMENT_HEADER]: "test",
+    ...extra,
+  };
+}
+
+async function put(
+  caller: Caller,
+  formId: string,
+  body: unknown,
+  token?: string,
+  extra: Record<string, string> = {},
+): Promise<Response> {
+  return app.request(`/admin/forms/${formId}/draft`, {
+    method: "PUT",
+    headers: headers(caller, token === undefined ? extra : { ...extra, [EDIT_HEADER]: token }),
+    body: JSON.stringify(body),
+  });
+}
+
+async function tokens(
+  caller: Caller,
+  formId: string,
+  ops: readonly EditOp[],
+  startRevision = 1,
+): Promise<readonly string[]> {
+  return (
+    await mintTurnEditTokens(deps.config.keys.app, {
+      sub: caller.userId,
+      formId,
+      startRevision,
+      ops,
+      issuedAt: now,
+    })
+  ).tokens;
+}
+
+async function codeOf(res: Response): Promise<string> {
+  const body = (await res.json()) as { error?: { code?: string } };
+  return body.error?.code ?? "";
+}
+
+async function undoTokenOf(res: Response): Promise<string> {
+  const body = (await res.json()) as { agentEdit?: { undoToken: string | null } };
+  const token = body.agentEdit?.undoToken;
+  if (typeof token !== "string") throw new Error("the edit returned no undo token");
+  return token;
+}
+
+async function rowsFor(formId: string): Promise<{ kind: string; detail: string | null }[]> {
+  const result = await testDb.client.query<{ kind: string; detail: string | null }>(
+    `select kind, detail from control.agent_actions where form_id = $1
+       order by confirmed_at, proposal_id, step_index`,
+    [formId],
+  );
+  return result.rows;
+}
+
+async function draftTitle(formId: string): Promise<string> {
+  const result = await testDb.client.query<{ title: string }>(
+    `select definition->'title'->>'en' as title from control.form_drafts where form_id = $1`,
+    [formId],
+  );
+  return result.rows[0]?.title ?? "";
+}
+
+async function agentChanges(caller: Caller, formId: string) {
+  const res = await app.request(`/admin/forms/${formId}/draft/agent-changes`, {
+    headers: headers(caller),
+  });
+  expect(res.status).toBe(200);
+  return (await res.json()) as {
+    base: { version: number } | null;
+    draft: { revision: number } | null;
+    agentAssisted: boolean;
+    changes: { kind: string; revision: number | null }[];
+  };
+}
+
+describe("a card-less edit through the single draft save path", { timeout: TIMEOUT_MS }, () => {
+  it("saves the edit, writes exactly one row and returns its undo token", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, ["copy"]);
+    const res = await put(owner, formId, { definition: definition(formId, "Edited") }, token);
+    expect(res.status).toBe(200);
+    await undoTokenOf(res);
+    expect(await draftTitle(formId)).toBe("Edited");
+    expect(await rowsFor(formId)).toEqual([{ kind: "draft.copy", detail: "2" }]);
+  });
+
+  it("applies a turn's edits in order, one row each", async () => {
+    const formId = await seededForm();
+    const turn = await tokens(owner, formId, ["question", "step", "rule"]);
+    for (const [index, token] of turn.entries()) {
+      const res = await put(
+        owner,
+        formId,
+        { definition: definition(formId, `Edit ${String(index)}`) },
+        token,
+      );
+      expect(res.status).toBe(200);
+    }
+    expect(await rowsFor(formId)).toEqual([
+      { kind: "draft.question", detail: "2" },
+      { kind: "draft.step", detail: "3" },
+      { kind: "draft.rule", detail: "4" },
+    ]);
+  });
+});
+
+describe("the injection cases (X4, A6)", { timeout: TIMEOUT_MS }, () => {
+  it("ignores a forged agentAssisted mark for provenance and for the wizard's read", async () => {
+    const formId = await seededForm();
+    const res = await put(owner, formId, {
+      definition: definition(formId, "Forged"),
+      agentAssisted: true,
+    });
+    expect(res.status).toBe(200);
+    expect(await rowsFor(formId)).toEqual([]);
+    const read = await agentChanges(owner, formId);
+    expect(read.agentAssisted).toBe(false);
+    expect(read.changes).toEqual([]);
+  });
+
+  it("reports each recorded edit to the wizard, and only those", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, ["question"]);
+    expect(
+      (await put(owner, formId, { definition: definition(formId, "Agent") }, token)).status,
+    ).toBe(200);
+    expect(
+      (await put(owner, formId, { definition: definition(formId, "Human"), agentAssisted: true }))
+        .status,
+    ).toBe(200);
+    const read = await agentChanges(owner, formId);
+    expect(read.agentAssisted).toBe(true);
+    expect(read.changes).toEqual([
+      expect.objectContaining({ kind: "draft.question", revision: 2 }),
+    ]);
+    expect(read.draft?.revision).toBe(3);
+  });
+
+  it("counts only the changes since the newest publish", async () => {
+    const formId = await seededForm();
+    const [early] = await tokens(owner, formId, ["copy"]);
+    expect((await put(owner, formId, { definition: definition(formId, "A") }, early)).status).toBe(
+      200,
+    );
+    type VersionInput = Parameters<typeof insertFormVersion>[1];
+    now = new Date(now.getTime() + 1_000);
+    await insertFormVersion(testDb.db, {
+      formId: FormId.parse(formId),
+      definition: definition(formId, "A") as unknown as VersionInput["definition"],
+      appearance: null,
+      compiled: {} as unknown as VersionInput["compiled"],
+      compilerVersion: "1.0.0",
+      a2uiSpecVersion: "1.0.0",
+      semanticsVersion: "1",
+      publishedAt: now,
+    });
+    expect((await agentChanges(owner, formId)).changes).toEqual([]);
+
+    now = new Date(now.getTime() + 1_000);
+    const [late] = await tokens(owner, formId, ["rule"], 2);
+    expect((await put(owner, formId, { definition: definition(formId, "B") }, late)).status).toBe(
+      200,
+    );
+    const read = await agentChanges(owner, formId);
+    expect(read.base?.version).toBe(1);
+    expect(read.changes.map((change) => change.kind)).toEqual(["draft.rule"]);
+  });
+});
+
+describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
+  it("refuses a token for a revision the draft has moved past", async () => {
+    const formId = await seededForm();
+    expect((await put(owner, formId, { definition: definition(formId, "Human") })).status).toBe(
+      200,
+    );
+    const [stale] = await tokens(owner, formId, ["copy"], 1);
+    const res = await put(owner, formId, { definition: definition(formId, "Agent") }, stale);
+    expect(res.status).toBe(409);
+    expect(await codeOf(res)).toBe("AGENT_EDIT_REVISION");
+    expect(await draftTitle(formId)).toBe("Human");
+    expect(await rowsFor(formId)).toEqual([]);
+  });
+
+  it("refuses a replayed token and writes no second row", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, ["copy"]);
+    expect((await put(owner, formId, { definition: definition(formId, "Once") }, token)).status).toBe(
+      200,
+    );
+    const replay = await put(owner, formId, { definition: definition(formId, "Twice") }, token);
+    expect(replay.status).toBe(403);
+    expect(await codeOf(replay)).toBe("AGENT_EDIT_REPLAYED");
+    expect(await draftTitle(formId)).toBe("Once");
+    expect(await rowsFor(formId)).toHaveLength(1);
+  });
+
+  it("refuses another user's token", async () => {
+    const formId = await seededForm();
+    const [theirs] = await tokens(other, formId, ["copy"]);
+    const res = await put(owner, formId, { definition: definition(formId, "X") }, theirs);
+    expect(res.status).toBe(403);
+    expect(await codeOf(res)).toBe("AGENT_EDIT_SUBJECT");
+    expect(await rowsFor(formId)).toEqual([]);
+  });
+
+  it("refuses another form's token", async () => {
+    const formId = await seededForm();
+    const elsewhere = await seededForm();
+    const [token] = await tokens(owner, elsewhere, ["copy"]);
+    const res = await put(owner, formId, { definition: definition(formId, "X") }, token);
+    expect(res.status).toBe(403);
+    expect(await codeOf(res)).toBe("AGENT_EDIT_FORM");
+    expect(await rowsFor(formId)).toEqual([]);
+    expect(await rowsFor(elsewhere)).toEqual([]);
+  });
+
+  it("refuses an edit over the per-turn cap", async () => {
+    const formId = await seededForm();
+    const iat = now.getTime();
+    const overCap = await signEditToken(deps.config.keys.app, {
+      v: EDIT_TOKEN_VERSION,
+      purpose: EDIT_TOKEN_PURPOSE,
+      act: "edit",
+      sub: owner.userId,
+      formId,
+      tid: "edt_overcapturn01",
+      n: EDITS_PER_TURN,
+      op: "copy",
+      rev: 1,
+      iat,
+      exp: iat + EDIT_TTL_MS,
+    });
+    const res = await put(owner, formId, { definition: definition(formId, "X") }, overCap);
+    expect(res.status).toBe(403);
+    expect(await codeOf(res)).toBe("AGENT_EDIT_CAP");
+    await expect(
+      mintTurnEditTokens(deps.config.keys.app, {
+        sub: owner.userId,
+        formId,
+        startRevision: 1,
+        ops: Array.from({ length: EDITS_PER_TURN + 1 }, () => "copy" as const),
+        issuedAt: now,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("refuses an expired token", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, ["copy"]);
+    now = new Date(now.getTime() + EDIT_TTL_MS + 1);
+    try {
+      const res = await put(owner, formId, { definition: definition(formId, "Late") }, token);
+      expect(res.status).toBe(403);
+      expect(await codeOf(res)).toBe("AGENT_EDIT_EXPIRED");
+    } finally {
+      now = new Date(now.getTime() - EDIT_TTL_MS - 1);
+    }
+  });
+
+  it("refuses an edit whose save changes what its op does not cover", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, ["appearance"]);
+    const res = await put(owner, formId, { definition: definition(formId, "Renamed") }, token);
+    expect(res.status).toBe(422);
+    expect(await codeOf(res)).toBe("AGENT_EDIT_OP");
+    expect(await rowsFor(formId)).toEqual([]);
+  });
+
+  it("refuses a request carrying both a card's token and an edit token", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, ["copy"]);
+    const res = await put(owner, formId, { definition: definition(formId, "X") }, token, {
+      [PROPOSAL_HEADER]: "a.b",
+      [PROPOSAL_STEP_HEADER]: "0",
+    });
+    expect(res.status).toBe(403);
+    expect(await rowsFor(formId)).toEqual([]);
+  });
+});
+
+describe("the edit route kind writes no library version (Q22)", { timeout: TIMEOUT_MS }, () => {
+  async function libraryRows(): Promise<number> {
+    const result = await testDb.client.query<{ n: number }>(
+      `select (select count(*) from control.questions) + (select count(*) from control.question_versions) as n`,
+    );
+    return Number(result.rows[0]?.n ?? 0);
+  }
+
+  it("refuses an edit token on a library route and on the assist accept", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, ["question"]);
+    const before = await libraryRows();
+    const create = await app.request("/admin/questions", {
+      method: "POST",
+      headers: headers(owner, { [EDIT_HEADER]: token as string }),
+      body: JSON.stringify({
+        definition: { questionId: "q_edit_smuggled", type: "shortText", label: { en: "X" } },
+        slug: "edit-smuggled",
+      }),
+    });
+    expect(create.status).toBe(403);
+    expect(await codeOf(create)).toBe("AGENT_EDIT_ROUTE");
+    const accept = await app.request(`/admin/forms/${formId}/draft/assist/accept`, {
+      method: "POST",
+      headers: headers(owner, { [EDIT_HEADER]: token as string }),
+      body: JSON.stringify({
+        definition: definition(formId, "X"),
+        newQuestions: [
+          {
+            definition: { questionId: "q_edit_accepted", type: "shortText", label: { en: "X" } },
+          },
+        ],
+      }),
+    });
+    expect(accept.status).toBe(403);
+    expect(await codeOf(accept)).toBe("AGENT_EDIT_ROUTE");
+    expect(await libraryRows()).toBe(before);
+  });
+
+  it("saves a draft naming an unknown question without creating it", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, ["question"]);
+    const before = await libraryRows();
+    const body = definition(formId, "Pins");
+    (body["steps"] as { items: unknown[] }[])[0]?.items.push({
+      questionId: "q_edit_unknown",
+      version: 1,
+    });
+    expect((await put(owner, formId, { definition: body }, token)).status).toBe(200);
+    expect(await libraryRows()).toBe(before);
+  });
+});
+
+describe("Undo through the same path and its own token", { timeout: TIMEOUT_MS }, () => {
+  it("reverses exactly one op, latest first, one row each", async () => {
+    const formId = await seededForm();
+    const [first, second] = await tokens(owner, formId, ["copy", "copy"]);
+    const undoFirst = await undoTokenOf(
+      await put(owner, formId, { definition: definition(formId, "One") }, first),
+    );
+    const undoSecond = await undoTokenOf(
+      await put(owner, formId, { definition: definition(formId, "Two") }, second),
+    );
+
+    const back = await put(owner, formId, { definition: definition(formId, "One") }, undoSecond);
+    expect(back.status).toBe(200);
+    expect(((await back.json()) as { agentEdit?: unknown }).agentEdit).toEqual({ undoToken: null });
+    expect(await draftTitle(formId)).toBe("One");
+
+    expect(
+      (await put(owner, formId, { definition: definition(formId, "Start") }, undoFirst)).status,
+    ).toBe(200);
+    expect(await draftTitle(formId)).toBe("Start");
+    expect((await rowsFor(formId)).map((row) => row.kind)).toEqual([
+      "draft.copy",
+      "draft.copy",
+      "draft.undo",
+      "draft.undo",
+    ]);
+  });
+
+  it("refuses an Undo of an op a later edit has superseded", async () => {
+    const formId = await seededForm();
+    const [first, second] = await tokens(owner, formId, ["copy", "copy"]);
+    const undoFirst = await undoTokenOf(
+      await put(owner, formId, { definition: definition(formId, "One") }, first),
+    );
+    expect(
+      (await put(owner, formId, { definition: definition(formId, "Two") }, second)).status,
+    ).toBe(200);
+    const res = await put(owner, formId, { definition: definition(formId, "Start") }, undoFirst);
+    expect(res.status).toBe(409);
+    expect(await codeOf(res)).toBe("AGENT_UNDO_SUPERSEDED");
+    expect(await draftTitle(formId)).toBe("Two");
+  });
+
+  it("refuses an Undo superseded by a human save", async () => {
+    const formId = await seededForm();
+    const [first] = await tokens(owner, formId, ["copy"]);
+    const undo = await undoTokenOf(
+      await put(owner, formId, { definition: definition(formId, "One") }, first),
+    );
+    expect((await put(owner, formId, { definition: definition(formId, "Human") })).status).toBe(
+      200,
+    );
+    const res = await put(owner, formId, { definition: definition(formId, "Start") }, undo);
+    expect(res.status).toBe(409);
+    expect(await codeOf(res)).toBe("AGENT_UNDO_SUPERSEDED");
+  });
+
+  it("refuses an Undo whose body is not the state before the edit, and a replayed Undo", async () => {
+    const formId = await seededForm();
+    const [first] = await tokens(owner, formId, ["copy"]);
+    const undo = await undoTokenOf(
+      await put(owner, formId, { definition: definition(formId, "One") }, first),
+    );
+    const wrong = await put(owner, formId, { definition: definition(formId, "Other") }, undo);
+    expect(wrong.status).toBe(422);
+    expect(await codeOf(wrong)).toBe("AGENT_UNDO_MISMATCH");
+
+    expect(
+      (await put(owner, formId, { definition: definition(formId, "Start") }, undo)).status,
+    ).toBe(200);
+    const replay = await put(owner, formId, { definition: definition(formId, "Start") }, undo);
+    expect(replay.status).toBe(403);
+    expect(await codeOf(replay)).toBe("AGENT_EDIT_REPLAYED");
+    expect((await rowsFor(formId)).map((row) => row.kind)).toEqual(["draft.copy", "draft.undo"]);
+  });
+
+  it("refuses another user's Undo token", async () => {
+    const formId = await seededForm();
+    const [first] = await tokens(owner, formId, ["copy"]);
+    const undo = await undoTokenOf(
+      await put(owner, formId, { definition: definition(formId, "One") }, first),
+    );
+    const res = await put(other, formId, { definition: definition(formId, "Start") }, undo);
+    expect(res.status).toBe(403);
+    expect(await codeOf(res)).toBe("AGENT_EDIT_SUBJECT");
+  });
+});
+
+describe("account and membership state, rechecked on every edit request", { timeout: TIMEOUT_MS }, () => {
+  it("refuses the next edit once the account is disabled", async () => {
+    const editor = await seedAdminSession(testDb.db, { label: "edit_disabled", at: now });
+    const formId = await seededForm();
+    const [first, second] = await tokens(editor, formId, ["copy", "copy"]);
+    expect((await put(editor, formId, { definition: definition(formId, "One") }, first)).status).toBe(
+      200,
+    );
+    await disableSeededAccount(testDb.db, editor.userId, now);
+    const res = await put(editor, formId, { definition: definition(formId, "Two") }, second);
+    expect(res.status).toBe(401);
+    expect(await draftTitle(formId)).toBe("One");
+    expect(await rowsFor(formId)).toHaveLength(1);
+  });
+
+  it("refuses the next edit once the membership is suspended", async () => {
+    const editor = await seedAdminSession(testDb.db, {
+      label: "edit_suspended",
+      at: now,
+      membership: false,
+      claim: false,
+    });
+    const { teamIds } = await seedGrants(testDb.db, {
+      userId: editor.userId,
+      grants: ["forms.editor"],
+      owner: false,
+    });
+    const formId = await seededForm();
+    const [first, second] = await tokens(editor, formId, ["copy", "copy"]);
+    expect((await put(editor, formId, { definition: definition(formId, "One") }, first)).status).toBe(
+      200,
+    );
+    await suspendSeededGrant(testDb.db, {
+      teamId: teamIds["forms.editor"] as string,
+      userId: editor.userId,
+      by: owner.userId,
+      at: now,
+    });
+    const res = await put(editor, formId, { definition: definition(formId, "Two") }, second);
+    expect(res.status).toBe(403);
+    expect(await draftTitle(formId)).toBe("One");
+    expect(await rowsFor(formId)).toHaveLength(1);
+  });
+});

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { REDACT_FRAGMENTS } from "@roonga/qcms-observability";
 
 import { ACTION_KIND_NAMES, actionKind, actsInOneEnvironment } from "./actions/registry.js";
-import { WaitingProposalTurnBody } from "./schema.js";
+import { BUILDER_FACTS, WaitingProposalTurnBody } from "./schema.js";
 import {
   SCREEN_IDS,
   SCREENS,
@@ -214,13 +214,30 @@ describe("no answer value can be described by any schema", () => {
       schema: TOOLS[name].outputSchema,
     })),
     ...REPLAYED_TURNS,
+    ...BUILDER_FACTS,
   ];
 
-  it("walks every facts schema, tool output schema and replayed turn body", () => {
+  it("walks every facts schema, tool output schema, replayed turn body and builder fact", () => {
     // A guard on the guard: a registry that lost its rows would pass vacuously.
     expect(schemas.length).toBe(
-      SCREEN_IDS.length + AGENT_TOOL_NAMES.length + REPLAYED_TURNS.length,
+      SCREEN_IDS.length + AGENT_TOOL_NAMES.length + REPLAYED_TURNS.length + BUILDER_FACTS.length,
     );
+  });
+
+  it("closes both builder facts at every depth", () => {
+    const open: string[] = [];
+    const walk = (node: unknown, at: string): void => {
+      if (Array.isArray(node)) {
+        node.forEach((item, index) => walk(item, `${at}[${String(index)}]`));
+        return;
+      }
+      if (node === null || typeof node !== "object") return;
+      const record = node as Record<string, unknown>;
+      if (record["type"] === "object" && record["additionalProperties"] !== false) open.push(at);
+      for (const [key, value] of Object.entries(record)) walk(value, `${at}.${key}`);
+    };
+    for (const { name, schema } of BUILDER_FACTS) walk(jsonSchemaOf(schema), name);
+    expect(open).toEqual([]);
   });
 
   it("names no field from the respondent-content or secret vocabulary", () => {
