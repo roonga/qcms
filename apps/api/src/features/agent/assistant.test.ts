@@ -737,6 +737,25 @@ describe("prompt framing", () => {
     };
   }
 
+  it("puts the server's own date in the turn's context, where a date bound needs it", () => {
+    const { ctx } = contextFor("a date of birth that rules out under-fives");
+    const dated = toModelMessages({ ...builderTurnContext(ctx), today: "2026-07-20" });
+    const facts = dated.map((message) => contentOf(message)).find((text) => text.includes("Today"));
+
+    expect(facts).toContain("Today is 2026-07-20 where this installation runs.");
+    // After the draft preamble and before the person's own words, which is where the
+    // volatile half of the prompt lives: the cacheable prefix above it cannot move.
+    expect(contentOf(dated[1])).toContain("Today is 2026-07-20");
+    expect(contentOf(dated[1])).toContain("The user is now on");
+  });
+
+  it("says nothing about a date when the turn carries none", () => {
+    const { ctx } = contextFor("a date of birth that rules out under-fives");
+    const undated = toModelMessages(builderTurnContext(ctx));
+
+    expect(JSON.stringify(undated)).not.toContain("Today is");
+  });
+
   it("tells the model a card is still waiting, and only its step kinds", () => {
     const { ctx } = contextFor("publish it to test and give me the test link");
     const messages = toModelMessages(
