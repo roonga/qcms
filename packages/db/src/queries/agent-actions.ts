@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 
 import { agentActions } from "../schema/control/agent-actions.js";
 import type { Executor } from "./executor.js";
@@ -117,4 +117,50 @@ export async function listAgentActions(
     .where(where);
 
   return { rows, total: counted[0]?.total ?? 0 };
+}
+
+/** Whether one step row is recorded, read inside the transaction that would write it. */
+export async function agentStepRecorded(
+  exec: Executor,
+  proposalId: string,
+  stepIndex: number,
+): Promise<boolean> {
+  const rows = await exec
+    .select({ id: agentActions.id })
+    .from(agentActions)
+    .where(and(eq(agentActions.proposalId, proposalId), eq(agentActions.stepIndex, stepIndex)))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
+ * One form's newest `limit` rows of the given kinds, returned oldest first, optionally only
+ * those confirmed after `after`.
+ */
+export async function listFormAgentActions(
+  exec: Executor,
+  formId: string,
+  options: {
+    readonly kinds: readonly string[];
+    readonly after?: Date | undefined;
+    readonly limit?: number;
+  },
+): Promise<readonly AgentActionRow[]> {
+  if (options.kinds.length === 0) return [];
+  const scope = and(
+    eq(agentActions.formId, formId),
+    inArray(agentActions.kind, [...options.kinds]),
+    ...(options.after === undefined ? [] : [gt(agentActions.confirmedAt, options.after)]),
+  );
+  const rows = await exec
+    .select(actionColumns)
+    .from(agentActions)
+    .where(scope)
+    .orderBy(
+      desc(agentActions.confirmedAt),
+      desc(agentActions.proposalId),
+      desc(agentActions.stepIndex),
+    )
+    .limit(options.limit ?? 500);
+  return rows.reverse();
 }

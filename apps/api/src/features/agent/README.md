@@ -18,6 +18,7 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 | `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState?, screen?, params?, conversationId?, visitId? }`. Answers `text/event-stream`.        |
 | `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.                                               |
 | `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId, visitId? }`. Answers `text/event-stream`. |
+| `GET /admin/forms/:id/draft/agent-changes`  | `forms:read`                     | The wizard's read: the newest published version, the open draft and the agent draft changes recorded since. Mounted whatever the flag.  |
 
 Both turn routes share **one per-principal limiter key** (Q19), so ten turns a
 minute is the caller's whole budget rather than one budget per route.
@@ -47,7 +48,8 @@ flag-gated, and streams rather than returning a modelled JSON body.
 | `proposal-token.ts`                     | The signed proposal token: the ordered step list, each step's argument digest and the environment it acts in.                                                                                                                            |
 | `draft-pins.ts`                         | The form's saved draft as a plan sees it: the versions it pins unpublished, and the revision a plan built from them is bound to.                                                                                                         |
 | `provenance.ts` / `provenance-mount.ts` | The provenance check and the middleware the admin group mounts it as. It adds provenance and never rights.                                                                                                                               |
-| `audit.ts`                              | The one `control.agent_actions` row a confirmed step writes.                                                                                                                                                                             |
+| `audit.ts`                              | The one `control.agent_actions` row a confirmed step writes, and the draft-state check and row of a card-less builder edit or Undo, inside the draft save's transaction.                                                                 |
+| `edit-token.ts` / `edit-provenance.ts`  | The builder's edit and Undo tokens under their own purpose key, and the middleware that admits one on `PUT /admin/forms/:id/draft` alone.                                                                                                |
 | `grant-filter.ts`                       | The (kind, environment) pairs a turn is offered, through the evaluator the route middleware uses.                                                                                                                                        |
 | `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                                                                                                                               |
 | `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                                                                                                                                |
@@ -520,3 +522,22 @@ wrote no row, and a step the next one orders itself behind is recorded before it
 result reaches the browser. What is given up is only atomicity between the act and
 its own provenance record, which no single-database reading of the design could
 have kept.
+
+## A card-less builder edit carries a token, not a card
+
+Draft edits from the agent builder take no Confirm (Q14), so the save carries
+what a card carried. The turn mints one token per op with `mintTurnEditTokens`,
+each bound to the user, the form, the turn, its index under the 25-a-turn cap,
+the op, the revision it applies to and the newest published version. The
+browser applies each through the one draft save path with the token in
+`x-qcms-agent-edit`. The save locks the draft row when one exists, and otherwise
+checks that the row it wrote landed at the bound revision plus one; it rereads
+the newest published version after the write, refuses a replay, a moved
+revision or version, or an op that changes what it does not cover, and writes
+one `draft.<op>` row in its own transaction. The response
+carries an Undo token bound to the draft states on either side of the edit, so
+an Undo applies only while nothing has changed since and restores exactly the
+state before; Undos therefore run latest first. A library write is never an
+edit (Q22): the token is refused on every route but the draft save. The
+wizard's read takes provenance from these rows alone, never from the draft's
+`agentAssisted` mark.

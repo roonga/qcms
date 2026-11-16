@@ -272,6 +272,29 @@ describe("no credential at all", () => {
   );
 });
 
+describe("an agent edit or Undo token is no credential (task 111)", () => {
+  const EDIT_HEADER = "x-qcms-agent-edit";
+  const draftSave = (): Surface =>
+    SURFACES.find((s) => s.name === "PUT /admin/forms/{id}/draft") as Surface;
+
+  it("is refused 401 with no credential and with the channel token alone", async () => {
+    for (const headers of [
+      { [EDIT_HEADER]: "a.b" },
+      { [INTERNAL_TOKEN_HEADER]: internalToken, [EDIT_HEADER]: "a.b" },
+    ]) {
+      const res = await probe(all.app, draftSave(), ctx, headers);
+      expect(res.status).toBe(401);
+      expectNoPayload(res.text);
+    }
+  });
+
+  it("is refused 400 on a deployment with the agent flag off, even for a full admin", async () => {
+    const res = await probe(all.app, draftSave(), ctx, adminHeaders({ [EDIT_HEADER]: "a.b" }));
+    expect(res.status).toBe(400);
+    expect(res.text).toContain("AGENT_EDIT_DISABLED");
+  });
+});
+
 describe("wrong internal service token", () => {
   it.each(GATED_SURFACES.map((s) => [s.name, s] as const))(
     "%s is refused 401 (SEC-4 channel gate, constant-time compare)",
