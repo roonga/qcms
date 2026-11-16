@@ -38,8 +38,8 @@ export async function createUnclaimedAccount(
 }
 
 /**
- * Raised where the password itself is refused, or the breach lookup could not judge it, so
- * the caller answers a refusal and rolls the claim back. Any other failure is rethrown as is.
+ * Raised where the password is refused or the breach lookup could not judge it, so the
+ * caller answers a refusal and rolls the claim back. Any other failure is rethrown as is.
  */
 export class PasswordRefused extends Error {
   readonly cause: unknown;
@@ -65,6 +65,12 @@ function mintResetToken(): string {
   ).join("");
 }
 
+function isPasswordRefusal(error: unknown): boolean {
+  if (!isAPIError(error)) return false;
+  const code: unknown = (error.body as { code?: unknown } | undefined)?.code;
+  return code === BREACH_LOOKUP_FAILED_CODE || error.statusCode < 500;
+}
+
 /**
  * Through the vendor's reset endpoint rather than the adapter: the SEC-1 breach lookup
  * wraps `password.hash` and reads the endpoint being run, so a hash called outside one
@@ -76,12 +82,6 @@ function mintResetToken(): string {
  * `dist/api/dispatch.mjs:210` <!-- expect: runWithEndpointContext(internalContext, -->
  * `dist/utils/password.mjs:32` <!-- expect: runWithTransaction(ctx.context.adapter, -->
  */
-function isPasswordRefusal(error: unknown): boolean {
-  if (!isAPIError(error)) return false;
-  const code: unknown = (error.body as { code?: unknown } | undefined)?.code;
-  return code === BREACH_LOOKUP_FAILED_CODE || error.statusCode < 500;
-}
-
 export async function setAccountPassword(
   auth: AdminAuth,
   userId: string,
