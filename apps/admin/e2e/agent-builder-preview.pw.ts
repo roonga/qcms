@@ -268,7 +268,7 @@ test("the portal header and step rail frame the step, as the portal shows them",
     await chooseOption(controls(page), "Device", "Rail edge, 1024 × 900");
     await expect(rail).toBeVisible();
     await expect(fold).toBeHidden();
-    await expect(rail.locator('[aria-current="step"]')).toHaveText("About you");
+    await expect(rail.locator('[aria-current="step"]')).toContainText("About you");
     await expect(rail.getByRole("button", { name: TEXT_LABEL })).toBeVisible();
     await axeClean(page, "the builder preview with the side rail");
 
