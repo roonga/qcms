@@ -73,9 +73,9 @@ const saveDraft = routeArgs(
 );
 
 /**
- * The draft the assistant proposed, applied through the builder's own save. It reaches no
- * route of its own: Confirm hands the draft to the builder, which stores it through the
- * accept route, and that route writes the audit row.
+ * The draft the assistant proposed, applied through the builder's own save. Confirm hands the
+ * draft to the builder, which stores it through the accept route under the step's own accept
+ * token, and that route writes the audit row from the verified token.
  */
 export const applyDraft: ActionKindDef = {
   kind: "apply-draft",

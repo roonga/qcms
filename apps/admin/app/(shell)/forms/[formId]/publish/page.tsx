@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
-import type { PublishChangesRead } from "@/components/forms/publish-changes";
+import { publishChangesFor } from "@/components/forms/publish-changes";
 import { PublishWizard } from "@/components/forms/publish-wizard";
 import { publishReturnHref } from "@/lib/forms/build-return";
 import { canFreezeDraft } from "@/lib/forms/publish";
@@ -55,15 +55,7 @@ export default async function FormPublishPage({
   const toBuilder = back !== undefined && back === builderPath(form.formId);
   // The audit rows, never the draft's own mark, say whether the assistant changed it.
   const read = await getAgentChanges(session, form.formId);
-  const changes: PublishChangesRead = read.ok
-    ? {
-        status: "read",
-        base: read.data.base,
-        draft: read.data.draft,
-        steps: read.data.changes,
-      }
-    : { status: "unread" };
-  const showChanges = toBuilder || (read.ok && read.data.agentAssisted);
+  const changes = publishChangesFor(read, toBuilder);
 
   return (
     <div className="flex flex-col gap-6">
@@ -86,7 +78,7 @@ export default async function FormPublishPage({
         lookup={lookupPublishResultAction.bind(null, form.formId)}
         secureCookies={secureCookies()}
         {...(back === undefined ? {} : { returnTo: { href: back, toBuilder } })}
-        {...(showChanges ? { changes } : {})}
+        {...(changes === undefined ? {} : { changes })}
       />
     </div>
   );

@@ -292,12 +292,14 @@ UI is never handed a draft the agent validated for itself, and no separate
 proposal event travels beside the card, so one proposal per turn (P1) holds for a
 draft as it does for every other act.
 
-`apply-draft` reaches no route of its own. Confirm hands the draft to the builder,
-which stores it through the accept route below, and that route writes one
-`apply-draft` audit row; the kind therefore carries no token, no provenance check
-stands behind it, and the accept route's own `form: write` is what authorises it.
-It may be a plan's first step, and the plan's token binds only the steps that do
-reach a route.
+`apply-draft` is a local step with a token of its own. Confirm hands the draft to
+the builder, which stores it through the accept route below. The proposing turn
+mints an accept token for the step (`accept-token.ts`, purpose `agent-accept`),
+binding the user, the step's form, the proposal id and a ten-minute expiry; the
+accept route refuses a request without a verified one and writes the
+`apply-draft` row from it through `audit.ts`. The plan's own token binds only the
+steps that reach a route through it, so an `apply-draft` step takes no index there
+and may still be a plan's first step.
 
 Two lists rather than one because issue #123 split the advisory channel: `issues`
 is why a publish would be refused, `warnings` is a draft that would publish and
@@ -396,16 +398,24 @@ against the shared harness database and fail every run after.
 ## Accepting a proposal
 
 Every accept goes through `POST /admin/forms/:id/draft/assist/accept`, with or
-without new questions, and writes one `apply-draft` row in `control.agent_actions`
-in the accept's own transaction, so the wizard's read counts it as the
+without new questions, under the step's accept token in `x-qcms-agent-accept`.
+The token must verify, name the caller and this form, and be under ten minutes
+old; a missing, forged, foreign or expired one is refused with `403` and nothing
+written. The accept writes one `apply-draft` row in `control.agent_actions` in its
+own transaction, keyed `(<proposal id>.accept, 0)`, so the unique key makes the
+token single-use and a replay is refused with `AGENT_ACCEPT_REPLAYED`; its
+`proposedAt` is the token's issue time. The wizard's read counts that row as the
 assistant's. The draft save body takes no `agentAssisted` mark: the row is the
 record. The accept also sets the draft row's sticky flag, which the builder header
 shows; an ordinary later save never clears it, and discarding the draft does.
 
-Accepting a proposal that carries **new question definitions** goes to
-`POST /admin/forms/:id/draft/assist/accept` instead, and that route is issue
-#823's fix. It stores the draft and materialises every proposed definition as an
-**unpublished question draft** in the library, in one transaction.
+The builder holds an accepted draft's token until a save succeeds, so a failed
+accept is retried under it rather than landing as a plain save; a refused token
+withdraws the proposal and restores the draft as it stood before.
+
+The route also materialises every proposed **new question definition** as an
+**unpublished question draft** in the library, in the same transaction (issue
+#823).
 
 Three things about it are decisions rather than details.
 
