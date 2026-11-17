@@ -606,6 +606,37 @@ describe("compileDraft - author-supplied validation messages (ADR-32, task 048)"
     ]);
   });
 
+  it("ORPHAN_MESSAGE_KEY: a longText minLength message on a question with no minimum", () => {
+    const draft = twoStepDraft([]);
+    const notes = (constraints: Record<string, number>): QuestionDefinition =>
+      makeQuestion({
+        questionId: "q_b",
+        type: "longText",
+        label: { en: "What happened?" },
+        constraints,
+        messages: { minLength: { en: "A sentence or two, please" } },
+      });
+    const errors = errorsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([record(boolQ("q_a")), record(notes({ maxLength: 400 }))]),
+      }),
+    );
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "ORPHAN_MESSAGE_KEY",
+        path: { question: "q_b", constraint: "minLength" },
+      }),
+    ]);
+
+    expect(
+      compileDraft({
+        ...draft,
+        ...makeStore([record(boolQ("q_a")), record(notes({ minLength: 40, maxLength: 400 }))]),
+      }).ok,
+    ).toBe(true);
+  });
+
   it("ORPHAN_MESSAGE_KEY: a `required` message on a question that is not required", () => {
     const draft = twoStepDraft([]);
     const errors = errorsOf(

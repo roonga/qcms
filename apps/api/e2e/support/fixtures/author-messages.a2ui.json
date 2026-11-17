@@ -108,6 +108,18 @@
                 ]
               },
               {
+                "type": "TextArea",
+                "props": {
+                  "label": "What else should we know about the vehicle?",
+                  "name": "q_am_notes",
+                  "messages": {
+                    "minLength": "Give us a sentence or two, not a single word"
+                  },
+                  "minLength": 20,
+                  "maxLength": 400
+                }
+              },
+              {
                 "type": "Honeypot",
                 "props": {
                   "name": "website",

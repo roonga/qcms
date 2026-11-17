@@ -112,7 +112,11 @@ export function questionToNode(
     case "longText":
       return {
         type: "TextArea",
-        props: compact({ ...base, maxLength: question.constraints.maxLength }),
+        props: compact({
+          ...base,
+          minLength: question.constraints.minLength,
+          maxLength: question.constraints.maxLength,
+        }),
       };
     case "number":
       return {

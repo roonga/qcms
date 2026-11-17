@@ -178,6 +178,10 @@ describe("CONSTRAINT_FIELDS", () => {
       ["boolean", "date", "longText", "multiChoice", "number", "shortText", "singleChoice"].sort(),
     );
   });
+
+  it("gives a longText both length bounds and no pattern", () => {
+    expect(CONSTRAINT_FIELDS.longText).toEqual(["minLength", "maxLength"]);
+  });
 });
 
 describe("text a author is still typing", () => {

@@ -1,0 +1,9 @@
+{
+  "type": "longText",
+  "questionId": "q_am_notes",
+  "label": { "en": "What else should we know about the vehicle?" },
+  "constraints": { "minLength": 20, "maxLength": 400 },
+  "messages": {
+    "minLength": { "en": "Give us a sentence or two, not a single word" }
+  }
+}

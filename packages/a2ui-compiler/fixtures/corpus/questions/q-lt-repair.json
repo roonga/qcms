@@ -1,0 +1,6 @@
+{
+  "type": "longText",
+  "questionId": "q_lt_repair",
+  "label": { "en": "What repair are you asking for?" },
+  "constraints": { "minLength": 25 }
+}

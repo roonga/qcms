@@ -1736,6 +1736,27 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v4/kitche
 ]
 `;
 
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v4/long-text-minimum/stp_incident and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "A longer typed answer with a minimum",
+    "role": "heading1",
+  },
+  {
+    "name": "The incident",
+    "role": "heading2",
+  },
+  {
+    "name": "What happened?",
+    "role": "textbox",
+  },
+  {
+    "name": "What repair are you asking for?",
+    "role": "textbox",
+  },
+]
+`;
+
 exports[`A2UIStepRenderer conformance over the golden corpus > renders v4/minimal/stp_only and matches its accessibility tree 1`] = `
 [
   {
