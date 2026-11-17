@@ -15,7 +15,9 @@ import {
   holdsAccessGroup,
   isAccessGroupNameTaken,
   isResponsesRole,
-  issuedPendingResetLink,
+  hasOpenSuspension,
+  liftHoldMarkers,
+  liftMarkersOfDeletedGroup,
   listAccessAudit,
   listAccessGroupHolders,
   listAccessGroups,
@@ -30,8 +32,9 @@ import {
   listWorkspaceAdministrators,
   listWorkspaceMembers,
   lockWorkspaceMembership,
-  newestSignInLinkPurpose,
+  markHoldSuspended,
   normaliseEnvironmentSet,
+  openHoldMarker,
   reconfirmHold,
   refuseAccessGroupName,
   refuseAccessGroupRoles,
@@ -42,6 +45,7 @@ import {
   setMemberRole,
   setRequireSecondApprover,
   suspendHold,
+  suspensionPerformers,
   tryLockAccount,
   updateAccessGroup,
   writeAccessAuditRow,
@@ -299,20 +303,23 @@ async function validateGroup(
   return { roles: input.roles, environments: normaliseEnvironmentSet(input.environments, live) };
 }
 
-async function resetPending(tx: Executor, userId: string): Promise<boolean> {
-  const purpose = await newestSignInLinkPurpose(tx, userId);
-  return purpose === "reset" || purpose === "reactivated";
-}
-
-// The account's newest links being reset or reactivation links stands in for a stored
-// suspension, and the subject is held to it as the performer is.
-async function grantStaysSuspended(
+/**
+ * Who a response grant of this group to this account is written suspended by, or `undefined`
+ * when it is written live. A marker on the hold survives its removal, so a re-add by anyone
+ * stays suspended; while the account's run is open, a grant by the account itself or by a
+ * performer of the run is suspended too.
+ */
+async function suspendingGrantor(
   tx: Executor,
   userId: string,
+  teamId: string,
   grantorId: string,
-): Promise<boolean> {
-  if (grantorId === userId) return resetPending(tx, userId);
-  return issuedPendingResetLink(tx, userId, grantorId);
+): Promise<string | undefined> {
+  const performers = await suspensionPerformers(tx, userId);
+  if (grantorId === userId ? performers.length > 0 : performers.includes(grantorId)) {
+    return grantorId;
+  }
+  return openHoldMarker(tx, userId, teamId);
 }
 
 function gainsResponseRole(before: readonly string[], after: readonly string[]): boolean {
@@ -774,6 +781,7 @@ export function makeDeleteAccessGroupHandler(
         detail: groupDetail("deleted", group),
         occurredAt: deps.clock.now(),
       });
+      await liftMarkersOfDeletedGroup(tx, { teamId, by: actor.userId, at: deps.clock.now() });
       const removed = await deleteAccessGroup(tx, teamId);
       if (!removed) throw fail.groupNotFound();
       await writeAgentStep(tx, site, teamId, deps.clock.now());
@@ -869,9 +877,9 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
   };
 }
 
-// Suspended where the grantor reset or reactivated the account or is the account, so a
-// remove and re-add never lifts it. The account's lock is tried after the workspace's, as
-// the re-confirmation takes them; a reset holds only the account's.
+// Suspended where the hold still owes a re-confirmation, or the grantor performed the run or
+// is the account. The account's lock is tried after the workspace's, as the re-confirmation
+// takes them; a reset holds only the account's.
 async function writeHold(
   tx: Executor,
   input: {
@@ -886,8 +894,11 @@ async function writeHold(
   if (responses && !(await tryLockAccount(tx, userId))) throw fail.accountBusy();
   await ensureWorkspaceMember(tx, group.workspaceId, userId);
   await addAccessGroupHolder(tx, group.teamId, userId);
-  if (!responses || !(await grantStaysSuspended(tx, userId, input.actorId))) return false;
-  await suspendHold(tx, { teamId: group.teamId, userId, by: input.actorId, at: input.at });
+  if (!responses) return false;
+  const by = await suspendingGrantor(tx, userId, group.teamId, input.actorId);
+  if (by === undefined) return false;
+  await suspendHold(tx, { teamId: group.teamId, userId, by, at: input.at });
+  await markHoldSuspended(tx, { userId, teamId: group.teamId, performedBy: by, at: input.at });
   return true;
 }
 
@@ -907,11 +918,13 @@ async function keepSuspensionOnGain(
   if (!(await tryLockAccount(tx, userId))) throw fail.accountBusy();
   const hold = await findHoldSuspension(tx, group.teamId, userId);
   if (hold === undefined || hold.suspendedAt !== null) return undefined;
-  if (await grantStaysSuspended(tx, userId, input.actorId)) {
-    await suspendHold(tx, { teamId: group.teamId, userId, by: input.actorId, at: input.at });
+  const by = await suspendingGrantor(tx, userId, group.teamId, input.actorId);
+  if (by !== undefined) {
+    await suspendHold(tx, { teamId: group.teamId, userId, by, at: input.at });
+    await markHoldSuspended(tx, { userId, teamId: group.teamId, performedBy: by, at: input.at });
     return "suspended";
   }
-  return (await resetPending(tx, userId)) ? "reconfirmed" : undefined;
+  return (await hasOpenSuspension(tx, userId)) ? "reconfirmed" : undefined;
 }
 
 async function writeReconfirmAudit(
@@ -1008,7 +1021,7 @@ export function makeReconfirmHolderHandler(
 
       const byPerformer =
         hold.suspendedBy === actor.userId ||
-        (await issuedPendingResetLink(tx, userId, actor.userId));
+        (await suspensionPerformers(tx, userId)).includes(actor.userId);
       if (byPerformer) {
         const others = (await listActiveAdministratorsFor(tx, workspaceId)).filter(
           (administrator) => administrator !== actor.userId && administrator !== userId,
@@ -1017,6 +1030,7 @@ export function makeReconfirmHolderHandler(
       }
 
       await reconfirmHold(tx, teamId, userId);
+      await liftHoldMarkers(tx, { userId, teamId, by: actor.userId, at: deps.clock.now() });
       await writeReconfirmAudit(tx, deps, {
         actorId: actor.userId,
         workspaceId,

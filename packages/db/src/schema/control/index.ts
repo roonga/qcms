@@ -26,6 +26,9 @@ export * from "./endpoint-proposals.js";
 export * from "./release-workflow.js";
 export * from "./release-batches.js";
 export * from "./workspace-themes.js";
+export * from "./approval-requests.js";
+export * from "./step-ups.js";
+export * from "./suspension-markers.js";
 
 import * as environmentsModule from "./environments.js";
 import * as authModule from "./auth.js";
@@ -42,6 +45,9 @@ import * as endpointProposalsModule from "./endpoint-proposals.js";
 import * as releaseWorkflowModule from "./release-workflow.js";
 import * as releaseBatchesModule from "./release-batches.js";
 import * as workspaceThemesModule from "./workspace-themes.js";
+import * as approvalRequestsModule from "./approval-requests.js";
+import * as stepUpsModule from "./step-ups.js";
+import * as suspensionMarkersModule from "./suspension-markers.js";
 
 const CONTROL_TABLE_OBJECTS: readonly PgTable[] = [
   questionsModule.questions,
@@ -74,6 +80,9 @@ const CONTROL_TABLE_OBJECTS: readonly PgTable[] = [
   workspaceThemesModule.appearanceLogos,
   workspaceThemesModule.appearanceLogoTombstones,
   workspaceThemesModule.workspaceThemes,
+  approvalRequestsModule.approvalRequests,
+  stepUpsModule.stepUps,
+  suspensionMarkersModule.suspensionMarkers,
 ];
 
 /** Every table name in `control`. */

@@ -42,7 +42,12 @@ export function betterAuthSessionVerifier(deps: Deps): AdminSessionVerifier {
     // An account that has not set a password and enrolled a factor holds nothing.
     if (session.claimedAt === null) return undefined;
 
-    return { userId: session.userId, role: session.role, scopes: [...SCOPES] };
+    return {
+      userId: session.userId,
+      role: session.role,
+      scopes: [...SCOPES],
+      sessionId: session.sessionId,
+    };
   };
 }
 

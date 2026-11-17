@@ -6,6 +6,7 @@ import {
   lockAccount,
   markAccountClaimed,
   revokeAccountSessions,
+  settleSuspensionRun,
   signInLinkHold,
   writeSiteAuditRow,
 } from "@roonga/qcms-db";
@@ -34,6 +35,7 @@ export async function claimAfterFactorVerified(
     await invalidateLiveSignInLinks(tx, userId, now);
     await revokeAccountSessions(tx, userId, keepToken);
     await markAccountClaimed(tx, userId, now);
+    await settleSuspensionRun(tx, { userId, by: userId, at: now });
     await writeSiteAuditRow(tx, {
       actor: userId,
       subject: userId,
