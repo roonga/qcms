@@ -265,14 +265,14 @@ test("the portal header and step rail frame the step, as the portal shows them",
 
     const rail = surface(page).getByTestId("qcms-preview-step-rail");
     const fold = surface(page).getByTestId("qcms-preview-step-rail-fold");
-    await chooseOption(controls(page), "Device", "Rail edge, 1024 � 900");
+    await chooseOption(controls(page), "Device", "Rail edge, 1024 × 900");
     await expect(rail).toBeVisible();
     await expect(fold).toBeHidden();
     await expect(rail.locator('[aria-current="step"]')).toHaveText("About you");
     await expect(rail.getByRole("button", { name: TEXT_LABEL })).toBeVisible();
     await axeClean(page, "the builder preview with the side rail");
 
-    await chooseOption(controls(page), "Device", "iPhone XR, 414 � 896");
+    await chooseOption(controls(page), "Device", "iPhone XR, 414 × 896");
     await expect(rail).toBeHidden();
     await expect(fold).toBeVisible();
     await expect(fold).toContainText("Step 1 of 1");
