@@ -65,7 +65,10 @@ export const TOTP_VERIFY_PATH = "/two-factor/verify-totp";
  */
 function signInTotpCode(context: unknown): string | undefined {
   const endpoint = context as
-    | { readonly body?: { readonly code?: unknown }; readonly context?: { readonly session?: unknown } }
+    | {
+        readonly body?: { readonly code?: unknown };
+        readonly context?: { readonly session?: unknown };
+      }
     | undefined;
   if (endpoint?.context?.session !== null && endpoint?.context?.session !== undefined) {
     return undefined;
