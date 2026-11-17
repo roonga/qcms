@@ -284,7 +284,7 @@ describe("every row names an action the policy declares", () => {
     expect(read?.installationOnly).toBeUndefined();
   });
 
-  it("names exactly ten installation-only rows", () => {
+  it("names exactly fourteen installation-only rows", () => {
     expect(
       ROUTE_POLICIES.filter((row) => row.installationOnly === true).map(
         (row) => `${row.method} ${row.path}`,
@@ -292,6 +292,10 @@ describe("every row names an action the policy declares", () => {
     ).toEqual([
       "GET /admin/accounts",
       "POST /admin/accounts",
+      "POST /admin/accounts/{id}/disable",
+      "GET /admin/accounts/{id}/holdings",
+      "POST /admin/accounts/{id}/reactivate",
+      "POST /admin/accounts/{id}/reset",
       "POST /admin/accounts/{id}/sign-in-link",
       "POST /admin/workspaces",
       "PUT /admin/workspaces/{id}/shared",

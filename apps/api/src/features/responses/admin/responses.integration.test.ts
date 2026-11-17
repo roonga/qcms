@@ -11,7 +11,16 @@ import type { AnswerValue, LockedSubmission } from "@roonga/qcms-core";
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import {
   SEED_WORKSPACE_ID,
+  authSession,
   countAccessAuditByKind,
+  disableAccount,
+  listAccountHoldings,
+  markAccountClaimed,
+  reactivateAccount,
+  reconfirmHold,
+  revokeAccountSessions,
+  suspendResponseMemberships,
+  unclaimAccount,
   listAccessAudit,
   addInstances,
   createForm,
@@ -35,6 +44,7 @@ import { registerGrantCheck } from "../../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../../middleware/admin-auth.js";
 import {
   disableSeededAccount,
+  fixedClock,
   internalTokenFor,
   makeDeps,
   seedAdminSession,
@@ -500,7 +510,7 @@ describe("large export streams without buffering the whole table (exit criterion
   }, 60_000);
 });
 
-describe("a running export stops when its account is disabled (criterion 67)", () => {
+describe("a running export stops on a disable and on nothing else (criterion 67)", () => {
   /** Enough rows that every format pulls several pages, so a page follows the disable. */
   async function bulkSubmitted(formId: FormId, prefix: string, questionId: string): Promise<void> {
     await testDb.client.query(
@@ -571,6 +581,86 @@ describe("a running export stops when its account is disabled (criterion 67)", (
   it("errors the zip stream mid-entry rather than finishing the archive", async () => {
     await stopsMidBody("/forms/frm_disable_zip/export?format=csv&version=1", "exporter-zip");
   }, 60_000);
+
+  it("finishes the file through a reset and a suspension of the exporter", async () => {
+    const exporter = await seedAdminSession(testDb.db, { label: "exporter-reset", claim: false });
+    const res = await app.request("/admin/forms/frm_disable_export/export?format=csv&version=1", {
+      headers: {
+        "x-qcms-internal-token": internalToken,
+        [ADMIN_SESSION_HEADER]: exporter.token,
+      },
+    });
+    expect(res.status).toBe(200);
+
+    const reader = res.body!.getReader();
+    await reader.read();
+    const at = new Date();
+    await unclaimAccount(testDb.db, exporter.userId, at);
+    await revokeAccountSessions(testDb.db, exporter.userId, undefined);
+    const suspended = await suspendResponseMemberships(testDb.db, {
+      userId: exporter.userId,
+      by: "au_resetter",
+      at,
+    });
+    expect(suspended.length).toBeGreaterThan(0);
+
+    let completed = false;
+    for (let read = 0; read < 10_000; read += 1) {
+      const { done } = await reader.read();
+      if (done) {
+        completed = true;
+        break;
+      }
+    }
+    expect(completed).toBe(true);
+  }, 60_000);
+});
+
+describe("a reactivated account reads no responses until re-confirmed (criterion 68)", () => {
+  async function sessionFor(userId: string): Promise<string> {
+    const at = fixedClock().now();
+    const token = `st_reactivated_${userId}`;
+    await testDb.db.insert(authSession).values({
+      id: `ss_reactivated_${userId}`,
+      token,
+      userId,
+      createdAt: at,
+      updatedAt: at,
+      expiresAt: new Date(at.getTime() + 60 * 60 * 1000),
+    });
+    return token;
+  }
+
+  async function readAs(token: string): Promise<number> {
+    const res = await app.request("/admin/forms/frm_reactivated_read/responses", {
+      headers: { "x-qcms-internal-token": internalToken, [ADMIN_SESSION_HEADER]: token },
+    });
+    return res.status;
+  }
+
+  it("refuses the response read while the membership is suspended, and serves it after", async () => {
+    await seedForm("frm_reactivated_read", [["stp_a", ["q_t"]]]);
+    const reader = await seedAdminSession(testDb.db, { label: "reactivated", claim: false });
+    expect(await readAs(reader.token)).toBe(200);
+
+    const at = new Date();
+    await disableAccount(testDb.db, reader.userId, at);
+    await revokeAccountSessions(testDb.db, reader.userId, undefined);
+    await reactivateAccount(testDb.db, reader.userId, at);
+    await suspendResponseMemberships(testDb.db, {
+      userId: reader.userId,
+      by: "au_reactivator",
+      at,
+    });
+    await markAccountClaimed(testDb.db, reader.userId, at);
+    const session = await sessionFor(reader.userId);
+    expect(await readAs(session)).toBe(403);
+
+    for (const group of (await listAccountHoldings(testDb.db, reader.userId)).responseGroups) {
+      await reconfirmHold(testDb.db, group.teamId, reader.userId);
+    }
+    expect(await readAs(session)).toBe(200);
+  });
 });
 
 describe("erase excludes from all read paths; unflag releases the event (exit criterion 4)", () => {

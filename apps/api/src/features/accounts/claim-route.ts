@@ -2,10 +2,13 @@ import { z } from "@hono/zod-openapi";
 import {
   boundAccountTransaction,
   consumeSignInLink,
+  deletePendingTwoFactorSignIns,
   findAccountById,
   findSignInLinkByHash,
+  holdsAccountPassword,
   signInLinkIsLive,
   tryLockAccount,
+  wasSentResetOrReactivationLink,
 } from "@roonga/qcms-db";
 import { isAPIError } from "better-auth/api";
 
@@ -13,8 +16,12 @@ import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { adminAuthFor, adminAuthOn } from "../auth/route.js";
-import { BREACH_LOOKUP_FAILED_CODE, MIN_PASSWORD_LENGTH } from "../auth/instance.js";
-import { PasswordRefused, setAccountPassword } from "./credential.js";
+import {
+  BREACH_LOOKUP_FAILED_CODE,
+  claimSignInHeaders,
+  MIN_PASSWORD_LENGTH,
+} from "../auth/instance.js";
+import { PasswordRefused, setAccountPassword, verifyAccountPassword } from "./credential.js";
 import { CLAIM_PATH, signInTokenHash } from "./tokens.js";
 
 // The claim is mounted beside the better-auth endpoints because it issues a session, so it
@@ -22,11 +29,30 @@ import { CLAIM_PATH, signInTokenHash } from "./tokens.js";
 // 256 random bits, and an unknown one is refused by one indexed read before any hashing.
 
 /**
- * The one link purpose this route answers. Reactivation and reset links are issued for
- * accounts that are already claimed, so the purpose is checked here rather than left to
- * follow from the account's state.
+ * A reset link that kept the password only signs in with it, and a creation link sets nothing
+ * on an account that was ever reset or reactivated, so no link replaces a kept password.
  */
-const CLAIM_PURPOSE = "account-created";
+type PasswordUse = "set" | "verify";
+
+export function passwordUseFor(
+  purpose: string,
+  account: { readonly holdsPassword: boolean; readonly wasReset: boolean },
+): PasswordUse | undefined {
+  if (purpose === "account-created") return account.wasReset ? undefined : "set";
+  if (purpose === "reactivated") return "set";
+  if (purpose === "reset") return account.holdsPassword ? "verify" : "set";
+  return undefined;
+}
+
+function passwordIncorrect(): ApiError {
+  return new ApiError(
+    "CLAIM_PASSWORD_INCORRECT",
+    400,
+    "Only your second factor was reset, so sign in with the password you already have. " +
+      "That password was not it, and the link is now used; ask a Site administrator to send " +
+      "a new one.",
+  );
+}
 
 const ClaimBody = z.strictObject({
   token: z.string().min(1).max(512),
@@ -78,7 +104,6 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
 
     const link = await findSignInLinkByHash(exec, tokenHash);
     if (link === undefined || !signInLinkIsLive(link, now)) throw linkRefused();
-    if (link.purpose !== CLAIM_PURPOSE) throw linkRefused();
 
     const auth = adminAuthFor(deps);
     // A session for somebody else is the wrong-account use: the link belongs to one
@@ -86,34 +111,50 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
     const resolved = await auth.api.getSession({ headers: c.req.raw.headers });
     if (resolved !== null && resolved.user.id !== link.userId) throw linkRefused();
 
-    // The password is written on this transaction's connection under a tried lock, so a
-    // refusal rolls everything back and no request waits for a second pooled connection
-    // or queues behind a claim in flight while holding one.
-    const account = await exec.transaction(async (tx) => {
+    // A tried lock and this transaction's own connection, so no request queues holding a
+    // pooled one. A refusal rolls back, but a wrong kept password commits the spend, so the
+    // token is not a way to guess that password.
+    const claimed = await exec.transaction(async (tx) => {
       await boundAccountTransaction(tx);
       if (!(await tryLockAccount(tx, link.userId))) throw linkRefused();
       if ((await consumeSignInLink(tx, tokenHash, now)) === undefined) throw linkRefused();
       const found = await findAccountById(tx, link.userId);
       if (found === undefined || found.disabledAt !== null) throw linkRefused();
-      // A claimed account already holds a password, so a creation link that outlived the
-      // claim is not a way to set another one.
+      // A claimed account already holds a password, so a link that outlived the claim is
+      // not a way to set another one. A reset and a reactivation unclaim the account.
       if (found.claimedAt !== null) throw linkRefused();
+      // A challenge from a sign-in that raced the reset's commit would otherwise let the
+      // claim session be finished with the old password and the kept factor.
+      await deletePendingTwoFactorSignIns(tx, found.userId);
 
+      const use = passwordUseFor(link.purpose, {
+        holdsPassword: await holdsAccountPassword(tx, found.userId),
+        wasReset: await wasSentResetOrReactivationLink(tx, found.userId),
+      });
+      if (use === undefined) throw linkRefused();
+      const txAuth = adminAuthOn(deps, tx);
+      if (use === "verify") {
+        if (!(await verifyAccountPassword(txAuth, found.userId, password))) return undefined;
+        return found;
+      }
       // The write revokes every session the account holds (`revokeSessionsOnPasswordReset`),
       // so one minted from an earlier link does not outlive it.
       try {
-        await setAccountPassword(adminAuthOn(deps, tx), found.userId, password);
+        await setAccountPassword(txAuth, found.userId, password);
       } catch (error) {
         if (error instanceof PasswordRefused) throw passwordRefused(error.cause);
         throw error;
       }
       return found;
     });
+    if (claimed === undefined) throw passwordIncorrect();
+    const account = claimed;
 
     // The session issued here is the one that enrols the second factor. The claim itself
     // is written only once that factor is verified, so the account still holds nothing.
     const signedIn = await auth.api.signInEmail({
       body: { email: account.email, password },
+      headers: claimSignInHeaders(),
       asResponse: true,
     });
     if (!signedIn.ok) {

@@ -68,6 +68,12 @@ describe("assertion matching", () => {
     ]);
   });
 
+  it("matches a version that ends a sentence", () => {
+    expect(assertionsIn(`the repo pins better-auth ${STALE}.`)).toEqual([
+      { pkg: "better-auth", version: STALE, line: 1 },
+    ]);
+  });
+
   it("does not match a four-part version, which is not a version this lockfile writes", () => {
     expect(assertionsIn(`better-auth ${PINNED}.4`)).toEqual([]);
   });
