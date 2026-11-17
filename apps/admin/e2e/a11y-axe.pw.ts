@@ -64,7 +64,7 @@ const EMAIL = uniqueAdminEmail("a11y");
 let totpSecret = "";
 
 test.beforeAll(async () => {
-  await createTestAdmin(EMAIL);
+  await createTestAdmin(EMAIL, { siteAdministrator: true });
 });
 
 const OPS_SLUG = "auto";

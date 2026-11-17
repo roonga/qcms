@@ -75,14 +75,16 @@ export default async function ShellLayout({
                 <RailToggle />
               </div>
               <span className="qcms-wordmark">{t("app.title")}</span>
-              {offersWorkspaceChoice(workspaces) && workspaces.current !== undefined && (
-                <WorkspaceSwitcher
-                  choices={workspaces.choices}
-                  current={workspaces.current}
-                  secureCookies={secureCookies()}
-                />
-              )}
               <ShellChrome
+                workspace={
+                  offersWorkspaceChoice(workspaces) && workspaces.current !== undefined ? (
+                    <WorkspaceSwitcher
+                      choices={workspaces.choices}
+                      current={workspaces.current}
+                      secureCookies={secureCookies()}
+                    />
+                  ) : undefined
+                }
                 capabilities={capabilities}
                 multipleWorkspaces={offersWorkspaceChoice(workspaces)}
                 rememberedMode={rememberedMode(cookieStore)}

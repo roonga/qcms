@@ -1,8 +1,9 @@
-/** The shell's areas. Only Operations is a focused mode, with its own header and Exit; the others keep the application navigation. */
+/** The shell's areas. Operations is a focused area, with its own header and Exit; the others keep the application navigation. */
 export const SHELL_MODES = ["normal", "operations", "workspaces"] as const;
 export type ShellMode = (typeof SHELL_MODES)[number];
 
-export type FocusedShellMode = "operations";
+/** The agent builder is focused too, but inside authoring rather than an area of its own, so it is never remembered. */
+export type FocusedShellMode = "operations" | "builder";
 
 export interface ShellCapabilities {
   readonly authoring: boolean;
@@ -113,6 +114,41 @@ function definitionFor(mode: ShellMode): ModeDefinition {
 export function focusedMode(mode: ShellMode): FocusedShellMode | undefined {
   if (!definitionFor(mode).focused) return undefined;
   return mode === "operations" ? mode : undefined;
+}
+
+export const NEW_FORM_PATH = "/forms/new";
+export const NEW_FORM_BUILD_PATH = "/forms/new/build";
+
+/** The form a build route edits, `null` for a new form, or `undefined` when the path is not a build route. */
+export function builderSubject(pathname: string): string | null | undefined {
+  if (pathname === NEW_FORM_BUILD_PATH) return null;
+  const match = /^\/forms\/([^/]+)\/build$/u.exec(pathname);
+  if (match === null) return undefined;
+  const segment = match[1] ?? "";
+  let formId: string;
+  try {
+    formId = decodeURIComponent(segment);
+  } catch {
+    return undefined;
+  }
+  return formId === "" || formId === "new" ? undefined : formId;
+}
+
+export function isBuilderPath(pathname: string): boolean {
+  return builderSubject(pathname) !== undefined;
+}
+
+export function builderPath(formId: string): string {
+  return `/forms/${encodeURIComponent(formId)}/build`;
+}
+
+/** The focused mode a path shows, the builder before the area's own. */
+export function focusedModeForPath(
+  pathname: string,
+  remembered: ShellMode | undefined,
+): FocusedShellMode | undefined {
+  if (isBuilderPath(pathname)) return "builder";
+  return focusedMode(modeForPath(pathname, remembered));
 }
 
 export function landingPathForMode(mode: ShellMode): string {

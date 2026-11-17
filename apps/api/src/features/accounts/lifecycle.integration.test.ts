@@ -435,12 +435,17 @@ beforeAll(async () => {
   adminOrigin = deps.config.adminAuth.baseUrl;
 
   const at = new Date();
-  const siteAdmin = await seedAdminSession(testDb.db, { label: "site", at });
+  const siteAdmin = await seedAdminSession(testDb.db, {
+    label: "site",
+    at,
+    siteAdministrator: true,
+  });
   siteAdminId = siteAdmin.userId;
   siteAdminToken = siteAdmin.token;
   const secondSiteAdmin = await seedAdminSession(testDb.db, {
     label: "site2",
     at,
+    siteAdministrator: true,
     membership: false,
   });
   secondSiteAdminId = secondSiteAdmin.userId;
@@ -448,7 +453,6 @@ beforeAll(async () => {
   const workspaceAdmin = await seedAdminSession(testDb.db, {
     label: "wsadmin",
     at,
-    claim: false,
     owner: true,
     grants: ["forms.editor"],
   });
@@ -955,7 +959,6 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
     const disabled = await seedAdminSession(testDb.db, {
       label: "reset-disabled",
       at: new Date(),
-      claim: false,
       membership: false,
       disabledAt: new Date(),
     });
