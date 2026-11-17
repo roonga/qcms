@@ -183,7 +183,9 @@ describe("concurrent edits bind the revision they were minted for", { timeout: T
     it(`lands exactly one of ${String(RACERS)} distinct revision-${String(start)} tokens, ${label}`, async () => {
       for (let round = 0; round < ROUNDS; round += 1) {
         const formId = await newForm(seeded);
-        const tokens = await Promise.all(times(RACERS, (index) => mint(formId, start, `T${String(index)}`)));
+        const tokens = await Promise.all(
+          times(RACERS, (index) => mint(formId, start, `T${String(index)}`)),
+        );
         const responses = await Promise.all(
           tokens.map((token, index) => put(formId, `T${String(index)}`, token)),
         );
@@ -222,9 +224,7 @@ describe("concurrent edits bind the revision they were minted for", { timeout: T
       for (let round = 0; round < ROUNDS; round += 1) {
         const formId = await newForm(seeded);
         const token = await mint(formId, start, "Replay");
-        const responses = await Promise.all(
-          times(RACERS, () => put(formId, "Replay", token)),
-        );
+        const responses = await Promise.all(times(RACERS, () => put(formId, "Replay", token)));
         const outcomes = await Promise.all(responses.map(outcome));
         expect(
           outcomes.filter((result) => result === "200"),

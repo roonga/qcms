@@ -525,10 +525,15 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
 describe("an edit at revision 0 and across a publish", { timeout: TIMEOUT_MS }, () => {
   it("applies a turn to a form with no draft row, starting at revision 0", async () => {
     const formId = await bareForm();
-    const [first, second] = await tokens(owner, formId, [
-      ["copy", "First"],
-      ["step", "Second"],
-    ], 0);
+    const [first, second] = await tokens(
+      owner,
+      formId,
+      [
+        ["copy", "First"],
+        ["step", "Second"],
+      ],
+      0,
+    );
     expect(
       (await put(owner, formId, { definition: definition(formId, "First") }, first)).status,
     ).toBe(200);
@@ -576,7 +581,12 @@ describe("an edit at revision 0 and across a publish", { timeout: TIMEOUT_MS }, 
 describe("an edit's op against what its save changes", { timeout: TIMEOUT_MS }, () => {
   it("saves an appearance op that changes the appearance alone", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, [["appearance", { definition: definition(formId, "Start"), appearance: appearanceFor("#1d4ed8") }]]);
+    const [token] = await tokens(owner, formId, [
+      [
+        "appearance",
+        { definition: definition(formId, "Start"), appearance: appearanceFor("#1d4ed8") },
+      ],
+    ]);
     const res = await put(
       owner,
       formId,
@@ -590,7 +600,9 @@ describe("an edit's op against what its save changes", { timeout: TIMEOUT_MS }, 
   it("refuses a non-appearance op whose save changes the appearance", async () => {
     const formId = await seededForm();
     for (const op of ["question", "step", "rule", "copy"] as const) {
-      const [token] = await tokens(owner, formId, [[op, { definition: definition(formId, "Start"), appearance: appearanceFor("#0f766e") }]]);
+      const [token] = await tokens(owner, formId, [
+        [op, { definition: definition(formId, "Start"), appearance: appearanceFor("#0f766e") }],
+      ]);
       const res = await put(
         owner,
         formId,
@@ -605,7 +617,12 @@ describe("an edit's op against what its save changes", { timeout: TIMEOUT_MS }, 
 
   it("refuses an appearance op whose save changes the definition, even with an appearance", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, [["appearance", { definition: definition(formId, "Renamed"), appearance: appearanceFor("#1d4ed8") }]]);
+    const [token] = await tokens(owner, formId, [
+      [
+        "appearance",
+        { definition: definition(formId, "Renamed"), appearance: appearanceFor("#1d4ed8") },
+      ],
+    ]);
     const res = await put(
       owner,
       formId,
@@ -620,7 +637,12 @@ describe("an edit's op against what its save changes", { timeout: TIMEOUT_MS }, 
 
   it("refuses an appearance edit on a locked workspace and writes no row", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, [["appearance", { definition: definition(formId, "Start"), appearance: appearanceFor("#1d4ed8") }]]);
+    const [token] = await tokens(owner, formId, [
+      [
+        "appearance",
+        { definition: definition(formId, "Start"), appearance: appearanceFor("#1d4ed8") },
+      ],
+    ]);
     await setWorkspaceAppearanceLock(testDb.db, SEED_WORKSPACE_ID, true);
     try {
       const res = await put(
@@ -668,10 +690,15 @@ describe("every edit refusal is logged by its code", { timeout: TIMEOUT_MS }, ()
       iat,
       exp: iat + EDIT_TTL_MS,
     });
-    const [once, stale] = await tokens(owner, formId, [
-      ["copy", "A"],
-      ["copy", "C"],
-    ], 1);
+    const [once, stale] = await tokens(
+      owner,
+      formId,
+      [
+        ["copy", "A"],
+        ["copy", "C"],
+      ],
+      1,
+    );
     const [appearanceOp] = await tokens(owner, formId, [["appearance", "Renamed"]], 2);
 
     await put(owner, formId, { definition: definition(formId, "X") }, theirs);
