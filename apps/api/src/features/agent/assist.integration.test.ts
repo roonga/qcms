@@ -497,7 +497,9 @@ describe("the accept token (SEC-17)", () => {
       await seedPublishedQuestion("q_tok_turn", "Token turn");
       await seedForm("frm_tok_turn", ["q_tok_turn"]);
 
-      const events = await readEvents(await assist("frm_tok_turn", "a vehicle-insurance quote with a follow-up"));
+      const events = await readEvents(
+        await assist("frm_tok_turn", "a vehicle-insurance quote with a follow-up"),
+      );
       const card = events.find((event) => event.type === "plan");
       if (card?.type !== "plan") throw new Error(JSON.stringify(events));
       const token = appliedDraft(events).acceptToken;

@@ -295,7 +295,10 @@ export function FormBuilder({
         },
   );
 
-  function acceptAssistProposal(proposedDraft: DraftForm, accept: AgentAccept): Promise<AcceptOutcome> {
+  function acceptAssistProposal(
+    proposedDraft: DraftForm,
+    accept: AgentAccept,
+  ): Promise<AcceptOutcome> {
     const superseded = pendingAccept.current;
     superseded?.settle({ saved: false, message: t("agent.card.note.unreachable") });
     let settle: (outcome: AcceptOutcome) => void = () => undefined;

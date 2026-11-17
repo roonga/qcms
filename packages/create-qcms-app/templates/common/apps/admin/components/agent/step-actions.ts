@@ -117,11 +117,7 @@ const ACCEPT_SAVE_WAIT_MS = 20_000;
 const applyDraftRunner: StepRunner = async ({ step }) => {
   const proposed = step.draft;
   const builder = builderAssistSnapshot();
-  if (
-    proposed?.acceptToken === undefined ||
-    builder === undefined ||
-    !builder.canPropose
-  ) {
+  if (proposed?.acceptToken === undefined || builder === undefined || !builder.canPropose) {
     return { outcome: "failed", message: t("agent.card.note.noBuilder") };
   }
   const diff = proposalDiff(builder.draft, proposed.definition, proposed.newQuestions);

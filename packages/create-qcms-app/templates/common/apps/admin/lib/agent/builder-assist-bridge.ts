@@ -17,8 +17,7 @@ export interface BuilderAssistSnapshot {
 }
 
 export type AcceptOutcome =
-  | { readonly saved: true }
-  | { readonly saved: false; readonly message: string };
+  { readonly saved: true } | { readonly saved: false; readonly message: string };
 
 let snapshot: BuilderAssistSnapshot | undefined;
 let listeners: readonly (() => void)[] = [];
