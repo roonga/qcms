@@ -805,15 +805,15 @@ The table is `control.access_audit`, created by the migration that carries its g
 
 **The control.** Every **response read, export and erasure**, since Q56 every **grant write and every revoke**, and since Q61 every **change to the seed setting**, writes one row to an append-only table in the `control` schema, carrying:
 
-| Field       | What it is                                                                                                                                             |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| actor       | the administrator's account, or the IdP subject where single sign-on is in use                                                                         |
-| workspace   | the workspace that owns the form                                                                                                                       |
-| environment | the environment whose data was read; **empty on a grant, a revoke or a setting row unless the act names one** (Q61)                                    |
-| form        | the form; **empty on a grant, a revoke or a setting row unless the act names one** (Q61)                                                               |
+| Field       | What it is                                                                                                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| actor       | the administrator's account, or the IdP subject where single sign-on is in use                                                                                 |
+| workspace   | the workspace that owns the form                                                                                                                               |
+| environment | the environment whose data was read; **empty on a grant, a revoke or a setting row unless the act names one** (Q61)                                            |
+| form        | the form; **empty on a grant, a revoke or a setting row unless the act names one** (Q61)                                                                       |
 | kind        | read, export, erasure, grant, revoke, **setting** (Q61), `derive` (SEC-18), `link`, and the four access kinds settled in `docs/WORKSPACE_ACCESS.md` section 11 |
-| time        | when                                                                                                                                                   |
-| detail      | the scope of a grant or a revoke, `all` or the form list, and a setting's name with its new value; empty on a read, an export and an erasure (Q61)     |
+| time        | when                                                                                                                                                           |
+| detail      | the scope of a grant or a revoke, `all` or the form list, and a setting's name with its new value; empty on a read, an export and an erasure (Q61)             |
 
 It is readable by that **workspace's owners** and by the **installation administrator**, and by nobody else. That readership is the point: an audit only the operator can see does not answer a department's own question about its own data.
 
