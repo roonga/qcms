@@ -583,7 +583,7 @@ describe("a running export stops on a disable and on nothing else (criterion 67)
   }, 60_000);
 
   it("finishes the file through a reset and a suspension of the exporter", async () => {
-    const exporter = await seedAdminSession(testDb.db, { label: "exporter-reset", claim: false });
+    const exporter = await seedAdminSession(testDb.db, { label: "exporter-reset" });
     const res = await app.request("/admin/forms/frm_disable_export/export?format=csv&version=1", {
       headers: {
         "x-qcms-internal-token": internalToken,
@@ -640,7 +640,7 @@ describe("a reactivated account reads no responses until re-confirmed (criterion
 
   it("refuses the response read while the membership is suspended, and serves it after", async () => {
     await seedForm("frm_reactivated_read", [["stp_a", ["q_t"]]]);
-    const reader = await seedAdminSession(testDb.db, { label: "reactivated", claim: false });
+    const reader = await seedAdminSession(testDb.db, { label: "reactivated" });
     expect(await readAs(reader.token)).toBe(200);
 
     const at = new Date();
