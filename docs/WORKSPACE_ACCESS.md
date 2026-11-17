@@ -360,7 +360,7 @@ Routes are under `apps/admin/app/(shell)/`. Artboards are boards on the design c
 - Batch 4, Site configuration: Accounts, Account-Manage, Site-Admins, Approval-Requests, Site-Audit, Account-States, Phone-G.
 - Batch 5, the account menu: Account-Menu, First-Signin, Phone-E, Phone-H.
 
-Batch 7 has not been reviewed, and no admin UI task that needs it starts until the Code Owner has seen its boards.
+The Code Owner reviewed design batch 7 on 2026-11-17, which clears the design gate for task 103.
 
 | Flow                                                                                            | Who                                                                            | Route or location                                                | Design artboard                                      | Status       |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------- | ------------ |
