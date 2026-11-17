@@ -43,15 +43,35 @@ describe("the admin's restated format set", () => {
 });
 
 describe("applying a named format", () => {
-  it("writes the pattern and its matching message together", () => {
+  it("writes the pattern, its length cap and its matching message together", () => {
     const patch = withFormatPattern(SHORT_TEXT, "email");
     expect(patch.constraints?.pattern).toBe(String.raw`^[^@\s]+@[^@\s]+\.[^@\s]{2,}$`);
+    expect(patch.constraints?.maxLength).toBe(254);
     expect(patch.messages?.pattern).toEqual({
       en: "Enter an email address, like name@example.com.",
     });
   });
 
-  it("keeps the other constraints and the other messages", () => {
+  it("writes every entry's own cap, and nothing else carries one", () => {
+    for (const format of FORMAT_PATTERNS) {
+      const patch = withFormatPattern(SHORT_TEXT, format.name);
+      expect(patch.constraints?.maxLength, format.name).toBe(format.maxLength);
+      expect(patch.constraints?.minLength, format.name).toBeUndefined();
+    }
+  });
+
+  it("replaces a cap left behind by an earlier format, which would refuse valid values", () => {
+    const tightened = withFormatPattern(SHORT_TEXT, "postcode-au");
+    expect(tightened.constraints?.maxLength).toBe(4);
+
+    const widened = withFormatPattern(
+      { ...SHORT_TEXT, constraints: tightened.constraints },
+      "email",
+    );
+    expect(widened.constraints?.maxLength).toBe(254);
+  });
+
+  it("keeps the other constraints and the other messages, taking over only the cap", () => {
     const patch = withFormatPattern(
       {
         ...SHORT_TEXT,
@@ -63,7 +83,7 @@ describe("applying a named format", () => {
     );
     expect(patch.constraints).toEqual({
       minLength: 3,
-      maxLength: 120,
+      maxLength: 24,
       pattern: String.raw`^\+?(?:[ \(\)\-]*\d){7,15}[ \(\)\-]*$`,
     });
     expect(patch.messages).toEqual({

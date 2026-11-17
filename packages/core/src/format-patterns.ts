@@ -11,6 +11,7 @@ export const FORMAT_PATTERN_NAMES = [
   "postcode-au",
   "postcode-ca",
   "postcode-gb",
+  "postcode-nz",
   "postcode-us",
 ] as const;
 
@@ -65,6 +66,13 @@ export const FORMAT_PATTERNS: Readonly<Record<FormatPatternName, FormatPattern>>
     maxLength: 8,
     example: "SW1A 1AA",
     message: "A UK postcode looks like SW1A 1AA.",
+  },
+  "postcode-nz": {
+    name: "postcode-nz",
+    pattern: String.raw`^\d{4}$`,
+    maxLength: 4,
+    example: "6011",
+    message: "A New Zealand postcode is four digits.",
   },
   "postcode-us": {
     name: "postcode-us",

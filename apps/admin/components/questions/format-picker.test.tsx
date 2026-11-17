@@ -48,6 +48,13 @@ function patternField(): HTMLInputElement {
   });
 }
 
+/** The NumberField renders a text box, so the cap is read as the control displays it. */
+function longestAnswerField(): HTMLInputElement {
+  return screen.getByRole<HTMLInputElement>("textbox", {
+    name: t("questions.constraint.maxLength"),
+  });
+}
+
 function definitionPayload(): QuestionDefinitionView {
   const field = document.querySelector<HTMLInputElement>('input[name="definition"]');
   return JSON.parse(field?.value ?? "{}") as QuestionDefinitionView;
@@ -58,7 +65,7 @@ beforeEach(() => {
 });
 
 describe("the constraints panel's checked formats", { timeout: 30_000 }, () => {
-  it("writes the pattern and its message together, and says where the message went", async () => {
+  it("writes the pattern, the longest answer and the message, and says what it wrote", async () => {
     const user = userEvent.setup();
     editor();
 
@@ -69,6 +76,7 @@ describe("the constraints panel's checked formats", { timeout: 30_000 }, () => {
     await user.click(screen.getByRole("button", { name: t("questions.constraint.formatApply") }));
 
     expect(patternField().value).toBe(String.raw`^[^@\s]+@[^@\s]+\.[^@\s]{2,}$`);
+    expect(longestAnswerField().value).toBe("254");
     expect(
       screen.getByRole("textbox", { name: t("questions.message.label.pattern") }),
     ).toHaveProperty("value", "Enter an email address, like name@example.com.");
@@ -77,7 +85,7 @@ describe("the constraints panel's checked formats", { timeout: 30_000 }, () => {
     );
   });
 
-  it("sends both the pattern and the message with the definition", async () => {
+  it("sends the pattern, the cap and the message with the definition", async () => {
     const user = userEvent.setup();
     editor();
 
@@ -86,10 +94,24 @@ describe("the constraints panel's checked formats", { timeout: 30_000 }, () => {
 
     const payload = definitionPayload();
     expect(payload.constraints?.pattern).toBe(String.raw`^\d{4}$`);
+    expect(payload.constraints?.maxLength).toBe(4);
     expect(payload.messages?.pattern).toEqual({ en: "An Australian postcode is four digits." });
   });
 
-  it("leaves the pattern alone until the format is applied", async () => {
+  it("offers New Zealand, whose shape matches Australia but whose wording does not", async () => {
+    const user = userEvent.setup();
+    editor();
+
+    await choose(user, t("questions.format.postcode-nz"));
+    expect(screen.getByText("Accepts values like 6011.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: t("questions.constraint.formatApply") }));
+
+    const payload = definitionPayload();
+    expect(payload.constraints).toMatchObject({ pattern: String.raw`^\d{4}$`, maxLength: 4 });
+    expect(payload.messages?.pattern).toEqual({ en: "A New Zealand postcode is four digits." });
+  });
+
+  it("leaves the pattern and the cap alone until the format is applied", async () => {
     const user = userEvent.setup();
     editor();
 
@@ -97,7 +119,9 @@ describe("the constraints panel's checked formats", { timeout: 30_000 }, () => {
     await choose(user, t("questions.format.phone"));
 
     expect(patternField().value).toBe("^abc$");
+    expect(longestAnswerField().value).toBe("");
     expect(definitionPayload().constraints?.pattern).toBe("^abc$");
+    expect(definitionPayload().constraints?.maxLength).toBeUndefined();
   });
 
   it("offers nothing on a frozen version, which cannot be edited anyway", () => {

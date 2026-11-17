@@ -9,6 +9,7 @@ export const FORMAT_PATTERN_NAMES = [
   "postcode-au",
   "postcode-ca",
   "postcode-gb",
+  "postcode-nz",
   "postcode-us",
 ] as const;
 
@@ -60,6 +61,13 @@ export const FORMAT_PATTERNS: readonly FormatPattern[] = [
     message: "A UK postcode looks like SW1A 1AA.",
   },
   {
+    name: "postcode-nz",
+    pattern: String.raw`^\d{4}$`,
+    maxLength: 4,
+    example: "6011",
+    message: "A New Zealand postcode is four digits.",
+  },
+  {
     name: "postcode-us",
     pattern: String.raw`^\d{5}(?:-\d{4})?$`,
     maxLength: 10,
@@ -72,7 +80,9 @@ export function formatPatternNamed(name: string | null): FormatPattern | undefin
   return FORMAT_PATTERNS.find((format) => format.name === name);
 }
 
-// An unknown name patches nothing, so a stale selection cannot clear an author's own pattern.
+// An unknown name patches nothing, so a stale selection cannot clear an author's own pattern. The
+// length cap travels with the expression, because a cap left behind from an earlier format would
+// refuse values the new pattern accepts.
 export function withFormatPattern(
   definition: QuestionDefinitionView,
   name: string | null,
@@ -80,7 +90,11 @@ export function withFormatPattern(
   const format = formatPatternNamed(name);
   if (format === undefined) return {};
   return {
-    constraints: { ...(definition.constraints ?? {}), pattern: format.pattern },
+    constraints: {
+      ...(definition.constraints ?? {}),
+      pattern: format.pattern,
+      maxLength: format.maxLength,
+    },
     messages: withMessage(definition.messages ?? {}, "pattern", format.message),
   };
 }

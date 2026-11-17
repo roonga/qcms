@@ -104,6 +104,11 @@ const CORPUS: Readonly<Record<FormatPatternName, Corpus>> = {
       "SW1A 1AA\nEC1A 1BB",
     ],
   },
+  // Every accepted value is one NZ Post prints itself, 0110 being its own leading-zero example.
+  "postcode-nz": {
+    accepts: ["6011", "0110", "8120", "9679", "1112"],
+    rejects: ["", "620", "60110", "60a1", " 6011", "6011 ", "06 20", "6011\n0110"],
+  },
   "postcode-us": {
     accepts: ["97204", "20500", "00501", "97204-1234", "20500-0003"],
     rejects: ["", "9720", "972045", "9720A", "97204-123", "97204 1234", "97204-", "97204\n20500"],
