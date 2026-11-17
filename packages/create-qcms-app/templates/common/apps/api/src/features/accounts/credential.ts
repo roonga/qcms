@@ -102,3 +102,20 @@ export async function setAccountPassword(
     throw isPasswordRefusal(error) ? new PasswordRefused(error) : error;
   }
 }
+
+/**
+ * Whether `password` is the account's current one, read through the library's own verify
+ * so the comparison and the hash format stay the vendor's. Never returns the hash.
+ * `dist/utils/password.mjs:49` <!-- expect: findCredentialAccount(data.userId) -->
+ */
+export async function verifyAccountPassword(
+  auth: AdminAuth,
+  userId: string,
+  password: string,
+): Promise<boolean> {
+  const ctx = await auth.$context;
+  const credential = await ctx.internalAdapter.findCredentialAccount(userId);
+  const hash = credential?.password;
+  if (typeof hash !== "string" || hash === "") return false;
+  return ctx.password.verify({ hash, password });
+}

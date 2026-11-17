@@ -7,6 +7,8 @@ import {
   checkAllEntries,
   checkScriptsIn,
   compareLists,
+  hasMergeGroupTrigger,
+  REQUIRED_CHECK_WORKFLOWS,
   workflowEntries,
 } from "./check-ci-parity.mjs";
 
@@ -96,5 +98,31 @@ describe("the repository's own lists", () => {
   it("includes itself in both lists", () => {
     expect(checkAllEntries(read("package.json"))).toContain("check:ci-parity");
     expect(workflowEntries(read(".github/workflows/ci.yml"))).toContain("check:ci-parity");
+  });
+});
+
+describe("merge queue triggers on the required-check workflows", () => {
+  const workflow = (triggers: string): string =>
+    `on:\n  pull_request:\n${triggers}jobs:\n  build:\n    runs-on: ubuntu-latest\n`;
+
+  it("finds the trigger in every workflow that owns a required check", () => {
+    for (const path of REQUIRED_CHECK_WORKFLOWS)
+      expect(hasMergeGroupTrigger(read(path))).toBe(true);
+  });
+
+  it("accepts a merge_group trigger requesting checks", () => {
+    expect(hasMergeGroupTrigger(workflow("  merge_group:\n    types: [checks_requested]\n"))).toBe(
+      true,
+    );
+  });
+
+  it("rejects a workflow without it, with it commented out, or outside `on:`", () => {
+    expect(hasMergeGroupTrigger(workflow(""))).toBe(false);
+    expect(
+      hasMergeGroupTrigger(workflow("  # merge_group:\n  #   types: [checks_requested]\n")),
+    ).toBe(false);
+    expect(
+      hasMergeGroupTrigger(`${workflow("")}  merge_group:\n    types: [checks_requested]\n`),
+    ).toBe(false);
   });
 });

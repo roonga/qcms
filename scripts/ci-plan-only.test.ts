@@ -15,6 +15,7 @@ import {
   MARKDOWN_SUFFIX,
   PLAN_PREFIX,
   changedFiles,
+  diffBase,
   isAdminOnly,
   isDocsMarkdown,
   isFastLanePath,
@@ -422,11 +423,6 @@ describe("no reader of a lane path lives where the lane cannot see it", () => {
   const ALLOWED = [
     {
       file: "packages/create-qcms-app/scripts/sync-templates.mjs",
-      line: '"Scaffolded source follows the Code comments rule in `PROJECT_INSTRUCTIONS.md`:",',
-      why: "emits a documentation reference; does not read the instruction file",
-    },
-    {
-      file: "packages/create-qcms-app/scripts/sync-templates.mjs",
       line: '"CONTRIBUTING.md",',
       why: "APP_EXCLUDED_PATHS: an app-relative name the scaffold drops, never read from the root",
     },
@@ -600,5 +596,48 @@ describe("changedFiles against a real repository", () => {
 
   it("returns null for a base ref that does not resolve", () => {
     expect(changedFiles("no-such-branch", { cwd: repo })).toBeNull();
+  });
+
+  it("diffs a merge queue entry from its base commit, covering every queued change", () => {
+    const baseSha = git(["rev-parse", "HEAD"]).trim();
+    write("plan/first.md", "prose\n");
+    commit("first queued PR");
+    write("packages/core/src/rules.ts", "export const rules = 1;\n");
+    commit("second queued PR");
+    const files = changedFiles("", { cwd: repo, baseSha });
+    expect(files).toEqual(["packages/core/src/rules.ts", "plan/first.md"]);
+    expect(isPlanOnly(files!)).toBe(false);
+  });
+});
+
+describe("choosing the diff base for the event", () => {
+  const sha = "0123456789abcdef0123456789abcdef01234567";
+
+  it("uses the base branch for a pull request", () => {
+    expect(diffBase({ GITHUB_EVENT_NAME: "pull_request", GITHUB_BASE_REF: "main" })).toEqual({
+      base: "origin/main",
+      options: {},
+      baseRef: "main",
+    });
+  });
+
+  it("uses the queue's base commit for a merge group", () => {
+    expect(diffBase({ GITHUB_EVENT_NAME: "merge_group", MERGE_GROUP_BASE_SHA: sha })).toEqual({
+      base: sha,
+      options: { baseSha: sha },
+      baseRef: "",
+    });
+  });
+
+  it("runs the full suite for a merge group without a usable base SHA", () => {
+    expect(diffBase({ GITHUB_EVENT_NAME: "merge_group" })).toHaveProperty("skip");
+    expect(
+      diffBase({ GITHUB_EVENT_NAME: "merge_group", MERGE_GROUP_BASE_SHA: "main" }),
+    ).toHaveProperty("skip");
+  });
+
+  it("runs the full suite for a push or a manual run", () => {
+    expect(diffBase({ GITHUB_EVENT_NAME: "push", GITHUB_BASE_REF: "main" })).toHaveProperty("skip");
+    expect(diffBase({ GITHUB_EVENT_NAME: "workflow_dispatch" })).toHaveProperty("skip");
   });
 });

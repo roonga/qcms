@@ -1071,7 +1071,47 @@ The create response carries the comment it made, so `--jq .body` on the POST is 
 
 **A body edit retriggers CI; a comment does not.** Editing the body fires the `pull_request` `edited` event, so the required checks run again on an unchanged head. A PR comment fires no such event. So put review verdicts, gate evidence and running notes in comments, and reserve body edits for text that has to be in the body (the `Fixes #NN` lines, the summary a merge commit inherits). Where a body edit is genuinely needed on an already-green PR, expect the re-run and wait for it before merging.
 
+### The merge queue
+
+**Approved PRs go into the queue, and nobody rebases by hand to merge** (Code Owner, 2026-11-17). `gh pr merge <n>` (or **Merge when ready**) adds a PR whose required checks are green to the queue. The queue builds a temporary `gh-readonly-queue/main/...` branch holding the PR on top of `main` plus everything queued ahead of it, `ci.yml` and `e2e.yml` run there through their `merge_group` trigger, and the entry squash-merges when `verify (node-24)`, `api-e2e`, `browser-e2e` and `full-stack-e2e` all pass. A failing entry is removed and the entries behind it are rebuilt without it. Merge `main` into a branch only to resolve a real conflict.
+
+Repository-side facts the queue depends on:
+
+- Every required check comes from a workflow with `merge_group: { types: [checks_requested] }`; `pnpm check:ci-parity` fails if one loses it, since a required check that never reports stalls the queue.
+- The `changes` jobs classify a queue entry by diffing from `github.event.merge_group.base_sha`, so a group of prose PRs still takes the fast lane; any doubt runs the full suite.
+- Queue runs have their own `gh-readonly-queue/...` ref, so they never share a concurrency group with a PR run, and `cancel-in-progress` is only on for `pull_request`.
+
+**Enabling it is a Code Owner action on the `protect-main` ruleset** (Settings, Rules, Rulesets, `protect-main`, **Require merge queue**). Agents never change rulesets. The settings:
+
+| Setting                                    | Value                                                          |
+| ------------------------------------------ | -------------------------------------------------------------- |
+| Merge method                               | Squash                                                         |
+| Build concurrency                          | 2                                                              |
+| Only merge non-failing pull requests       | Yes (`ALLGREEN`)                                               |
+| Status check timeout                       | 60 minutes                                                     |
+| Minimum group size                         | 1                                                              |
+| Maximum group size                         | 5                                                              |
+| Wait time to meet minimum group size       | 5 minutes                                                      |
+| Required checks (existing rule, unchanged) | `verify (node-24)`, `api-e2e`, `browser-e2e`, `full-stack-e2e` |
+
+Build concurrency 2 keeps two entries of about a dozen jobs each inside the runner allowance; 60 minutes clears the 30-minute `browser-e2e` shard timeout with room for queueing. The same change from a shell, which keeps every existing rule and adds or replaces only the queue rule:
+
+```sh
+gh api "repos/{owner}/{repo}/rulesets/19714021" \
+  | jq '{name, target, enforcement, conditions, bypass_actors,
+         rules: ([.rules[] | select(.type != "merge_queue")] + [{type: "merge_queue", parameters: {
+           merge_method: "SQUASH", grouping_strategy: "ALLGREEN",
+           max_entries_to_build: 2, min_entries_to_merge: 1, max_entries_to_merge: 5,
+           min_entries_to_merge_wait_minutes: 5, check_response_timeout_minutes: 60}}])}' \
+  | gh api -X PUT "repos/{owner}/{repo}/rulesets/19714021" --input -
+gh api "repos/{owner}/{repo}/rulesets/19714021" --jq '.rules[] | select(.type == "merge_queue")'
+```
+
+Sources: GitHub Docs, "Managing a merge queue" and "Events that trigger workflows" (`merge_group`), and the REST "Repository rules" reference for the `merge_queue` parameters.
+
 ### Triaging a Dependabot pull request
+
+Dependabot opens security-update PRs only (`open-pull-requests-limit: 0` on every version-update entry; `CONTRIBUTING.md`, "Dependency updates"). Treat one as a seed: an executor rebuilds it on its own branch with the steps below, and routine bumps arrive in the periodic sweep PR instead.
 
 A bump arrives red, and none of the red is about the bump: the bot edits manifests and writes neither the changeset `check:changeset` wants nor the scaffolding template re-sync `check:templates` wants. For an **npm** bump, one command from the bot's branch fixes both (issues #421 and #834); a `docker/` base-image digest bump is the exception, and its own recipe is at the end of this section.
 

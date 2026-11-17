@@ -16,6 +16,7 @@ import {
   makeListAccessGroupsHandler,
   makeListMembersHandler,
   makeMyAccessHandler,
+  makeReconfirmHolderHandler,
   makeRemoveHolderHandler,
   makeRemoveMemberHandler,
   makeSetMemberRoleHandler,
@@ -188,7 +189,13 @@ export const updateAccessGroupRoute = createRoute({
   description:
     "One `group` audit row naming what the group now carries and what it carried " +
     "before. A change that would give the person making it a response role, or a new " +
-    "environment for one, is refused while the workspace requires a second approver.",
+    "environment for one, is refused while the workspace requires a second approver. " +
+    "A change that adds a response role leaves a holder's hold suspended until a different " +
+    "administrator re-confirms it, where the holder's newest sign-in links are reset or " +
+    "reactivation links and the person making the change performed that reset or " +
+    "reactivation or is the holder; made by anybody else, it re-confirms the hold, audited " +
+    "as a re-confirmation. It answers `409 ACCOUNT_BUSY` while an act on any holder's " +
+    "account is in flight.",
   tags,
   request: { params: AccessGroupParams, body: jsonBody(UpdateAccessGroupBody) },
   responses: {
@@ -234,7 +241,10 @@ export const addHolderRoute = createRoute({
     "An unknown account gets one generic 404, `ACCOUNT_NOT_ADDABLE`, on both the " +
     "`email` and the `userId` path, and so does an account named by `userId` that is " +
     "not yet in this workspace unless the caller is the installation administrator: " +
-    "anybody else adds a newcomer by exact address. Refused on an archived workspace.",
+    "anybody else adds a newcomer by exact address. Refused on an archived workspace. " +
+    "A response grant is written suspended, until a different administrator re-confirms " +
+    "it, where the account's newest sign-in links are reset or reactivation links and " +
+    "the caller sent one or is the account.",
   tags,
   request: { params: AccessGroupParams, body: jsonBody(AddHolderBody) },
   responses: {
@@ -259,6 +269,29 @@ export const removeHolderRoute = createRoute({
   responses: {
     204: { description: "Revoked" },
     ...errorResponses(401, 403, 404),
+  },
+  ...withScopes("forms:write"),
+});
+
+export const reconfirmHolderRoute = createRoute({
+  method: "post",
+  path: "/workspaces/{id}/access-groups/{teamId}/holders/{userId}/reconfirm",
+  summary: "Re-confirm a suspended membership (admin)",
+  description:
+    "Lifts the suspension a credential reset or a reactivation put on a membership of a " +
+    "group carrying a response role, and writes one `grant` row. Always refused for the " +
+    "membership's own subject. Refused for the person who performed the reset or " +
+    "reactivation while another active, claimed administrator of this workspace, a Site " +
+    "administrator included, exists; where none does, that person may re-confirm and " +
+    "the row records it. Refused on an archived workspace.",
+  tags,
+  request: { params: AccessGroupHolderParams },
+  responses: {
+    200: {
+      description: "The access group, with its holders",
+      content: { "application/json": { schema: AccessGroupResponse } },
+    },
+    ...errorResponses(401, 403, 404, 409),
   },
   ...withScopes("forms:write"),
 });
@@ -362,6 +395,7 @@ export const registerMembership: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(deleteAccessGroupRoute, makeDeleteAccessGroupHandler(deps));
   group.openapi(addHolderRoute, makeAddHolderHandler(deps));
   group.openapi(removeHolderRoute, makeRemoveHolderHandler(deps));
+  group.openapi(reconfirmHolderRoute, makeReconfirmHolderHandler(deps));
   group.openapi(workspaceSettingsRoute, makeWorkspaceSettingsHandler(deps));
   group.openapi(auditRoute, makeAuditHandler(deps));
   group.openapi(siteAuditRoute, makeSiteAuditHandler(deps));
