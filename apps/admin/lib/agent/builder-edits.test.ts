@@ -85,7 +85,10 @@ describe("applying a turn's edits", () => {
   it("offers no Undo for the first edit when the stored draft could not be read", async () => {
     const records = await applyTurnEdits(
       turn(1),
-      { readStored: () => Promise.reject(new Error("down")), save: () => Promise.resolve(saved("u")) },
+      {
+        readStored: () => Promise.reject(new Error("down")),
+        save: () => Promise.resolve(saved("u")),
+      },
       () => undefined,
     );
     expect(records[0]?.state).toBe("applied");

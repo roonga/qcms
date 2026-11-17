@@ -134,6 +134,8 @@ export interface ProposeInput {
   /** The environment name a production act runs in, from the deployment's own mount. */
   readonly productionEnvironment: string;
   readonly formId?: string | undefined;
+  /** The workspace the screen names, for a kind that takes it when the model names none. */
+  readonly screenWorkspaceId?: string | undefined;
   /** Resolves the names of the workspaces a plan's own arguments name. */
   readonly workspaceNames?:
     ((workspaceIds: readonly string[]) => Promise<readonly WorkspaceName[]>) | undefined;
@@ -462,15 +464,22 @@ function kindRefusal(
 
 async function stepRefusal(
   input: ProposeInput,
-  step: ProposedStep,
+  proposed: ProposedStep,
   index: number,
   pinned: readonly PinnedQuestion[],
   pinChecked: boolean,
 ): Promise<{ readonly reason: string } | { readonly step: PlanStep; readonly def: ActionKindDef }> {
-  const def = actionKind(step.kind);
+  const def = actionKind(proposed.kind);
   if (def === undefined) {
-    return { reason: `There is no action kind named "${step.kind}".` };
+    return { reason: `There is no action kind named "${proposed.kind}".` };
   }
+  const step: ProposedStep =
+    def.screenDefaults === undefined
+      ? proposed
+      : {
+          ...proposed,
+          args: def.screenDefaults(proposed.args, { workspaceId: input.screenWorkspaceId }),
+        };
 
   const allowed = offeredEnvironments(input.offered, step.kind);
   if (allowed.length === 0) {

@@ -56,7 +56,8 @@ export const acceptProposalRoute = createRoute({
   summary:
     "Accept an agent proposal: save the draft and create its new questions (admin, flag-gated)",
   description:
-    "Stores the accepted draft with agent provenance and materialises the proposal's new " +
+    "Stores the accepted draft with agent provenance, writes one `control.agent_actions` row " +
+    "for the accept, and materialises the proposal's new " +
     "question definitions as UNPUBLISHED question drafts in the library, in one transaction. " +
     "Each definition passes the same kernel and authoring-boundary validation " +
     "`POST /admin/questions` applies; a refused definition fails the whole accept and nothing " +

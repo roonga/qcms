@@ -111,6 +111,7 @@ export const FAKE_SCRIPTS = [
   "builder-library-question",
   "builder-injection",
   "builder-edit-cap",
+  "builder-first-edits",
 ] as const;
 
 /** Asserted present under `summary` and absent everywhere under `off`. */
@@ -1403,6 +1404,55 @@ function planBuilderEditsStep(
   ];
 }
 
+const FIRST_STEP_ID = "stp_builder_first";
+
+/**
+ * `builder-first-edits`: three edits on a form's empty first draft. A step is added first,
+ * pinning a library hit, since a draft with no step cannot be saved; then two wording edits.
+ */
+function planBuilderFirstEditsStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  if (!results.has("search_question_library")) {
+    const query = pickSearchQuery(prompt);
+    return oneCall("search_question_library", {
+      limit: 10,
+      ...(query === undefined ? {} : { query }),
+    });
+  }
+  const locale = draftLocale(currentDraft(prompt) ?? {});
+  const [hit] = libraryHits(results);
+  if (toolCallCount(prompt, "edit_step") === 0 && hit !== undefined) {
+    return [
+      ...textParts("I will add a first step, then name the form and the step.", "t0"),
+      ...oneCall("edit_step", {
+        action: "add",
+        stepId: FIRST_STEP_ID,
+        step: {
+          stepId: FIRST_STEP_ID,
+          title: { [locale]: "First step" },
+          items: [{ questionId: hit.questionId, version: hit.version }],
+        },
+      }),
+    ];
+  }
+  if (toolCallCount(prompt, "edit_copy") === 0 && hit !== undefined) {
+    return oneCall("edit_copy", { target: "form-title", text: { [locale]: "Built by the builder" } });
+  }
+  if (toolCallCount(prompt, "edit_copy") === 1 && hit !== undefined) {
+    return oneCall(
+      "edit_copy",
+      { target: "step-title", stepId: FIRST_STEP_ID, text: { [locale]: "About you" } },
+      "_2",
+    );
+  }
+  return [
+    ...textParts("Each change is in the draft now, and each has its own Undo.", "t1"),
+    finishPart("stop"),
+  ];
+}
+
 /** `builder-undo`: Undo is the person's control, so the turn after one only acknowledges it. */
 function planBuilderUndoStep(prompt: readonly PromptMessage[]): StreamPart[] {
   const reported = userText(prompt).includes(": undone");
@@ -1521,6 +1571,7 @@ const STATEFUL_PLANNERS: Readonly<
   "builder-library-question": (prompt) => planBuilderLibraryStep(prompt),
   "builder-injection": planBuilderInjectionStep,
   "builder-edit-cap": (prompt) => planBuilderEditCapStep(prompt),
+  "builder-first-edits": planBuilderFirstEditsStep,
 };
 
 /** The line `waitingTurn` in `assistant.ts` writes for a card the person has not acted on. */

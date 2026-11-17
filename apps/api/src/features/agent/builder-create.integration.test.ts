@@ -118,7 +118,11 @@ function headersFor(caller: Caller, extra: Record<string, string> = {}): Record<
 
 async function seedPublishedQuestion(id: string, label: string): Promise<void> {
   const questionId = QuestionId.parse(id);
-  const parsed = parseQuestionDefinition({ questionId: id, type: "shortText", label: { en: label } });
+  const parsed = parseQuestionDefinition({
+    questionId: id,
+    type: "shortText",
+    label: { en: label },
+  });
   if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
   await createQuestion(testDb.db, {
     workspaceId: SEED_WORKSPACE_ID,
@@ -360,9 +364,7 @@ describe("the docked assistant's accept (provenance)", () => {
         changes: { kind: string; revision: number | null }[];
       };
       expect(body.agentAssisted).toBe(true);
-      expect(body.changes).toEqual([
-        expect.objectContaining({ kind: "apply-draft", revision: 2 }),
-      ]);
+      expect(body.changes).toEqual([expect.objectContaining({ kind: "apply-draft", revision: 2 })]);
     },
     CONTAINER_BOOT_TIMEOUT_MS,
   );

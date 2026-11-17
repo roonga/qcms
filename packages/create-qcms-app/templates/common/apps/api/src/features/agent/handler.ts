@@ -7,6 +7,7 @@ import {
   listQuestionVersions,
   listQuestions,
   listWorkspaces,
+  writeAgentActionRow,
 } from "@roonga/qcms-db";
 import { getForm, getWorkspace } from "@roonga/qcms-db";
 import type { QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
@@ -323,6 +324,7 @@ function actionPorts(args: {
           }),
           productionEnvironment: PRODUCTION_ENVIRONMENT,
           formId: named,
+          screenWorkspaceId: workspaceId,
           workspaceNames: (ids) => workspaceNamesFor(args.deps, ids),
           issuedAt: args.deps.clock.now(),
           validate: (definition, pending) => validateDraft(args.deps, definition, pending),
@@ -812,6 +814,7 @@ export function makeAcceptProposalHandler(
     // without the publish rule refusing them (ADR-41).
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
+    const acceptedAt = deps.clock.now();
 
     const stored = await deps.databases.control.transaction(async (tx) => {
       const created: CreatedQuestion[] = [];
@@ -831,6 +834,19 @@ export function makeAcceptProposalHandler(
         }
       }
       const draft = await storeDraftDefinition(tx, formId, definition, true);
+      await writeAgentActionRow(tx, {
+        proposalId: `acc_${crypto.randomUUID().replaceAll("-", "")}`,
+        stepIndex: 0,
+        stepCount: 1,
+        actor: callerOf(c).userId,
+        workspaceId: form.workspaceId,
+        formId,
+        kind: ACCEPT_KIND,
+        screen: APPLY_DRAFT_SCREEN,
+        proposedAt: acceptedAt,
+        confirmedAt: acceptedAt,
+        detail: String(draft.revision),
+      });
       return { created, draft };
     });
 
@@ -863,11 +879,17 @@ export function makeAcceptProposalHandler(
   };
 }
 
-/** The card kind whose step saves a whole draft, which the wizard counts with the card-less edits. */
-const DRAFT_CHANGE_KINDS: readonly string[] = [...DRAFT_EDIT_KINDS, "form.saveDraft"];
+/** The row an accepted docked proposal writes, so the wizard's read counts it as the assistant's. */
+const ACCEPT_KIND = "apply-draft";
+
+/** The card kinds that save a whole draft, which the wizard counts with the card-less edits. */
+const DRAFT_CHANGE_KINDS: readonly string[] = [...DRAFT_EDIT_KINDS, "form.saveDraft", ACCEPT_KIND];
+
+/** The kinds whose `detail` is the draft revision they left. */
+const REVISION_KINDS: readonly string[] = [...DRAFT_EDIT_KINDS, ACCEPT_KIND];
 
 function revisionOf(kind: string, detail: string | null): number | null {
-  if (!DRAFT_EDIT_KINDS.includes(kind) || detail === null || !/^\d{1,10}$/u.test(detail))
+  if (!REVISION_KINDS.includes(kind) || detail === null || !/^\d{1,10}$/u.test(detail))
     return null;
   return Number.parseInt(detail, 10);
 }

@@ -110,7 +110,7 @@ export const putDraftRoute = createRoute({
     "either side of its edit. A stale, replayed, foreign or over-cap token is refused and " +
     "never saved as an ordinary edit. Each accepted edit and Undo writes one " +
     "`control.agent_actions` row in the save's transaction, and an edit's response carries " +
-    "the token that undoes it. The body's `agentAssisted` is never taken as provenance.",
+    "the token that undoes it. The body carries no provenance mark: only a verified token does.",
   tags,
   request: {
     params: FormIdParam,

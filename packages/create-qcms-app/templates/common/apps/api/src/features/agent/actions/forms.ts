@@ -62,12 +62,11 @@ const saveDraft = routeArgs(
       "The complete draft: defaultLocale, title, steps and rules. Leave formId out of it; " +
         "the step's own formId argument is the form, and the server fills it in.",
     ),
-  } satisfies StepArgs<typeof DraftBody.shape, "agentAssisted" | "appearance", "formId">,
-  // `agentAssisted` is the provenance mark every agent save carries, not a choice, and an
-  // omitted `appearance` keeps the one the form already has, which is what a save the
+  } satisfies StepArgs<typeof DraftBody.shape, "appearance", "formId">,
+  // An omitted `appearance` keeps the one the form already has, which is what a save the
   // assistant proposes always means.
   {
-    unnamed: ["agentAssisted", "appearance"],
+    unnamed: ["appearance"],
     params: { formId: "id" },
     readers: { definition: (facts) => draftWithoutFormId(bodyMember(facts, "definition")) },
   },
@@ -76,7 +75,7 @@ const saveDraft = routeArgs(
 /**
  * The draft the assistant proposed, applied through the builder's own save. It reaches no
  * route of its own: Confirm hands the draft to the builder, which stores it through the
- * one save path every other edit takes, carrying the agent-assisted mark.
+ * accept route, and that route writes the audit row.
  */
 export const applyDraft: ActionKindDef = {
   kind: "apply-draft",
@@ -98,8 +97,8 @@ export const applyDraft: ActionKindDef = {
 };
 
 /**
- * A complete draft saved through the route every other edit takes, with the agent-assisted
- * mark. Proposable from any screen, and its form may be one an earlier step of the same plan
+ * A complete draft saved through the route every other edit takes; its token writes the
+ * audit row. Proposable from any screen, and its form may be one an earlier step of the same plan
  * created, which is what takes a form from blank to a reviewable draft under one Confirm.
  */
 export const saveFormDraft: ActionKindDef = {

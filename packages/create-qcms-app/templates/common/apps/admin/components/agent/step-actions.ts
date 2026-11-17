@@ -437,7 +437,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
     const state = await saveFormDraftAction(
       formId,
       draft,
-      true,
+      undefined,
       undefined,
       proposalRef(agentProposal, tokenStep),
     );

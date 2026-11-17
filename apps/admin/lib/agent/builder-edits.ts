@@ -61,9 +61,9 @@ export async function applyTurnEdits(
       records = replaceRecord(records, { ...current, state: "not-run" });
       continue;
     }
-    const saved = await ports.save(edit.definition, edit.token).catch(
-      (): AgentEditState => ({ status: "error", code: "UNREACHABLE", message: "" }),
-    );
+    const saved = await ports
+      .save(edit.definition, edit.token)
+      .catch((): AgentEditState => ({ status: "error", code: "UNREACHABLE", message: "" }));
     if (saved.status === "error") {
       records = replaceRecord(records, { ...current, state: "failed", message: saved.message });
       stopped = true;
@@ -100,14 +100,13 @@ export function undoableKey(records: readonly EditRecord[]): string | undefined 
   return undefined;
 }
 
-export async function undoEdit(
-  record: EditRecord,
-  save: EditPorts["save"],
-): Promise<EditRecord> {
+export async function undoEdit(record: EditRecord, save: EditPorts["save"]): Promise<EditRecord> {
   if (record.undoToken === undefined || record.pre === undefined) return record;
-  const saved = await save(record.pre, record.undoToken).catch(
-    (): AgentEditState => ({ status: "error", code: "UNREACHABLE", message: "" }),
-  );
+  const saved = await save(record.pre, record.undoToken).catch((): AgentEditState => ({
+    status: "error",
+    code: "UNREACHABLE",
+    message: "",
+  }));
   if (saved.status === "error") {
     return {
       turnId: record.turnId,

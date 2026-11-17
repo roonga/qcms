@@ -86,7 +86,9 @@ test("creates through the card, edits with no card, undoes twice and reviews the
 
   await Promise.all([
     page.waitForURL(new RegExp(`${build}$`, "u"), { timeout: 60_000 }),
-    card(page).getByRole("button", { name: /^Confirm/u }).click(),
+    card(page)
+      .getByRole("button", { name: /^Confirm/u })
+      .click(),
   ]);
   await waitForHydration(page);
 

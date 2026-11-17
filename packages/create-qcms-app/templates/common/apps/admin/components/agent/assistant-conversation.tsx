@@ -25,7 +25,7 @@ import {
   type ConversationHandle,
   type WaitingProposalTurn,
 } from "@/lib/agent/conversation";
-import { screenIdentity, type ResolvedScreen } from "@/lib/agent/screens";
+import { screenIdentity, type ConversationScreen } from "@/lib/agent/screens";
 import {
   actionResultTurn,
   cancelCard,
@@ -50,7 +50,12 @@ import { runPlan } from "@/lib/agent/runner";
 import { displayText, planNames, stepTitle } from "@/lib/agent/card-copy";
 import { useProposalSeam } from "@/lib/agent/waiting";
 import { errorForResponse, messageForError, type AssistError } from "@/lib/forms/assist-errors";
-import { readAssistEvents, type AgentProposal, type AssistEvent } from "@/lib/forms/assist-stream";
+import {
+  readAssistEvents,
+  type AgentProposal,
+  type AssistEvent,
+  type BuilderEdits,
+} from "@/lib/forms/assist-stream";
 
 import { ActionCard } from "./action-card";
 import { runStepAction } from "./step-actions";
@@ -76,6 +81,22 @@ function handOffFields(args: Readonly<Record<string, unknown>>): Readonly<Record
     else if (typeof value === "number" || typeof value === "boolean") fields[name] = String(value);
   }
   return fields;
+}
+
+/** The agent builder's half of a turn, which the dock never receives: card-less edits and the wizard. */
+export interface BuilderTurnHooks {
+  /** Applies one turn's edits in order, resolving once every save has settled. */
+  readonly applyEdits: (edits: BuilderEdits) => Promise<void>;
+  readonly renderEdits: (turnId: string) => ReactNode;
+  readonly openWizard: (returnTo: string) => void;
+  readonly onFormCreated?: (formId: string) => void;
+}
+
+function createdFormId(plan: AgentProposal, settled: AgentCardView): string | undefined {
+  const at = plan.steps.findIndex((step) => step.kind === "form.create");
+  const step = at < 0 ? undefined : settled.steps[at];
+  const formId = step?.state === "done" ? step.result?.["formId"] : undefined;
+  return typeof formId === "string" && formId !== "" ? formId : undefined;
 }
 
 function continuesAfterAccept(plan: AgentProposal): boolean {
@@ -133,14 +154,16 @@ export function AssistantConversation({
   composerRef,
   onWorkingChange,
   onAnnounce,
+  turnHooks,
 }: {
-  readonly screen: ResolvedScreen | undefined;
+  readonly screen: ConversationScreen | undefined;
   readonly environment: string;
   readonly conversation: ConversationHandle;
   readonly builder: BuilderAssistSnapshot | undefined;
   readonly composerRef: RefObject<HTMLTextAreaElement | null>;
   readonly onWorkingChange: (working: boolean) => void;
   readonly onAnnounce: (message: string) => void;
+  readonly turnHooks?: BuilderTurnHooks;
 }) {
   const writable = builder !== undefined && builder.canPropose ? builder : undefined;
   return (
@@ -153,6 +176,7 @@ export function AssistantConversation({
       composerRef={composerRef}
       onWorkingChange={onWorkingChange}
       onAnnounce={onAnnounce}
+      turnHooks={turnHooks}
     />
   );
 }
@@ -165,14 +189,16 @@ function ScreenConversation({
   composerRef,
   onWorkingChange,
   onAnnounce,
+  turnHooks,
 }: {
-  readonly screen: ResolvedScreen | undefined;
+  readonly screen: ConversationScreen | undefined;
   readonly environment: string;
   readonly conversation: ConversationHandle;
   readonly builder: BuilderAssistSnapshot | undefined;
   readonly composerRef: RefObject<HTMLTextAreaElement | null>;
   readonly onWorkingChange: (working: boolean) => void;
   readonly onAnnounce: (message: string) => void;
+  readonly turnHooks: BuilderTurnHooks | undefined;
 }) {
   const [value, setValue] = useState("");
   const [shown, setShown] = useState<readonly ShownTurn[]>(() => restored(conversation.turns));
@@ -332,13 +358,15 @@ function ScreenConversation({
       windowLeftMs: () => remainingWindowMs(windowRef.current, monotonicNow()),
     });
     settle(plan, settled);
+    const created = createdFormId(plan, settled);
+    if (created !== undefined) turnHooks?.onFormCreated?.(created);
     if (saved === undefined || !ranCleanly(settled)) return;
     const token = await saved;
     if (token !== undefined) await runTurn(undefined, token, []);
   };
 
   const postTurn = (
-    on: ResolvedScreen,
+    on: ConversationScreen,
     signal: AbortSignal,
     savedDraft: string | undefined,
     waitingCard: readonly WaitingProposalTurn[],
@@ -359,7 +387,15 @@ function ScreenConversation({
     });
   };
 
-  const absorb = (event: AssistEvent): void => {
+  const absorb = (event: AssistEvent, builderTurn: BuilderTurnEvents): void => {
+    if (event.type === "edits") {
+      builderTurn.edits = event;
+      return;
+    }
+    if (event.type === "open-wizard") {
+      builderTurn.wizard = event.returnTo;
+      return;
+    }
     if (event.type === "plan") {
       const arriving = event.proposal;
       windowRef.current = startedWindow(arriving);
@@ -406,6 +442,7 @@ function ScreenConversation({
     abortRef.current = controller;
     stoppedRef.current = false;
 
+    const builderTurn: BuilderTurnEvents = {};
     try {
       const response = await postTurn(screen, controller.signal, savedDraft, waitingCard);
       if (!response.ok || response.body === null) {
@@ -417,7 +454,7 @@ function ScreenConversation({
       for await (const event of readAssistEvents(response.body)) {
         turn = applyTurnEvent(turn, event);
         setLive(turn);
-        absorb(event);
+        absorb(event, builderTurn);
         const step = runningStep(turn);
         if (step !== undefined) onAnnounce(t(step.label));
       }
@@ -428,6 +465,13 @@ function ScreenConversation({
       const text = turnText(ended).trim();
       if (text !== "") conversation.append([{ role: "assistant", content: text }]);
       setReason(lastTextSegment(ended).trim().slice(0, REASON_SOURCE_CHARS));
+      // Every save settles before the wizard opens, so it reviews the draft the edits left.
+      const edits = builderTurn.edits;
+      if (edits !== undefined && turnHooks !== undefined) {
+        setShown((current) => capped([...current, { role: "edits", turnId: edits.turnId }]));
+        await turnHooks.applyEdits(edits);
+      }
+      if (builderTurn.wizard !== undefined) turnHooks?.openWizard(builderTurn.wizard);
       onAnnounce(stoppedRef.current ? t("agent.announce.stopped") : t("agent.announce.done"));
     } catch {
       if (!stoppedRef.current) {
@@ -473,7 +517,16 @@ function ScreenConversation({
         }}
       >
         {shown.map((turn, index) =>
-          turn.role === "user" ? (
+          turn.role === "edits" ? (
+            <li
+              key={`edits-${turn.turnId}`}
+              className="qcms-assistant__turn"
+              data-role="assistant"
+              data-testid="qcms-builder-edits"
+            >
+              {turnHooks?.renderEdits(turn.turnId)}
+            </li>
+          ) : turn.role === "user" ? (
             <li key={`user-${String(index)}`} className="qcms-assistant__turn" data-role="user">
               <div className="qcms-assistant__said">
                 <p className="qcms-assistant__speaker">{t("agent.speaker.you")}</p>
@@ -709,7 +762,14 @@ function StepTimeline({ steps }: { readonly steps: readonly TurnStep[] }) {
 
 type ShownTurn =
   | { readonly role: "user"; readonly content: string }
-  | { readonly role: "assistant"; readonly view: AssistantTurnView };
+  | { readonly role: "assistant"; readonly view: AssistantTurnView }
+  | { readonly role: "edits"; readonly turnId: string };
+
+/** Filled while a turn streams; acted on only once it has ended cleanly. */
+interface BuilderTurnEvents {
+  edits?: BuilderEdits;
+  wizard?: string;
+}
 
 /** What is on screen follows the history's own cap, so the panel's note is true of both. */
 function capped(turns: readonly ShownTurn[]): readonly ShownTurn[] {

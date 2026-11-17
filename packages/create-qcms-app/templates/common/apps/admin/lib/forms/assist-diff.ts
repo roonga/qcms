@@ -245,3 +245,63 @@ function ruleDiff(current: readonly DraftRule[], proposed: readonly DraftRule[])
   }
   return entries;
 }
+
+export interface PublishChange {
+  readonly kind: "title" | "step" | "question" | "rule";
+  readonly change: "added" | "changed" | "removed";
+  readonly id: string;
+  readonly label: string;
+}
+
+function removed<T>(
+  base: readonly T[],
+  draft: readonly T[],
+  idOf: (item: T) => string,
+): readonly T[] {
+  const kept = new Set(draft.map(idOf));
+  return base.filter((item) => !kept.has(idOf(item)));
+}
+
+/**
+ * Every change between the last publish and the draft, by anyone: the audit rows hold no
+ * content, so no narrower assistant-only comparison exists. A first version compares with
+ * nothing, so everything in it is added.
+ */
+export function changesSincePublish(
+  base: DraftForm | null,
+  draft: DraftForm,
+): readonly PublishChange[] {
+  const before: DraftForm = base ?? { ...draft, title: {}, steps: [], rules: [] };
+  const locale = draft.defaultLocale;
+  const changes: PublishChange[] = [];
+  if (!sameContent(before.title, draft.title)) {
+    changes.push({
+      kind: "title",
+      change: Object.keys(before.title).length === 0 ? "added" : "changed",
+      id: "title",
+      label: textOf(draft.title, locale),
+    });
+  }
+  for (const entry of [
+    ...stepDiff(before.steps, draft.steps, locale),
+    ...questionDiff(before.steps, draft.steps, new Map()),
+    ...ruleDiff(before.rules, draft.rules),
+  ]) {
+    changes.push({ kind: entry.kind, change: entry.change, id: entry.id, label: entry.label });
+  }
+  for (const step of removed(before.steps, draft.steps, (item) => item.stepId)) {
+    changes.push({
+      kind: "step",
+      change: "removed",
+      id: step.stepId,
+      label: textOf(step.title, locale) || step.stepId,
+    });
+  }
+  for (const pin of removed(flattenPins(before.steps), flattenPins(draft.steps), (item) => item.questionId)) {
+    changes.push({ kind: "question", change: "removed", id: pin.questionId, label: pin.questionId });
+  }
+  for (const rule of removed(before.rules, draft.rules, (item) => item.ruleId)) {
+    changes.push({ kind: "rule", change: "removed", id: rule.ruleId, label: rule.ruleId });
+  }
+  return changes;
+}
