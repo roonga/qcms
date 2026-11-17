@@ -6,6 +6,9 @@ import {
   layoutReportFact,
   selectionFact,
 } from "../apps/admin/lib/agent/builder-facts.ts";
+import { previewRail } from "../apps/admin/lib/forms/preview-rail.ts";
+import type { DraftForm } from "../apps/admin/lib/forms/types.ts";
+import { railEntries } from "../apps/api/src/features/responses/serve-step/steps.ts";
 import {
   LAYOUT_ISSUES,
   LayoutReportFact,
@@ -147,5 +150,49 @@ describe("the admin's builder facts against the API's strict schemas", () => {
 
   it("shares the API's issue vocabulary", () => {
     expect([...ADMIN_LAYOUT_ISSUES]).toEqual([...LAYOUT_ISSUES]);
+  });
+});
+
+describe("the admin's preview rail against the API's step rail", () => {
+  const stepIds = ["stp_a", "stp_b", "stp_c", "stp_d"];
+  const draft: DraftForm = {
+    formId: "frm_rail",
+    defaultLocale: "en",
+    title: { en: "Rail" },
+    rules: [],
+    steps: stepIds.map((stepId) => ({ stepId, title: { en: stepId }, items: [] })),
+  };
+
+  function sequences(length: number): string[][] {
+    if (length === 0) return [[]];
+    return sequences(length - 1).flatMap((head) => stepIds.slice(0, 3).map((id) => [...head, id]));
+  }
+
+  it("agrees on every state and cursor for every view sequence and shown view", () => {
+    let compared = 0;
+    for (let length = 0; length <= 5; length += 1) {
+      for (const ids of sequences(length)) {
+        const views = ids.map((stepId) => ({ stepId: stepId as never, instanceId: null }));
+        for (let shown = 0; shown <= length; shown += 1) {
+          const api = railEntries({
+            steps: stepIds as never[],
+            views,
+            servedIndex: shown,
+            resumeIndex: shown,
+          });
+          const admin = previewRail(
+            draft,
+            ids.map((stepId) => ({ step: { stepId, root: null }, instanceId: null })),
+            shown,
+          );
+          expect(
+            admin.map(({ stepId, state, cursor }) => ({ stepId, state, cursor })),
+            `${ids.join(",")} @${shown}`,
+          ).toEqual(api.map(({ stepId, state, cursor }) => ({ stepId, state, cursor })));
+          compared += 1;
+        }
+      }
+    }
+    expect(compared).toBeGreaterThan(1000);
   });
 });

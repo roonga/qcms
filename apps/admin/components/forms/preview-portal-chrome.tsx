@@ -291,7 +291,7 @@ export function PreviewPortalChrome({
       {sideRail ? (
         <>
           {progress === undefined ? null : (
-            <RailFold steps={steps} navigation={navigation} summary={progress} />
+            <RailFold key={progress} steps={steps} navigation={navigation} summary={progress} />
           )}
           <div className="mx-auto flex w-full max-w-6xl flex-1 gap-8 px-4 py-6 qcms-cq-sm-py-10">
             <SideRail steps={steps} navigation={navigation} questions={questions} />

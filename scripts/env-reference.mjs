@@ -938,7 +938,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "",
     description:
-      "Match the portal so the builder preview header shows its brand name. Blank shows the portal default.",
+      "Brand name shown in the portal header; empty renders no brand. The admin builder preview header shows the same name, so match the portal. Blank shows the portal default.",
   },
   {
     name: "QCMS_PORTAL_BRAND_LOGO",
@@ -946,7 +946,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "",
     description:
-      "Match the portal so the builder preview header shows its logo. Only a `data:image/...` value shows; a root-relative portal path does not load from the admin origin.",
+      "URL of the brand logo shown in the portal header; a root-relative path works there. The admin builder preview header shows the logo only for a `data:image/...` value, because a root-relative path does not load from the admin origin.",
   },
   {
     name: "NODE_ENV",

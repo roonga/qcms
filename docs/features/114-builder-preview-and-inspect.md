@@ -58,6 +58,7 @@ Code Owner, round-1 review of PR #1359:
 - The preview pages itself, so the rail's completed rows and question entries are buttons that move the preview, not the portal's links, and the rail's resume point is the shown step.
 - The respondent's own appearance menu in the portal header is not shown; the preview toolbar sets polarity and high contrast.
 - The header shows the deployment's brand (`QCMS_PORTAL_BRAND_NAME`, and `QCMS_PORTAL_BRAND_LOGO` when it is a `data:` image). A root-relative logo is a portal path the admin origin cannot load.
+- The draft's own logo is not shown: the admin has no read path to the logo store. Tracked in #1365.
 
 ## Out of scope
 
