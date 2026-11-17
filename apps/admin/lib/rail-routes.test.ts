@@ -27,7 +27,8 @@ const CURRENT_CONTEXT: Readonly<Record<string, string>> = {
   "/operations/forms/[formId]/erase": "erase",
 };
 
-const NO_SECTION: readonly string[] = [];
+/* The agent builder is a mode with no rail (admin design contracts section 7b). */
+const NO_SECTION: readonly string[] = ["/forms/[formId]/build", "/forms/new/build"];
 
 function routePatternsUnder(directory: string, prefix: string): string[] {
   const patterns: string[] = [];
@@ -56,7 +57,9 @@ function railSlotRoutes(): string[] {
 }
 
 function formScopedScreens(): string[] {
-  return shellScreens().filter((pattern) => pattern.startsWith("/forms/[formId]"));
+  return shellScreens().filter(
+    (pattern) => pattern.startsWith("/forms/[formId]") && !NO_SECTION.includes(pattern),
+  );
 }
 
 function formContextScreens(): string[] {

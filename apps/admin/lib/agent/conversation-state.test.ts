@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BUILDER_CONVERSATION_PREFIX,
+  CONVERSATION_STORAGE_KEY,
   CONVERSATION_TURN_CAP,
   appendCapped,
+  builderConversationKey,
+  conversationKeysToClear,
   atSubject,
   parseConversation,
   postedTurns,
@@ -227,5 +231,32 @@ describe("the stored conversation", () => {
       turns: prose(CONVERSATION_TURN_CAP + 5),
     });
     expect(parseConversation(stored, "usr_1")?.turns).toHaveLength(CONVERSATION_TURN_CAP);
+  });
+});
+
+describe("the agent builder's conversation key", () => {
+  it("differs per user, per workspace and per form", () => {
+    const base = builderConversationKey("usr_1", "ws_a", "frm_a");
+    expect(builderConversationKey("usr_2", "ws_a", "frm_a")).not.toBe(base);
+    expect(builderConversationKey("usr_1", "ws_b", "frm_a")).not.toBe(base);
+    expect(builderConversationKey("usr_1", "ws_a", "frm_b")).not.toBe(base);
+    expect(builderConversationKey("usr_1", "ws_a", null)).not.toBe(base);
+  });
+
+  it("is never the dock's key, and cannot be forged into another entry by a separator", () => {
+    const key = builderConversationKey("usr_1", "ws_a", "frm_a");
+    expect(key).not.toBe(CONVERSATION_STORAGE_KEY);
+    expect(key.startsWith(BUILDER_CONVERSATION_PREFIX)).toBe(true);
+    expect(builderConversationKey("usr:1", "ws", "frm")).not.toBe(
+      builderConversationKey("usr", "1:ws", "frm"),
+    );
+  });
+
+  it("is cleared at sign-out with the dock's, leaving every other entry", () => {
+    const builder = builderConversationKey("usr_1", "ws_a", "frm_a");
+    expect(conversationKeysToClear([builder, "qcms-operations-return", null])).toEqual([
+      CONVERSATION_STORAGE_KEY,
+      builder,
+    ]);
   });
 });

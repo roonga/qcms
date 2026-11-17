@@ -21,7 +21,7 @@ let workspacesSecret = "";
 test.beforeAll(async () => {
   await createTestAdmin(EVERYTHING);
   await createTestAdmin(OPERATIONS_ONLY, { grants: ["responses.viewer"], owner: false });
-  await createTestAdmin(WORKSPACES_ONLY, { grants: [], owner: false });
+  await createTestAdmin(WORKSPACES_ONLY, { grants: [], owner: false, siteAdministrator: true });
 });
 
 test("the application navigation offers the areas the caller holds", async ({ page }) => {

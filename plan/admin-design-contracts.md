@@ -1410,7 +1410,7 @@ is drawn tightly rather than loosely.
 
 ### 7b. The agent builder has no rail, as a written exception
 
-**[Code Owner rulings, 2026-11-08 and 2026-11-12, agent-builder Q13 in `plan/agent-builder-decisions.md`.]** §7.0 ruling 1 lets a screen go without a rail only by a per-screen ruling, and its table's last row is that ruling for the agent build screen. This subsection writes the exception's boundary, as §7a once did for Settings, so it does not become a silent second frame. Decided, not built; task 113 builds it.
+**[Code Owner rulings, 2026-11-08 and 2026-11-12, agent-builder Q13 in `plan/agent-builder-decisions.md`.]** §7.0 ruling 1 lets a screen go without a rail only by a per-screen ruling, and its table's last row is that ruling for the agent build screen. This subsection writes the exception's boundary, as §7a once did for Settings, so it does not become a silent second frame. Built by task 113.
 
 **The exception:**
 
@@ -1421,7 +1421,7 @@ is drawn tightly rather than loosely.
 - **Below 64rem** the assistant pane and the preview are two tabs.
 - **The exception does not generalise.** No other screen goes without a rail by pointing at this one; it needs its own row in §7.0's table.
 
-**The assistant pane is not the dock, and the dock's widths do not bind it.** The docked assistant does not render in the mode; the builder's assistant pane is one of the mode's two columns, beside the preview. The dock's ruled widths (`plan/agent-everywhere.md`, issue #1133: at least 320 px, at most `min(560px, viewport - rail - 640px)` and 400 px at 1024 to 1279 px), which `apps/admin/lib/agent/panel.ts` implements as `PANEL_MIN_WIDTH`, `PANEL_DEFAULT_WIDTH` and `PANEL_MAX_WIDTH`, apply to the dock only. They assume a rail and a content column the dock must not squeeze, and the builder has neither. The pane's own widths are settled at task 113's design gate on the Agent Builder canvas, and 113 makes the code change; the dock's widths do not change.
+**The assistant pane is not the dock, and the dock's widths do not bind it.** The docked assistant does not render in the mode; the builder's assistant pane is one of the mode's two columns, beside the preview. The dock's ruled widths (`plan/agent-everywhere.md`, issue #1133: at least 320 px, at most `min(560px, viewport - rail - 640px)` and 400 px at 1024 to 1279 px), which `apps/admin/lib/agent/panel.ts` implements as `PANEL_MIN_WIDTH`, `PANEL_DEFAULT_WIDTH` and `PANEL_MAX_WIDTH`, apply to the dock only. They assume a rail and a content column the dock must not squeeze, and the builder has neither. The pane's own width is 420 px, as the Agent Builder canvas draws it, and `apps/admin/lib/agent/panel.ts` holds it as `BUILDER_PANE_WIDTH`; the dock's widths do not change.
 
 ## 8. Spacing and typography reconciliation
 

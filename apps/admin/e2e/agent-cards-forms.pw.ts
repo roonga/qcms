@@ -25,6 +25,7 @@ import { waitForHydration } from "./support/hydration.js";
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("agentcards083forms");
+const SITE_EMAIL = uniqueAdminEmail("agentcards083formssite");
 
 const FORM_ID = "frm_auto_quote";
 
@@ -36,6 +37,7 @@ let totpSecret = "";
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
+  await createTestAdmin(SITE_EMAIL, { siteAdministrator: true });
 });
 
 test("confirms a close and a reopen on the Availability screen, changing the screen and recording each act", async ({
@@ -118,7 +120,7 @@ const READ_LABELS: readonly { readonly path: string; readonly labels: readonly s
 
 test("names every read tool it called in the timeline", async ({ page }) => {
   test.setTimeout(600_000);
-  await signInWithTotp(page, EMAIL, totpSecret);
+  await enrollNewAdmin(page, SITE_EMAIL);
 
   for (const screen of READ_LABELS) {
     await page.goto(screen.path);

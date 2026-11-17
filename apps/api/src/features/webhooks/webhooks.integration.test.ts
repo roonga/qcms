@@ -305,7 +305,6 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
     secondUserId = second.userId;
     const viewer = await seedAdminSession(testDb.db, {
       label: "pending-viewer",
-      claim: false,
       owner: false,
       grants: ["forms.viewer"],
     });
@@ -551,7 +550,6 @@ describe("a publisher reads endpoint configuration only in its group's environme
     const persona = async (label: string, viewer: boolean): Promise<string> => {
       const seeded = await seedAdminSession(testDb.db, {
         label,
-        claim: false,
         owner: false,
         grants: viewer ? ["forms.viewer"] : [],
       });
