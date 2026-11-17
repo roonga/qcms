@@ -1662,6 +1662,7 @@ function planApplyDraftStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,
 ): StreamPart[] {
+  if (acceptJustSaved(prompt)) return afterAcceptStep();
   if (!results.has("search_question_library")) {
     const query = pickSearchQuery(prompt);
     return [
@@ -1705,6 +1706,7 @@ function planApplyDraftReleaseStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,
 ): StreamPart[] {
+  if (acceptJustSaved(prompt)) return afterAcceptStep();
   if (!results.has("search_question_library")) {
     const query = pickSearchQuery(prompt);
     return [
@@ -1939,6 +1941,20 @@ function draftApplied(prompt: readonly PromptMessage[]): boolean {
   return userText(prompt).includes("apply-draft: done");
 }
 
+/** The newest user turn is the result of a card whose draft was applied, not a new request. */
+function acceptJustSaved(prompt: readonly PromptMessage[]): boolean {
+  const latest = prompt.filter((m) => m.role === "user").at(-1);
+  return latest !== undefined && messageText(latest.content).includes("apply-draft: done");
+}
+
+/**
+ * The turn the panel posts once an accept has saved: the card these scripts propose has run, so
+ * proposing it again would put a fresh card over the finished one.
+ */
+function afterAcceptStep(): StreamPart[] {
+  return [...textParts("The draft is saved.", "a0"), finishPart("stop")];
+}
+
 /**
  * The second card: one publish per question version the saved draft pins unpublished, then
  * the form's own publish into the lowest environment. The ids come from the screen's facts,
@@ -2014,6 +2030,7 @@ function planDefaultStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,
 ): StreamPart[] {
+  if (acceptJustSaved(prompt)) return afterAcceptStep();
   if (!results.has("search_question_library")) {
     const query = pickSearchQuery(prompt);
     return [
