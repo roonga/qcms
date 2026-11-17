@@ -1875,7 +1875,6 @@ describe("POST /admin/forms names the first draft", () => {
   it("refuses a caller without the write grant, title or not", async () => {
     const viewer = await seedAdminSession(testDb.db, {
       label: "create_title_viewer",
-      claim: false,
       grants: ["forms.viewer"],
       owner: false,
     });
@@ -1944,7 +1943,6 @@ describe("the form detail write capability", () => {
     });
     viewer = await seedAdminSession(testDb.db, {
       label: "capability_viewer",
-      claim: false,
       grants: ["forms.viewer"],
       owner: false,
     });

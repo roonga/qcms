@@ -78,8 +78,8 @@ export interface TestAdminInput {
   readonly owner?: boolean;
 
   /**
-   * Defaults to true, standing in for the account `qcms:create-admin` makes: a new account is
-   * not a Site administrator, so `signUpEmail` alone makes none.
+   * Defaults to false, as every new account. `true` stands in for the account
+   * `qcms:create-admin` makes.
    */
   readonly siteAdministrator?: boolean;
 
@@ -109,7 +109,7 @@ export async function createTestAdmin(input: TestAdminInput): Promise<void> {
   // needs grants for the screens it reaches afterwards.
   if (typeof userId === "string") {
     if (input.claimed !== false) await markAccountClaimed(db, userId, new Date());
-    if (input.siteAdministrator !== false) await makeSiteAdministrator(db, userId);
+    if (input.siteAdministrator === true) await makeSiteAdministrator(db, userId);
     await seedGrants(db, {
       userId,
       ...(input.grants === undefined ? {} : { grants: input.grants }),

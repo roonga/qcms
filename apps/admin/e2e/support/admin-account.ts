@@ -26,7 +26,7 @@ export async function createTestAdmin(
     readonly owner?: boolean;
     // Defaults to claimed; an unclaimed account reaches its own claim and nothing else.
     readonly claimed?: boolean;
-    // Defaults to true.
+    // Defaults to false.
     readonly siteAdministrator?: boolean;
   } = {},
 ): Promise<void> {
