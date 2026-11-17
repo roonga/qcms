@@ -134,16 +134,23 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
     };
   });
 
+export const AGENT_ACCEPT_HEADER = "x-qcms-agent-accept";
+
+/** The docked assistant's accepted proposal: the token its apply-draft step carried and the questions it invents. */
+export interface AgentAccept {
+  readonly token: string;
+  readonly newQuestions: readonly unknown[];
+}
+
 /**
- * An accepted proposal goes through the accept route, which writes its audit row and creates
- * any new questions in the same transaction; every other save is a plain PUT.
+ * An accepted proposal goes through the accept route under its token, which writes its audit row
+ * and creates any new questions in the same transaction; every other save is a plain PUT.
  */
 export async function saveDraft(
   session: AdminSession,
   formId: string,
   definition: DraftForm,
-  agentAssisted?: boolean,
-  newQuestions?: readonly unknown[],
+  accept?: AgentAccept,
   proposal?: AgentProposalRef,
 ): Promise<
   ApiResult<{
@@ -153,8 +160,6 @@ export async function saveDraft(
     readonly updatedAt: string;
   }>
 > {
-  const accepting =
-    agentAssisted === true || (newQuestions !== undefined && newQuestions.length > 0);
   const draftPath = `/forms/${encodeURIComponent(formId)}/draft` as const;
 
   const result = await read<{
@@ -163,12 +168,13 @@ export async function saveDraft(
     agentAssisted?: unknown;
     updatedAt?: unknown;
   }>(
-    accepting
+    accept !== undefined
       ? await adminApiFetch(session, `${draftPath}/assist/accept`, {
           method: "POST",
+          headers: { [AGENT_ACCEPT_HEADER]: accept.token },
           body: {
             definition,
-            newQuestions: (newQuestions ?? []).map((question) => ({ definition: question })),
+            newQuestions: accept.newQuestions.map((question) => ({ definition: question })),
           },
         })
       : await adminApiFetch(session, draftPath, {

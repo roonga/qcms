@@ -43,6 +43,7 @@ import {
   setFormStatus,
   updateSettings,
   validateDraft,
+  type AgentAccept,
 } from "@/lib/server/forms";
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
 import type { AgentProposalRef } from "@/lib/server/agent-proposal";
@@ -182,8 +183,7 @@ async function createFormIdentity(
 export async function saveDraftAction(
   formId: string,
   draft: DraftForm,
-  agentAssisted?: boolean,
-  newQuestions?: readonly unknown[],
+  accept?: AgentAccept,
   proposal?: AgentProposalRef,
 ): Promise<SaveDraftState> {
   const session = await requireAdminSession();
@@ -197,7 +197,7 @@ export async function saveDraftAction(
     };
   }
 
-  const result = await saveDraft(session, formId, draft, agentAssisted, newQuestions, proposal);
+  const result = await saveDraft(session, formId, draft, accept, proposal);
   if (!result.ok) {
     return {
       status: "error",

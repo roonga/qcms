@@ -52,6 +52,17 @@ import { concurrentNoticeCookie } from "@/lib/builder-notice";
 import { usePublishBuilderRail, type BuilderSelection } from "@/lib/forms/builder-bridge";
 import { StepEditor } from "./step-editor";
 import { ValidationPanel } from "./validation-panel";
+import type { AgentAccept } from "@/lib/server/forms";
+
+interface PendingAccept {
+  readonly accept: AgentAccept;
+  /* The draft before the first unsaved accept, which a refused token restores. */
+  readonly before: DraftForm;
+}
+
+function isAcceptRefusal(code: string | undefined): boolean {
+  return code?.startsWith("AGENT_ACCEPT_") === true;
+}
 
 /* The builder owns settings and draft state because changing panels unmounts their controls mid-debounce. */
 
@@ -73,11 +84,7 @@ export function FormBuilder({
   readonly formActions: ReactNode;
   readonly formMeta: ReactNode;
   readonly concurrentNoticeRead: boolean;
-  readonly saveDraft: (
-    draft: DraftForm,
-    agentAssisted?: boolean,
-    newQuestions?: readonly unknown[],
-  ) => Promise<SaveDraftState>;
+  readonly saveDraft: (draft: DraftForm, accept?: AgentAccept) => Promise<SaveDraftState>;
   readonly validateDraft: (draft: DraftForm) => Promise<ValidateDraftState>;
   readonly updateSettings: (patch: {
     challengeRequired?: boolean;
@@ -98,30 +105,29 @@ export function FormBuilder({
     detail.draftUpdatedAt ?? undefined,
   );
 
-  // Consume the agent-assisted marker for one accepted save only; later ordinary edits must not inherit it.
-  const pendingAgentAssisted = useRef(false);
-
-  // Clear proposed questions only after a successful atomic accept; a refusal must retry them with the draft
-  // to avoid dangling pins.
-  const pendingNewQuestions = useRef<readonly unknown[]>([]);
+  // Held until its save succeeds: a failed accept retries with its token and its questions, never as a plain
+  // save that would land the assistant's draft with no audit row.
+  const pendingAccept = useRef<PendingAccept | undefined>(undefined);
 
   // No validation result is undefined, not an empty issue list; an initial value must not fabricate an
   // all-clear.
   const autosave = useDraftAutosave({
     draft,
-    saveDraft: (next) => {
-      const agentAssistedSave = pendingAgentAssisted.current;
-      pendingAgentAssisted.current = false;
-      const newQuestions = pendingNewQuestions.current;
-      return saveDraft(
-        next,
-        agentAssistedSave || newQuestions.length > 0 ? true : undefined,
-        newQuestions,
-      );
+    saveDraft: async (next) => {
+      const held = pendingAccept.current;
+      const saved = await saveDraft(next, held?.accept);
+      if (held === undefined || pendingAccept.current !== held) return saved;
+      if (saved.status === "saved") {
+        pendingAccept.current = undefined;
+      } else if (isAcceptRefusal(saved.code)) {
+        // A refused token never succeeds, so the proposal is withdrawn rather than saved without its row.
+        pendingAccept.current = undefined;
+        setDraft(held.before);
+      }
+      return saved;
     },
     validateDraft,
     onSaved: (saved) => {
-      pendingNewQuestions.current = [];
       recordDraftSaved(saved.updatedAt);
       if (saved.agentAssisted !== undefined) setAgentAssisted(saved.agentAssisted);
       if (saved.updatedAt !== undefined && saved.updatedAt !== "") {
@@ -279,9 +285,8 @@ export function FormBuilder({
         },
   );
 
-  function acceptAssistProposal(proposedDraft: DraftForm, newQuestions: readonly unknown[]) {
-    pendingAgentAssisted.current = true;
-    pendingNewQuestions.current = newQuestions;
+  function acceptAssistProposal(proposedDraft: DraftForm, accept: AgentAccept) {
+    pendingAccept.current = { accept, before: pendingAccept.current?.before ?? draft };
     if (
       selection.kind === "step" &&
       !proposedDraft.steps.some((step) => step.stepId === selection.stepId)

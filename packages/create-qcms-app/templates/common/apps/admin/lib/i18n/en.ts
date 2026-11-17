@@ -538,7 +538,6 @@ export const messages = {
   "builder.edit.state.undone": "Undone",
   "builder.edit.undo": "Undo",
   "builder.edit.undoName": "{edit}, edit {number}",
-  "builder.edit.undoLater": "Undo the later edits first.",
   "builder.edit.undoFailed": "This edit could not be undone: {message}",
   "builder.edit.failed": "This edit was not applied: {message}",
   "builder.edit.notRun": "An earlier edit was not applied, so this one was not tried.",

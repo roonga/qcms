@@ -121,8 +121,8 @@ export interface ActionKindDef {
   readonly handOff?: true;
   /**
    * A step the screen completes through its own client-side write path rather than a
-   * request of its own. It reaches no route, so it carries no token and the screen's own
-   * save is what authorises it.
+   * request of its own. It takes no index in the plan's token; the one local kind,
+   * `apply-draft`, carries an accept token of its own to the accept route instead.
    */
   readonly local?: true;
   /**

@@ -7512,7 +7512,7 @@
     "/admin/forms/{id}/draft/agent-changes": {
       "get": {
         "summary": "What the agent changed in the draft since the last publish (admin)",
-        "description": "The cumulative agent change since the last human-reviewed revision, which is the newest published version: that version and the open draft for the publish wizard to diff, and one entry per recorded agent change. Read from `control.agent_actions` alone, never from the draft's client-supplied `agentAssisted` mark.",
+        "description": "The cumulative agent change since the last human-reviewed revision, which is the newest published version: that version and the open draft for the publish wizard to diff, and one entry per recorded agent change. Read from `control.agent_actions` alone, never from the draft row's `agentAssisted` flag.",
         "tags": [
           "forms"
         ],

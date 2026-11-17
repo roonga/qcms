@@ -20,6 +20,9 @@ export interface AgentDraftProposal {
 
   /* Which step of this plan creates each new question, so a pin can name it. */
   readonly createdBy?: readonly { readonly questionId: string; readonly step: number }[];
+
+  /* The single-use token the accept route requires; only the apply-draft step carries one. */
+  readonly acceptToken?: string;
 }
 
 // Keep args opaque: a value may reference an earlier step result rather than carrying a literal.
@@ -363,12 +366,14 @@ function toDraftProposal(raw: unknown): AgentDraftProposal | undefined {
   const definition = raw["definition"];
   if (!isKeyedObject(definition)) return undefined;
   const createdBy = toCreatedBy(raw["createdBy"]);
+  const acceptToken = raw["acceptToken"];
   return {
     definition,
     newQuestions: Array.isArray(raw["newQuestions"]) ? raw["newQuestions"] : [],
     issues: parseIssues(raw["issues"]),
     warnings: parseIssues(raw["warnings"]),
     ...(createdBy.length === 0 ? {} : { createdBy }),
+    ...(typeof acceptToken === "string" && acceptToken !== "" ? { acceptToken } : {}),
   };
 }
 

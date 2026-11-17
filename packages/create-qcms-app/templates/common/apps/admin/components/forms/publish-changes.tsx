@@ -1,6 +1,7 @@
 import { changesSincePublish, type PublishChange } from "@/lib/forms/assist-diff";
 import type { DraftForm } from "@/lib/forms/types";
 import { t, type MessageKey } from "@/lib/i18n/en";
+import type { AgentChanges } from "@/lib/server/forms";
 
 /** The wizard's read of the draft since the last publish, or why it could not be read. */
 export type PublishChangesRead =
@@ -11,6 +12,24 @@ export type PublishChangesRead =
       readonly steps: readonly { readonly kind: string; readonly revision: number | null }[];
     }
   | { readonly status: "unread" };
+
+/**
+ * What the wizard shows: the read when entered from the builder or when the draft carries agent changes,
+ * and the "could not be read" note whenever the read failed, since a failed read cannot say there are none.
+ */
+export function publishChangesFor(
+  read: { readonly ok: true; readonly data: AgentChanges } | { readonly ok: false },
+  toBuilder: boolean,
+): PublishChangesRead | undefined {
+  if (!read.ok) return { status: "unread" };
+  if (!toBuilder && !read.data.agentAssisted) return undefined;
+  return {
+    status: "read",
+    base: read.data.base,
+    draft: read.data.draft,
+    steps: read.data.changes,
+  };
+}
 
 const CHANGE_LABELS: Readonly<Record<PublishChange["change"], MessageKey>> = {
   added: "forms.publish.changes.added",

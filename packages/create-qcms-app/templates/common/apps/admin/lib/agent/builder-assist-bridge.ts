@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 
 import type { DraftForm } from "../forms/types";
+import type { AgentAccept } from "../server/forms";
 
 /** The shell panel and builder are separate client trees; share a snapshot and accept callback while the builder retains draft ownership. */
 export interface BuilderAssistSnapshot {
@@ -11,7 +12,7 @@ export interface BuilderAssistSnapshot {
   readonly canPropose: boolean;
   readonly draft: DraftForm;
   readonly draftUpdatedAt: string | undefined;
-  readonly accept: (proposedDraft: DraftForm, newQuestions: readonly unknown[]) => void;
+  readonly accept: (proposedDraft: DraftForm, accept: AgentAccept) => void;
 }
 
 let snapshot: BuilderAssistSnapshot | undefined;
