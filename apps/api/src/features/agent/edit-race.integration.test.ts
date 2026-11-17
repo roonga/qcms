@@ -1,4 +1,9 @@
-import { FormId, parseQuestionDefinition, QuestionId } from "@roonga/qcms-core";
+import {
+  FormId,
+  parseFormDefinition,
+  parseQuestionDefinition,
+  QuestionId,
+} from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
   createForm,
@@ -21,7 +26,7 @@ import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../te
 import { registerForms } from "../forms/route.js";
 import { registerGrantCheck } from "../membership/middleware.js";
 import { EDIT_HEADER } from "./edit-provenance.js";
-import { mintTurnEditTokens } from "./edit-token.js";
+import { draftStateDigest, mintTurnEditTokens } from "./edit-token.js";
 import { registerAgentProvenance } from "./provenance-mount.js";
 
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
@@ -125,13 +130,20 @@ function put(formId: string, title: string, token?: string): Promise<Response> {
 }
 
 /** One token from its own turn, so racing tokens never share an audit row key. */
-async function mint(formId: string, startRevision: number): Promise<string> {
+async function mint(formId: string, startRevision: number, title: string): Promise<string> {
+  const parsed = parseFormDefinition(definition(formId, title));
+  if (!parsed.ok) throw new Error("fixture definition did not parse");
   const { tokens } = await mintTurnEditTokens(deps.config.keys.app, {
     sub: owner.userId,
     formId,
     baseVersion: 0,
     startRevision,
-    ops: ["copy"],
+    edits: [
+      {
+        op: "copy",
+        post: await draftStateDigest({ definition: parsed.value, appearance: null }),
+      },
+    ],
     issuedAt: now,
   });
   return tokens[0] as string;
@@ -171,7 +183,7 @@ describe("concurrent edits bind the revision they were minted for", { timeout: T
     it(`lands exactly one of ${String(RACERS)} distinct revision-${String(start)} tokens, ${label}`, async () => {
       for (let round = 0; round < ROUNDS; round += 1) {
         const formId = await newForm(seeded);
-        const tokens = await Promise.all(times(RACERS, () => mint(formId, start)));
+        const tokens = await Promise.all(times(RACERS, (index) => mint(formId, start, `T${String(index)}`)));
         const responses = await Promise.all(
           tokens.map((token, index) => put(formId, `T${String(index)}`, token)),
         );
@@ -188,7 +200,7 @@ describe("concurrent edits bind the revision they were minted for", { timeout: T
     it(`refuses a revision-${String(start)} token racing plain saves unless it lands first, ${label}`, async () => {
       for (let round = 0; round < ROUNDS; round += 1) {
         const formId = await newForm(seeded);
-        const token = await mint(formId, start);
+        const token = await mint(formId, start, "Agent");
         const responses = await Promise.all([
           ...times(RACERS - 1, (index) => put(formId, `H${String(index)}`)),
           put(formId, "Agent", token),
@@ -209,9 +221,9 @@ describe("concurrent edits bind the revision they were minted for", { timeout: T
     it(`lands one token replayed ${String(RACERS)} times once, ${label}`, async () => {
       for (let round = 0; round < ROUNDS; round += 1) {
         const formId = await newForm(seeded);
-        const token = await mint(formId, start);
+        const token = await mint(formId, start, "Replay");
         const responses = await Promise.all(
-          times(RACERS, (index) => put(formId, `R${String(index)}`, token)),
+          times(RACERS, () => put(formId, "Replay", token)),
         );
         const outcomes = await Promise.all(responses.map(outcome));
         expect(
@@ -276,7 +288,7 @@ describe("an edit binds the published version it was minted for", { timeout: TIM
   for (const seeded of [false, true]) {
     it(`refuses a token when a version lands between its reads and its write, ${seeded ? "with" : "with no"} draft row`, async () => {
       const formId = await newForm(seeded);
-      const token = await mint(formId, seeded ? 1 : 0);
+      const token = await mint(formId, seeded ? 1 : 0, "Agent");
       const res = await stalled(formId, token, () => publishVersion(formId));
       expect(await outcome(res)).toBe("409:AGENT_EDIT_REVISION");
       expect(await rowDetails(formId)).toEqual([]);
@@ -294,7 +306,7 @@ async function rowKinds(formId: string): Promise<string[]> {
 }
 
 async function undoTokenAfterEdit(formId: string): Promise<string> {
-  const edited = await put(formId, "Agent", await mint(formId, 1));
+  const edited = await put(formId, "Agent", await mint(formId, 1, "Agent"));
   const body = (await edited.json()) as { agentEdit?: { undoToken?: string } };
   const undoToken = body.agentEdit?.undoToken;
   if (undoToken === undefined) throw new Error("edit returned no undo token");

@@ -530,12 +530,14 @@ have kept.
 Draft edits from the agent builder take no Confirm (Q14), so the save carries
 what a card carried. The turn mints one token per op with `mintTurnEditTokens`,
 each bound to the user, the form, the turn, its index under the 25-a-turn cap,
-the op, the revision it applies to and the newest published version. The
+the op, the revision it applies to, the newest published version and the digest
+of the draft state it produces (the same digest an Undo token binds). The
 browser applies each through the one draft save path with the token in
 `x-qcms-agent-edit`. The save locks the draft row when one exists, and otherwise
 checks that the row it wrote landed at the bound revision plus one; it rereads
 the newest published version after the write, refuses a replay, a moved
-revision or version, or an op that changes what it does not cover, and writes
+revision or version, an op that changes what it does not cover, or a body that
+is not the draft the edit produced (`AGENT_EDIT_MISMATCH`), and writes
 one `draft.<op>` row in its own transaction. The response
 carries an Undo token bound to the draft states on either side of the edit, so
 an Undo applies only while nothing has changed since and restores exactly the
@@ -548,8 +550,10 @@ wizard's read takes provenance from these rows alone, never from the draft's
 
 The builder's turn is `POST /admin/forms/:id/draft/assist` with the screen
 `/forms/[formId]/build`. Only that route builds the builder's port, because only it
-reads the draft revision and the newest published version an edit token binds; the
-same screen on `POST /admin/assist` is context and reads alone.
+reads the draft revision and the newest published version an edit token binds. The
+same screen on `POST /admin/assist` builds no port: an Edit forms holder there is
+offered the builder's read tools and `propose_plan` with the library kinds, every
+act a Confirm card, and no edit tool or wizard.
 
 - **Who is offered what.** The four edit tools (`edit_question`, `edit_step`,
   `edit_rule`, `edit_copy`) are offered to an Edit forms holder of the form's
@@ -557,8 +561,8 @@ same screen on `POST /admin/assist` is context and reads alone.
   environment, each decided by the evaluator the route middleware uses. A View
   forms holder is refused the route by its policy row.
 - **What the screen narrows.** Its read tools are the form, its versions and the
-  library (`BUILDER_READ_TOOLS`), so no response, link, webhook, release or erasure
-  read is offered. Its action kinds are the library writes alone
+  library (`BUILDER_READ_TOOLS`), so no response, link, webhook or erasure read
+  and no release change is offered. Its action kinds are the library writes alone
   (`BUILDER_ACTION_KINDS`): a new or changed library question is a Confirm card with
   its own token and audit row, never an edit (Q22). A key-set test pins both and
   fails on a publish, release, link or webhook kind by name or by route.
@@ -567,8 +571,10 @@ same screen on `POST /admin/assist` is context and reads alone.
   ends cleanly the tokens are minted once, through `mintTurnEditTokens`, and one
   `edits` event carries every edit in order with its token and the whole draft it
   leaves. The browser applies them through `PUT /admin/forms/{id}/draft`, the one
-  save path, which writes their audit rows. A refused or failed turn yields no
-  edit and opens no wizard.
+  save path, which writes their audit rows and refuses a body other than the one
+  the edit produced. A refused, failed or cut-off turn yields no edit and opens no
+  wizard; one cut off at its step limit or its output room says so with
+  `STEP_LIMIT` or `LENGTH`.
 - **The wizard is opened, never run.** `open_publish_wizard` takes no argument and
   returns only that it opened; the turn emits one `open-wizard` event with the
   form and its build route as `returnTo`, which the admin validates (113).

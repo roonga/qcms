@@ -1,7 +1,7 @@
 /**
  * The token a card-less builder edit carries, and the token its Undo carries. Each binds the user, the form and
- * the turn; an edit binds the draft revision it applies to, and an Undo binds the draft states on either side of
- * the edit it reverses.
+ * the turn; an edit binds the draft revision it applies to and the draft state it produces, and an Undo binds the
+ * draft states on either side of the edit it reverses.
  */
 
 import { z } from "zod";
@@ -71,6 +71,8 @@ const EditPayload = z.strictObject({
   op: z.enum(EDIT_OPS),
   /** The saved draft's revision this edit applies to; 0 is a form with no draft row yet. */
   rev: Index,
+  /** The draft state the edit produces, which the save's body must be. */
+  post: Digest,
 });
 
 const UndoPayload = z.strictObject({
@@ -100,6 +102,7 @@ export const EDIT_REFUSAL_CODES = [
   "AGENT_EDIT_REPLAYED",
   "AGENT_EDIT_REVISION",
   "AGENT_EDIT_OP",
+  "AGENT_EDIT_MISMATCH",
   "AGENT_UNDO_SUPERSEDED",
   "AGENT_UNDO_MISMATCH",
 ] as const;
@@ -163,10 +166,10 @@ function newTurnId(): string {
 }
 
 /**
- * One token per op a turn yields, in order. Every save bumps the revision by one, so op `i`
- * is bound to `startRevision + i`: a human save, an Undo or a skipped op in between leaves
- * every later token stale. The turn id is fresh on every call, so the per-turn cap holds
- * only if a turn mints once.
+ * One token per edit a turn yields, in order, each bound to the draft state it produces. Every
+ * save bumps the revision by one, so edit `i` is bound to `startRevision + i`: a human save, an
+ * Undo or a skipped edit in between leaves every later token stale. The turn id is fresh on
+ * every call, so the per-turn cap holds only if a turn mints once.
  */
 export async function mintTurnEditTokens(
   appKey: string,
@@ -175,17 +178,17 @@ export async function mintTurnEditTokens(
     readonly formId: string;
     readonly baseVersion: number;
     readonly startRevision: number;
-    readonly ops: readonly EditOp[];
+    readonly edits: readonly { readonly op: EditOp; readonly post: string }[];
     readonly issuedAt: Date;
   },
 ): Promise<{ readonly turnId: string; readonly tokens: readonly string[] }> {
-  if (args.ops.length > EDITS_PER_TURN) {
+  if (args.edits.length > EDITS_PER_TURN) {
     throw new Error("A turn yields at most EDITS_PER_TURN draft edits");
   }
   const tid = newTurnId();
   const iat = args.issuedAt.getTime();
   const tokens: string[] = [];
-  for (const [n, op] of args.ops.entries()) {
+  for (const [n, { op, post }] of args.edits.entries()) {
     tokens.push(
       await signEditToken(appKey, {
         v: EDIT_TOKEN_VERSION,
@@ -198,6 +201,7 @@ export async function mintTurnEditTokens(
         base: args.baseVersion,
         op,
         rev: args.startRevision + n,
+        post,
         iat,
         exp: iat + EDIT_TTL_MS,
       }),
@@ -206,7 +210,7 @@ export async function mintTurnEditTokens(
   return { turnId: tid, tokens };
 }
 
-/** The draft state an Undo is checked against: the definition and the appearance, nothing else. */
+/** The draft state an edit or Undo is checked against: the definition and the appearance, nothing else. */
 export function draftStateDigest(state: {
   readonly definition: unknown;
   readonly appearance: unknown;

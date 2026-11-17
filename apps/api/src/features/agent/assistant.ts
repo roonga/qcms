@@ -476,16 +476,8 @@ function answered(outcome: RunOutcome): boolean {
   return outcome.textSegments.some((segment) => segment.text.trim() !== "");
 }
 
-/**
- * A question is not a failure, so an answered turn that proposed nothing is clean. What
- * stays an error is a turn cut off before it could finish, and one that left no card and
- * either no words or staged work it never put up.
- */
-function emptyTurnError(
-  outcome: RunOutcome,
-  maxSteps: number,
-  staged: boolean,
-): AssistEvent | undefined {
+/** A turn that ran out of output room or steps before it could finish. */
+function cutOffError(outcome: RunOutcome, maxSteps: number): AssistEvent | undefined {
   if (outcome.finishReason === "length") {
     return {
       type: "error",
@@ -506,6 +498,21 @@ function emptyTurnError(
         "(docs/operations.md).",
     };
   }
+  return undefined;
+}
+
+/**
+ * A question is not a failure, so an answered turn that proposed nothing is clean. What
+ * stays an error is a turn cut off before it could finish, and one that left no card and
+ * either no words or staged work it never put up.
+ */
+function emptyTurnError(
+  outcome: RunOutcome,
+  maxSteps: number,
+  staged: boolean,
+): AssistEvent | undefined {
+  const cutOff = cutOffError(outcome, maxSteps);
+  if (cutOff !== undefined) return cutOff;
   if (!staged && answered(outcome)) return undefined;
   return {
     type: "error",
@@ -586,8 +593,13 @@ async function* finishTurn(args: {
     return;
   }
 
-  // Only a turn that ended cleanly yields its edits or opens the wizard, so a refused or
-  // failed turn leaves the draft exactly as it was.
+  // Only a turn that ended cleanly yields its edits or opens the wizard, so a refused, failed
+  // or cut-off turn leaves the draft exactly as it was.
+  const cutOff = cutOffError(outcome, ctx.maxSteps);
+  if (cutOff !== undefined && (state.edits.length > 0 || state.wizardRequested)) {
+    yield cutOff;
+    return;
+  }
   yield* builderEvents(ctx, state);
 
   // A proposed draft is not itself a proposal: it reaches the user as the apply-draft
@@ -607,17 +619,18 @@ async function* builderEvents(
   const builder = ctx.builder;
   if (builder === undefined) return;
   if (state.edits.length > 0 && builder.mintEdits !== undefined) {
-    const { turnId, tokens } = await builder.mintEdits(state.edits.map((edit) => edit.op));
+    const { turnId, tokens } = await builder.mintEdits(
+      state.edits.map(({ op, definition }) => ({ op, definition })),
+    );
     yield {
       type: "edits",
       formId: builder.formId,
       turnId,
-      edits: state.edits.map((edit, index) => ({
-        index,
-        op: edit.op,
-        token: tokens[index] ?? "",
-        definition: edit.definition,
-      })),
+      edits: state.edits.map((edit, index) => {
+        const token = tokens[index];
+        if (token === undefined) throw new Error("A builder edit was minted no token");
+        return { index, op: edit.op, token, definition: edit.definition };
+      }),
     };
   }
   if (state.wizardRequested && builder.wizardReturnTo !== undefined) {

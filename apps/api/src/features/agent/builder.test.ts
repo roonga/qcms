@@ -10,6 +10,7 @@ import { aiSdkDraftAssistant } from "./assistant.js";
 import {
   BUILDER_SCREEN,
   EDITS_PER_TURN,
+  draftStateDigest,
   mintTurnEditTokens,
   verifyEditToken,
   type EditOp,
@@ -63,19 +64,25 @@ function builderTurn(args: {
   readonly wizard?: boolean;
   readonly history?: readonly AssistTurn[];
   readonly propose?: boolean;
+  readonly maxSteps?: number;
 }): Turn {
   const mints: (readonly EditOp[])[] = [];
   const builder: BuilderPort = {
     formId: FORM_ID,
     draft: draft(),
-    mintEdits: (ops) => {
-      mints.push(ops);
+    mintEdits: async (edits) => {
+      mints.push(edits.map((edit) => edit.op));
       return mintTurnEditTokens(APP_KEY, {
         sub: "usr_builder",
         formId: FORM_ID,
         baseVersion: 2,
         startRevision: 5,
-        ops,
+        edits: await Promise.all(
+          edits.map(async ({ op, definition }) => ({
+            op,
+            post: await draftStateDigest({ definition, appearance: null }),
+          })),
+        ),
         issuedAt: ISSUED,
       });
     },
@@ -96,7 +103,7 @@ function builderTurn(args: {
     facts: { formId: FORM_ID },
     defaults: { formId: FORM_ID, environment: "test" },
     conversation: [...(args.history ?? []), { role: "user", content: args.message }],
-    maxSteps: 12,
+    maxSteps: args.maxSteps ?? 12,
     tools,
     authorize: () => Promise.resolve(),
     draft: draft(),
@@ -173,6 +180,7 @@ describe("a builder turn's edits", () => {
         op: edit.op,
         rev: 5 + edit.index,
         base: 2,
+        post: await draftStateDigest({ definition: edit.definition, appearance: null }),
       });
     }
     const last = yielded?.edits.at(-1)?.definition;
@@ -203,6 +211,14 @@ describe("a builder turn's edits", () => {
     expect(editsOf(events)).toEqual([]);
     expect(turn.mints).toEqual([]);
     expect(events).toContainEqual(expect.objectContaining({ type: "error", code: "REFUSED" }));
+  });
+
+  it("withholds the edits of a turn cut off at its step limit and says why", async () => {
+    const turn = builderTurn({ message: "tidy this #qcms-fake:builder-edits", maxSteps: 3 });
+    const events = await run(turn);
+    expect(editsOf(events)).toEqual([]);
+    expect(turn.mints).toEqual([]);
+    expect(events).toContainEqual(expect.objectContaining({ type: "error", code: "STEP_LIMIT" }));
   });
 });
 

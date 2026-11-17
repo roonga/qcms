@@ -62,8 +62,9 @@ import {
 import { isFormSubtreeScreen, isScreenId, SCREENS, type ScreenId } from "./screens.js";
 import { conversationRefusal, type ConversationTurnBody } from "./schema.js";
 import {
-  BUILDER_SCREEN as AGENT_BUILDER_SCREEN,
+  BUILDER_SCREEN,
   DRAFT_EDIT_KINDS,
+  draftStateDigest,
   mintTurnEditTokens,
 } from "./edit-token.js";
 import type {
@@ -163,7 +164,7 @@ function draftToken(updatedAt: Date): string {
 }
 
 /** The one screen that runs a staged draft, through the builder's own save. */
-const BUILDER_SCREEN: ScreenId = "/forms/[formId]";
+const APPLY_DRAFT_SCREEN: ScreenId = "/forms/[formId]";
 
 function maxStepsFor(deps: Deps): number {
   return deps.config.agent.provider === "none" ? 1 : deps.config.agent.maxSteps;
@@ -243,9 +244,9 @@ function builderTools(builder: BuilderPort | undefined): readonly AgentToolName[
 }
 
 /**
- * The read tools this caller holds a cell for. The screen decides one thing only: a tool
- * that stages for the apply-draft card exists where that card does, since the builder is
- * what runs it.
+ * The read tools this caller holds a cell for. The screen decides two things: a tool that
+ * stages for the apply-draft card exists where that card does, since the builder is what runs
+ * it, and the agent builder keeps to its own read set.
  */
 function grantedReadTools(
   build: ScreenBuildInput,
@@ -253,10 +254,10 @@ function grantedReadTools(
   held: readonly ResolvedMembership[],
 ): readonly AgentToolName[] {
   return AGENT_READ_TOOL_NAMES.filter((name) => {
-    if (stagesForApplyDraft(name) && screen !== BUILDER_SCREEN) return false;
-    // The agent builder reaches the form, its versions and the library, and nothing an
-    // environment holds: no response, link, webhook, release or erasure read.
-    if (screen === AGENT_BUILDER_SCREEN && !BUILDER_READ_TOOLS.includes(name)) return false;
+    if (stagesForApplyDraft(name) && screen !== APPLY_DRAFT_SCREEN) return false;
+    // The agent builder reaches the form, its versions and the library: no response, link,
+    // webhook or erasure read, and no release change.
+    if (screen === BUILDER_SCREEN && !BUILDER_READ_TOOLS.includes(name)) return false;
     if (isFixedTextTool(name)) return true;
     if (isClaimTool(name)) return build.principal.claim;
     const cell = toolCell(name);
@@ -563,7 +564,7 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
       conversation: body.conversation,
       draft: () => Promise.resolve(definition),
       build,
-      ...(screen === AGENT_BUILDER_SCREEN
+      ...(screen === BUILDER_SCREEN
         ? {
             builder: () =>
               builderPort({
@@ -571,6 +572,10 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
                 build,
                 formId,
                 draft: definition,
+                appearance:
+                  draftRow === undefined
+                    ? (published?.appearance ?? null)
+                    : (draftRow.appearance ?? null),
                 startRevision: draftRow?.revision ?? 0,
                 baseVersion: published?.version ?? 0,
               }),
@@ -595,6 +600,8 @@ async function builderPort(args: {
   readonly build: ScreenBuildInput;
   readonly formId: FormId;
   readonly draft: FormDefinition;
+  /** The appearance the draft holds at turn start, which no builder edit changes. */
+  readonly appearance: unknown;
   readonly startRevision: number;
   readonly baseVersion: number;
 }): Promise<BuilderPort> {
@@ -616,13 +623,18 @@ async function builderPort(args: {
     ...port,
     ...(allows("write")
       ? {
-          mintEdits: (ops) =>
+          mintEdits: async (edits) =>
             mintTurnEditTokens(args.deps.config.keys.app, {
               sub: subject,
               formId: args.formId,
               baseVersion: args.baseVersion,
               startRevision: args.startRevision,
-              ops,
+              edits: await Promise.all(
+                edits.map(async ({ op, definition }) => ({
+                  op,
+                  post: await draftStateDigest({ definition, appearance: args.appearance }),
+                })),
+              ),
               issuedAt: args.deps.clock.now(),
             }),
         }

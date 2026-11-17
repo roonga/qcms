@@ -105,8 +105,7 @@ export const OPEN_WIZARD_TOOL: AgentToolName = "open_publish_wizard";
 
 /**
  * The read tools the agent builder offers: its form, that form's versions and the library.
- * Nothing an environment holds is among them, so the builder reaches no response, link,
- * webhook, release or erasure.
+ * The builder reaches no response, link, webhook or erasure, and changes no release.
  */
 export const BUILDER_READ_TOOLS: readonly AgentToolName[] = Object.freeze([
   "search_question_library",
@@ -745,8 +744,6 @@ interface AgentToolDef {
    * whose only consumer it is.
    */
   readonly stagesForApplyDraft?: true;
-  /** A tool the agent builder's port runs, offered on that screen alone. */
-  readonly builder?: true;
   execute(input: unknown, ctx: AgentContext, state: ProposalState): Promise<unknown>;
 }
 
@@ -981,7 +978,6 @@ function editTool(
     inputSchema,
     outputSchema: Outputs[name],
     cell: DRAFT_WRITE,
-    builder: true,
     execute: (input, ctx, state) => builderEdit(op, input, ctx, state),
   };
 }
@@ -1194,7 +1190,6 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
     description: TOOL_DESCRIPTIONS.open_publish_wizard,
     inputSchema: z.strictObject({}),
     outputSchema: Outputs.open_publish_wizard,
-    builder: true,
     execute: (_input, ctx, state) => Promise.resolve(openWizard(ctx, state)),
   },
 });
@@ -1231,11 +1226,6 @@ export function isFixedTextTool(name: AgentToolName): boolean {
 /** The tools whose only consumer is the apply-draft card, which one screen runs. */
 export function stagesForApplyDraft(name: AgentToolName): boolean {
   return TOOLS[name].stagesForApplyDraft === true;
-}
-
-/** The tools the agent builder's port runs, offered on that screen alone. */
-export function isBuilderTool(name: AgentToolName): boolean {
-  return TOOLS[name].builder === true;
 }
 
 /** A read tool's own cell, which is what decides whether this caller is offered it. */

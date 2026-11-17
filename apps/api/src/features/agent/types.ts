@@ -599,8 +599,13 @@ export interface BuilderPort {
   readonly formId: string;
   /** The open draft the turn starts from, which the edit tools change a copy of. */
   readonly draft: FormDefinition;
-  /** Present for an Edit forms holder of the form's workspace. Called once, when the turn ends. */
-  readonly mintEdits?: (ops: readonly BuilderEditOp[]) => Promise<{
+  /**
+   * Present for an Edit forms holder of the form's workspace. Called once, when the turn ends,
+   * with each edit's op and the definition it produces.
+   */
+  readonly mintEdits?: (
+    edits: readonly { readonly op: BuilderEditOp; readonly definition: FormDefinition }[],
+  ) => Promise<{
     readonly turnId: string;
     readonly tokens: readonly string[];
   }>;

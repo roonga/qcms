@@ -1,6 +1,8 @@
 import { parseQuestionDefinition, QuestionId } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
+  addAccessGroupHolder,
+  createAccessGroup,
   createQuestion,
   createQuestionVersion,
   getQuestion,
@@ -33,7 +35,7 @@ import { BUILDER_SCREEN } from "./edit-token.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import { registerAgentProvenance } from "./provenance-mount.js";
 import { registerAgentChanges, registerFormsAssist } from "./route.js";
-import { AGENT_BUILDER_TOOL_NAMES } from "./tools/registry.js";
+import { AGENT_BUILDER_TOOL_NAMES, BUILDER_READ_TOOLS } from "./tools/registry.js";
 import type { AssistEvent } from "./types.js";
 
 /**
@@ -60,6 +62,7 @@ let internalToken: string;
 let owner: Caller;
 let editor: Caller;
 let viewer: Caller;
+let elsewherePublisher: Caller;
 let providerCalls: unknown[];
 let now = new Date("2026-07-20T00:00:00.000Z");
 
@@ -117,6 +120,23 @@ beforeAll(async () => {
     grants: ["forms.viewer"],
     owner: false,
   });
+
+  elsewherePublisher = await seedAdminSession(testDb.db, {
+    label: "bld_elsewhere",
+    at: now,
+    claim: false,
+    grants: ["forms.editor"],
+    owner: false,
+  });
+  const elsewhere = deps.databases.names.filter((name) => name !== "test");
+  expect(elsewhere.length).toBeGreaterThan(0);
+  const publishElsewhere = await createAccessGroup(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    name: "Builder: publish outside test",
+    roles: ["forms.publisher"],
+    environments: elsewhere,
+  });
+  await addAccessGroupHolder(testDb.db, publishElsewhere.teamId, elsewherePublisher.userId);
 
   await seedPublishedQuestion("q_bld_name", "Your name");
   await seedPublishedQuestion("q_bld_extra", "Anything else");
@@ -258,6 +278,10 @@ const versions = (): Promise<number> =>
   count(`select count(*)::int as n from control.form_versions where form_id = $1`);
 const releases = (): Promise<number> =>
   count(`select count(*)::int as n from control.form_releases where form_id = $1`);
+const agentRows = (): Promise<number> =>
+  count(`select count(*)::int as n from control.agent_actions where form_id = $1`);
+
+const ENVIRONMENT_READS = ["list_responses", "count_responses", "list_links", "list_webhooks"];
 
 type EditsEvent = Extract<AssistEvent, { type: "edits" }>;
 
@@ -301,7 +325,34 @@ describe("who the builder's tools are offered to (X3)", () => {
   );
 
   it(
-    "offers an Edit forms holder the edits and not the wizard, and no environment read",
+    "offers an Edit forms holder on the builder screen anywhere the builder reads and cards alone",
+    async () => {
+      await deps.rateLimitStore.reset(`rl:agent-assist:${editor.userId}`);
+      const res = await app.request("/admin/assist", {
+        method: "POST",
+        headers: headersFor(editor),
+        body: JSON.stringify({
+          conversation: [{ role: "user", content: "what is here #qcms-fake:no-proposal" }],
+          screen: BUILDER_SCREEN,
+          params: { formId: FORM_ID },
+          conversationId: "cnv_builder_editor",
+        }),
+      });
+      expect(res.status).toBe(200);
+      await readEvents(res);
+      const offered = lastOfferedTools();
+      expect(offered).toContain("read_form");
+      expect(offered).toContain("propose_plan");
+      for (const name of offered) {
+        expect([...BUILDER_READ_TOOLS, "propose_plan"]).toContain(name);
+      }
+      for (const name of AGENT_BUILDER_TOOL_NAMES) expect(offered).not.toContain(name);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "offers an Edit forms holder the edits and not the wizard",
     async () => {
       await builderEvents(editor, "anything #qcms-fake:no-proposal");
       const offered = lastOfferedTools();
@@ -309,17 +360,25 @@ describe("who the builder's tools are offered to (X3)", () => {
         expect(offered).toContain(name);
       }
       expect(offered).not.toContain("open_publish_wizard");
-      for (const name of ["list_responses", "count_responses", "list_links", "list_webhooks"]) {
-        expect(offered).not.toContain(name);
-      }
     },
     CONTAINER_BOOT_TIMEOUT_MS,
   );
 
   it(
-    "offers the wizard to a Publish forms holder",
+    "offers the wizard to a Publish forms holder, and no environment read",
     async () => {
       await builderEvents(owner, "anything #qcms-fake:no-proposal");
+      const offered = lastOfferedTools();
+      expect(offered).toContain("open_publish_wizard");
+      for (const name of ENVIRONMENT_READS) expect(offered).not.toContain(name);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "offers the wizard to a caller who may publish only outside the current environment",
+    async () => {
+      await builderEvents(elsewherePublisher, "anything #qcms-fake:no-proposal");
       expect(lastOfferedTools()).toContain("open_publish_wizard");
     },
     CONTAINER_BOOT_TIMEOUT_MS,
@@ -327,6 +386,29 @@ describe("who the builder's tools are offered to (X3)", () => {
 });
 
 describe("a builder turn's edits, applied through the one draft save (G3)", () => {
+  it(
+    "refuses a client-written body under an edit's token and writes no row",
+    async () => {
+      const events = await builderEvents(editor, "tidy this #qcms-fake:builder-edits");
+      const first = editsOf(events)[0]?.edits[0];
+      if (first === undefined) throw new Error("no edit yielded");
+      expect(first.op).toBe("copy");
+      const rowsBefore = await agentRows();
+      const written = {
+        ...first.definition,
+        title: { en: "Written by the client" },
+        steps: first.definition.steps.map((step) => ({ ...step, title: { en: "Not proposed" } })),
+      };
+      const res = await saveDraft(editor, written, first.token);
+      expect(res.status).toBe(422);
+      expect(((await res.json()) as { error?: { code?: string } }).error?.code).toBe(
+        "AGENT_EDIT_MISMATCH",
+      );
+      expect(await agentRows()).toBe(rowsBefore);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+
   it(
     "saves each edit with its token and records one audit row each",
     async () => {

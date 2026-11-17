@@ -1,6 +1,7 @@
 import {
   FormId,
   deriveAppearance,
+  parseFormDefinition,
   parseQuestionDefinition,
   QuestionId,
   type Appearance,
@@ -44,6 +45,7 @@ import {
   EDIT_TOKEN_VERSION,
   EDIT_TTL_MS,
   EDITS_PER_TURN,
+  draftStateDigest,
   mintTurnEditTokens,
   signEditToken,
   type EditOp,
@@ -210,20 +212,40 @@ async function put(
   });
 }
 
+interface SaveBody {
+  readonly definition: Record<string, unknown>;
+  readonly appearance?: Appearance;
+}
+
+/** Each edit's op and the save it produces: a title stands for `definition(formId, title)`. */
+type PlannedEdit = readonly [EditOp, string | SaveBody];
+
 async function tokens(
   caller: Caller,
   formId: string,
-  ops: readonly EditOp[],
+  planned: readonly PlannedEdit[],
   startRevision = 1,
   baseVersion = 0,
 ): Promise<readonly string[]> {
+  const edits = await Promise.all(
+    planned.map(async ([op, save]) => {
+      const body = typeof save === "string" ? { definition: definition(formId, save) } : save;
+      const parsed = parseFormDefinition(body.definition);
+      if (!parsed.ok) throw new Error("fixture definition did not parse");
+      const post = await draftStateDigest({
+        definition: parsed.value,
+        appearance: body.appearance ?? null,
+      });
+      return { op, post };
+    }),
+  );
   return (
     await mintTurnEditTokens(deps.config.keys.app, {
       sub: caller.userId,
       formId,
       baseVersion,
       startRevision,
-      ops,
+      edits,
       issuedAt: now,
     })
   ).tokens;
@@ -274,7 +296,7 @@ async function agentChanges(caller: Caller, formId: string) {
 describe("a card-less edit through the single draft save path", { timeout: TIMEOUT_MS }, () => {
   it("saves the edit, writes exactly one row and returns its undo token", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, ["copy"]);
+    const [token] = await tokens(owner, formId, [["copy", "Edited"]]);
     const res = await put(owner, formId, { definition: definition(formId, "Edited") }, token);
     expect(res.status).toBe(200);
     await undoTokenOf(res);
@@ -284,7 +306,11 @@ describe("a card-less edit through the single draft save path", { timeout: TIMEO
 
   it("applies a turn's edits in order, one row each", async () => {
     const formId = await seededForm();
-    const turn = await tokens(owner, formId, ["question", "step", "rule"]);
+    const turn = await tokens(owner, formId, [
+      ["question", "Edit 0"],
+      ["step", "Edit 1"],
+      ["rule", "Edit 2"],
+    ]);
     for (const [index, token] of turn.entries()) {
       const res = await put(
         owner,
@@ -318,7 +344,7 @@ describe("the injection cases (X4, A6)", { timeout: TIMEOUT_MS }, () => {
 
   it("reports each recorded edit to the wizard, and only those", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, ["question"]);
+    const [token] = await tokens(owner, formId, [["question", "Agent"]]);
     expect(
       (await put(owner, formId, { definition: definition(formId, "Agent") }, token)).status,
     ).toBe(200);
@@ -336,7 +362,7 @@ describe("the injection cases (X4, A6)", { timeout: TIMEOUT_MS }, () => {
 
   it("counts only the changes since the newest publish", async () => {
     const formId = await seededForm();
-    const [early] = await tokens(owner, formId, ["copy"]);
+    const [early] = await tokens(owner, formId, [["copy", "A"]]);
     expect((await put(owner, formId, { definition: definition(formId, "A") }, early)).status).toBe(
       200,
     );
@@ -355,7 +381,7 @@ describe("the injection cases (X4, A6)", { timeout: TIMEOUT_MS }, () => {
     expect((await agentChanges(owner, formId)).changes).toEqual([]);
 
     now = new Date(now.getTime() + 1_000);
-    const [late] = await tokens(owner, formId, ["rule"], 2, 1);
+    const [late] = await tokens(owner, formId, [["rule", "B"]], 2, 1);
     expect((await put(owner, formId, { definition: definition(formId, "B") }, late)).status).toBe(
       200,
     );
@@ -371,7 +397,7 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
     expect((await put(owner, formId, { definition: definition(formId, "Human") })).status).toBe(
       200,
     );
-    const [stale] = await tokens(owner, formId, ["copy"], 1);
+    const [stale] = await tokens(owner, formId, [["copy", "Agent"]], 1);
     const res = await put(owner, formId, { definition: definition(formId, "Agent") }, stale);
     expect(res.status).toBe(409);
     expect(await codeOf(res)).toBe("AGENT_EDIT_REVISION");
@@ -381,7 +407,7 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
 
   it("refuses a replayed token and writes no second row", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, ["copy"]);
+    const [token] = await tokens(owner, formId, [["copy", "Once"]]);
     expect(
       (await put(owner, formId, { definition: definition(formId, "Once") }, token)).status,
     ).toBe(200);
@@ -394,7 +420,7 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
 
   it("refuses another user's token", async () => {
     const formId = await seededForm();
-    const [theirs] = await tokens(other, formId, ["copy"]);
+    const [theirs] = await tokens(other, formId, [["copy", "X"]]);
     const res = await put(owner, formId, { definition: definition(formId, "X") }, theirs);
     expect(res.status).toBe(403);
     expect(await codeOf(res)).toBe("AGENT_EDIT_SUBJECT");
@@ -404,7 +430,7 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
   it("refuses another form's token", async () => {
     const formId = await seededForm();
     const elsewhere = await seededForm();
-    const [token] = await tokens(owner, elsewhere, ["copy"]);
+    const [token] = await tokens(owner, elsewhere, [["copy", "X"]]);
     const res = await put(owner, formId, { definition: definition(formId, "X") }, token);
     expect(res.status).toBe(403);
     expect(await codeOf(res)).toBe("AGENT_EDIT_FORM");
@@ -426,6 +452,7 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
       base: 0,
       op: "copy",
       rev: 1,
+      post: "A".repeat(43),
       iat,
       exp: iat + EDIT_TTL_MS,
     });
@@ -438,7 +465,10 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
         formId,
         baseVersion: 0,
         startRevision: 1,
-        ops: Array.from({ length: EDITS_PER_TURN + 1 }, () => "copy" as const),
+        edits: Array.from({ length: EDITS_PER_TURN + 1 }, () => ({
+          op: "copy" as const,
+          post: "A".repeat(43),
+        })),
         issuedAt: now,
       }),
     ).rejects.toThrow();
@@ -446,7 +476,7 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
 
   it("refuses an expired token", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, ["copy"]);
+    const [token] = await tokens(owner, formId, [["copy", "Late"]]);
     now = new Date(now.getTime() + EDIT_TTL_MS + 1);
     try {
       const res = await put(owner, formId, { definition: definition(formId, "Late") }, token);
@@ -459,16 +489,30 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
 
   it("refuses an edit whose save changes what its op does not cover", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, ["appearance"]);
+    const [token] = await tokens(owner, formId, [["appearance", "Renamed"]]);
     const res = await put(owner, formId, { definition: definition(formId, "Renamed") }, token);
     expect(res.status).toBe(422);
     expect(await codeOf(res)).toBe("AGENT_EDIT_OP");
     expect(await rowsFor(formId)).toEqual([]);
   });
 
+  it("refuses a save whose body is not the draft the edit produced, and writes no row", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, [["copy", "Proposed"]]);
+    const res = await put(owner, formId, { definition: definition(formId, "Rewritten") }, token);
+    expect(res.status).toBe(422);
+    expect(await codeOf(res)).toBe("AGENT_EDIT_MISMATCH");
+    expect(await draftTitle(formId)).toBe("Start");
+    expect(await rowsFor(formId)).toEqual([]);
+    expect(
+      (await put(owner, formId, { definition: definition(formId, "Proposed") }, token)).status,
+    ).toBe(200);
+    expect(await rowsFor(formId)).toEqual([{ kind: "draft.copy", detail: "2" }]);
+  });
+
   it("refuses a request carrying both a card's token and an edit token", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, ["copy"]);
+    const [token] = await tokens(owner, formId, [["copy", "X"]]);
     const res = await put(owner, formId, { definition: definition(formId, "X") }, token, {
       [PROPOSAL_HEADER]: "a.b",
       [PROPOSAL_STEP_HEADER]: "0",
@@ -481,7 +525,10 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
 describe("an edit at revision 0 and across a publish", { timeout: TIMEOUT_MS }, () => {
   it("applies a turn to a form with no draft row, starting at revision 0", async () => {
     const formId = await bareForm();
-    const [first, second] = await tokens(owner, formId, ["copy", "step"], 0);
+    const [first, second] = await tokens(owner, formId, [
+      ["copy", "First"],
+      ["step", "Second"],
+    ], 0);
     expect(
       (await put(owner, formId, { definition: definition(formId, "First") }, first)).status,
     ).toBe(200);
@@ -497,7 +544,7 @@ describe("an edit at revision 0 and across a publish", { timeout: TIMEOUT_MS }, 
 
   it("refuses a revision-0 token once a human save has created the draft", async () => {
     const formId = await bareForm();
-    const [token] = await tokens(owner, formId, ["copy"], 0);
+    const [token] = await tokens(owner, formId, [["copy", "Agent"]], 0);
     expect((await put(owner, formId, { definition: definition(formId, "Human") })).status).toBe(
       200,
     );
@@ -510,11 +557,11 @@ describe("an edit at revision 0 and across a publish", { timeout: TIMEOUT_MS }, 
 
   it("refuses a token minted before a publish once the revisions restart", async () => {
     const formId = await seededForm();
-    const [stale] = await tokens(owner, formId, ["copy"], 1, 0);
+    const [stale] = await tokens(owner, formId, [["copy", "Stale"]], 1, 0);
     now = new Date(now.getTime() + 1_000);
     await publishDraft(formId, "Start");
 
-    const [first] = await tokens(owner, formId, ["copy"], 0, 1);
+    const [first] = await tokens(owner, formId, [["copy", "After"]], 0, 1);
     expect(
       (await put(owner, formId, { definition: definition(formId, "After") }, first)).status,
     ).toBe(200);
@@ -529,7 +576,7 @@ describe("an edit at revision 0 and across a publish", { timeout: TIMEOUT_MS }, 
 describe("an edit's op against what its save changes", { timeout: TIMEOUT_MS }, () => {
   it("saves an appearance op that changes the appearance alone", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, ["appearance"]);
+    const [token] = await tokens(owner, formId, [["appearance", { definition: definition(formId, "Start"), appearance: appearanceFor("#1d4ed8") }]]);
     const res = await put(
       owner,
       formId,
@@ -543,7 +590,7 @@ describe("an edit's op against what its save changes", { timeout: TIMEOUT_MS }, 
   it("refuses a non-appearance op whose save changes the appearance", async () => {
     const formId = await seededForm();
     for (const op of ["question", "step", "rule", "copy"] as const) {
-      const [token] = await tokens(owner, formId, [op]);
+      const [token] = await tokens(owner, formId, [[op, { definition: definition(formId, "Start"), appearance: appearanceFor("#0f766e") }]]);
       const res = await put(
         owner,
         formId,
@@ -558,7 +605,7 @@ describe("an edit's op against what its save changes", { timeout: TIMEOUT_MS }, 
 
   it("refuses an appearance op whose save changes the definition, even with an appearance", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, ["appearance"]);
+    const [token] = await tokens(owner, formId, [["appearance", { definition: definition(formId, "Renamed"), appearance: appearanceFor("#1d4ed8") }]]);
     const res = await put(
       owner,
       formId,
@@ -573,7 +620,7 @@ describe("an edit's op against what its save changes", { timeout: TIMEOUT_MS }, 
 
   it("refuses an appearance edit on a locked workspace and writes no row", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, ["appearance"]);
+    const [token] = await tokens(owner, formId, [["appearance", { definition: definition(formId, "Start"), appearance: appearanceFor("#1d4ed8") }]]);
     await setWorkspaceAppearanceLock(testDb.db, SEED_WORKSPACE_ID, true);
     try {
       const res = await put(
@@ -603,8 +650,8 @@ describe("every edit refusal is logged by its code", { timeout: TIMEOUT_MS }, ()
     const formId = await seededForm();
     const elsewhere = await seededForm();
     const before = logLines.length;
-    const [theirs] = await tokens(other, formId, ["copy"]);
-    const [wrongForm] = await tokens(owner, elsewhere, ["copy"]);
+    const [theirs] = await tokens(other, formId, [["copy", "X"]]);
+    const [wrongForm] = await tokens(owner, elsewhere, [["copy", "X"]]);
     const iat = now.getTime();
     const overCap = await signEditToken(deps.config.keys.app, {
       v: EDIT_TOKEN_VERSION,
@@ -617,11 +664,15 @@ describe("every edit refusal is logged by its code", { timeout: TIMEOUT_MS }, ()
       base: 0,
       op: "copy",
       rev: 1,
+      post: "A".repeat(43),
       iat,
       exp: iat + EDIT_TTL_MS,
     });
-    const [once, stale] = await tokens(owner, formId, ["copy", "copy"], 1);
-    const [appearanceOp] = await tokens(owner, formId, ["appearance"], 2);
+    const [once, stale] = await tokens(owner, formId, [
+      ["copy", "A"],
+      ["copy", "C"],
+    ], 1);
+    const [appearanceOp] = await tokens(owner, formId, [["appearance", "Renamed"]], 2);
 
     await put(owner, formId, { definition: definition(formId, "X") }, theirs);
     await put(owner, formId, { definition: definition(formId, "X") }, wrongForm);
@@ -663,7 +714,7 @@ describe("the edit route kind writes no library version (Q22)", { timeout: TIMEO
 
   it("refuses an edit token on a library route and on the assist accept", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, ["question"]);
+    const [token] = await tokens(owner, formId, [["question", "X"]]);
     const before = await libraryRows();
     const create = await app.request("/admin/questions", {
       method: "POST",
@@ -694,13 +745,13 @@ describe("the edit route kind writes no library version (Q22)", { timeout: TIMEO
 
   it("saves a draft naming an unknown question without creating it", async () => {
     const formId = await seededForm();
-    const [token] = await tokens(owner, formId, ["question"]);
     const before = await libraryRows();
     const body = definition(formId, "Pins");
     (body["steps"] as { items: unknown[] }[])[0]?.items.push({
       questionId: "q_edit_unknown",
       version: 1,
     });
+    const [token] = await tokens(owner, formId, [["question", { definition: body }]]);
     expect((await put(owner, formId, { definition: body }, token)).status).toBe(200);
     expect(await libraryRows()).toBe(before);
   });
@@ -709,7 +760,10 @@ describe("the edit route kind writes no library version (Q22)", { timeout: TIMEO
 describe("Undo through the same path and its own token", { timeout: TIMEOUT_MS }, () => {
   it("reverses exactly one op, latest first, one row each", async () => {
     const formId = await seededForm();
-    const [first, second] = await tokens(owner, formId, ["copy", "copy"]);
+    const [first, second] = await tokens(owner, formId, [
+      ["copy", "One"],
+      ["copy", "Two"],
+    ]);
     const undoFirst = await undoTokenOf(
       await put(owner, formId, { definition: definition(formId, "One") }, first),
     );
@@ -736,7 +790,10 @@ describe("Undo through the same path and its own token", { timeout: TIMEOUT_MS }
 
   it("refuses an Undo of an op a later edit has superseded", async () => {
     const formId = await seededForm();
-    const [first, second] = await tokens(owner, formId, ["copy", "copy"]);
+    const [first, second] = await tokens(owner, formId, [
+      ["copy", "One"],
+      ["copy", "Two"],
+    ]);
     const undoFirst = await undoTokenOf(
       await put(owner, formId, { definition: definition(formId, "One") }, first),
     );
@@ -751,7 +808,7 @@ describe("Undo through the same path and its own token", { timeout: TIMEOUT_MS }
 
   it("refuses an Undo superseded by a human save", async () => {
     const formId = await seededForm();
-    const [first] = await tokens(owner, formId, ["copy"]);
+    const [first] = await tokens(owner, formId, [["copy", "One"]]);
     const undo = await undoTokenOf(
       await put(owner, formId, { definition: definition(formId, "One") }, first),
     );
@@ -765,7 +822,7 @@ describe("Undo through the same path and its own token", { timeout: TIMEOUT_MS }
 
   it("refuses an Undo whose body is not the state before the edit, and a replayed Undo", async () => {
     const formId = await seededForm();
-    const [first] = await tokens(owner, formId, ["copy"]);
+    const [first] = await tokens(owner, formId, [["copy", "One"]]);
     const undo = await undoTokenOf(
       await put(owner, formId, { definition: definition(formId, "One") }, first),
     );
@@ -784,7 +841,7 @@ describe("Undo through the same path and its own token", { timeout: TIMEOUT_MS }
 
   it("refuses another user's Undo token", async () => {
     const formId = await seededForm();
-    const [first] = await tokens(owner, formId, ["copy"]);
+    const [first] = await tokens(owner, formId, [["copy", "One"]]);
     const undo = await undoTokenOf(
       await put(owner, formId, { definition: definition(formId, "One") }, first),
     );
@@ -801,7 +858,10 @@ describe(
     it("refuses the next edit once the account is disabled", async () => {
       const editor = await seedAdminSession(testDb.db, { label: "edit_disabled", at: now });
       const formId = await seededForm();
-      const [first, second] = await tokens(editor, formId, ["copy", "copy"]);
+      const [first, second] = await tokens(editor, formId, [
+        ["copy", "One"],
+        ["copy", "Two"],
+      ]);
       expect(
         (await put(editor, formId, { definition: definition(formId, "One") }, first)).status,
       ).toBe(200);
@@ -825,7 +885,10 @@ describe(
         owner: false,
       });
       const formId = await seededForm();
-      const [first, second] = await tokens(editor, formId, ["copy", "copy"]);
+      const [first, second] = await tokens(editor, formId, [
+        ["copy", "One"],
+        ["copy", "Two"],
+      ]);
       expect(
         (await put(editor, formId, { definition: definition(formId, "One") }, first)).status,
       ).toBe(200);
