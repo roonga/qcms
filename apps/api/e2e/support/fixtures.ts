@@ -107,13 +107,10 @@ export const KITCHEN_SINK_COMPILED_PATH =
 export const KITCHEN_SINK_GOLDEN = readFixture(KITCHEN_SINK_COMPILED_PATH) as CompiledForm;
 
 /**
- * A separate form rather than messages retrofitted onto the kitchen sink, whose compiled
- * golden's bytes staying still is part of what proves both features additive.
- *
- * `q_am_vin` carries `minLength` rather than `maxLength`, because the compiler forwards
- * `maxLength` as the input's own attribute, so a browser can never provoke it. `q_am_notes`
- * is a `longText` with a minimum and is deliberately optional, so the error summary still
- * lists the same four required questions.
+ * A separate form rather than the kitchen sink, whose compiled golden's bytes staying still
+ * proves both features additive. `q_am_vin` and `q_am_notes` carry a `minLength`, the only
+ * length bound a browser can provoke, since `maxLength` is forwarded as the input's own
+ * attribute. `q_am_notes` is optional, so the error summary still lists four questions.
  */
 export const AUTHOR_MESSAGES_DEF = readFixture(
   "apps/api/e2e/support/fixtures/author-messages-form.json",
