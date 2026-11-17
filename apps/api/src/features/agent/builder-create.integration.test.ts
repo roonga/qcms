@@ -27,6 +27,7 @@ import {
 import { registerForms } from "../forms/route.js";
 import { registerGrantCheck } from "../membership/middleware.js";
 import { registerQuestions } from "../questions/route.js";
+import { ACCEPT_HEADER, signAcceptToken } from "./accept-token.js";
 import { aiSdkDraftAssistant } from "./assistant.js";
 import { EDIT_HEADER } from "./edit-provenance.js";
 import { BUILDER_SCREEN } from "./edit-token.js";
@@ -232,11 +233,13 @@ describe("creating a form from the builder (Q15)", () => {
       expect(plan.proposal.workspaces?.map((entry) => entry.workspaceId)).toEqual([
         SEED_WORKSPACE_ID,
       ]);
+      const formId = formIdFor("fake-new-lazy");
       expect(await formsWithSlug("fake-new-lazy")).toBe(0);
+      expect(await draftsFor(formId)).toBe(0);
+      expect(await rowsFor(formId)).toEqual([]);
 
       const created = await confirmCreate(owner, plan);
       expect(created.status).toBe(201);
-      const formId = formIdFor("fake-new-lazy");
       expect(await formsWithSlug("fake-new-lazy")).toBe(1);
       expect(await draftsFor(formId)).toBe(1);
       expect(await rowsFor(formId)).toEqual([{ kind: "form.create", detail: formId }]);
@@ -254,7 +257,7 @@ describe("creating a form from the builder (Q15)", () => {
   );
 
   it(
-    "refuses the create in a workspace where the caller does not hold Edit forms",
+    "refuses the create in a workspace where the caller does not hold Edit forms, naming nothing of it",
     async () => {
       const editor = await seedAdminSession(testDb.db, {
         label: "crt_editor_elsewhere",
@@ -262,11 +265,11 @@ describe("creating a form from the builder (Q15)", () => {
         grants: ["forms.editor"],
         owner: false,
       });
-      const [plan] = await newFormTurn(editor, "elsewhere", otherWorkspace);
-      if (plan === undefined) throw new Error("no create card");
-      expect(plan.proposal.steps[0]?.args["workspaceId"]).toBe(otherWorkspace);
-      const refused = await confirmCreate(editor, plan);
-      expect(refused.status).toBe(403);
+      const res = await newFormRequest(editor, "elsewhere", otherWorkspace);
+      expect(res.status).toBe(200);
+      const events = await readEvents(res);
+      expect(events.filter((event) => event.type === "plan")).toEqual([]);
+      expect(JSON.stringify(events)).not.toContain("Elsewhere");
       expect(await formsWithSlug("fake-new-elsewhere")).toBe(0);
     },
     CONTAINER_BOOT_TIMEOUT_MS,
@@ -354,9 +357,15 @@ describe("the docked assistant's accept (provenance)", () => {
         }),
       });
       expect(created.status).toBe(201);
+      const token = await signAcceptToken(deps.config.keys.app, {
+        sub: owner.userId,
+        formId,
+        pid: `prp_${crypto.randomUUID().replaceAll("-", "")}`,
+        issuedAt: deps.clock.now(),
+      });
       const accepted = await app.request(`/admin/forms/${formId}/draft/assist/accept`, {
         method: "POST",
-        headers: headersFor(owner),
+        headers: headersFor(owner, { [ACCEPT_HEADER]: token }),
         body: JSON.stringify({
           definition: {
             formId,

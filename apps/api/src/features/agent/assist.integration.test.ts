@@ -35,6 +35,7 @@ import { aiSdkDraftAssistant } from "./assistant.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import { SCREEN_IDS } from "./screens.js";
 import { AGENT_READ_TOOL_NAMES } from "./tools/registry.js";
+import { ACCEPT_HEADER, signAcceptToken } from "./accept-token.js";
 import { registerFormsAssist } from "./route.js";
 import type { ProposedDraftStep } from "./tools/propose.js";
 import type { AssistEvent } from "./types.js";
@@ -123,6 +124,35 @@ async function post(path: string, body?: unknown): Promise<Response> {
     method: "POST",
     headers: authHeaders(),
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+}
+
+function freshPid(): string {
+  return `prp_${crypto.randomUUID().replaceAll("-", "")}`;
+}
+
+function acceptTokenFor(
+  formId: string,
+  over: { sub?: string; pid?: string; issuedAt?: Date } = {},
+): Promise<string> {
+  return signAcceptToken(deps.config.keys.app, {
+    sub: over.sub ?? adminUserId,
+    formId,
+    pid: over.pid ?? freshPid(),
+    issuedAt: over.issuedAt ?? deps.clock.now(),
+  });
+}
+
+/** The docked accept, under a token minted as the proposing turn would mint it unless one is given. */
+async function postAccept(formId: string, body: unknown, token?: string | null): Promise<Response> {
+  const presented = token === undefined ? await acceptTokenFor(formId) : token;
+  return app.request(`/admin/forms/${formId}/draft/assist/accept`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(),
+      ...(presented === null ? {} : { [ACCEPT_HEADER]: presented }),
+    },
+    body: JSON.stringify(body),
   });
 }
 
@@ -403,7 +433,7 @@ describe("the assist slice over HTTP", () => {
       await seedPublishedQuestion("q_prov", "Provenance");
       await seedForm("frm_prov", ["q_prov"]);
 
-      const accepted = await post(`/forms/frm_prov/draft/assist/accept`, {
+      const accepted = await postAccept("frm_prov", {
         definition: draftFor("frm_prov", ["q_prov"]),
       });
       expect((await accepted.json()) as { agentAssisted: boolean }).toMatchObject({
@@ -426,6 +456,118 @@ describe("the assist slice over HTTP", () => {
   );
 });
 
+describe("the accept token (SEC-17)", () => {
+  async function rowsFor(formId: string): Promise<{ proposal_id: string; proposed_at: Date }[]> {
+    const rows = await testDb.client.query(
+      `select proposal_id, proposed_at from control.agent_actions where form_id = $1`,
+      [formId],
+    );
+    return rows.rows as { proposal_id: string; proposed_at: Date }[];
+  }
+
+  async function revisionOf(formId: string): Promise<number> {
+    const rows = await testDb.client.query(
+      `select revision from control.form_drafts where form_id = $1`,
+      [formId],
+    );
+    return (rows.rows[0] as { revision: number }).revision;
+  }
+
+  async function codeOf(res: Response): Promise<string> {
+    return ((await res.json()) as { error: { code: string } }).error.code;
+  }
+
+  async function refusedWithNothingWritten(
+    formId: string,
+    token: string | null,
+    code: string,
+  ): Promise<void> {
+    const before = await revisionOf(formId);
+    const res = await postAccept(formId, { definition: draftFor(formId, ["q_tok_any"]) }, token);
+    expect(res.status).toBe(403);
+    expect(await codeOf(res)).toBe(code);
+    expect(await rowsFor(formId)).toEqual([]);
+    expect(await revisionOf(formId)).toBe(before);
+  }
+
+  it(
+    "takes the token the proposing turn minted, writes one row at the proposal's own time, and refuses a replay",
+    async () => {
+      await resetLimiter();
+      await seedPublishedQuestion("q_tok_turn", "Token turn");
+      await seedForm("frm_tok_turn", ["q_tok_turn"]);
+
+      const events = await readEvents(await assist("frm_tok_turn", "a vehicle-insurance quote with a follow-up"));
+      const card = events.find((event) => event.type === "plan");
+      if (card?.type !== "plan") throw new Error(JSON.stringify(events));
+      const token = appliedDraft(events).acceptToken;
+      expect(token).toEqual(expect.any(String));
+      expect(JSON.stringify(providerCalls)).not.toContain(token);
+
+      const body = { definition: draftFor("frm_tok_turn", ["q_tok_turn"]) };
+      const accepted = await postAccept("frm_tok_turn", body, token as string);
+      expect(accepted.status).toBe(200);
+      const rows = await rowsFor("frm_tok_turn");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.proposal_id).toBe(`${card.proposal.proposalId}.accept`);
+      expect(new Date(rows[0]?.proposed_at ?? 0).toISOString()).toBe(card.proposal.proposedAt);
+
+      const replay = await postAccept("frm_tok_turn", body, token as string);
+      expect(replay.status).toBe(403);
+      expect(await codeOf(replay)).toBe("AGENT_ACCEPT_REPLAYED");
+      expect(await rowsFor("frm_tok_turn")).toHaveLength(1);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "refuses an accept with no token, a forged one, an expired one, another form's and another user's",
+    async () => {
+      await seedPublishedQuestion("q_tok_any", "Any");
+      await seedForm("frm_tok_refused", ["q_tok_any"]);
+      await seedForm("frm_tok_other", ["q_tok_any"]);
+
+      await refusedWithNothingWritten("frm_tok_refused", null, "AGENT_ACCEPT_MISSING");
+
+      const genuine = await acceptTokenFor("frm_tok_refused");
+      const [body = "", mac = ""] = genuine.split(".");
+      const forged = `${body}.${mac.slice(0, -2)}${mac.endsWith("AA") ? "BB" : "AA"}`;
+      await refusedWithNothingWritten("frm_tok_refused", forged, "AGENT_ACCEPT_SIGNATURE");
+      await refusedWithNothingWritten("frm_tok_refused", "not-a-token", "AGENT_ACCEPT_MALFORMED");
+
+      const issuedAt = new Date(deps.clock.now().getTime() - 11 * 60 * 1000);
+      await refusedWithNothingWritten(
+        "frm_tok_refused",
+        await acceptTokenFor("frm_tok_refused", { issuedAt }),
+        "AGENT_ACCEPT_EXPIRED",
+      );
+
+      await refusedWithNothingWritten(
+        "frm_tok_refused",
+        await acceptTokenFor("frm_tok_other"),
+        "AGENT_ACCEPT_FORM",
+      );
+
+      await refusedWithNothingWritten(
+        "frm_tok_refused",
+        await acceptTokenFor("frm_tok_refused", { sub: "usr_someone_else" }),
+        "AGENT_ACCEPT_SUBJECT",
+      );
+
+      const refusals = logLines.filter((line) => line["msg"] === "agent accept refused");
+      expect(refusals.map((line) => line["code"])).toEqual([
+        "AGENT_ACCEPT_MISSING",
+        "AGENT_ACCEPT_SIGNATURE",
+        "AGENT_ACCEPT_MALFORMED",
+        "AGENT_ACCEPT_EXPIRED",
+        "AGENT_ACCEPT_FORM",
+        "AGENT_ACCEPT_SUBJECT",
+      ]);
+    },
+    BOOT_TIMEOUT,
+  );
+});
+
 describe("accepting a proposal with new questions", () => {
   function questionDefinition(id: string, label: string): Record<string, unknown> {
     return { questionId: id, type: "shortText", label: { en: label } };
@@ -436,7 +578,7 @@ describe("accepting a proposal with new questions", () => {
     questionIds: readonly string[],
     newQuestions: readonly unknown[],
   ): Promise<Response> {
-    return post(`/forms/${formId}/draft/assist/accept`, {
+    return postAccept(formId, {
       definition: draftFor(formId, questionIds),
       newQuestions,
     });
@@ -614,7 +756,7 @@ describe("unknown keys are refused inside a nested body object (issue #893)", ()
     async () => {
       await post("/forms", { formId: "frm_nested_key", slug: "nested-key", defaultLocale: "en" });
 
-      const res = await post("/forms/frm_nested_key/draft/assist/accept", {
+      const res = await postAccept("frm_nested_key", {
         definition: draftFor("frm_nested_key", ["q_nested"]),
         newQuestions: [
           { definition: questionDefinition("q_nested", "Nested"), unexpectedNested: true },
@@ -640,7 +782,7 @@ describe("unknown keys are refused inside a nested body object (issue #893)", ()
       await post("/forms", { formId: "frm_nested_ok", slug: "nested-ok", defaultLocale: "en" });
 
       // `definition` is an opaque record the kernel owns, so its keys stay open.
-      const res = await post("/forms/frm_nested_ok/draft/assist/accept", {
+      const res = await postAccept("frm_nested_ok", {
         definition: draftFor("frm_nested_ok", ["q_nested_ok"]),
         newQuestions: [
           { definition: questionDefinition("q_nested_ok", "Nested ok"), slug: "nested-ok-q" },
