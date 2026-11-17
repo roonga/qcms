@@ -25,6 +25,8 @@ These hold for every proposal below and are stated once.
 - **Fail, never repair.** Each new check refuses with its own code, as every existing constraint does. Nothing is truncated, rounded or rewritten by the server.
 - **Two enforcement moments, as today.** `validateAnswer` runs at answer save (`apps/api/src/features/responses/serve-step/handler.ts`, a 422 that stores nothing) and again in the submission sweep (`prepareSubmission`, I9). The no-JS whole-step POST reaches the same call.
 - **Compiler golden corpus.** Four of the five add a prop or a node shape to compiled A2UI, so `COMPILER_VERSION` moves and the documented spec-bump procedure opens a new generation under `packages/a2ui-compiler/golden/`, carrying existing forms across unchanged apart from the stamp and adding one corpus form per feature. No committed golden is edited.
+- **The vendored prop schemas are strict and frozen.** Every vendored A2UI props object is `.strict()` and ADR-22 forbids editing it (`packages/ui/src/author-messages.ts`). Today's schemas refuse three props proposed below: a relative `minValue` or `maxValue` (`date-picker.schema.ts` takes a string), `exclusive` on a `Checkbox` child, and a lone consent checkbox with a description. Each therefore needs a qcms-owned wrapper or node type (the `withAuthorMessages`, `Honeypot` and `RepeatGroup` precedents), which moves `COMPILER_VERSION` alone, or an upstream schema change and a pin move, which also moves `A2UI_SPEC_VERSION` (ADR-18's 2026-10-01 note).
+- **The message key set is strict too.** `AuthorMessagesSchema` is qcms-owned but a fixed key set restating `ValidationMessageKey`. It admits none of `exclusive`, `requiredTrue`, `decimalPlaces` today, and a message keyed by `comparisonId` cannot join a fixed set at all. The three keys are added to it in step with the kernel; the comparison message needs its own wrapper prop.
 - **Validation has no golden corpus today.** The evaluator corpus pins `FlowState`, not `validateAnswer`. Proposal #1288 needs pinned validation outcomes, so it proposes one (below); the other proposals add entries to it.
 - **Documents the build PRs update:** `docs/DOMAIN_SCHEMA.md` (sections 2.2, 2.3, 4.3), `docs/a2ui-mapping.md`, `docs/COMPONENT_GUIDELINES.md`, `docs/agent-question-recipes.md` and the recipes under `apps/api/src/features/agent/prompts/recipes/`. This PR changes none of them.
 
@@ -34,7 +36,8 @@ These hold for every proposal below and are stated once.
 2. **One batch or five.** Built together they cost one compiler golden generation and one snapshot-shape decision; built apart, one generation each. Recommendation: one generation for whichever land together.
 3. **`SNAPSHOT_SCHEMA_VERSION`.** Every change here is additive, but so was ADR-42, which moved it to 2. Does an additive widening of `QuestionDefinition` or `FormDefinition` move it to 3? Recommendation: one bump for the batch, by the ADR-42 precedent.
 4. **A validation golden corpus.** Recommendation: `packages/core/golden/validation/`, append-only and added to `GUARDED_PREFIXES`, one file per scenario of `{ definition, value, today?, expected }`.
-5. **Homes.** #1290 and #1293 were ruled "ADR note". The proposed homes are ADR-36 (the boolean decision) and ADR-32 (the constraint and message-key set). Confirm, or assign numbers.
+5. **Homes.** #1293 was ruled a "short ADR note"; the standing #1290 ruling names no record form. The proposed homes are a Note on ADR-32 (the constraint and message-key set) for #1293 and a Note on ADR-36 (the boolean decision) for #1290. Confirm, or assign numbers.
+6. **Wrapper or upstream.** For each new compiled prop: a qcms-owned wrapper or node type (recommended; only `COMPILER_VERSION` moves), or an upstream `a2-react-aria` schema change with a pin move, which moves `A2UI_SPEC_VERSION`?
 
 ---
 
@@ -54,7 +57,7 @@ These hold for every proposal below and are stated once.
 
 - A date bound may be the literal `today` with an optional signed offset in days, months or years. An age floor is the same bound with a year offset, not a separate concept.
 - It resolves on the server's calendar date at validation.
-- R1 and ADR-18 are amended for this one input.
+- An ADR amends R1 and ADR-18 for this one input. How R1's own sentence changes is open question 8.
 
 ### Definition and validation shape
 
@@ -75,23 +78,23 @@ const DateBound = z.union([DateAnswerValue, RelativeDate]);
 - **Arithmetic** is ISO proleptic Gregorian, keeping the day and clamping to the last valid day of the month, which is the `overflow: "constrain"` default of `Temporal.PlainDate.add` and `subtract`: 2026-03-31 minus one month is 2026-02-28. It is written in core beside the existing leap-year table, not delegated to runtime `Temporal`: the repository's engine floor is Node 24 and `Temporal` is on by default only from Node 26.0.0.
 - **Leap-day consequence, stated rather than discovered:** subtracting 18 years from 2028-02-29 gives 2010-02-28, and a person born 2008-02-29 first passes an 18-year floor on 2026-03-01.
 - **Codes and message keys are unchanged:** `VALUE_BELOW_MIN`, `VALUE_ABOVE_MAX`, keys `min` and `max`. The built-in message quotes the resolved date, which is definition content plus the day, never the answer.
-- **Parse and publish:** two literal bounds are checked as today (`MIN_ABOVE_MAX`). A pair with a relative side is checked at publish against the date the caller passes, and refused if empty on that day.
+- **Parse and publish read no date.** Publish must stay deterministic (`ResolveQuestionVersion` in `packages/core/src/compile-draft.ts`), and a refusal that depends on the day would make the same draft publish on one day and fail on another. So: two literal bounds are checked as today (`MIN_ABOVE_MAX`); two relative bounds in the same unit are compared by amount; any other pair cannot be judged without a day and is a publish warning, not a refusal. `compileDraft` is called only by the publish handler (`apps/api/src/features/forms/handler.ts`); environment promotion and restore move stored versions and never re-run it, so neither can meet a day-dependent outcome.
 - **The lock records the day.** `LockedSubmission` gains `evaluatedOn`, inside the hashed content, present only when the snapshot holds a relative bound, so a stored submission can be re-verified and a form without one keeps its `contentHash` shape.
 
 ### Proposed amendment text
 
 > **ADR-18, amendment.** A published version's stored definition and compiled documents stay immutable and are served verbatim. Its validation is a function of the snapshot and the answers, with one named exception: a date bound relative to today also reads the server's calendar date, passed to core explicitly and recorded on the locked submission. No other time-dependent input is permitted.
 
-R1's sentence is unchanged; it speaks of content, and no content changes.
+The ruling names R1 as well. R1 reads "Published versions are immutable", which speaks of content, and no content changes here. Two readings are open (question 8): R1's sentence stays and the amendment above is cited beside it, or R1 gains a clause such as "validation of a date bound relative to today reads the server's calendar date (ADR-18 amendment)".
 
 ### Versioning and golden corpus
 
-- Compiled A2UI stores the bound **in relative form**, never as a resolved date, so the stored bytes do not depend on the publish day. New prop shape on `DatePicker`: new compiler generation with a `relative-date-bounds` corpus form.
+- Compiled A2UI stores the bound **in relative form**, never as a resolved date, so the stored bytes do not depend on the publish day. The vendored `DatePicker` schema takes a string bound, so the relative form travels in a qcms wrapper prop (shared question 6): new compiler generation with a `relative-date-bounds` corpus form.
 - Validation corpus entries pin the evaluation date: the day before, on and after a bound; month-end clamp; leap day; a year offset.
 
 ### Portal and admin
 
-- **Portal.** The serve response carries the server's `today` beside the stored document; the renderer resolves the bound from it for the `DatePicker`. The no-JS date fallback is three boxes with no native bound (`packages/ui/src/native-date-field.tsx`), so there the server check on the step POST is the enforcement. The browser clock is never read, so client and server agree except across midnight. `@internationalized/date`, already a `@roonga/qcms-ui` dependency, constrains month arithmetic the same way.
+- **Portal.** The serve response carries the server's `today` beside the stored document; the renderer resolves the bound from it for the `DatePicker`. The no-JS date fallback is three boxes with no native bound (`packages/ui/src/native-date-field.tsx`), so there the server check on the step POST is the enforcement. The browser clock is never read, so client and server agree except across midnight. **Caching:** the portal fetches every API response with `cache: "no-store"` (`apps/portal/lib/server/api.ts`), but the API's step response sets no `cache-control` of its own; a response that carries the day must be `no-store` at the API as well, which the build adds. `@internationalized/date`, already a `@roonga/qcms-ui` dependency, constrains month arithmetic the same way.
 - **Admin.** The date bound editor offers a fixed date, today, or today plus or minus N days, months or years, with a line showing what the bound resolves to on the current day.
 - Reporting and export are unaffected.
 
@@ -116,8 +119,9 @@ R1's sentence is unchanged; it speaks of content, and no content changes.
 3. **Across midnight.** The sweep re-validates with the submit-day date, so an answer accepted yesterday can fail at Submit. Confirm that is the intended reading of "at validation".
 4. **`evaluatedOn` on the locked submission.** Confirm the addition to the hashed content.
 5. **Leap-day births** pass an age floor on 1 March in a non-leap year. Confirm, since jurisdictions differ.
-6. **Mixed bounds at publish.** A fixed `max` with `min` today becomes unanswerable once the fixed date passes. Refuse only if empty on the publish day (recommended), or also warn?
+6. **Mixed bounds at publish.** A fixed `max` with `min` today becomes unanswerable once the fixed date passes. Recommended: publish reads no date and only warns, so publish stays deterministic and promotion and restore are unaffected. The alternative is a refusal when the pair is empty on the publish day, which makes publish day-dependent. Which?
 7. **Rules that read today** ("show the guardian step if under 16") stay out. Confirm.
+8. **R1's sentence.** Leave `PROJECT_INSTRUCTIONS.md` R1 as written and cite the ADR-18 amendment beside it, or add the clause quoted above to R1 itself?
 
 ### Sources
 
@@ -155,7 +159,7 @@ R1's sentence is unchanged; it speaks of content, and no content changes.
 
 ### Versioning and golden corpus
 
-- The `Checkbox` child gains `exclusive: true` in compiled A2UI: new compiler generation with an `exclusive-option` corpus form.
+- The exclusive option is marked in compiled A2UI. The vendored `Checkbox` schema is strict and has no such prop, so the marker travels in a qcms wrapper prop on the group naming the option (shared question 6): new compiler generation with an `exclusive-option` corpus form.
 - Validation corpus entries: exclusive alone, exclusive with one other, exclusive alone under `minSelected: 2`, duplicates of the exclusive id.
 
 ### Portal and admin
@@ -170,6 +174,7 @@ R1's sentence is unchanged; it speaks of content, and no content changes.
 
 - `none-of-the-above`: mark the option `exclusive: true`, set `messages.exclusive`, drop the guidance line in `help` and the two-question workaround. "Cannot be expressed" keeps: a rule between two ordinary options, and a second standalone answer in the same question.
 - `select-all-that-apply`: the first "Cannot be expressed" line goes and points at the recipe above.
+- `voluntary-and-non-answer`: "Prefer not to say" or "Do not know" on a `multiChoice` may be the exclusive option. Where the source form keeps two such codes apart in one question, only one can be exclusive (open question 3), and the recipe says which stays unenforced.
 
 ### Alternatives rejected
 
@@ -216,17 +221,18 @@ R1's sentence is unchanged; it speaks of content, and no content changes.
 - `validateAnswer` refuses `false` with `MUST_BE_TRUE`, constraint `requiredTrue`. The ledger for such a question therefore holds `true` or a retraction, never `false`.
 - **One message for one state.** A respondent cannot tell "unticked" from "false", so `requiredTrue` joins `ValidationMessageKey` and replaces `required` as the authorable key on such a question; the portal shows it for both failures.
 - **Labels.** `label` is the question, `help` holds the notice, `yesLabel` is the checkbox's own label. `noLabel` has nothing to label and is refused at parse.
+- **Accessibility.** Three texts cannot sit on one vendored `Checkbox`, whose schema has a `label` and no description. The control is a group: the question `label` names it (group and legend semantics), `help` is its description (`aria-describedby` on the group), and the one checkbox inside is labelled by `yesLabel`. The error message is associated with the checkbox, which also carries the required state. **The box is never pre-ticked**; it renders ticked only when the server already holds `true` for the session. A long notice read as one described-by string is poor listening, so the recipe keeps long notice text in step content above the question and a short pointer in `help`.
 - A rule condition `equals false` on such a question can never match; publish warns.
 - **Notice version.** R1 already makes the notice text recoverable: the response pins a form version, which pins the question version holding `label`, `help` and `yesLabel`.
 
 ### Versioning and golden corpus
 
-- A `boolean` with `requiredTrue` compiles to a standalone `Checkbox`, which is already in the vendored catalog. New compiler generation with a `consent` corpus form; every other `boolean` keeps its `RadioGroup`.
+- A `boolean` with `requiredTrue` compiles to a qcms-owned consent node (a labelled, described group holding one checkbox), since the vendored `Checkbox` cannot carry the description and a vendored `CheckboxGroup` would be indistinguishable from a `multiChoice` (shared question 6). New compiler generation with a `consent` corpus form; every other `boolean` keeps its `RadioGroup`.
 - Validation corpus entries: `true`, `false`, and the sweep with the question absent.
 
 ### Portal and admin
 
-- **Portal.** One checkbox. Ticking commits `true` on change (the ADR-31 boolean row); unticking posts a retraction where the server holds an answer (ADR-33). Without scripting an unticked box posts nothing, which the decoder already reads as absence.
+- **Portal.** One checkbox. Ticking commits `true` on change (the ADR-31 boolean row); unticking posts a retraction where the server holds an answer (ADR-33). Without scripting an unticked box posts nothing, and the decoder does not read that correctly today: `packages/ui/src/native-submit.ts` tells a cleared field from an untouched one only by the answered marker (`__qa__`), and `NativeFieldKind` has no kind for a lone checkbox (`radio` decodes `"true"` and `"false"`, `multi` decodes an array). The build adds a kind: a ticked box decodes to `true`, an absent value with the answered marker is a retraction, and an absent value without it is untouched.
 - **Admin.** A "must be agreed to" switch on a yes or no question, which sets `required`, hides the No label and previews the checkbox.
 - **Reporting and export.** The column is a boolean as today; it holds `true` for every submitted response in which the question was visible.
 - Existing forms built on the substitute keep working; nothing migrates.
@@ -249,6 +255,7 @@ R1's sentence is unchanged; it speaks of content, and no content changes.
 2. **Message keys.** One key, `requiredTrue`, for both the unticked box and a posted `false` (recommended), or keep `required` for the unticked box?
 3. **Checkbox label.** `yesLabel`, required at publish for such a question (recommended, since the lexicon's "Yes" beside a lone checkbox reads poorly), or the question `label`?
 4. **`equals false` rules** on such a question: publish warning (recommended) or refusal?
+5. **Association of the three texts.** A group named by `label`, described by `help`, holding one checkbox labelled by `yesLabel`, as proposed? And should a long notice live in step content with `help` as a pointer (recommended)?
 
 ---
 
@@ -296,7 +303,7 @@ const Comparison = z.object({
 ### Versioning and golden corpus
 
 - `FormDefinition` gains an optional field; the snapshot question is shared question 3.
-- The authored message is compiled into the stored document on the later question's control (ADR-32), keyed by `comparisonId`: new compiler generation with a `comparisons` corpus form.
+- The authored message is compiled into the stored document on the later question's control (ADR-32), keyed by `comparisonId`. `AuthorMessagesSchema` is a fixed key set, so it travels in a separate qcms wrapper prop beside `messages`: new compiler generation with a `comparisons` corpus form.
 - The submission fixtures under `packages/core/fixtures/submissions/` gain cases: pass, fail, one side hidden, one side unanswered, per instance.
 
 ### Portal and admin
@@ -323,9 +330,10 @@ const Comparison = z.object({
 
 1. **Feedback before Submit.** The sweep is the enforcement as ruled, so a respondent learns of a reversed date range only at Submit. Also report a failed comparison on Continue from the step holding the later question (advisory, same core function), or Submit only for the first build (recommended)?
 2. **Group scope.** Both outside or both in the same group, as proposed. Also allow one outside and one inside ("each service date on or after the admission date"), checked per instance?
-3. **`equals` types.** `shortText`, `number`, `date` as proposed, or wider?
-4. **Case in text equality.** Exact as proposed, which fails a confirm-email box that differs only in case.
-5. **"At least one of"** needs its own issue. Not filed by this PR.
+3. **Operators per type.** The ruling reads "equal, before/after, at most/at least". Literally that is strict `lt` and `gt` for dates and inclusive `lte` and `gte` for numbers. The proposal allows all four ordered operators on both types, and the date-range recipe relies on `gte` over dates (an end date equal to the start date is valid). Confirm all four on both (recommended), or the literal split.
+4. **`equals` types.** `shortText`, `number`, `date` as proposed, or wider?
+5. **Case in text equality.** Exact as proposed, which fails a confirm-email box that differs only in case.
+6. **"At least one of"** needs its own issue. Not filed by this PR.
 
 ---
 
@@ -357,12 +365,13 @@ const Comparison = z.object({
 
 ### Versioning and golden corpus
 
-- `NumberField` gains `step` (`0.01` for two places) and `formatOptions: { maximumFractionDigits: n }` in compiled A2UI: new compiler generation with a `decimal-places` corpus form.
+- Compiled A2UI carries `step` only (`0.01` for two places). `step` is an existing prop of the strict `NumberField` schema, so no schema change and no wrapper; `formatOptions` is not in that schema and is not compiled. The mapping gains a rule, so a `decimal-places` corpus form joins whichever generation the batch opens.
 - Validation corpus entries: `12.5`, `12.345`, `0.57`, `1.005`, `0.30000000000000004`, a negative, `-0`, a value at 10^21.
+- **One entry pins the precision ceiling.** Above about 2^46 the spacing between doubles exceeds 0.01, so every double passes a two-place limit: the check cannot refuse there, because no finer value is representable. The entry records that as intended; a `max` the form can defend is what keeps amounts far below it.
 
 ### Portal and admin
 
-- **Portal.** The renderer already forwards `step` and `formatOptions` to the React Aria `NumberField`, which formats and parses in the respondent's locale. Without scripting, `packages/ui/src/native-number-field.tsx` renders `<input type="number">` with the same `step`, so the browser reports a step mismatch; that is advisory and the server stays authoritative.
+- **Portal.** The renderer forwards `step` but not a compiled format: `packages/ui/src/registry.tsx` sets `formatOptions` itself, `maximumFractionDigits: 0` for an integer step and the React Aria default otherwise. That default shows at most three fraction digits, so the adapter must derive `maximumFractionDigits` from `step` for a scaled field, as `docs/COMPONENT_GUIDELINES.md` rule 13 requires of every constraint expressible as a format. React Aria then formats and parses in the respondent's locale. Without scripting, `packages/ui/src/native-number-field.tsx` renders `<input type="number">` with the same `step`, so the browser reports a step mismatch; that is advisory and the server stays authoritative.
 - **Admin.** A "decimal places" field on a number question, mutually exclusive with "whole numbers only".
 - **Reporting and export.** Values are emitted as stored (`12.5`, not `12.50`).
 
@@ -373,6 +382,7 @@ const Comparison = z.object({
 
 ### Alternatives rejected
 
+- **Compiling `formatOptions` into the document.** Refused by the strict vendored schema, and unnecessary: the adapter derives the format from `step`, which needs no schema change and keeps formatting a render-time concern.
 - **An arbitrary `step`.** Wider than ruled, and it brings the step-base rule into the kernel.
 - **A currency field on the question or the form.** Ruled out; a per-question currency makes a reporting column ambiguous.
 - **A decimal string or minor-unit integer encoding.** Ruled out; it changes the canonical encoding, the ledger, export and rule comparison.
@@ -384,7 +394,7 @@ const Comparison = z.object({
 1. **Upper limit of the scale.** 6 as proposed?
 2. **`decimalPlaces: 0`.** Refused, with `integer: true` staying the one spelling of a whole number (recommended), or accepted as an alias?
 3. **Display padding.** Show `12.5` as typed (recommended, since the field is a limit and not a currency), or pad to the scale (`12.50`) with `minimumFractionDigits`?
-4. **Client snapping.** React Aria's default `commitBehavior` is `snap`: a typed `12.345` becomes the nearest step on blur, before commit, as an `integer` field already does today. Keep that, or switch such fields to `validate` so the respondent sees an error instead of a changed value?
+4. **Client snapping.** React Aria's documented default `commitBehavior` is `snap`: a typed `12.345` becomes the nearest step on blur, before commit, as an `integer` field already does today. The adapter does not set the prop and the vendored schema does not carry it, so `validate` would be a render-time adapter change, and only if the pinned React Aria version has the prop. Keep the snap (recommended, consistent with integers), or show an error instead of a changed value?
 5. **Sums in reporting** over doubles can show float noise. Round aggregates to the column's scale, or leave reporting untouched (recommended for this decision)?
 6. **The calculated-questions issue** is ruled as a `phase-4` issue. Not filed by this PR.
 
