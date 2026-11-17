@@ -233,13 +233,16 @@ beforeAll(async () => {
   internalToken = internalTokenFor(deps.config);
   adminOrigin = deps.config.adminAuth.baseUrl;
 
-  const seeded = await seedAdminSession(testDb.db, { label: "seed", at: new Date() });
+  const seeded = await seedAdminSession(testDb.db, {
+    label: "seed",
+    at: new Date(),
+    siteAdministrator: true,
+  });
   seededAdminId = seeded.userId;
   seededAdminToken = seeded.token;
   const member = await seedAdminSession(testDb.db, {
     label: "member",
     at: new Date(),
-    claim: false,
     owner: true,
   });
   memberToken = member.token;
