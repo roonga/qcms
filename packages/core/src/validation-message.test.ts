@@ -181,7 +181,7 @@ describe("authoredMessageKeys", () => {
   it("covers every question type, so a new type cannot be added without deciding this", () => {
     const byType: Record<string, unknown> = {
       shortText: { constraints: { minLength: 1, maxLength: 2, pattern: "^a$" } },
-      longText: { constraints: { maxLength: 5 } },
+      longText: { constraints: { minLength: 1, maxLength: 5 } },
       number: { constraints: { min: 0, max: 1, integer: true } },
       date: { constraints: { min: "2020-01-01", max: "2030-01-01" } },
       boolean: {},
@@ -193,7 +193,7 @@ describe("authoredMessageKeys", () => {
     };
     const expected: Record<string, readonly string[]> = {
       shortText: ["minLength", "maxLength", "pattern"],
-      longText: ["maxLength"],
+      longText: ["minLength", "maxLength"],
       number: ["min", "max", "integer"],
       date: ["min", "max"],
       boolean: [],

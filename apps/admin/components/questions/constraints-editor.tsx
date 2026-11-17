@@ -157,6 +157,13 @@ function LongTextPanel(props: PanelProps) {
     <div className="qcms-constraints">
       <ConstraintNumber
         {...props}
+        field="minLength"
+        label={t("questions.constraint.minLength")}
+        value={props.constraints.minLength}
+        step={1}
+      />
+      <ConstraintNumber
+        {...props}
         field="maxLength"
         label={t("questions.constraint.maxLength")}
         value={props.constraints.maxLength}

@@ -131,7 +131,15 @@ const ShortTextQuestion = QuestionBase.extend({
 
 const LongTextQuestion = QuestionBase.extend({
   type: z.literal("longText"),
-  constraints: z.object({ maxLength: z.number().int().optional() }).prefault({}),
+  constraints: z
+    .object({
+      minLength: z.number().int().optional(),
+      maxLength: z.number().int().optional(),
+    })
+    .prefault({}),
+}).superRefine((question, ctx) => {
+  const { minLength, maxLength } = question.constraints;
+  checkMinMax(minLength, maxLength, ctx, "MIN_LENGTH_ABOVE_MAX_LENGTH", "minLength", "maxLength");
 });
 
 const NumberQuestion = QuestionBase.extend({
@@ -294,8 +302,10 @@ function constraintBag(
       const { minLength, maxLength, pattern } = definition.constraints;
       return { minLength, maxLength, pattern };
     }
-    case "longText":
-      return { maxLength: definition.constraints.maxLength };
+    case "longText": {
+      const { minLength, maxLength } = definition.constraints;
+      return { minLength, maxLength };
+    }
     case "number": {
       const { min, max, integer } = definition.constraints;
       return { min, max, integer };

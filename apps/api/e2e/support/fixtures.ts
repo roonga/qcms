@@ -111,7 +111,9 @@ export const KITCHEN_SINK_GOLDEN = readFixture(KITCHEN_SINK_COMPILED_PATH) as Co
  * golden's bytes staying still is part of what proves both features additive.
  *
  * `q_am_vin` carries `minLength` rather than `maxLength`, because the compiler forwards
- * `maxLength` as the input's own attribute, so a browser can never provoke it.
+ * `maxLength` as the input's own attribute, so a browser can never provoke it. `q_am_notes`
+ * is a `longText` with a minimum and is deliberately optional, so the error summary still
+ * lists the same four required questions.
  */
 export const AUTHOR_MESSAGES_DEF = readFixture(
   "apps/api/e2e/support/fixtures/author-messages-form.json",
@@ -141,6 +143,11 @@ export const AUTHOR_MESSAGES_QUESTIONS: readonly {
     questionId: "q_am_garaged",
     slug: "am-garaged",
     definition: readFixture("apps/api/e2e/support/fixtures/q-am-garaged.json"),
+  },
+  {
+    questionId: "q_am_notes",
+    slug: "am-notes",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-am-notes.json"),
   },
 ];
 

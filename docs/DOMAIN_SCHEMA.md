@@ -117,7 +117,12 @@ const QuestionDefinition = z.discriminatedUnion("type", [
   }),
   QuestionBase.extend({
     type: z.literal("longText"),
-    constraints: z.object({ maxLength: z.number().int().optional() }).prefault({}),
+    constraints: z
+      .object({
+        minLength: z.number().int().optional(),
+        maxLength: z.number().int().optional(),
+      })
+      .prefault({}),
   }),
   QuestionBase.extend({
     type: z.literal("number"),

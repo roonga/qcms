@@ -99,7 +99,7 @@ Seven, and adding one is a versioned core change: `packages/core/src/question-de
 | Type           | Constraints                                         | Code                                               |
 | -------------- | --------------------------------------------------- | -------------------------------------------------- |
 | `shortText`    | `minLength`, `maxLength`, `pattern`                 | `packages/core/src/question-definition.ts:112-130` |
-| `longText`     | `maxLength` only                                    | `packages/core/src/question-definition.ts:132-135` |
+| `longText`     | `minLength`, `maxLength`                            | `packages/core/src/question-definition.ts:132-143` |
 | `number`       | `min`, `max`, `integer`                             | `packages/core/src/question-definition.ts:137-155` |
 | `date`         | `min`, `max`, each a literal `YYYY-MM-DD`           | `packages/core/src/question-definition.ts:157-174` |
 | `boolean`      | none; `yesLabel` and `noLabel` are presentation     | `packages/core/src/question-definition.ts:176-184` |
@@ -159,9 +159,9 @@ A `shortText` `pattern` is the only format check there is: `packages/core/src/qu
 
 ### Length limits
 
-`minLength` and `maxLength` on `shortText`, `maxLength` alone on `longText`: `packages/core/src/question-definition.ts:112-135`. They count UTF-16 code units of the canonical string, the unit the typed box itself counts in: `packages/core/src/validate-answer.ts:116-150`. Both reach the control as `minLength` and `maxLength`: `packages/a2ui-compiler/src/mapping.ts:102-116`.
+`minLength` and `maxLength` on both `shortText` and `longText`: `packages/core/src/question-definition.ts:112-143`. They count UTF-16 code units of the canonical string, the unit the typed box itself counts in: `packages/core/src/validate-answer.ts:116-150`. Both reach the control as `minLength` and `maxLength`: `packages/a2ui-compiler/src/mapping.ts:102-121`.
 
-**A `longText` has no minimum length**, so "at least a sentence" cannot be set on the one type whose shape invites it. This is gap G7.
+There is no word count, no paragraph count and no line count. A minimum is a character count, which is not how an author counts a sentence.
 
 An empty string and an empty selection are refused for every question, required or not, because they are absence rather than answers: `packages/core/src/validate-answer.ts:106-112`, ADR-33.
 
@@ -198,7 +198,7 @@ One draft issue body per gap, in `$(node scripts/agent-scratch.mjs 1270-gaps)`. 
 | G4  | A constraint or condition comparing two answers               | date range, age against date of birth, email confirm | `gap-04-cross-answer-rule.md`    |
 | G5  | A time of day                                                 | time of day                                          | `gap-05-time-of-day.md`          |
 | G6  | Decimal places and a currency on a number                     | money amount                                         | `gap-06-money-precision.md`      |
-| G7  | A minimum length on a longer typed answer                     | long free text                                       | `gap-07-longtext-min-length.md`  |
+| G7  | ~~A minimum length on a longer typed answer~~ shipped         | long free text                                       | `gap-07-longtext-min-length.md`  |
 | G8  | Named format checks for email, phone and postcode             | email, phone, postcode                               | `gap-08-named-formats.md`        |
 | G9  | A file or document question                                   | supporting document                                  | `gap-09-document-question.md`    |
 | G10 | A signature                                                   | declaration and signature                            | `gap-10-signature.md`            |
@@ -206,6 +206,8 @@ One draft issue body per gap, in `$(node scripts/agent-scratch.mjs 1270-gaps)`. 
 | G12 | A matrix layout for a set of questions that is not repetition | scale battery                                        | `gap-12-matrix-layout.md`        |
 
 G1, G2 and G3 are the three defects the issue reports. The rest came out of the corpus.
+
+G7 is closed: `longText` carries `minLength`, counted as its maximum is. The long free text recipe still says a minimum cannot be set and is the prompt lane's to correct.
 
 ## 4. Eval scenarios
 

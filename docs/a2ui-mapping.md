@@ -51,7 +51,7 @@ authority.
 | Question type                | Component                                                                             | Props (from question)                                                                                                                        | Advisory hints (from constraints)                                                                               |
 | ---------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `shortText`                  | `TextField` (`text-field`)                                                            | `label`, `description` (help), `name` = questionId                                                                                           | `isRequired`, `minLength`, `maxLength`, `pattern`                                                               |
-| `longText`                   | `TextArea` (`text-area`)                                                              | `label`, `description` (help), `name` = questionId                                                                                           | `isRequired`, `maxLength`                                                                                       |
+| `longText`                   | `TextArea` (`text-area`)                                                              | `label`, `description` (help), `name` = questionId                                                                                           | `isRequired`, `minLength`, `maxLength`                                                                          |
 | `number`                     | `NumberField` (`number-field`)                                                        | `label`, `description`, `name`                                                                                                               | `isRequired`, `minValue`, `maxValue`, `step: 1` when `integer`                                                  |
 | `date`                       | `DatePicker` (`date-picker`)                                                          | `label`, `description`, `name`, `granularity: "day"`                                                                                         | `isRequired`, `minValue`, `maxValue` (canonical `YYYY-MM-DD` strings)                                           |
 | `boolean`                    | `RadioGroup` (`radio`) with two `Radio` children, values `"true"` / `"false"`         | `label`, `description`, `name`; child labels are the author's `yesLabel`/`noLabel` if set, else locale-resolved lexicon Yes/No text (ADR-36) | `isRequired`                                                                                                    |
@@ -64,8 +64,8 @@ authority.
 - **`longText` → `TextArea`, not a single-line `TextField`.** Now that the registry has a
   real multiline control, `longText` maps to it directly. The compiler does **not** set a
   `rows` value - the domain has no such property and a fixed guess would freeze a UX
-  decision into immutable snapshots; the renderer's default height applies. `maxLength` is
-  forwarded as an advisory hint (`longText` constraints carry `maxLength` only).
+  decision into immutable snapshots; the renderer's default height applies. `minLength` and
+  `maxLength` are forwarded as advisory hints.
 - **`boolean` → yes/no `RadioGroup`, not a single `Checkbox`.** A lone checkbox conflates
   "unanswered" with "false" and turns `required` into consent-must-check semantics. The
   kernel distinguishes unanswered from `false` (the `answered` operator, ADR-16 hidden

@@ -43,7 +43,7 @@ function buildKitchenSinkSnapshot(): FrozenSnapshot {
         questionId: "q_bio",
         label: en("Short bio"),
         required: false,
-        constraints: { maxLength: 500 },
+        constraints: { minLength: 20, maxLength: 500 },
       },
     },
     {
@@ -276,7 +276,10 @@ describe("compileForm (kitchen-sink)", () => {
       type: "TextField",
       props: { label: "Full name", description: "As it appears on your ID.", isRequired: true },
     });
-    expect(byName("q_bio")).toMatchObject({ type: "TextArea", props: { maxLength: 500 } });
+    expect(byName("q_bio")).toMatchObject({
+      type: "TextArea",
+      props: { minLength: 20, maxLength: 500 },
+    });
     expect(byName("q_age")).toMatchObject({
       type: "NumberField",
       props: { minValue: 0, maxValue: 120, step: 1, isRequired: true },

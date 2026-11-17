@@ -146,7 +146,7 @@ describe("validateAnswer - shortText", () => {
 });
 
 describe("validateAnswer - longText", () => {
-  const constrained = question("longText", { maxLength: 10 });
+  const constrained = question("longText", { minLength: 4, maxLength: 10 });
 
   it("accepts within bounds and normalizes to NFC", () => {
     expect(valueOf(constrained, "hello")).toBe("hello");
@@ -158,6 +158,17 @@ describe("validateAnswer - longText", () => {
 
   it("maxLength violated alone → exactly LENGTH_ABOVE_MAX", () => {
     expectErrors(errorsOf(constrained, "a".repeat(11)), [["LENGTH_ABOVE_MAX", "maxLength"]]);
+  });
+
+  it("minLength violated alone → exactly LENGTH_BELOW_MIN", () => {
+    expectErrors(errorsOf(constrained, "ab"), [["LENGTH_BELOW_MIN", "minLength"]]);
+  });
+
+  it("counts UTF-16 code units, as the maximum does", () => {
+    expect(valueOf(question("longText", { minLength: 4 }), "😀😀")).toBe("😀😀");
+    expectErrors(errorsOf(question("longText", { minLength: 5 }), "😀😀"), [
+      ["LENGTH_BELOW_MIN", "minLength"],
+    ]);
   });
 });
 
