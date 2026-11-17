@@ -1,6 +1,7 @@
 ---
 "@roonga/qcms-db": minor
 "create-qcms-app": minor
+"@roonga/qcms-observability": patch
 ---
 
 Add Site administrator appointment with step-up and approval requests (task 092).
@@ -18,4 +19,4 @@ removed.
 The scaffolded apps gain `POST /admin/step-up`, `POST /admin/accounts/{id}/promote` and
 `/demote`, and `GET /admin/approval-requests` with `/approve` and `/reject`. Disabling or
 resetting a Site administrator now needs a step-up and, where another one could approve, a
-second Site administrator; the retention sweep expires requests past their 7 days.
+second Site administrator; the retention sweep expires requests past their 7 days. The OTLP log allowlist exports the sweep's `approval requests expired` event.
