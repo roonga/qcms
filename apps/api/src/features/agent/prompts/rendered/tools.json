@@ -2820,7 +2820,7 @@
   },
   {
     "name": "propose_plan",
-    "description": "Propose an ordered plan of actions for the user to review and confirm once. A single action is a plan of one step. It runs nothing: the user sees a card with every step and every argument in full and confirms it on the screen's own control. An argument may reference an earlier step's result as { fromStep, field }, at most one such reference per step. The plan stops at the first failure. Returns whether the proposal was accepted, or the reason it was refused. The sentence you write immediately before this call is quoted on the card as its reason and stays there after the card has run, so make it say WHY the plan does what it does. Never end it on the card itself or on what their Confirm will do: \"waiting for your Confirm\", \"Nothing changes until you confirm it.\" and every sentence like them say what the card already says, and each one is wrong the moment they confirm it.",
+    "description": "Propose an ordered plan of actions for the user to review and confirm once. A single action is a plan of one step. It runs nothing: the user sees a card with every step and every argument in full and confirms it on the screen's own control. An argument may reference an earlier step's result as { fromStep, field }, at most one such reference per step. The plan stops at the first failure. Returns whether the proposal was accepted, or the reason it was refused. The sentence you write immediately before this call is quoted on the card as its reason and stays there after the card has run, so make it say WHY the plan does what it does. Never end it on the card itself or on what their Confirm will do: \"waiting for your Confirm\", \"Nothing changes until you confirm it.\" and every sentence like them say what the card already says, and each one is wrong the moment they confirm it. Give a plan of more than one step a title as well: what it leaves behind, in the person's own words, which the card uses as its heading.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -4567,6 +4567,11 @@
             ]
           },
           "description": "The steps in the order they run. A single action is a plan of one step. One plan, one Confirm."
+        },
+        "title": {
+          "description": "What this plan leaves behind, in a few plain words, which the card uses as its heading: \"Ask about allergies, then publish to test\". Name the outcome rather than the last step. No id and none of the words you may never write to the person, or the plan is refused. Leave it out and the card titles itself.",
+          "type": "string",
+          "maxLength": 80
         }
       },
       "required": [
