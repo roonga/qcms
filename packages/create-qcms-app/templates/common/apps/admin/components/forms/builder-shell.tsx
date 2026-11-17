@@ -12,6 +12,8 @@ import {
 } from "react";
 
 import { Alert, Button, Tab, TabList, TabPanel, Tabs } from "@/components/kit";
+import { BuilderPreview, type BuilderPreviewSource } from "@/components/forms/builder-preview";
+import { SelectedQuestion } from "@/components/forms/selected-question";
 import { isProseTurn, ConversationProvider, useConversation } from "@/lib/agent/conversation";
 import { builderConversationKey } from "@/lib/agent/conversation-state";
 import { BUILDER_PANE_WIDTH, BUILDER_TABS_QUERY } from "@/lib/agent/panel";
@@ -71,7 +73,23 @@ function AssistantPane({
   );
 }
 
-function PreviewPane({ formId }: { readonly formId: string | null }) {
+function PreviewPane({
+  formId,
+  source,
+}: {
+  readonly formId: string | null;
+  readonly source: BuilderPreviewSource | undefined;
+}) {
+  if (formId !== null && source !== undefined && source.draft !== null) {
+    return (
+      <div
+        className="qcms-builder__pane-body qcms-builder__pane-body--preview"
+        data-testid="qcms-builder-preview"
+      >
+        <BuilderPreview formId={formId} draft={source.draft} source={source} />
+      </div>
+    );
+  }
   return (
     <div className="qcms-builder__pane-body" data-testid="qcms-builder-preview">
       <p className="text-sm text-(--color-text-muted)">
@@ -81,7 +99,15 @@ function PreviewPane({ formId }: { readonly formId: string | null }) {
   );
 }
 
-function Panes({ formId, name }: { readonly formId: string | null; readonly name: string }) {
+function Panes({
+  formId,
+  name,
+  source,
+}: {
+  readonly formId: string | null;
+  readonly name: string;
+  readonly source: BuilderPreviewSource | undefined;
+}) {
   const narrow = useSyncExternalStore(subscribeNarrow, isNarrow, notNarrowOnServer);
   const [selected, setSelected] = useState<PaneKey>("assistant");
   const style: CSSProperties & Record<"--qcms-builder-pane-w", string> = {
@@ -109,7 +135,7 @@ function Panes({ formId, name }: { readonly formId: string | null; readonly name
           <AssistantPane formId={formId} name={name} />
         </TabPanel>
         <TabPanel id="preview" className="qcms-builder__tabpanel">
-          <PreviewPane formId={formId} />
+          <PreviewPane formId={formId} source={source} />
         </TabPanel>
       </Tabs>
     );
@@ -133,7 +159,7 @@ function Panes({ formId, name }: { readonly formId: string | null; readonly name
         <h2 id="qcms-builder-preview-heading" className="qcms-builder__pane-heading">
           {t("builder.pane.preview")}
         </h2>
-        <PreviewPane formId={formId} />
+        <PreviewPane formId={formId} source={source} />
       </section>
     </div>
   );
@@ -248,6 +274,7 @@ export function BuilderShell({
   userId,
   workspaceId,
   canPublish,
+  preview,
   startDraft,
 }: {
   readonly formId: string | null;
@@ -255,6 +282,8 @@ export function BuilderShell({
   readonly userId: string;
   readonly workspaceId: string;
   readonly canPublish: boolean;
+  /** The draft the preview renders; absent until the form exists. */
+  readonly preview?: BuilderPreviewSource;
   /** Present when the form has no open draft, which has to be started before the builder edits it. */
   readonly startDraft?: () => Promise<StartDraftState>;
 }): ReactNode {
@@ -277,7 +306,7 @@ export function BuilderShell({
           userId={userId}
           storageKey={builderConversationKey(userId, workspaceId, formId)}
         >
-          <Panes formId={formId} name={name} />
+          <Panes formId={formId} name={name} source={preview} />
         </ConversationProvider>
       ) : (
         <StartDraft start={startDraft} />

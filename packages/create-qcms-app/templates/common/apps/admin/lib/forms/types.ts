@@ -1,3 +1,5 @@
+import type { Appearance } from "@roonga/qcms-core";
+
 import type {
   LocalizedText,
   QuestionDefinitionView,
@@ -196,6 +198,8 @@ export interface FormDetail {
   readonly requiresSecondApprover: boolean;
   // Default unknown write capability off so an older payload cannot expose an action the API would refuse.
   readonly canWriteDraft: boolean;
+  /** The open draft's appearance, else the seeded version's; null previews the deployment's look. */
+  readonly appearance?: Appearance | null;
 }
 
 // Keep unfamiliar issue codes visible rather than narrowing them out.

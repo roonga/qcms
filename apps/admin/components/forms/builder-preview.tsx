@@ -437,7 +437,9 @@ export function BuilderPreview({
         {state.status === "loading" && <p>{t("builder.preview.loading")}</p>}
         {state.status === "rejected" && <p>{t("builder.preview.unavailable")}</p>}
         {state.status === "error" && (
-          <Alert variant="error">{t("builder.preview.failed", { message: state.message ?? "" })}</Alert>
+          <Alert variant="error">
+            {t("builder.preview.failed", { message: state.message ?? "" })}
+          </Alert>
         )}
       </div>
 

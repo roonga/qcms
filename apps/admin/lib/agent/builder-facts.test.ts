@@ -57,9 +57,9 @@ describe("the preview selection fact", () => {
   });
 
   it("bounds the viewport", () => {
-    expect(selectionFact({ ...SELECTION, viewport: { width: 90.4, height: 9_000 } })?.viewport).toEqual(
-      { width: 200, height: 4_000 },
-    );
+    expect(
+      selectionFact({ ...SELECTION, viewport: { width: 90.4, height: 9_000 } })?.viewport,
+    ).toEqual({ width: 200, height: 4_000 });
   });
 });
 
@@ -95,7 +95,15 @@ describe("the layout report fact", () => {
 
 describe("the layout findings", () => {
   it("reports nothing for a clean step", () => {
-    expect(layoutFindings([question("q_a"), question("q_b", { box: { left: 16, top: 100, right: 300, bottom: 180 } })], 390)).toEqual([]);
+    expect(
+      layoutFindings(
+        [
+          question("q_a"),
+          question("q_b", { box: { left: 16, top: 100, right: 300, bottom: 180 } }),
+        ],
+        390,
+      ),
+    ).toEqual([]);
   });
 
   it("names each issue once per question, in document order", () => {
@@ -119,7 +127,10 @@ describe("the layout findings", () => {
   it("forgives a sub-pixel touch between neighbours", () => {
     expect(
       layoutFindings(
-        [question("q_a"), question("q_b", { box: { left: 16, top: 79.5, right: 300, bottom: 160 } })],
+        [
+          question("q_a"),
+          question("q_b", { box: { left: 16, top: 79.5, right: 300, bottom: 160 } }),
+        ],
         390,
       ),
     ).toEqual([]);

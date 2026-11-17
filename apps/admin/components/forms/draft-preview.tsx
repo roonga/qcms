@@ -151,8 +151,10 @@ export function DraftPreview({
   readonly preview: DraftPreviewAction;
 }) {
   const previewLocale = usePreviewLocale();
-  const { answers, state, counts, setCounts, groups, handleChange, clearAnswers } =
-    useDraftPreview(draft, preview);
+  const { answers, state, counts, setCounts, groups, handleChange, clearAnswers } = useDraftPreview(
+    draft,
+    preview,
+  );
   const [stepIndex, setStepIndex] = useState(0);
 
   const reset = useCallback(() => {

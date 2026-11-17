@@ -8,13 +8,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import {
-  addStep,
-  chooseOption,
-  createForm,
-  pinQuestion,
-  waitForSaved,
-} from "./support/forms.js";
+import { addStep, chooseOption, createForm, pinQuestion, waitForSaved } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
@@ -206,7 +200,11 @@ test("inspect selects a question, and the fact carries only its id", async ({ pa
   await expect(inspect).toHaveAttribute("aria-pressed", "true");
 
   const radio = surface(page).getByRole("radio").first();
-  await surface(page).locator(`[data-qcms-question-id="${CHOICE_ID}"]`).getByRole("radio").first().click({ force: true });
+  await surface(page)
+    .locator(`[data-qcms-question-id="${CHOICE_ID}"]`)
+    .getByRole("radio")
+    .first()
+    .click({ force: true });
   await expect(radio).not.toBeChecked();
 
   const selection = page.getByTestId("qcms-builder-selection");

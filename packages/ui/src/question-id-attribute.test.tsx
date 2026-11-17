@@ -5,18 +5,16 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
-import {
-  instanceIdOfField,
-  qualifiedFieldName,
-  questionIdOfField,
-} from "./repeat/repeat-node.ts";
+import { instanceIdOfField, qualifiedFieldName, questionIdOfField } from "./repeat/repeat-node.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
 const ATTRIBUTE = "data-qcms-question-id";
 const VENDORED = join(import.meta.dirname, "components", "a2ui");
 
 function goldenStep(version: string, form: string, stepId: string) {
-  const golden = loadGoldenForms().find((entry) => entry.version === version && entry.form === form);
+  const golden = loadGoldenForms().find(
+    (entry) => entry.version === version && entry.form === form,
+  );
   if (golden === undefined) throw new Error(`no ${version} golden for ${form}`);
   const document = golden.compiled.documents.find((doc) => doc.stepId === stepId);
   if (document === undefined) throw new Error(`no step ${stepId} in ${form}`);

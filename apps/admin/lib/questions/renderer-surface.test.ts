@@ -86,7 +86,10 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
   });
 
   it("takes the visibility projection from @roonga/qcms-ui too, so the portal shares it", () => {
-    const projecting = ["components/forms/builder-preview.tsx", "components/forms/draft-preview.tsx"];
+    const projecting = [
+      "components/forms/builder-preview.tsx",
+      "components/forms/draft-preview.tsx",
+    ];
     expect(modulesMentioning("documentForVisible")).toEqual(projecting);
     for (const path of projecting) {
       const preview = files.find((file) => file.path === path);
