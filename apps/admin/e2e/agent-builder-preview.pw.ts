@@ -256,7 +256,9 @@ test("the portal header and step rail frame the step, as the portal shows them",
     await setAppearance({ ...APPEARANCE, progress: "side-rail" });
     await page.reload();
     await waitForHydration(page);
-    await expect(surface(page).getByText(TEXT_LABEL)).toBeVisible({ timeout: 30_000 });
+    await expect(surface(page).getByRole("textbox", { name: TEXT_LABEL })).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(brand).toHaveText(HARNESS_BRAND_NAME);
     await expect(brand.locator("img")).toHaveCount(0);
     await expect(surface(page).getByTestId("qcms-preview-progress")).toHaveCount(0);
