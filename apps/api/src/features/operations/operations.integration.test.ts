@@ -123,13 +123,11 @@ async function persona(
   }[],
   options: { readonly owner?: boolean; readonly claim?: boolean } = {},
 ): Promise<Persona> {
-  // No claim by default: it is `forms.owner` in every workspace, so leaving it on would
-  // assert the claim rather than the role.
   const seeded = await seedAdminSession(control, {
     label,
     grants: [],
     owner: options.owner ?? false,
-    claim: options.claim ?? false,
+    siteAdministrator: options.claim ?? false,
   });
   let index = 0;
   for (const grant of grants) {
@@ -289,6 +287,7 @@ beforeAll(async () => {
   installationAdmin = await seedAdminSession(control, {
     label: "opsclaim",
     membership: false,
+    siteAdministrator: true,
   });
   combined = await persona("opscombined", [
     { roles: ["forms.viewer"], environments: [] },
@@ -302,7 +301,6 @@ beforeAll(async () => {
     label: "opsnobody",
     grants: [],
     owner: false,
-    claim: false,
   });
   revoked = await persona("opsrevoked", [
     { roles: ["responses.viewer"], environments: [...LIVE_SET] },

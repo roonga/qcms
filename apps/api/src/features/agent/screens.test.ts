@@ -4,7 +4,7 @@ import { z } from "zod";
 import { REDACT_FRAGMENTS } from "@roonga/qcms-observability";
 
 import { ACTION_KIND_NAMES, actionKind, actsInOneEnvironment } from "./actions/registry.js";
-import { BUILDER_FACTS, WaitingProposalTurnBody } from "./schema.js";
+import { BUILDER_FACTS, EditResultTurnBody, WaitingProposalTurnBody } from "./schema.js";
 import {
   SCREEN_IDS,
   SCREENS,
@@ -14,6 +14,7 @@ import {
   type ScreenId,
 } from "./screens.js";
 import {
+  AGENT_BUILDER_TOOL_NAMES,
   AGENT_READ_TOOL_NAMES,
   AGENT_TOOL_NAMES,
   TOOLS,
@@ -95,6 +96,7 @@ describe("the screen registry", () => {
   it("counts the form subtree as the span of one conversation", () => {
     expect(SCREEN_IDS.filter(isFormSubtreeScreen)).toEqual([
       "/forms/[formId]",
+      "/forms/[formId]/build",
       "/forms/[formId]/rules",
       "/forms/[formId]/preview",
       "/forms/[formId]/versions",
@@ -212,7 +214,14 @@ describe("no answer value can be described by any schema", () => {
   /** A waiting card is replayed to the provider as well, and no facts schema describes it. */
   const REPLAYED_TURNS: readonly { readonly name: string; readonly schema: z.ZodType }[] = [
     { name: "turn proposal", schema: WaitingProposalTurnBody },
+    { name: "turn edit-result", schema: EditResultTurnBody },
   ];
+
+  /** The builder's tools are walked on their arguments too, since an edit's arguments become the draft. */
+  const BUILDER_TOOL_INPUTS = AGENT_BUILDER_TOOL_NAMES.map((name) => ({
+    name: `input ${name}`,
+    schema: TOOLS[name].inputSchema,
+  }));
 
   const schemas: readonly { readonly name: string; readonly schema: z.ZodType }[] = [
     ...SCREEN_IDS.map((id) => ({ name: `facts ${id}`, schema: SCREENS[id].facts })),
@@ -222,12 +231,17 @@ describe("no answer value can be described by any schema", () => {
     })),
     ...REPLAYED_TURNS,
     ...BUILDER_FACTS,
+    ...BUILDER_TOOL_INPUTS,
   ];
 
   it("walks every facts schema, tool output schema, replayed turn body and builder fact", () => {
     // A guard on the guard: a registry that lost its rows would pass vacuously.
     expect(schemas.length).toBe(
-      SCREEN_IDS.length + AGENT_TOOL_NAMES.length + REPLAYED_TURNS.length + BUILDER_FACTS.length,
+      SCREEN_IDS.length +
+        AGENT_TOOL_NAMES.length +
+        REPLAYED_TURNS.length +
+        BUILDER_FACTS.length +
+        AGENT_BUILDER_TOOL_NAMES.length,
     );
   });
 

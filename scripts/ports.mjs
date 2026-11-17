@@ -263,3 +263,29 @@ export function assertPortSeatChosen(repoRoot, command, raw = process.env[PORT_S
     ].join("\n"),
   );
 }
+
+/**
+ * Teardown runs `down --volumes`, so a silent seat 0 in the primary checkout would delete the
+ * stack a developer is living in. Seat 0 must be asked for by name; `up` does not use this.
+ *
+ * @param {string} repoRoot
+ * @param {string} command
+ * @param {string | undefined} [raw]
+ * @returns {void}
+ */
+export function assertTeardownSeatChosen(repoRoot, command, raw = process.env[PORT_SEAT_ENV_VAR]) {
+  assertPortSeatChosen(repoRoot, command, raw);
+  if ((raw ?? "").trim() !== "") return;
+  throw new Error(
+    [
+      `${PORT_SEAT_ENV_VAR} is not set, so \`${command}\` would target seat 0 and delete its`,
+      "containers and volumes (including the database).",
+      "",
+      "If seat 0 is the stack you mean to remove, say so:",
+      "",
+      `  ${PORT_SEAT_ENV_VAR}=0 ${command}`,
+      "",
+      `Otherwise pick the seat to tear down: ${PORT_SEAT_ENV_VAR}=<${String(MIN_PORT_SEAT)}-${String(MAX_PORT_SEAT)}>. See docs/PORTS.md.`,
+    ].join("\n"),
+  );
+}

@@ -3,16 +3,26 @@ name: CodeQL
 on:
   push:
     branches: [main]
+    # The static site carries no analysable product code.
+    paths-ignore:
+      - "apps/site/**"
   pull_request:
     branches: [main]
     paths-ignore:
       - ".claude/**"
+      - ".changeset/**"
+      - ".github/**"
+      - "!.github/workflows/**"
+      - "!.github/actions/**"
+      - "!.github/codeql/**"
       - "plan/**"
+      - "apps/site/**"
       - "CLAUDE.md"
       - "PROJECT_INSTRUCTIONS.md"
       - "CONTRIBUTING.md"
-      - "docs/**/*.md"
+      - "docs/**"
       - "!docs/SECURITY_DESIGN.md"
+      - "!docs/openapi/**"
   schedule:
     # Scan unchanged code against newly published queries.
     - cron: "0 3 * * 1"

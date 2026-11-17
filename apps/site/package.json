@@ -1,0 +1,21 @@
+{
+  "name": "qcms-site",
+  "version": "0.0.0",
+  "private": true,
+  "description": "QCMS public website and user documentation (Astro + Starlight, static)",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro sync && astro check",
+    "lint": "node ../../scripts/eslint-workspace.mjs ."
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@astrojs/starlight": "^0.43.1",
+    "astro": "^7.4.12",
+    "typescript": "^6.0.3"
+  }
+}

@@ -103,6 +103,9 @@ function refusalLines(): Record<string, unknown>[] {
     .filter((line) => line["msg"] === "origin.belt.refused");
 }
 
+vi.mock("@/lib/server/session-appearance", () => ({
+  rememberCompletionAppearance: () => Promise.resolve(),
+}));
 vi.mock("@/lib/server/config", async () => await import("./config"));
 vi.mock("@/lib/server/environment", async () => await import("./environment"));
 vi.mock("@/lib/server/route-helpers", async () => await import("./route-helpers"));

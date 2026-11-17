@@ -551,7 +551,7 @@ describe("accepting a proposal with new questions", () => {
       expect(refusalLines().at(-1)).toMatchObject({
         formId: "frm_refused",
         questionId: "q_bad_pattern",
-        reason: "INVALID_QUESTION_DEFINITION",
+        code: "INVALID_QUESTION_DEFINITION",
       });
 
       expect(await storedVersions("q_good_one")).toEqual([]);
@@ -589,7 +589,7 @@ describe("accepting a proposal with new questions", () => {
       expect(refusal).toMatchObject({
         formId: "frm_reuse",
         questionId: "q_taken_id",
-        reason: "QUESTION_ID_REUSED",
+        code: "QUESTION_ID_REUSED",
       });
       expect(JSON.stringify(refusal)).not.toContain("Reused");
     },
@@ -744,7 +744,13 @@ describe("every screen's context, with a sentinel in the database", () => {
     return params;
   }
 
+  let owner = { token: "", userId: "" };
+
   beforeAll(async () => {
+    owner = { token: adminSessionToken, userId: adminUserId };
+    const siteAdmin = await seedAdminSession(testDb.db, { label: "walk", siteAdministrator: true });
+    adminSessionToken = siteAdmin.token;
+    adminUserId = siteAdmin.userId;
     await seedSentinelData();
     screenStatuses = new Map<string, number>();
     // The provider calls before the walk, so the assertions below read this walk's own
@@ -786,6 +792,11 @@ describe("every screen's context, with a sentinel in the database", () => {
     // boot.
   }, BOOT_TIMEOUT * 3);
 
+  afterAll(() => {
+    adminSessionToken = owner.token;
+    adminUserId = owner.userId;
+  });
+
   it("builds a context for every screen in the registry", () => {
     expect([...screenStatuses.entries()].filter(([, status]) => status !== 200)).toEqual([]);
   });
@@ -803,8 +814,8 @@ describe("every screen's context, with a sentinel in the database", () => {
       }
     }
     // The read tools only: a propose tool puts a card up for the user to confirm, so a
-    // read walk never executes one. The walk runs as the seeded owner, who holds every
-    // cell, so every read tool is offered somewhere in it.
+    // read walk never executes one. The walk runs as a Site administrator who holds every
+    // grant, so every read tool is offered somewhere in it.
     expect([...executed].sort()).toEqual([...AGENT_READ_TOOL_NAMES].sort());
   });
 
@@ -1011,13 +1022,11 @@ describe("a reduced-grant caller over HTTP", () => {
     await seedForm(FORM_ID, ["q_viewer"]);
     viewer = await seedAdminSession(testDb.db, {
       label: "viewer",
-      claim: false,
       grants: ["forms.viewer"],
       owner: false,
     });
     stranger = await seedAdminSession(testDb.db, {
       label: "stranger",
-      claim: false,
       membership: false,
     });
   }, BOOT_TIMEOUT);
@@ -1177,7 +1186,6 @@ describe("a publisher's contexts follow its group's environments", () => {
   ): Promise<{ token: string; userId: string }> {
     const seeded = await seedAdminSession(testDb.db, {
       label,
-      claim: false,
       owner: false,
       grants: viewer ? ["forms.viewer"] : [],
     });

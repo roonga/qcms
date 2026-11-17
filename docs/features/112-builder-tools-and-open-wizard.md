@@ -21,7 +21,7 @@ The model-facing half of the builder. Edit tools produce 111's draft-scoped edit
 
 Spec criteria owned: none.
 
-- The builder surface cannot reach publish, release, links, webhooks, erase or responses.
+- The builder surface cannot publish or change a release, and cannot reach links, webhooks, erase or responses.
 
 ## Required tests
 

@@ -110,6 +110,27 @@ export function atSubject(
 /** Tab-scoped, so no conversation outlives the tab or reaches a second one. */
 export const CONVERSATION_STORAGE_KEY = "qcms-assistant-conversation";
 
+/** The agent builder's conversations, never shared with the dock's and never sent to the server. */
+export const BUILDER_CONVERSATION_PREFIX = "qcms-builder-conversation:";
+
+/** One entry per user, workspace and form, so switching any of them starts a different conversation. */
+export function builderConversationKey(
+  user: string,
+  workspace: string,
+  formId: string | null,
+): string {
+  const parts = [user, workspace, formId ?? "new"].map((part) => encodeURIComponent(part));
+  return `${BUILDER_CONVERSATION_PREFIX}${parts.join(":")}`;
+}
+
+/** Every key sign-out drops: the dock's conversation and each of the builder's. */
+export function conversationKeysToClear(keys: readonly (string | null)[]): readonly string[] {
+  const builder = keys.filter(
+    (key): key is string => key !== null && key.startsWith(BUILDER_CONVERSATION_PREFIX),
+  );
+  return [CONVERSATION_STORAGE_KEY, ...builder];
+}
+
 interface StoredConversation extends ConversationState {
   readonly user: string;
 }

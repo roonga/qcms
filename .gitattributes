@@ -3,7 +3,3 @@
 *.jpg binary
 *.ico binary
 *.woff2 binary
-
-# Generated inventory cannot be content-merged: regenerate with pnpm qcms:sync-templates, then stage it.
-# Unset merge needs no local driver configuration and leaves the base version marked conflicted.
-docs/ownership-seam.md -merge

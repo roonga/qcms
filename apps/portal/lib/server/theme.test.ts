@@ -13,6 +13,7 @@ import {
   PORTAL_THEMES,
   cornersClass,
   modeClass,
+  pageFontChoices,
   portalBrand,
   portalCorners,
   portalDensity,
@@ -21,6 +22,7 @@ import {
   portalMode,
   portalTheme,
   resolveAppearance,
+  resolveCorners,
   rootClassName,
 } from "./theme.js";
 
@@ -279,6 +281,70 @@ describe("respondent choices resolve over config (task 053)", () => {
     process.env.QCMS_PORTAL_FONT = "inter";
     expect(resolveAppearance({ ...NO_COOKIES, font: "lexend" }).font).toBe("inter");
     expect(resolveAppearance({ ...NO_COOKIES, font: SYSTEM_FONT_KEY }).font).toBe(SYSTEM_FONT_KEY);
+  });
+});
+
+describe("a form's appearance sits between the respondent's choice and config", () => {
+  const FORM = { face: "lexend", density: "spacious", corners: "pill" } as const;
+
+  it("the form beats config on face, density and corners", () => {
+    process.env.QCMS_PORTAL_FONT = "inter";
+    process.env.QCMS_PORTAL_DENSITY = "compact";
+    process.env.QCMS_PORTAL_CORNERS = "sharp";
+    const resolved = resolveAppearance(NO_COOKIES, FORM);
+    expect(resolved.font).toBe("lexend");
+    expect(resolved.density).toBe("spacious");
+    expect(resolveCorners(FORM)).toBe("pill");
+  });
+
+  it("the respondent's cookie beats the form on every axis it carries", () => {
+    process.env.QCMS_PORTAL_MODE = "light";
+    expect(resolveAppearance({ mode: "hc", font: "atkinson", density: "compact" }, FORM)).toEqual({
+      mode: "hc",
+      modeChosen: true,
+      font: "atkinson",
+      density: "compact",
+    });
+  });
+
+  it("leaves the mode to the respondent and config, since a form sets none", () => {
+    process.env.QCMS_PORTAL_MODE = "dark";
+    expect(resolveAppearance(NO_COOKIES, FORM).mode).toBe("dark");
+  });
+
+  it("falls back to config with no form appearance", () => {
+    process.env.QCMS_PORTAL_FONT = "inter";
+    process.env.QCMS_PORTAL_DENSITY = "compact";
+    process.env.QCMS_PORTAL_CORNERS = "sharp";
+    for (const form of [null, undefined]) {
+      expect(resolveAppearance(NO_COOKIES, form)).toMatchObject({
+        font: "inter",
+        density: "compact",
+      });
+      expect(resolveCorners(form)).toBe("sharp");
+    }
+  });
+
+  it("applies the form's face when the deployment does not offer it, and adds it to the menu", () => {
+    process.env.QCMS_PORTAL_FONTS = "inter";
+    process.env.QCMS_PORTAL_FONT = "inter";
+    expect(resolveAppearance(NO_COOKIES, FORM).font).toBe("lexend");
+    expect(pageFontChoices(FORM).map((entry) => entry.key)).toEqual(["system", "inter", "lexend"]);
+  });
+
+  it("keeps a saved choice of the form's face on that form's page only", () => {
+    process.env.QCMS_PORTAL_FONTS = "inter";
+    process.env.QCMS_PORTAL_FONT = "inter";
+    const saved = { ...NO_COOKIES, font: "lexend" };
+    expect(resolveAppearance(saved, FORM).font).toBe("lexend");
+    expect(resolveAppearance(saved, { ...FORM, face: "atkinson" }).font).toBe("atkinson");
+    expect(resolveAppearance(saved).font).toBe("inter");
+  });
+
+  it("adds nothing to the menu for a face the deployment already offers, or with no form", () => {
+    process.env.QCMS_PORTAL_FONTS = "inter, lexend";
+    expect(pageFontChoices(FORM)).toEqual(portalFontChoices());
+    expect(pageFontChoices(null)).toEqual(portalFontChoices());
   });
 });
 

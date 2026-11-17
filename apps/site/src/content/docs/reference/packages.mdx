@@ -1,0 +1,85 @@
+---
+title: Packages
+description: The versioned packages a QCMS application depends on.
+---
+
+A scaffolded QCMS application owns its three apps and depends on these packages. All are MIT,
+ESM-only, and ship their source alongside the built output.
+
+:::caution[Nothing is on the registry yet]
+These packages exist in the repository but no release has been made, so there is nothing to install
+from npm today.
+:::
+
+## `@roonga/qcms-core`
+
+The domain kernel: schemas, the rules DSL and evaluator, and the publish invariants. Pure functions
+over immutable data, with no I/O beyond WebCrypto and no dependency beyond Zod.
+
+Its surface covers the branded ids, the question and form definitions, the condition language and
+`evaluateRules`, `compileDraft` and the frozen snapshot, `validateAnswer` and `prepareSubmission`
+with canonical JSON and the content hash, the compact token functions behind secure links, and the
+appearance derivation and contrast helpers.
+
+## `@roonga/qcms-db`
+
+The operational storage layer: the Drizzle schema, the package-owned migration history, and the
+Testcontainers test harness. Postgres stores and indexes the domain JSON but never interprets it.
+
+Migration history is package-owned and append-only; adopters migrate on upgrade. The package also
+carries the query helpers, the reporting views, the environment commands and the grant registry. It
+ships two commands, one for migration and one for environment management.
+
+## `@roonga/qcms-ui`
+
+The A2UI renderer: the single renderer that both the portal serving respondents and the admin
+previewing forms go through, so what an author previews is exactly what a respondent gets.
+
+The main export is a controlled component that renders one compiled step document, alongside the
+field and value hooks, the no-script submit wrapper and the repeat-group expansion. It also ships
+the theme, theme-component and font stylesheets. React 19 is a peer dependency.
+
+## `@roonga/qcms-a2ui-compiler`
+
+The pure projection from a published snapshot to A2UI documents, plus the step-resolver seam. It is
+React-free and never imports the component runtime. Its only runtime dependency is the kernel.
+
+Exports include the compile entry points, the compiler and spec version stamps, and the node
+builders.
+
+## `@roonga/qcms-csv`
+
+Shared encoding for QCMS exports: RFC 4180 CSV fields, the spreadsheet formula-injection guard, and
+a streaming ZIP container for multi-file exports. It has no runtime dependencies.
+
+The formula-injection guard runs first, then RFC 4180 quoting. Cell contents are never logged. The
+ZIP container is not ZIP64, so it errors above 4 GiB or 65,535 entries. Column layout is not in this
+package; it lives in the scaffolded application.
+
+## `@roonga/qcms-observability`
+
+Shared server logging and safe OTLP log export. It carries the JSON logger, the redaction fragment
+list, the allowlisting log-record processor, and the span redaction used by the two frontends.
+
+## `create-qcms-app`
+
+The scaffolder: the owned application shell plus the versioned packages. It has no runtime
+dependencies and requires Node 24 or newer. See [Scaffold an app](/qcms/start/scaffold-an-app/).
+
+## Which app depends on what
+
+| Application | Runtime packages                            | Also at build or test time |
+| ----------- | ------------------------------------------- | -------------------------- |
+| API         | core, db, a2ui-compiler, csv, observability |                            |
+| Portal      | ui, observability                           |                            |
+| Admin       | ui, csv, observability                      | core, for its types        |
+
+The portal depends on no kernel package: it is a strict proxy that reaches every piece of domain
+logic through the API, and nothing under it imports `@roonga/qcms-core`. The admin takes core as a
+development dependency, importing the condition types so its rule editor stays tied to the same
+closed operator set; those imports are erased at compile time.
+
+## Source
+
+- [`packages/db/README.md`](https://github.com/roonga/qcms/blob/main/packages/db/README.md)
+- [`packages/ui/README.md`](https://github.com/roonga/qcms/blob/main/packages/ui/README.md)

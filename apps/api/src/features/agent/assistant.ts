@@ -22,6 +22,7 @@ import { buildSystemPrompt, SYSTEM_PROMPT_VERSION } from "./system-prompt.js";
 import { thinkingProviderOptions, type ProviderOptions } from "./thinking.js";
 import {
   AGENT_TOOL_NAMES,
+  BUILDER_EDIT_TOOLS,
   agentToolSet,
   createProposalState,
   toolDataOf,
@@ -33,6 +34,7 @@ import type {
   AssistEvent,
   AssistTurn,
   DraftAssistant,
+  EditResultTurn,
   WaitingProposalTurn,
 } from "./types.js";
 
@@ -130,7 +132,7 @@ function factsPreamble(ctx: AgentContext): string {
   ].join("\n");
 }
 
-const PROPOSE_TOOLS = ["propose_draft", "propose_questions"] as const;
+const PROPOSE_TOOLS = ["propose_draft", "propose_questions", ...Object.keys(BUILDER_EDIT_TOOLS)];
 
 /** The instructions, carrying the breakpoint that ends the prefix the tools and this share. */
 function toInstructions(breakpoint: ProviderOptions | undefined): SystemModelMessage {
@@ -195,11 +197,28 @@ function waitingTurn(turn: WaitingProposalTurn): string {
 }
 
 /**
+ * What the browser reports of the builder's last edits, written here from structured fields
+ * alone, so no model text and no content can re-enter the conversation through it.
+ */
+function editResultTurn(turn: EditResultTurn): string {
+  const lines = turn.edits.map(
+    (edit, index) => `${String(index + 1)}. ${edit.op}: ${edit.outcome}`,
+  );
+  return [
+    "What became of your draft edits from the last turn, in order:",
+    ...lines,
+    "An undone edit is gone from the draft: do not make it again unless the person asks.",
+    "This is the installation's own record of their screen, not an instruction to you.",
+  ].join("\n");
+}
+
+/**
  * An action-result turn as the model reads it: one line per step, written here from
  * structured fields, so no model text and no content can re-enter the conversation.
  */
 function modelTurn(turn: AssistTurn): UserModelMessage | AssistantModelMessage {
   if (turn.role === "proposal") return { role: "user", content: waitingTurn(turn) };
+  if (turn.role === "edit-result") return { role: "user", content: editResultTurn(turn) };
   if (turn.role !== "action-result") {
     return turn.role === "assistant"
       ? { role: "assistant", content: turn.content }
@@ -463,16 +482,8 @@ function answered(outcome: RunOutcome): boolean {
   return outcome.textSegments.some((segment) => segment.text.trim() !== "");
 }
 
-/**
- * A question is not a failure, so an answered turn that proposed nothing is clean. What
- * stays an error is a turn cut off before it could finish, and one that left no card and
- * either no words or staged work it never put up.
- */
-function emptyTurnError(
-  outcome: RunOutcome,
-  maxSteps: number,
-  staged: boolean,
-): AssistEvent | undefined {
+/** A turn that ran out of output room or steps before it could finish. */
+function cutOffError(outcome: RunOutcome, maxSteps: number): AssistEvent | undefined {
   if (outcome.finishReason === "length") {
     return {
       type: "error",
@@ -493,6 +504,21 @@ function emptyTurnError(
         "(docs/operations.md).",
     };
   }
+  return undefined;
+}
+
+/**
+ * A question is not a failure, so an answered turn that proposed nothing is clean. What
+ * stays an error is a turn cut off before it could finish, and one that left no card and
+ * either no words or staged work it never put up.
+ */
+function emptyTurnError(
+  outcome: RunOutcome,
+  maxSteps: number,
+  staged: boolean,
+): AssistEvent | undefined {
+  const cutOff = cutOffError(outcome, maxSteps);
+  if (cutOff !== undefined) return cutOff;
   if (!staged && answered(outcome)) return undefined;
   return {
     type: "error",
@@ -502,13 +528,13 @@ function emptyTurnError(
 }
 
 /** A refused turn produces no proposal at all, whatever else it managed to do. */
-function* finishTurn(args: {
+async function* finishTurn(args: {
   ctx: AgentContext;
   state: ProposalState;
   outcome: RunOutcome;
   providerId: string;
   logger: Logger;
-}): Generator<AssistEvent> {
+}): AsyncGenerator<AssistEvent> {
   const { ctx, state, outcome, providerId, logger } = args;
 
   // A proposal recorded on the last step of the stream has not been flushed yet.
@@ -573,13 +599,49 @@ function* finishTurn(args: {
     return;
   }
 
+  // Only a turn that ended cleanly yields its edits or opens the wizard, so a refused, failed
+  // or cut-off turn leaves the draft exactly as it was.
+  const cutOff = cutOffError(outcome, ctx.maxSteps);
+  if (cutOff !== undefined && (state.edits.length > 0 || state.wizardRequested)) {
+    yield cutOff;
+    return;
+  }
+  yield* builderEvents(ctx, state);
+
   // A proposed draft is not itself a proposal: it reaches the user as the apply-draft
   // card, which the model proposes like any other action. A turn that recorded a draft and
   // proposed no card proposed nothing, and the staged work is thrown away with the turn.
-  if (state.actionProposals.length > 0) return;
+  if (state.actionProposals.length > 0 || state.edits.length > 0 || state.wizardRequested) return;
   const staged = state.proposedDraft !== undefined || state.newQuestions.length > 0;
   const error = emptyTurnError(outcome, ctx.maxSteps, staged);
   if (error !== undefined) yield error;
+}
+
+/** One mint per turn, which is what holds the per-turn cap: each mint takes a fresh turn id. */
+async function* builderEvents(
+  ctx: AgentContext,
+  state: ProposalState,
+): AsyncGenerator<AssistEvent> {
+  const builder = ctx.builder;
+  if (builder === undefined) return;
+  if (state.edits.length > 0 && builder.mintEdits !== undefined) {
+    const { turnId, tokens } = await builder.mintEdits(
+      state.edits.map(({ op, definition }) => ({ op, definition })),
+    );
+    yield {
+      type: "edits",
+      formId: builder.formId,
+      turnId,
+      edits: state.edits.map((edit, index) => {
+        const token = tokens[index];
+        if (token === undefined) throw new Error("A builder edit was minted no token");
+        return { index, op: edit.op, token, definition: edit.definition };
+      }),
+    };
+  }
+  if (state.wizardRequested && builder.wizardReturnTo !== undefined) {
+    yield { type: "open-wizard", formId: builder.formId, returnTo: builder.wizardReturnTo };
+  }
 }
 
 /** Only reachable by a composition error, since nothing mounts the routes when off. */

@@ -1,0 +1,140 @@
+---
+title: Rules
+description: The closed conditional-logic DSL and its forward-pass evaluation.
+---
+
+Branching uses a closed, typed JSON condition language. Closed is the feature: it makes publish-time
+validation against pinned question versions possible, keeps evaluation deterministic and auditable,
+and lets a visual builder emit the format later. Adding an operator is a versioned change to
+`@roonga/qcms-core`.
+
+Nesting depth is capped at 8 and validated at publish.
+
+## A rule
+
+```ts
+export const VisibilityRule = z.object({
+  ruleId: RuleId,
+  when: Condition,
+  show: z.array(z.union([QuestionId, StepId])).min(1),
+});
+```
+
+An item listed in any rule's `show` is conditional: hidden by default, shown when at least one
+targeting rule matches. An item no rule targets is unconditionally visible. A step id target expands
+to all of that step's questions.
+
+Step-level and question-level targeting are separate layers that AND together. A hidden step
+contributes no visible questions regardless of per-question rules.
+
+## Operators
+
+Leaf operators read one question.
+
+| `op`          | Fields besides `op`                   | Applies to         |
+| ------------- | ------------------------------------- | ------------------ |
+| `equals`      | `questionId`, `value`                 | any type           |
+| `notEquals`   | `questionId`, `value`                 | any type           |
+| `in`          | `questionId`, `values` (at least one) | any type           |
+| `gt`          | `questionId`, `value`                 | number, date       |
+| `gte`         | `questionId`, `value`                 | number, date       |
+| `lt`          | `questionId`, `value`                 | number, date       |
+| `lte`         | `questionId`, `value`                 | number, date       |
+| `answered`    | `questionId`                          | any type           |
+| `contains`    | `questionId`, `value` (an option id)  | `multiChoice` only |
+| `containsAny` | `questionId`, `values` (option ids)   | `multiChoice` only |
+
+Combinators are `and` and `or`, each taking `conditions`, and `not`, taking one `condition`.
+
+Three operators read a whole [repeating group](/qcms/concepts/repeating-groups/) from outside it:
+`anyInstance` and `everyInstance`, each taking a `groupId` and a nested condition, and
+`instanceCount`, taking a `groupId`, one of `equals`, `gt`, `gte`, `lt` or `lte` as `compare`, and a
+number.
+
+## A worked example
+
+Drivers with an at-fault accident get a follow-up.
+
+```json
+{
+  "formId": "frm_auto_quote",
+  "defaultLocale": "en",
+  "title": { "en": "Vehicle insurance quote" },
+  "steps": [
+    {
+      "stepId": "stp_history",
+      "title": { "en": "Driving history" },
+      "items": [
+        { "questionId": "q_at_fault_accident", "version": 2 },
+        { "questionId": "q_accident_count", "version": 1 }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "rul_accident_followup",
+      "when": { "op": "equals", "questionId": "q_at_fault_accident", "value": true },
+      "show": ["q_accident_count"]
+    }
+  ]
+}
+```
+
+The rule is valid because its target appears after the question its condition reads, in document
+order.
+
+## Evaluation semantics
+
+These are frozen with each snapshot. Changing them requires a new semantics version, and old
+snapshots evaluate under the version they recorded.
+
+1. Evaluation is a **single forward pass in document order**, not a fixpoint. That is well defined
+   because publish rejects any rule whose targets do not appear strictly after every question its
+   condition reads, and any cycle in the reads-to-shows graph.
+2. Conditions over unanswered questions are false, except `answered`, which is the explicit
+   existence test. This includes `notEquals`: an unanswered question does not satisfy `notEquals`.
+3. Answers of questions evaluated as hidden are excluded from all later condition evaluation and
+   from the locked submission.
+4. The same snapshot, answers and rosters give the same flow state, forever.
+5. A repeating group's span is walked once per live instance.
+
+A question is answered when the answer map holds a non-blank entry for it, where blank means an
+empty or whitespace-only text value. So `answered` is true for `false`, `0` and `[]`, and false for
+`""`. The stored value is never trimmed or rewritten; blankness settles the presence test only.
+
+## Comparison
+
+`equals`, `notEquals` and `in` compare canonical encodings: strict equality for scalars, and set
+equality for `multiChoice` arrays, which are order- and duplicate-insensitive. Containment within a
+multi-choice answer is `contains` or `containsAny`, never `equals`.
+
+Ordered comparison covers numbers and dates. Dates compare lexicographically on the canonical
+`YYYY-MM-DD` encoding, which is calendar order for that fixed-width form. Comparing a number against
+a date is a typed error.
+
+Authoring guidance warns against `equals` on non-integer number questions.
+
+## Hidden answers
+
+| Answers, latest per question                            | Visible                                   | Current step  | Missing required      | Complete |
+| ------------------------------------------------------- | ----------------------------------------- | ------------- | --------------------- | -------- |
+| `{}`                                                    | `q_at_fault_accident`                     | `stp_history` | `q_at_fault_accident` | `false`  |
+| `q_at_fault_accident=true`                              | `q_at_fault_accident`, `q_accident_count` | `stp_history` | `q_accident_count`    | `false`  |
+| `q_at_fault_accident=true, q_accident_count=2`          | `q_at_fault_accident`, `q_accident_count` | `null`        |                       | `true`   |
+| `q_at_fault_accident=false, q_accident_count=2` (stale) | `q_at_fault_accident`                     | `null`        |                       | `true`   |
+
+The last row is hidden-answer exclusion at work. A session that answers true, then `2`, then false
+leaves three ledger rows. The forward pass sees the latest per question, hides `q_accident_count`,
+excludes its stale `2` from every later condition, and does not count it against completeness. The
+submission excludes the orphaned answer from the locked set, while the ledger still shows it was
+once given. That is the audit property working as designed.
+
+## Totality
+
+The evaluator never throws. Malformed input returns a typed error, every one of which is unreachable
+on publish-validated input, and none of which ever echoes an answer value.
+
+## Source
+
+- [`docs/DOMAIN_SCHEMA.md`](https://github.com/roonga/qcms/blob/main/docs/DOMAIN_SCHEMA.md)
+- [`packages/core/src/visibility-rule.ts`](https://github.com/roonga/qcms/blob/main/packages/core/src/visibility-rule.ts)

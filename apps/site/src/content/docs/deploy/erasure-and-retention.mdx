@@ -1,0 +1,123 @@
+---
+title: Erasure and retention
+description: Hard-deleting one respondent's content, and the tombstone that proves it happened.
+---
+
+Erasure is QCMS's answer to a data-subject erasure request. It hard-deletes a single respondent
+session's content and leaves a tombstone proving that a response existed, against which form version
+and when it was erased, without preserving any of the content.
+
+It reaches three things, not one: the answer ledger and the submission, QCMS's own copy of the
+answers in the webhook outbox, and any undelivered webhook delivery for that session.
+
+## What one erasure does
+
+All of it is one transaction.
+
+1. Deletes the answer ledger: every row for the session, all revisions, not just the latest.
+2. Deletes the repeating-group roster. A roster holds no answer, but it holds the shape of a
+   respondent's household.
+3. Deletes the submission lock.
+4. Scrubs respondent-linkable session columns.
+5. Redacts QCMS's own outbox copy: every row whose payload names this session keeps its envelope and
+   loses its answers.
+6. Cancels every undelivered delivery, recording the reason.
+7. Removes the stored response snippets.
+8. Writes a tombstone row of session, form, form version, erasure time and reason.
+
+It is idempotent: erasing an already-erased session is a no-op that returns the existing tombstone.
+
+## Making a request
+
+Erasure has two doors in the app and both open the same confirmation. The first is on the response
+detail, the screen showing the answers that are about to go, so nobody erases from a list of ids.
+The second is the form's Erase screen in Operations.
+
+The confirmation is type-to-confirm: the destructive button stays disabled until the operator
+retypes the session id exactly, so there is no single-click path to it.
+
+The reason is chosen from a closed set rather than typed. The reason lands on a tombstone that
+outlives the data it describes, so a free-text box would invite a data subject's name into an audit
+record.
+
+An erasure acts in the currently selected environment only, so a data subject's request is several
+deliberate acts rather than one click. When the same subject also has sessions in another
+environment, the response screen says so and offers to go and erase there. Completing a request
+across three environments leaves three tombstones.
+
+Over HTTP it is `POST /admin/forms/:id/responses/:sessionId/erase` with a reason, returning the
+tombstone. `GET /admin/erasures` lists tombstones.
+
+## Proof
+
+Afterwards the same URL keeps working and shows the tombstone, so an operator with the link in a
+ticket gets "this was erased, here is the record" rather than a not-found. Every tombstone is also
+listed on its own screen, which is the compliance evidence: it can be shown to whoever asks whether
+a request was honoured, because it holds no answers to leak.
+
+The reporting views exclude erased sessions two ways, independently: the submission hard delete and
+a tombstone anti-join. Either alone would be sufficient.
+
+## What is retained, deliberately
+
+The form snapshot, which is the immutable published definition and compiled UI, and contains no
+respondent data. The link identifier on a secure-link session, which identifies the link rather than
+the person. The scrubbed session row, as an audit shell. And the tombstone: existence without
+content.
+
+:::caution[Two adopter warnings]
+Do not encode personal data in how you distribute links. The link identifier survives erasure by
+design, so keep it opaque.
+
+If you extend the sessions table with respondent-identifying columns, you must extend the scrub to
+null them, or they will survive erasure.
+:::
+
+## Retention
+
+Three time-based sweeps run on one scheduler, hourly by default, in the process that mounts the
+internal route group.
+
+| Sweep                    | Window variable                | Default  |
+| ------------------------ | ------------------------------ | -------- |
+| Expired sessions         | the session TTL                | 24 hours |
+| Webhook response snippet | `QCMS_DELIVERY_SNIPPET_TTL_MS` | 7 days   |
+| Outbox payload           | `QCMS_OUTBOX_PAYLOAD_TTL_MS`   | 30 days  |
+
+A delivery exhausts its ten retries in a little over a day, so by day seven the snippet row has
+either been fixed and redelivered or been abandoned. The outbox window is the redelivery window, and
+its clock starts only when the event and its whole fan-out have settled. Zero is a supported setting
+for both.
+
+Abandoned sessions past their expiry move to expired, keeping the ledger row. An optional hard
+cleanup permanently removes the ledger rows for sessions that expired and were never submitted; it
+never touches submitted content or erased sessions.
+
+The two webhook windows are per environment; a null leaves the installation-wide value in force. The
+session TTL is installation-wide.
+
+## What erasure does not cover
+
+**Propagating to webhook consumers.** Anyone you delivered a submission event to is an independent
+data controller. Erasure does not call them back; you must run your own downstream-erasure process
+against those systems.
+
+**Removing the envelope** from QCMS's retained copy. The session, form, version, time and content
+hash stay.
+
+**Recalling an HTTP request already in flight.**
+
+**Reaching physical backups, write-ahead logs or replicas immediately.** Document that retention
+window in your privacy notice: a subject's content is fully gone once the last backup covering the
+erasure moment has expired.
+
+**Crypto-shredding.** Launch uses plain hard delete.
+
+:::note
+There is no bulk erasure and no erasure by email or other identifier. One session per act, one
+environment per act, and the session id is the only subject key.
+:::
+
+## Source
+
+- [`docs/erasure.md`](https://github.com/roonga/qcms/blob/main/docs/erasure.md)

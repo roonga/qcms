@@ -1,0 +1,118 @@
+---
+title: Theming
+description: The portal token contract, the four themes, and the self-hosted font registry.
+---
+
+A theme is operator-set: a palette, a default font, a corner preset and the brand mark. It is
+mutable operator configuration, not form-grade immutable content. Respondent runtime choices, which
+are mode, font and density, sit on top of the theme rather than replacing it.
+
+QCMS is single-tenant, so one deployment runs one theme. Only the portal reads these values; admin
+chrome is not adopter-themeable.
+
+## Selecting a theme
+
+| Variable                 | Values, default first                       | Effect                         |
+| ------------------------ | ------------------------------------------- | ------------------------------ |
+| `QCMS_PORTAL_THEME`      | `slate`, `harbor`, `sand`, `plum`           | theme attribute                |
+| `QCMS_PORTAL_CORNERS`    | `subtle`, `sharp`, `rounded`, `pill`        | corner preset                  |
+| `QCMS_PORTAL_MODE`       | `auto`, `light`, `dark`, `hc`               | default mode                   |
+| `QCMS_PORTAL_DENSITY`    | `comfortable`, `compact`, `spacious`        | default density                |
+| `QCMS_PORTAL_FONT`       | `system`, or a registry key                 | default font                   |
+| `QCMS_PORTAL_FONTS`      | registry keys, comma or space separated     | the subset offered             |
+| `QCMS_PORTAL_BRAND_NAME` | any text                                    | header mark and document title |
+| `QCMS_PORTAL_BRAND_LOGO` | a root-relative path or a `data:` image URI | optional logo beside the text  |
+
+An unrecognized value falls back to the default rather than throwing: a typo in presentation config
+must not take a deployment down.
+
+Mode, font and density are defaults, not settings. The respondent's own choice overrides them from
+then on. Theme and corners have no respondent control.
+
+## The four themes
+
+| Key      | Name       | Character                                                      |
+| -------- | ---------- | -------------------------------------------------------------- |
+| `slate`  | Slate Teal | the shipped default: muted blue-green over cool slate neutrals |
+| `harbor` | Harbor     | calm corporate blue; info shares the primary hue               |
+| `sand`   | Sand       | warm neutral with a muted terracotta primary                   |
+| `plum`   | Plum       | deep violet; info stays blue to remain distinct                |
+
+Each is authored in light and dark, and each also declares a full light high-contrast palette and a
+full dark high-contrast palette, every colour token in each, with body text at 7:1. Setting
+`QCMS_PORTAL_MODE=hc` is how a deployment ships high contrast as its default.
+
+Contrast targets are 4.5:1 for body text and 3:1 for UI in light and dark, and 7:1 for body text in
+high contrast.
+
+## The four token groups
+
+Everything the portal renders resolves from a CSS custom property. There are exactly four groups.
+
+| Group        | Tokens                                                                                                    | Varies with           |
+| ------------ | --------------------------------------------------------------------------------------------------------- | --------------------- |
+| 1 Colour     | `--color-*`, 36 tokens                                                                                    | theme and mode        |
+| 2 Typography | `--font-fallback-*`, `--font-portal`, `--font-mono`, `--type-*`                                           | the selected font     |
+| 3 Spacing    | `--space-control-h`, `--space-control-pad-x`, `--space-field-gap`, `--space-section-pad`, `--space-stack` | density, three levels |
+| 4 Radius     | `--radius-control`, `--radius-card`, `--radius-sm`                                                        | the corner preset     |
+
+Every rule is anchored on one selector:
+
+```css
+:is(:root, [data-qcms-theme-scope]);
+```
+
+The token set therefore applies to the document root, or to any element carrying the scope
+attribute. An adopter's plain `:root` overrides work exactly as they would otherwise.
+
+Corner presets are geometry only, so no contrast ratio depends on that group.
+
+## Fonts
+
+The family token is populated by a declarative, self-hosted font registry. The `woff2` files are
+committed to the repository: a portal serves fonts from its own origin and makes no external
+request for a typeface. There is no CDN and no build-time download.
+
+| Group                     | Keys                                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| System                    | `system`, always present and never removable                                        |
+| Accessibility             | `atkinson`, `lexend`, `opendyslexic`                                                |
+| Popular                   | `inter`, `roboto`, `opensans`, `lato`, `poppins`, `montserrat`                      |
+| Playful and kids          | `andika`, `fredoka`, `baloo2`, `comicneue`, `patrickhand`                           |
+| Traditional and corporate | `merriweather`, `lora`, `ptserif`, `librebaskerville`, `ibmplexserif`, `publicsans` |
+| Monospace                 | `jetbrainsmono`, `geistmono`                                                        |
+
+A respondent downloads one family, so the per-visit cost is small. `QCMS_PORTAL_FONTS` is the
+curation surface: unset or empty offers the whole registry rather than an empty list, unknown keys
+are dropped rather than fatal, and `system` is always offered and cannot be removed.
+
+Every family is open-licensed and MIT-redistributable. The shipped subsets are Latin.
+
+## Respondent controls
+
+The header carries an Appearance disclosure with three controls: mode, font and density. Each writes
+a cookie and swaps the root class immediately, with no round trip and no re-render of the form.
+Without JavaScript the controls post a form instead.
+
+## The brand mark
+
+`QCMS_PORTAL_BRAND_NAME` is the text in the header and the document title. The name is always
+rendered as text, and a configured logo sits beside it rather than replacing it, so the logo is
+decorative and there is no alt-text variable to get wrong.
+
+`QCMS_PORTAL_BRAND_LOGO` accepts only a root-relative path the deployment serves itself, or an
+inline `data:` image, because the shipped content security policy allows only those two sources.
+
+## Operating-system contrast
+
+Two behaviours ship regardless of theming and need no configuration. The `prefers-contrast: more`
+setting changes edges and focus rings only, inside the current palette. Under forced colours the
+palette is the user's, and QCMS keeps shapes and states.
+
+:::note
+There is no admin theme editor and no per-form theming. Both are out of scope for this contract.
+:::
+
+## Source
+
+- [`docs/theming.md`](https://github.com/roonga/qcms/blob/main/docs/theming.md)

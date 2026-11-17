@@ -28,7 +28,7 @@ import {
   type DefinitionRefusal,
 } from "../questions/create.js";
 import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../forms/handler.js";
-import type { Resource } from "../membership/policy.js";
+import { decideAccess, type Resource } from "../membership/policy.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, type ResolvedMembership } from "../membership/resolver.js";
 import { savedDraftPins } from "./draft-pins.js";
@@ -37,6 +37,9 @@ import { buildProposal } from "./tools/propose.js";
 import {
   AGENT_PROPOSE_TOOL_NAMES,
   AGENT_READ_TOOL_NAMES,
+  BUILDER_EDIT_TOOLS,
+  BUILDER_READ_TOOLS,
+  OPEN_WIZARD_TOOL,
   isClaimTool,
   isFixedTextTool,
   stagesForApplyDraft,
@@ -48,6 +51,7 @@ import {
   callerWorkspaces,
   forbidden,
   holdsCellIn,
+  membershipIn,
   requireCell,
   requireForm,
   resolveForm,
@@ -57,14 +61,19 @@ import {
 } from "./contexts/support.js";
 import { isFormSubtreeScreen, isScreenId, SCREENS, type ScreenId } from "./screens.js";
 import { conversationRefusal, type ConversationTurnBody } from "./schema.js";
-import { DRAFT_EDIT_KINDS } from "./edit-token.js";
+import {
+  BUILDER_SCREEN,
+  DRAFT_EDIT_KINDS,
+  draftStateDigest,
+  mintTurnEditTokens,
+} from "./edit-token.js";
 import type {
   acceptProposalRoute,
   agentChangesRoute,
   assistRoute,
   screenAssistRoute,
 } from "./route.js";
-import type { AgentContext, AssistEvent, AssistTurn, LibraryEntry } from "./types.js";
+import type { AgentContext, AssistEvent, AssistTurn, BuilderPort, LibraryEntry } from "./types.js";
 
 const fail = {
   noDraft: (): ApiError => new ApiError("NOT_FOUND", 404, "This form has no draft to work on yet"),
@@ -155,7 +164,7 @@ function draftToken(updatedAt: Date): string {
 }
 
 /** The one screen that runs a staged draft, through the builder's own save. */
-const BUILDER_SCREEN: ScreenId = "/forms/[formId]";
+const APPLY_DRAFT_SCREEN: ScreenId = "/forms/[formId]";
 
 function maxStepsFor(deps: Deps): number {
   return deps.config.agent.provider === "none" ? 1 : deps.config.agent.maxSteps;
@@ -175,6 +184,8 @@ async function buildScreenContext(args: {
   readonly viewerToday?: string | undefined;
   /** The screen's own form draft, resolved after its cell check, for the preamble. */
   readonly draft?: () => Promise<FormDefinition | undefined>;
+  /** The agent builder's ports, which only its form's own route builds. */
+  readonly builder?: () => Promise<BuilderPort>;
 }): Promise<AgentContext> {
   const screen = SCREENS[args.screen];
   const facts = screen.facts.parse(await screen.build(args.build));
@@ -182,6 +193,7 @@ async function buildScreenContext(args: {
   const reads = readPorts(args.build);
   const held = await callerWorkspaces(args.build);
   const actions = actionPorts({ deps: args.deps, build: args.build, screen: args.screen, held });
+  const builder = await args.builder?.();
   return {
     screen: args.screen,
     facts,
@@ -197,7 +209,11 @@ async function buildScreenContext(args: {
     maxSteps: maxStepsFor(args.deps),
     // The caller's own permissions, not the screen's: the whole point of the principle's
     // point 1 and point 5.
-    tools: [...grantedReadTools(args.build, args.screen, held), ...actions.tools],
+    tools: [
+      ...grantedReadTools(args.build, args.screen, held),
+      ...actions.tools,
+      ...builderTools(builder),
+    ],
     // The same evaluator the route middleware uses. It asks whether this caller holds the
     // cell on any subject at all; the port re-asks it on the subject the call names, and
     // that is the limit.
@@ -215,13 +231,25 @@ async function buildScreenContext(args: {
     ...(draft === undefined ? {} : { draft }),
     ...reads,
     ...actions.ports,
+    ...(builder === undefined ? {} : { builder }),
   };
 }
 
+/** The builder's edit and wizard tools, each offered only where its port was built. */
+function builderTools(builder: BuilderPort | undefined): readonly AgentToolName[] {
+  if (builder === undefined) return [];
+  return [
+    ...(builder.mintEdits === undefined
+      ? []
+      : (Object.keys(BUILDER_EDIT_TOOLS) as AgentToolName[])),
+    ...(builder.wizardReturnTo === undefined ? [] : [OPEN_WIZARD_TOOL]),
+  ];
+}
+
 /**
- * The read tools this caller holds a cell for. The screen decides one thing only: a tool
- * that stages for the apply-draft card exists where that card does, since the builder is
- * what runs it.
+ * The read tools this caller holds a cell for. The screen decides two things: a tool that
+ * stages for the apply-draft card exists where that card does, since the builder is what runs
+ * it, and the agent builder keeps to its own read set.
  */
 function grantedReadTools(
   build: ScreenBuildInput,
@@ -229,7 +257,10 @@ function grantedReadTools(
   held: readonly ResolvedMembership[],
 ): readonly AgentToolName[] {
   return AGENT_READ_TOOL_NAMES.filter((name) => {
-    if (stagesForApplyDraft(name) && screen !== BUILDER_SCREEN) return false;
+    if (stagesForApplyDraft(name) && screen !== APPLY_DRAFT_SCREEN) return false;
+    // The agent builder reaches the form, its versions and the library: no response, link,
+    // webhook or erasure read, and no release change.
+    if (screen === BUILDER_SCREEN && !BUILDER_READ_TOOLS.includes(name)) return false;
     if (isFixedTextTool(name)) return true;
     if (isClaimTool(name)) return build.principal.claim;
     const cell = toolCell(name);
@@ -497,9 +528,9 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
     // Falls back to the latest published version, as the builder's own read does;
     // without it a freshly published form would 404 while the builder shows a draft.
     const draftRow = await getDraft(deps.databases.control, formId);
+    const published = await getLatestPublishedVersion(deps.databases.control, formId);
     let definition: FormDefinition;
     if (draftRow === undefined) {
-      const published = await getLatestPublishedVersion(deps.databases.control, formId);
       if (published === undefined) throw fail.noDraft();
       definition = published.definition;
     } else {
@@ -520,28 +551,101 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
       controller.abort();
     });
 
+    const build = screenBuildInput({
+      deps,
+      principal: callerOf(c),
+      environment: deps.databases.forRequest(c.get("requestEnvironment")).environment,
+      // The form the route names wins over anything a body says, so a turn cannot ask
+      // about another form.
+      params: { ...(body.params ?? {}), formId },
+      conversationId: body.conversationId,
+      visitId: body.visitId,
+    });
     const ctx = await buildScreenContext({
       deps,
       screen,
       conversation: body.conversation,
       viewerToday: body.viewerToday,
       draft: () => Promise.resolve(definition),
-      build: screenBuildInput({
-        deps,
-        principal: callerOf(c),
-        environment: deps.databases.forRequest(c.get("requestEnvironment")).environment,
-        // The form the route names wins over anything a body says, so a turn cannot ask
-        // about another form.
-        params: { ...(body.params ?? {}), formId },
-        conversationId: body.conversationId,
-        visitId: body.visitId,
-      }),
+      build,
+      ...(screen === BUILDER_SCREEN
+        ? {
+            builder: () =>
+              builderPort({
+                deps,
+                build,
+                formId,
+                draft: definition,
+                appearance:
+                  draftRow === undefined
+                    ? (published?.appearance ?? null)
+                    : (draftRow.appearance ?? null),
+                startRevision: draftRow?.revision ?? 0,
+                baseVersion: published?.version ?? 0,
+              }),
+          }
+        : {}),
     });
 
     return new Response(assistStream(deps, ctx, controller), {
       status: 200,
       headers: sseHeaders(),
     });
+  };
+}
+
+/**
+ * The builder's ports, each decided by the evaluator the route middleware uses, against the
+ * form's own workspace: the edits for an Edit forms holder, and the wizard for a Publish forms
+ * holder in any environment this deployment runs, since the wizard chooses where it lands.
+ */
+async function builderPort(args: {
+  readonly deps: Deps;
+  readonly build: ScreenBuildInput;
+  readonly formId: FormId;
+  readonly draft: FormDefinition;
+  /** The appearance the draft holds at turn start, which no builder edit changes. */
+  readonly appearance: unknown;
+  readonly startRevision: number;
+  readonly baseVersion: number;
+}): Promise<BuilderPort> {
+  const { workspaceId } = await requireForm(args.build);
+  const membership = await membershipIn(args.build, workspaceId);
+  const allows = (action: string, environment?: string): boolean =>
+    decideAccess({
+      memberRole: membership.memberRole,
+      grants: membership.grants,
+      request: {
+        resource: "form",
+        action,
+        ...(environment === undefined ? {} : { environment }),
+      },
+    }).allowed;
+  const subject = args.build.principal.userId;
+  const port: BuilderPort = { formId: args.formId, draft: args.draft };
+  return {
+    ...port,
+    ...(allows("write")
+      ? {
+          mintEdits: async (edits) =>
+            mintTurnEditTokens(args.deps.config.keys.app, {
+              sub: subject,
+              formId: args.formId,
+              baseVersion: args.baseVersion,
+              startRevision: args.startRevision,
+              edits: await Promise.all(
+                edits.map(async ({ op, definition }) => ({
+                  op,
+                  post: await draftStateDigest({ definition, appearance: args.appearance }),
+                })),
+              ),
+              issuedAt: args.deps.clock.now(),
+            }),
+        }
+      : {}),
+    ...(args.deps.databases.names.some((environment) => allows("publish", environment))
+      ? { wizardReturnTo: `/forms/${args.formId}/build` }
+      : {}),
   };
 }
 
@@ -658,13 +762,13 @@ function logRefusal(
   deps: Deps,
   formId: FormId,
   questionId: string,
-  reason: string,
+  code: string,
   issues: readonly DefinitionRefusal[],
 ): void {
   deps.logger.warn("agent proposal refused", {
     formId,
     questionId,
-    reason,
+    code,
     issues: issues.map((issue) => issue.code),
   });
 }

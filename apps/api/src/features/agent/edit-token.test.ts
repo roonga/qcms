@@ -8,25 +8,33 @@ import {
   mintTurnEditTokens,
   signEditToken,
   verifyEditToken,
+  type EditOp,
 } from "./edit-token.js";
 import { PROPOSAL_TOKEN_PURPOSE, signProposalToken } from "./proposal-token.js";
 
 const KEY = "edit-token-test-key-edit-token-test";
 const AT = new Date("2026-07-20T00:00:00.000Z");
 
-async function minted(ops: Parameters<typeof mintTurnEditTokens>[1]["ops"], startRevision = 4) {
+const POST = "A".repeat(43);
+const LAST = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+function postFor(n: number): string {
+  return `${POST.slice(1)}${LAST.charAt(n)}`;
+}
+
+async function minted(ops: readonly EditOp[], startRevision = 4) {
   return mintTurnEditTokens(KEY, {
     sub: "usr_a",
     formId: "frm_a",
     baseVersion: 2,
     startRevision,
-    ops,
+    edits: ops.map((op, n) => ({ op, post: postFor(n) })),
     issuedAt: AT,
   });
 }
 
 describe("the agent edit token", () => {
-  it("binds each op of a turn to the base version and the next revision in order", async () => {
+  it("binds each op of a turn to the base version, the next revision and its post-state, in order", async () => {
     const { turnId, tokens } = await minted(["question", "rule", "appearance"]);
     expect(turnId).toMatch(/^edt_[a-z0-9]+$/u);
     const payloads = await Promise.all(tokens.map((token) => verifyEditToken(KEY, token, AT)));
@@ -38,14 +46,15 @@ describe("the agent edit token", () => {
               result.payload.op,
               result.payload.base,
               result.payload.rev,
+              result.payload.post,
               result.payload.tid,
             ]
           : undefined,
       ),
     ).toEqual([
-      [0, "question", 2, 4, turnId],
-      [1, "rule", 2, 5, turnId],
-      [2, "appearance", 2, 6, turnId],
+      [0, "question", 2, 4, postFor(0), turnId],
+      [1, "rule", 2, 5, postFor(1), turnId],
+      [2, "appearance", 2, 6, postFor(2), turnId],
     ]);
   });
 
@@ -111,6 +120,7 @@ describe("the agent edit token", () => {
         base: 0,
         op: "publish" as "copy",
         rev: 1,
+        post: POST,
         iat,
         exp: iat + EDIT_TTL_MS,
       }),

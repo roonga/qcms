@@ -65,6 +65,10 @@ export const SessionStatusResponse = z
     position: z
       .null()
       .openapi({ description: "Reserved for the current flow position (filled by 019)." }),
+    appearance: z.unknown().openapi({
+      description:
+        "The appearance frozen with the pinned version, or null; its logo is null once that logo is taken down. Read without serving a step.",
+    }),
   })
   .openapi("SessionStatusResponse");
 export type SessionStatusResponse = z.infer<typeof SessionStatusResponse>;

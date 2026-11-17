@@ -4489,6 +4489,185 @@
           "delivery"
         ]
       },
+      "AccountHoldingsResponse": {
+        "type": "object",
+        "properties": {
+          "holdings": {
+            "$ref": "#/components/schemas/AccountHoldings"
+          }
+        },
+        "required": [
+          "holdings"
+        ]
+      },
+      "AccountHoldings": {
+        "type": "object",
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workspaceId": {
+                  "type": "string"
+                },
+                "workspaceName": {
+                  "type": "string"
+                },
+                "groupId": {
+                  "type": "string"
+                },
+                "groupName": {
+                  "type": "string"
+                },
+                "roles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "environments": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "suspended": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "workspaceId",
+                "workspaceName",
+                "groupId",
+                "groupName",
+                "roles",
+                "environments",
+                "suspended"
+              ]
+            }
+          },
+          "responseGroups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workspaceId": {
+                  "type": "string"
+                },
+                "workspaceName": {
+                  "type": "string"
+                },
+                "groupId": {
+                  "type": "string"
+                },
+                "groupName": {
+                  "type": "string"
+                },
+                "roles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "environments": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "suspended": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "workspaceId",
+                "workspaceName",
+                "groupId",
+                "groupName",
+                "roles",
+                "environments",
+                "suspended"
+              ]
+            }
+          },
+          "administratorOf": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workspaceId": {
+                  "type": "string"
+                },
+                "workspaceName": {
+                  "type": "string"
+                },
+                "last": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "workspaceId",
+                "workspaceName",
+                "last"
+              ]
+            }
+          }
+        },
+        "required": [
+          "groups",
+          "responseGroups",
+          "administratorOf"
+        ]
+      },
+      "AccountDisabledResponse": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountView"
+          },
+          "holdings": {
+            "$ref": "#/components/schemas/AccountHoldings"
+          }
+        },
+        "required": [
+          "account",
+          "holdings"
+        ]
+      },
+      "AccountLinkSentResponse": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountView"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/SignInLinkDelivery"
+          }
+        },
+        "required": [
+          "account",
+          "delivery"
+        ]
+      },
+      "ResetAccountBody": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "boolean",
+            "description": "Take the password away; a new one is set"
+          },
+          "factor": {
+            "type": "boolean",
+            "description": "Take the second factor away; a new one is enrolled"
+          }
+        },
+        "required": [
+          "password",
+          "factor"
+        ],
+        "additionalProperties": false
+      },
       "MintLinksResponse": {
         "type": "object",
         "properties": {
@@ -10446,7 +10625,7 @@
     "/admin/workspaces/{id}/access-groups/{teamId}": {
       "put": {
         "summary": "Rename an access group, or change its roles and environments (admin)",
-        "description": "One `group` audit row naming what the group now carries and what it carried before. A change that would give the person making it a response role, or a new environment for one, is refused while the workspace requires a second approver.",
+        "description": "One `group` audit row naming what the group now carries and what it carried before. A change that would give the person making it a response role, or a new environment for one, is refused while the workspace requires a second approver. A change that adds a response role leaves a holder's hold suspended until a different administrator re-confirms it, where the holder's newest sign-in links are reset or reactivation links and the person making the change performed that reset or reactivation or is the holder; made by anybody else, it re-confirms the hold, audited as a re-confirmation. It answers `409 ACCOUNT_BUSY` while an act on any holder's account is in flight.",
         "tags": [
           "membership"
         ],
@@ -10623,7 +10802,7 @@
     "/admin/workspaces/{id}/access-groups/{teamId}/holders": {
       "post": {
         "summary": "Grant an access group to somebody (admin)",
-        "description": "Team membership is the grant, so this is where a grant is written. The holder gets a workspace member row carrying the empty role if they have none, because the organisation plugin's own team queries assume a team member is a member of the workspace. A self-grant of a responses role is refused while the workspace requires a second approver, and then a second owner or the installation administrator makes the grant; with that switch off it is allowed and audited. An unknown account gets one generic 404, `ACCOUNT_NOT_ADDABLE`, on both the `email` and the `userId` path, and so does an account named by `userId` that is not yet in this workspace unless the caller is the installation administrator: anybody else adds a newcomer by exact address. Refused on an archived workspace.",
+        "description": "Team membership is the grant, so this is where a grant is written. The holder gets a workspace member row carrying the empty role if they have none, because the organisation plugin's own team queries assume a team member is a member of the workspace. A self-grant of a responses role is refused while the workspace requires a second approver, and then a second owner or the installation administrator makes the grant; with that switch off it is allowed and audited. An unknown account gets one generic 404, `ACCOUNT_NOT_ADDABLE`, on both the `email` and the `userId` path, and so does an account named by `userId` that is not yet in this workspace unless the caller is the installation administrator: anybody else adds a newcomer by exact address. Refused on an archived workspace. A response grant is written suspended, until a different administrator re-confirms it, where the account's newest sign-in links are reset or reactivation links and the caller sent one or is the account.",
         "tags": [
           "membership"
         ],
@@ -10797,6 +10976,103 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/access-groups/{teamId}/holders/{userId}/reconfirm": {
+      "post": {
+        "summary": "Re-confirm a suspended membership (admin)",
+        "description": "Lifts the suspension a credential reset or a reactivation put on a membership of a group carrying a response role, and writes one `grant` row. Always refused for the membership's own subject. Refused for the person who performed the reset or reactivation while another active, claimed administrator of this workspace, a Site administrator included, exists; where none does, that person may re-confirm and the row records it. Refused on an archived workspace.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "tm_0a1b2c"
+            },
+            "required": true,
+            "name": "teamId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "usr_0a1b2c"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The access group, with its holders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGroupResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -11418,7 +11694,7 @@
     "/admin/accounts/{id}/sign-in-link": {
       "post": {
         "summary": "Send the account a fresh sign-in link (Site administrator)",
-        "description": "Issues a new single-use link and invalidates every live one before it under the account's own lock, so the account holds exactly one usable link however many resends run at once, and completing the claim invalidates that one too. Refused for a claimed account, which has no creation link to resend, and for a disabled one, which is reactivated instead.",
+        "description": "Issues a new single-use link and invalidates every live one before it under the account's own lock, so the account holds exactly one usable link however many resends run at once, and completing the claim invalidates that one too. The link keeps the purpose of the one it replaces, so a reset or reactivation link is never resent as a creation link. Refused for a claimed account, which has no link to resend, and for a disabled one, which is reactivated instead.",
         "tags": [
           "accounts"
         ],
@@ -11448,6 +11724,336 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SignInLinkResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/accounts/{id}/holdings": {
+      "get": {
+        "summary": "What an account holds across every workspace (Site administrator)",
+        "description": "For the disable confirmation: every access group the account holds, those carrying a response role, and the workspaces it is a Workspace administrator of, marking those where it is the last active one. Disabling still proceeds in those.",
+        "tags": [
+          "accounts"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "usr_7m2"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The account's holdings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountHoldingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/accounts/{id}/disable": {
+      "post": {
+        "summary": "Disable an account (Site administrator)",
+        "description": "Succeeds at once. In one transaction: the account is marked disabled, loses any Site administrator role, every session it holds is deleted and every live sign-in link dies. Memberships are kept. One site-audit row, mirrored to every workspace the account holds something in. Refused for your own account and, until the step-up and approval guards exist, for any Site administrator; the last active one never. No route deletes an account.",
+        "tags": [
+          "accounts"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "usr_7m2"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The disabled account, and what it held when it was disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDisabledResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/accounts/{id}/reactivate": {
+      "post": {
+        "summary": "Reactivate a disabled account (Site administrator)",
+        "description": "Clears the disabled flag and takes away the password and second factor, then emails a single-use link through which the person sets a new password and enrols a new factor; until then the account holds nothing. Memberships of groups carrying a response role stay suspended until re-confirmed; the others return once the person signs in. A former Site administrator is not one again.",
+        "tags": [
+          "accounts"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "usr_7m2"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The account, and what the relay did with the message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountLinkSentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/accounts/{id}/reset": {
+      "post": {
+        "summary": "Reset an account's password or second factor (Site administrator)",
+        "description": "In one transaction every session is deleted, memberships of groups carrying a response role are suspended until re-confirmed, and the account holds nothing until the person signs in again through the emailed single-use link. After a password reset they set a new password; after a factor reset they sign in with the password they have and enrol a new factor. Refused for your own account, a disabled one, one never claimed and, until the step-up and approval guards exist, a Site administrator.",
+        "tags": [
+          "accounts"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "usr_7m2"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetAccountBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The account, and what the relay did with the message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountLinkSentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }

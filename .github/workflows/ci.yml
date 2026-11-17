@@ -9,6 +9,9 @@ on:
     types: [opened, synchronize, reopened, edited]
   # Allow required checks to be requested when webhook delivery fails.
   workflow_dispatch:
+  # The merge queue tests each entry on a temporary branch; every required check must report there too.
+  merge_group:
+    types: [checks_requested]
 
 # Manual recovery runs must survive ordinary pushes; post-merge runs must finish to catch integration failures.
 concurrency:
@@ -27,6 +30,9 @@ jobs:
       plan_only: ${{ steps.classify.outputs.plan_only }}
       # Unknown or missing classification must run the full suite, including shared-package changes.
       admin_only: ${{ steps.classify.outputs.admin_only }}
+      # Only an explicit false skips a suite; an output the base classifier lacks arrives empty.
+      ui_needed: ${{ steps.classify.outputs.ui_needed }}
+      api_needed: ${{ steps.classify.outputs.api_needed }}
     steps:
       # The classifier needs merge-base history; a shallow checkout disables the fast lane.
       - uses: actions/checkout@v7
@@ -42,19 +48,24 @@ jobs:
       - id: classify
         env:
           CLASSIFIER: scripts/ci-plan-only.mjs
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: |
           set -euo pipefail
-          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
-            echo "Event is ${GITHUB_EVENT_NAME}, not pull_request: running the full suite."
-            printf 'plan_only=false\nadmin_only=false\n' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if git show "origin/${GITHUB_BASE_REF}:${CLASSIFIER}" > "${RUNNER_TEMP}/classify.mjs"; then
-            echo "Classifying with origin/${GITHUB_BASE_REF}:${CLASSIFIER} (not the copy in this PR)."
+          case "${GITHUB_EVENT_NAME}" in
+            pull_request) BASE="origin/${GITHUB_BASE_REF}" ;;
+            merge_group) BASE="${MERGE_GROUP_BASE_SHA}" ;;
+            *)
+              echo "Event is ${GITHUB_EVENT_NAME}, not pull_request or merge_group: running the full suite."
+              printf 'plan_only=false\nadmin_only=false\nui_needed=true\napi_needed=true\n' >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          if git show "${BASE}:${CLASSIFIER}" > "${RUNNER_TEMP}/classify.mjs"; then
+            echo "Classifying with ${BASE}:${CLASSIFIER} (not the copy under test)."
             node "${RUNNER_TEMP}/classify.mjs"
           else
-            echo "::warning::ci-plan-only: ${CLASSIFIER} is absent on origin/${GITHUB_BASE_REF}; running the full suite."
-            printf 'plan_only=false\nadmin_only=false\n' >> "$GITHUB_OUTPUT"
+            echo "::warning::ci-plan-only: ${CLASSIFIER} is absent on ${BASE}; running the full suite."
+            printf 'plan_only=false\nadmin_only=false\nui_needed=true\napi_needed=true\n' >> "$GITHUB_OUTPUT"
           fi
 
       # Publish classification first; pass untrusted PR text through the environment.
@@ -70,7 +81,7 @@ jobs:
     name: verify (node-${{ matrix.node-version }})
     runs-on: ubuntu-latest
     # Bound hangs in installs or container startup so required checks cannot remain pending indefinitely.
-    timeout-minutes: 15
+    timeout-minutes: 25
     needs: changes
     # A skipped required job counts as passing; classifier failures must run the full gate.
     if: ${{ !cancelled() }}
@@ -79,9 +90,9 @@ jobs:
       PLAN_ONLY: ${{ needs.changes.outputs.plan_only }}
     strategy:
       fail-fast: false
-      # Exercise cross-runtime hashing and encoding stability.
+      # Node 26 is advisory, so it runs after merge rather than on every PR and queue entry.
       matrix:
-        node-version: [24, 26]
+        node-version: ${{ fromJSON((github.event_name == 'pull_request' || github.event_name == 'merge_group') && '[24]' || '[24, 26]') }}
     continue-on-error: ${{ matrix.node-version == 26 }}
     steps:
       # The append-only guard requires default-branch history.
@@ -104,6 +115,14 @@ jobs:
         if: env.PLAN_ONLY == 'true'
         env:
           DEFAULT_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
+
+      # apps/site rides the fast lane, so the gates that otherwise reach it only through
+      # `pnpm typecheck` and `pnpm build` have to run inside this required context too.
+      - run: pnpm --filter qcms-site typecheck
+        if: env.PLAN_ONLY == 'true'
+
+      - run: pnpm --filter qcms-site build
+        if: env.PLAN_ONLY == 'true'
 
       # Build declarations before program-shaped tasks resolve workspace packages.
       - run: pnpm build
@@ -237,40 +256,40 @@ jobs:
     # Classifier failure must run the suite rather than satisfy the required check with a skip.
     if: ${{ !cancelled() }}
     env:
-      PLAN_ONLY: ${{ needs.changes.outputs.plan_only }}
+      SKIP_SUITE: ${{ needs.changes.outputs.plan_only == 'true' || needs.changes.outputs.api_needed == 'false' }}
     steps:
       - uses: actions/checkout@v7
 
-      - name: Plan-only change, no product code to exercise
-        if: env.PLAN_ONLY == 'true'
-        run: echo "Diff is entirely plan and instruction files - reporting api-e2e green without running the suite."
+      - name: No path in the diff reaches the API suite
+        if: env.SKIP_SUITE == 'true'
+        run: echo "The classifier found nothing the API suite builds, imports or reads - reporting api-e2e green without running it."
 
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-        if: env.PLAN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true'
 
       - uses: actions/setup-node@v7
-        if: env.PLAN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true'
         with:
           node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-        if: env.PLAN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true'
 
       # @roonga/qcms-db's `.` export resolves to dist, so build the workspace first.
       - run: pnpm build
-        if: env.PLAN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true'
 
       - uses: ./.github/actions/test-postgres-image
-        if: env.PLAN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true'
         with:
           mailpit: "true"
 
       - run: pnpm --filter qcms-api exec vitest run --root ../.. --project qcms-api-e2e
-        if: env.PLAN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true'
 
       - uses: ./.github/actions/assert-no-docker-hub-pulls
-        if: ${{ !cancelled() && env.PLAN_ONLY != 'true' }}
+        if: ${{ !cancelled() && env.SKIP_SUITE != 'true' }}
 
   # The aggregate below owns the required context. Shards divide test groups without splitting serial suites.
   browser-e2e-shard:
@@ -285,55 +304,55 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5]
     env:
-      PLAN_ONLY: ${{ needs.changes.outputs.plan_only }}
+      SKIP_SUITE: ${{ needs.changes.outputs.plan_only == 'true' || needs.changes.outputs.ui_needed == 'false' }}
       ADMIN_ONLY: ${{ needs.changes.outputs.admin_only }}
       SHARD: ${{ matrix.shard }}
       SHARD_TOTAL: ${{ strategy.job-total }}
     steps:
       - uses: actions/checkout@v7
 
-      - name: Plan-only change, no rendered surface to exercise
-        if: env.PLAN_ONLY == 'true'
-        run: echo "Diff is entirely plan and instruction files - reporting browser-e2e green without running the suite."
+      - name: No path in the diff reaches the browser suite
+        if: env.SKIP_SUITE == 'true'
+        run: echo "The classifier found nothing the browser suite builds, imports or renders - reporting browser-e2e green without running it."
 
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-        if: env.PLAN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true'
 
       - uses: actions/setup-node@v7
-        if: env.PLAN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true'
         with:
           node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-        if: env.PLAN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true'
 
       # Build workspace exports before globalSetup composes the API.
       - run: pnpm build
-        if: env.PLAN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true'
 
       # Lighthouse uses the same Chromium binary and needs its system libraries too.
       - run: pnpm exec playwright install --with-deps chromium
-        if: env.PLAN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true'
 
       - uses: ./.github/actions/test-postgres-image
-        if: env.PLAN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true'
 
       - name: Portal and admin browser suites (all Playwright projects)
         run: pnpm exec playwright test --shard="$SHARD/$SHARD_TOTAL"
-        if: env.PLAN_ONLY != 'true' && env.ADMIN_ONLY != 'true'
+        if: env.SKIP_SUITE != 'true' && env.ADMIN_ONLY != 'true'
 
       # Unknown admin-only classification must fall back to all projects. Filter projects before sharding.
       - name: Admin browser suite only (diff cannot reach a portal surface)
         run: pnpm exec playwright test --project admin-chromium --shard="$SHARD/$SHARD_TOTAL"
-        if: env.PLAN_ONLY != 'true' && env.ADMIN_ONLY == 'true'
+        if: env.SKIP_SUITE != 'true' && env.ADMIN_ONLY == 'true'
 
       - uses: ./.github/actions/assert-no-docker-hub-pulls
-        if: ${{ !cancelled() && env.PLAN_ONLY != 'true' }}
+        if: ${{ !cancelled() && env.SKIP_SUITE != 'true' }}
 
       # Artifact names must be unique per shard or simultaneous failure uploads overwrite or fail.
       - uses: actions/upload-artifact@v7
-        if: ${{ failure() && env.PLAN_ONLY != 'true' }}
+        if: ${{ failure() && env.SKIP_SUITE != 'true' }}
         with:
           name: browser-e2e-failure-shard-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |

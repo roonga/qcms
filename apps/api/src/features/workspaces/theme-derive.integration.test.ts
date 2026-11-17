@@ -71,6 +71,7 @@ function site(): FakeBrandFetcher {
 let testDb: TestDb;
 let internalToken: string;
 let editor: { token: string; userId: string };
+let siteAdmin: { token: string; userId: string };
 
 /** One set of synthetic keys, so every composition accepts the same channel token. */
 const BASE_ENV = validEnv(FLAGS_ON);
@@ -109,6 +110,11 @@ beforeAll(async () => {
   on = compose({}, fetcher);
   internalToken = internalTokenFor(on.deps.config);
   editor = await seedAdminSession(testDb.db, { label: "derive-editor" });
+  siteAdmin = await seedAdminSession(testDb.db, {
+    label: "derive-site",
+    siteAdministrator: true,
+    membership: false,
+  });
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -147,7 +153,7 @@ let counter = 0;
 async function newWorkspace(label: string): Promise<string> {
   counter += 1;
   const slug = `${label}-${String(counter)}`;
-  const res = await as(on.app, editor.token, "POST", "/workspaces", { name: slug, slug });
+  const res = await as(on.app, siteAdmin.token, "POST", "/workspaces", { name: slug, slug });
   expect(res.status, await res.clone().text()).toBe(201);
   const { workspace } = (await res.json()) as { workspace: { workspaceId: string } };
   await seedGrants(testDb.db, { userId: editor.userId, workspaceId: workspace.workspaceId });
@@ -266,7 +272,6 @@ describe("deriving a theme (criterion 119)", { timeout: TIMEOUT_MS }, () => {
     const workspaceId = await newWorkspace("derive-refused");
     const caller = await seedAdminSession(testDb.db, {
       label: `derive-${label.replaceAll(/\W+/gu, "-").toLowerCase()}`,
-      claim: false,
       workspaceId,
       ...grant,
     });
@@ -282,11 +287,11 @@ describe("deriving a theme (criterion 119)", { timeout: TIMEOUT_MS }, () => {
     const elsewhere = await newWorkspace("derive-elsewhere");
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "derive-site-admin",
+      siteAdministrator: true,
       membership: false,
     });
     const otherEditor = await seedAdminSession(testDb.db, {
       label: "derive-other-editor",
-      claim: false,
       owner: false,
       workspaceId: elsewhere,
       grants: ["forms.editor"],
@@ -337,7 +342,6 @@ describe("rate limits per user and per workspace (SEC-18 W3)", { timeout: TIMEOU
     const workspaceId = await newWorkspace("derive-limits");
     const second = await seedAdminSession(testDb.db, {
       label: "derive-second-editor",
-      claim: false,
       owner: false,
       workspaceId,
       grants: ["forms.editor"],

@@ -4,11 +4,14 @@ import type { Metadata } from "next";
 import { HeadingMarker } from "@/components/agent/heading-marker";
 import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
+import { holdsEditForms } from "@/lib/forms/build-access";
 import { readFormListFilters } from "@/lib/forms/list-filters";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { optionalProp } from "@/lib/questions/errors";
+import { agentAuthoringEnabled } from "@/lib/server/agent";
 import { listForms } from "@/lib/server/forms";
+import { readMyAccess } from "@/lib/server/membership";
 import { requireAdminSession } from "@/lib/server/session";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { currentWorkspaceId } from "@/lib/server/workspace-context";
@@ -28,7 +31,8 @@ export default async function FormsPage({
   const session = await requireAdminSession();
   const { status, sort, search, isFiltered } = readFormListFilters(await searchParams);
 
-  const [result, capabilities] = await Promise.all([
+  const builder = agentAuthoringEnabled();
+  const [result, capabilities, access] = await Promise.all([
     listForms(session, {
       ...optionalProp("status", status),
       ...optionalProp("workspaceId", await currentWorkspaceId(session)),
@@ -36,7 +40,9 @@ export default async function FormsPage({
       sort,
     }),
     shellAccess(session).then(navigableCapabilities),
+    builder ? readMyAccess(session) : undefined,
   ]);
+  const accessRecord = access?.ok === true ? access.data : undefined;
 
   const isEmpty = result.ok && result.data.length === 0;
 
@@ -82,7 +88,11 @@ export default async function FormsPage({
         ))}
 
       {result.ok && result.data.length > 0 && (
-        <FormsTable rows={result.data} canOperate={permitsMode(capabilities, "operations")} />
+        <FormsTable
+          rows={result.data}
+          canOperate={permitsMode(capabilities, "operations")}
+          canBuild={(form) => builder && holdsEditForms(accessRecord, form.workspaceId)}
+        />
       )}
     </div>
   );

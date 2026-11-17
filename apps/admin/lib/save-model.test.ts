@@ -79,6 +79,16 @@ const SCREENS: readonly ScreenRow[] = [
     why: "The rules editor, on its own route since issue #669. It holds the same working draft the builder holds and stores it through the same 600ms loop (`lib/forms/autosave.ts`), so it carries an ambient strip of its own - a screen holding accumulated authored state owes a statement of when that state was stored, and the builder's strip is one route away describing a different copy.",
   },
   {
+    route: "app/(shell)/forms/[formId]/build/page.tsx",
+    model: "action",
+    why: "The agent builder's frame. Its only act here is Start a new draft, one confirmed write that reports its own outcome; the edits the assistant makes arrive with the conversation.",
+  },
+  {
+    route: "app/(shell)/forms/new/build/page.tsx",
+    model: "readonly",
+    why: "The agent builder before a form exists. Nothing is stored until the first step is confirmed, so there is nothing on it to save.",
+  },
+  {
     route: "app/(shell)/forms/[formId]/preview/page.tsx",
     model: "readonly",
     why: "Renders the draft for inspection; its own copy already says nothing here is saved.",
@@ -159,6 +169,16 @@ const SCREENS: readonly ScreenRow[] = [
     route: "app/(shell)/@rail/forms/page.tsx",
     model: "readonly",
     why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/forms/[formId]/build/page.tsx",
+    model: "readonly",
+    why: "Returns null. The agent builder is a mode with no rail, so there is nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/forms/new/build/page.tsx",
+    model: "readonly",
+    why: "Returns null. The agent builder is a mode with no rail, so there is nothing on it to save.",
   },
   {
     route: "app/(shell)/@rail/forms/new/page.tsx",

@@ -48,7 +48,8 @@ describe("the route-to-cap table", () => {
 
     expect(count("ops")).toBe(1);
     expect(count("log")).toBe(6);
-    expect(measures).toHaveLength(30);
+    expect(count("full")).toBe(2);
+    expect(measures).toHaveLength(32);
   });
 
   it("offers no cap that no route can take, which is what issue 668 left behind", () => {
@@ -103,6 +104,15 @@ describe("the route-to-cap table", () => {
   });
 });
 
+describe("the agent builder's two columns", () => {
+  it("fill the viewport with no cap and no padding, on both build routes", () => {
+    expect(measureFor("/forms/frm_auto_quote/build")).toBe("full");
+    expect(measureFor("/forms/new/build")).toBe("full");
+    expect(mainClassFor("/forms/new/build")).not.toContain("p-(--admin-section-pad)");
+    expect(mainClassFor("/forms/frm_auto_quote/build")).toContain(MEASURE_CLASS.full);
+  });
+});
+
 describe("resolving a live pathname to a cap", () => {
   it("fills a dynamic segment with whatever id is in the path", () => {
     expect(measureFor("/forms/frm_auto_quote")).toBe("wide");
@@ -153,6 +163,7 @@ describe("resolving a live pathname to a cap", () => {
       "w-full max-w-measure-wide flex-1 p-(--admin-section-pad)",
     );
     for (const route of Object.keys(MEASURE_BY_ROUTE)) {
+      if (route.endsWith("/build")) continue;
       const live = route
         .split("/")
         .map((segment) => (segment.startsWith("[") ? "x" : segment))

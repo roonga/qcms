@@ -73,6 +73,17 @@ export const ACTION_KINDS: Readonly<Record<string, ActionKindDef>> = Object.free
 
 export const ACTION_KIND_NAMES: readonly string[] = DEFS.map((def) => def.kind);
 
+/**
+ * The kinds the agent builder offers: library writes, each on its own Confirm card (Q22). Its
+ * draft changes are card-less edits and publishing is the wizard's, so no publish, release,
+ * link or webhook kind belongs here.
+ */
+export const BUILDER_ACTION_KINDS: readonly string[] = Object.freeze([
+  "question.create",
+  "question.saveDraft",
+  "question.newVersion",
+]);
+
 export function isActionKind(name: string): boolean {
   return Object.hasOwn(ACTION_KINDS, name);
 }

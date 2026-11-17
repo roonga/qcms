@@ -1,8 +1,12 @@
+import { createHash } from "node:crypto";
+
 import {
+  type Appearance,
   FormId,
   type LinkClaims,
   LinkId,
   SessionId,
+  deriveAppearance,
   importCompactTokenKey,
   mintSecureLink,
 } from "@roonga/qcms-core";
@@ -13,10 +17,12 @@ import {
   createForm,
   getSecureLink,
   getSession,
+  insertAppearanceLogo,
   insertFormRelease,
   insertFormVersion,
   insertSecureLink,
   revokeSecureLink,
+  takeDownAppearanceLogo,
 } from "@roonga/qcms-db";
 import {
   CONTAINER_BOOT_TIMEOUT_MS,
@@ -432,6 +438,61 @@ describe("version pinning (exit criterion 2) and release resolution (exit criter
     const res = await post({ formSlug: "unreleased-form" });
     expect(res.status).toBe(409);
     expect(((await res.json()) as ErrBody).error.code).toBe("NO_PUBLISHED_VERSION");
+  });
+});
+
+describe("the status read carries the pinned appearance", () => {
+  const derived = deriveAppearance({ primary: "#1d4ed8" });
+  const logoBytes = new Uint8Array([1, 2, 3]);
+  const logoKey = createHash("sha256").update(logoBytes).digest("hex");
+  const appearance: Appearance = {
+    palettes: derived.palettes,
+    logo: logoKey,
+    face: derived.face,
+    corners: "pill",
+    density: "compact",
+    textSize: 16,
+    progress: "top-indicator",
+    pageTint: false,
+  };
+
+  async function startOn(id: string, slug: string, version: Appearance | null): Promise<StartBody> {
+    const formId = await seedForm(id, slug);
+    await insertFormVersion(testDb.db, {
+      formId,
+      definition: emptyDef,
+      appearance: version,
+      compiled: emptyCompiled,
+      compilerVersion: "1.0.0",
+      a2uiSpecVersion: "1.0.0",
+      semanticsVersion: "1",
+    });
+    await release(formId, 1);
+    return (await (await post({ formSlug: slug })).json()) as StartBody;
+  }
+
+  async function statusAppearance(body: StartBody): Promise<unknown> {
+    const res = await get(body.sessionId, { authorization: `Bearer ${body.sessionToken}` });
+    expect(res.status).toBe(200);
+    return ((await res.json()) as { appearance: unknown }).appearance;
+  }
+
+  it("is null for a version with none", async () => {
+    expect(await statusAppearance(await startOn("frm_plain", "plain-form", null))).toBeNull();
+  });
+
+  it("keeps a stored logo and drops one taken down since", async () => {
+    await insertAppearanceLogo(testDb.db, {
+      key: logoKey,
+      contentType: "image/png",
+      bytes: logoBytes,
+      actor: null,
+    });
+    const body = await startOn("frm_looked", "looked-form", appearance);
+    expect(await statusAppearance(body)).toEqual(appearance);
+
+    expect(await takeDownAppearanceLogo(testDb.db, logoKey)).toBe(true);
+    expect(await statusAppearance(body)).toEqual({ ...appearance, logo: null });
   });
 });
 
