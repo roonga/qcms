@@ -177,6 +177,8 @@ export default defineConfig({
         OTEL_BLRP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
         OTEL_BLRP_EXPORT_TIMEOUT: OTLP_EXPORT_TIMEOUT_MS,
         QCMS_PORTAL_THEME: HARNESS_THEME,
+        QCMS_PORTAL_BRAND_NAME: HARNESS_BRAND_NAME,
+        QCMS_PORTAL_BRAND_LOGO: HARNESS_BRAND_LOGO,
         // Pinned although `required` is already the default: `next dev` fills an undefined
         // variable from `apps/admin/.env.local`, where a developer may have weakened it.
         QCMS_ADMIN_2FA: "required",

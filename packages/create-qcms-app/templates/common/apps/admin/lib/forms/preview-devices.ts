@@ -1,5 +1,3 @@
-/** The builder preview's device frame: presets, rotation, zoom and the size a respondent would see. */
-
 export type DeviceGroup = "phones" | "tablets" | "breakpoints";
 export type DeviceKind = "phone" | "tablet" | "desktop" | "custom";
 export type Orientation = "portrait" | "landscape";

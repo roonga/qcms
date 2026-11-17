@@ -55,6 +55,33 @@ function sectionPads(css: string, selectorPrefix: string): Record<string, string
   return out;
 }
 
+/** Each `@font-face` family with the file it loads, resolved against the sheet's own directory. */
+function faces(css: string, from: string): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const [, body = ""] of stripComments(css).matchAll(/@font-face \{([^}]*)\}/gu)) {
+    const family = /font-family: "([^"]+)"/u.exec(body)?.[1];
+    const file = /url\("([^"]+)"\)/u.exec(body)?.[1];
+    if (family === undefined || file === undefined) continue;
+    const files = out.get(family) ?? new Set<string>();
+    files.add(fileURLToPath(new URL(file, new URL(from, import.meta.url))));
+    out.set(family, files);
+  }
+  return out;
+}
+
+describe("the builder route's respondent faces", () => {
+  it("names the app's own file for every family the app already declares", () => {
+    const app = faces(ADMIN, "./globals.css");
+    const respondent = faces(
+      read("../../../packages/ui/src/fonts.css"),
+      "../../../packages/ui/src/fonts.css",
+    );
+    const shared = [...app.keys()].filter((family) => respondent.has(family));
+    expect(shared.toSorted()).toEqual(["Inter", "JetBrains Mono"]);
+    for (const family of shared) expect(respondent.get(family)).toEqual(app.get(family));
+  });
+});
+
 describe("the builder's device frame and the portal's breakpoints", () => {
   const media = UI_SHEETS.flatMap((sheet) => blocks(sheet, "@media"));
 

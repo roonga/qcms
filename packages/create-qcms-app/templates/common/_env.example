@@ -216,11 +216,14 @@ QCMS_LINK_KEYS=
 # (required)
 QCMS_PORTAL_BASE_URL=
 
-# URL of the brand logo shown in the portal header.
+# Match the portal so the builder preview header shows its logo. Only a
+# data:image/... value shows; a root-relative portal path does not load from
+# the admin origin.
 # (optional)
 # QCMS_PORTAL_BRAND_LOGO=
 
-# Brand name shown in the portal header. Empty renders no brand.
+# Match the portal so the builder preview header shows its brand name. Blank
+# shows the portal default.
 # (optional)
 # QCMS_PORTAL_BRAND_NAME=
 

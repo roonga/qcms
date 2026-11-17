@@ -4,6 +4,7 @@ import { deriveAppearance } from "@roonga/qcms-core";
 
 import { openDbHandle } from "../../api/e2e/support/admin-accounts.js";
 import { readFixtures } from "../../portal/e2e/support/fixtures.js";
+import { HARNESS_BRAND_LOGO, HARNESS_BRAND_NAME } from "../../portal/e2e/support/harness-config.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
@@ -61,6 +62,18 @@ function layoutFact(page: Page): Promise<Record<string, unknown>> {
     );
 }
 
+async function setAppearance(appearance: object | null): Promise<void> {
+  const handle = openDbHandle(readFixtures().databaseUrl);
+  try {
+    await handle.query(`update form_drafts set appearance = $1::jsonb where form_id = $2`, [
+      appearance === null ? null : JSON.stringify(appearance),
+      formId,
+    ]);
+  } finally {
+    await handle.close();
+  }
+}
+
 async function openBuilder(page: Page): Promise<void> {
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -97,16 +110,7 @@ test("builds a two-question draft with an appearance", async ({ page }) => {
   await pinQuestion(page, TEXT_ID, 1);
   await pinQuestion(page, CHOICE_ID, 1);
   await waitForSaved(page);
-
-  const handle = openDbHandle(readFixtures().databaseUrl);
-  try {
-    await handle.query(`update form_drafts set appearance = $1::jsonb where form_id = $2`, [
-      JSON.stringify(APPEARANCE),
-      formId,
-    ]);
-  } finally {
-    await handle.close();
-  }
+  await setAppearance(APPEARANCE);
 });
 
 test("device switch and rotate move the container across the portal's breakpoint", async ({
@@ -235,4 +239,43 @@ test("inspect selects a question, and the fact carries only its id", async ({ pa
   await page.keyboard.press("Enter");
   await expect(selection).toHaveCount(0);
   await expect(page.getByTestId("qcms-builder-assistant-subject")).toBeFocused();
+});
+
+test("the portal header and step rail frame the step, as the portal shows them", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  try {
+    await setAppearance(null);
+    await openBuilder(page);
+    const brand = surface(page).getByTestId("qcms-preview-brand");
+    await expect(brand).toHaveText(HARNESS_BRAND_NAME);
+    await expect(brand.locator("img")).toHaveAttribute("src", HARNESS_BRAND_LOGO);
+    await expect(surface(page).getByTestId("qcms-preview-progress")).toHaveText("Step 1 of 1");
+
+    await setAppearance({ ...APPEARANCE, progress: "side-rail" });
+    await page.reload();
+    await waitForHydration(page);
+    await expect(surface(page).getByText(TEXT_LABEL)).toBeVisible({ timeout: 30_000 });
+    await expect(brand).toHaveText(HARNESS_BRAND_NAME);
+    await expect(brand.locator("img")).toHaveCount(0);
+    await expect(surface(page).getByTestId("qcms-preview-progress")).toHaveCount(0);
+
+    const rail = surface(page).getByTestId("qcms-preview-step-rail");
+    const fold = surface(page).getByTestId("qcms-preview-step-rail-fold");
+    await chooseOption(controls(page), "Device", "Rail edge, 1024 � 900");
+    await expect(rail).toBeVisible();
+    await expect(fold).toBeHidden();
+    await expect(rail.locator('[aria-current="step"]')).toHaveText("About you");
+    await expect(rail.getByRole("button", { name: TEXT_LABEL })).toBeVisible();
+    await axeClean(page, "the builder preview with the side rail");
+
+    await chooseOption(controls(page), "Device", "iPhone XR, 414 � 896");
+    await expect(rail).toBeHidden();
+    await expect(fold).toBeVisible();
+    await expect(fold).toContainText("Step 1 of 1");
+    await axeClean(page, "the builder preview with the folded rail");
+  } finally {
+    await setAppearance(APPEARANCE);
+  }
 });

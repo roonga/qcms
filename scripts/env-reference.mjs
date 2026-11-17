@@ -933,6 +933,22 @@ export const ENV_REFERENCE = [
       "Match the portal theme so previews show respondent appearance. Unknown values use the same fallback as portal; admin chrome keeps its own theme.",
   },
   {
+    name: "QCMS_PORTAL_BRAND_NAME",
+    process: "admin",
+    requirement: "optional",
+    fallback: "",
+    description:
+      "Match the portal so the builder preview header shows its brand name. Blank shows the portal default.",
+  },
+  {
+    name: "QCMS_PORTAL_BRAND_LOGO",
+    process: "admin",
+    requirement: "optional",
+    fallback: "",
+    description:
+      "Match the portal so the builder preview header shows its logo. Only a `data:image/...` value shows; a root-relative portal path does not load from the admin origin.",
+  },
+  {
     name: "NODE_ENV",
     process: "admin",
     requirement: "optional",

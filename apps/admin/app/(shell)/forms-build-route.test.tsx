@@ -117,6 +117,7 @@ vi.mock("@/lib/server/shell", async (importOriginal) => ({
 vi.mock("@/lib/server/config", () => ({
   secureCookies: () => false,
   previewPortalTheme: () => "slate",
+  previewPortalBrand: () => ({ name: undefined, logoSrc: undefined }),
 }));
 vi.mock("@/components/forms/builder-shell", () => ({
   BuilderShell: (props: Record<string, unknown>) => {

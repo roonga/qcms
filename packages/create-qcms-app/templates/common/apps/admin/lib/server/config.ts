@@ -156,6 +156,25 @@ export function previewPortalTheme(): PreviewTheme {
   return parsePreviewTheme(process.env.QCMS_PORTAL_THEME) ?? DEFAULT_PREVIEW_THEME;
 }
 
+export interface PreviewPortalBrand {
+  /** `undefined` where the portal shows its generic default. */
+  readonly name: string | undefined;
+  readonly logoSrc: string | undefined;
+}
+
+const UNSAFE_IN_ATTRIBUTE = /[\s"'<>\\]/u;
+const DATA_IMAGE = /^data:image\/[\w.+-]+[,;]/u;
+
+/** The portal's header brand for previews. A root-relative logo is a portal path the admin origin cannot load, so only a `data:` image carries over. */
+export function previewPortalBrand(): PreviewPortalBrand {
+  const name = (process.env.QCMS_PORTAL_BRAND_NAME ?? "").trim();
+  const logo = (process.env.QCMS_PORTAL_BRAND_LOGO ?? "").trim();
+  return {
+    name: name === "" ? undefined : name,
+    logoSrc: !UNSAFE_IN_ATTRIBUTE.test(logo) && DATA_IMAGE.test(logo) ? logo : undefined,
+  };
+}
+
 /** Optional 2FA is a development escape hatch. The API reads the same policy; the stricter side wins when deployments disagree. */
 export function twoFactorPolicy(): "required" | "optional" {
   const raw = process.env.QCMS_ADMIN_2FA?.trim();

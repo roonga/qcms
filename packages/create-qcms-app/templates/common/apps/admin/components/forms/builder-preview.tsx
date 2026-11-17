@@ -20,6 +20,12 @@ import {
 import { Alert, Button, Select } from "@/components/kit";
 import { usePreviewLocale } from "@/components/locale-context";
 import { PreviewSurface } from "@/components/preview-theme-island";
+import {
+  PreviewPortalChrome,
+  type PreviewBrand,
+  type PreviewProgressMode,
+  type PreviewRailQuestion,
+} from "@/components/forms/preview-portal-chrome";
 import { layoutFindings, layoutReportFact, selectionFact } from "@/lib/agent/builder-facts";
 import { publishLayout, publishSelection, useBuilderFacts } from "@/lib/agent/builder-facts-store";
 import { QUESTION_ATTRIBUTE, measureStep } from "@/lib/forms/layout-collector";
@@ -43,7 +49,12 @@ import {
   type FrameState,
   type Size,
 } from "@/lib/forms/preview-devices";
-import { previewViewNarrowing, previewViews } from "@/lib/forms/preview-views";
+import { previewRail } from "@/lib/forms/preview-rail";
+import {
+  previewInstanceLabel,
+  previewViewNarrowing,
+  previewViews,
+} from "@/lib/forms/preview-views";
 import type { DraftForm } from "@/lib/forms/types";
 import { t, type MessageKey } from "@/lib/i18n/en";
 import type { PreviewTheme } from "@/lib/preview-theme";
@@ -91,6 +102,34 @@ function questionAt(target: EventTarget | null): Element | undefined {
 function labelOf(wrapper: Element): string {
   const label = wrapper.querySelector("label, legend");
   return (label?.textContent ?? "").replaceAll(/\s+/gu, " ").trim();
+}
+
+function progressText(current: number, total: number, label: string | undefined): string {
+  if (label === undefined) return t("builder.preview.portal.step", { current, total });
+  return t("builder.preview.portal.stepNamed", { current, total, label });
+}
+
+function railQuestions(surface: HTMLElement): PreviewRailQuestion[] {
+  const seen = new Set<string>();
+  const questions: PreviewRailQuestion[] = [];
+  for (const wrapper of surface.querySelectorAll(`[${QUESTION_ATTRIBUTE}]`)) {
+    const questionId = wrapper.getAttribute(QUESTION_ATTRIBUTE) ?? "";
+    const key = wrapper.getAttribute("data-qcms-field") ?? questionId;
+    if (seen.has(questionId)) continue;
+    seen.add(questionId);
+    questions.push({ key, label: labelOf(wrapper) });
+  }
+  return questions;
+}
+
+function sameQuestions(
+  a: readonly PreviewRailQuestion[],
+  b: readonly PreviewRailQuestion[],
+): boolean {
+  return (
+    a.length === b.length &&
+    a.every((entry, at) => entry.key === b[at]?.key && entry.label === b[at]?.label)
+  );
 }
 
 function useStageSize(): { readonly ref: (node: HTMLDivElement | null) => void; size: Size } {
@@ -150,6 +189,8 @@ export interface BuilderPreviewSource {
   /** The deployment's respondent theme, which a draft with no appearance previews in. */
   readonly defaultTheme: PreviewTheme;
   readonly appearance: Appearance | null;
+  /** The deployment's portal brand; a draft with an appearance shows none of its logo, as the portal does. */
+  readonly brand: PreviewBrand;
 }
 
 /** The builder's preview: the draft as a respondent sees it, in a device frame the toolbar drives. */
@@ -162,7 +203,7 @@ export function BuilderPreview({
   readonly draft: DraftForm;
   readonly source: BuilderPreviewSource;
 }) {
-  const { preview, defaultTheme, appearance } = source;
+  const { preview, defaultTheme, appearance, brand } = source;
   const previewLocale = usePreviewLocale();
   const { answers, state, handleChange, clearAnswers } = useDraftPreview(draft, preview);
   const [frame, setFrame] = useState<FrameState>(INITIAL_FRAME);
@@ -190,6 +231,12 @@ export function BuilderPreview({
   const step = views[index]?.step;
   const served = useMemo(() => rosterRecord(state.preview?.flow.rosters ?? []), [state.preview]);
   const view = previewViewNarrowing(draft, views[index], served);
+  const instanceLabel = previewInstanceLabel(draft, served, view);
+  const rail = useMemo(() => previewRail(draft, views, index), [draft, views, index]);
+  const mode: PreviewProgressMode = appearance?.progress ?? "top-indicator";
+  const progress =
+    step === undefined ? undefined : progressText(index + 1, views.length, instanceLabel);
+  const [questions, setQuestions] = useState<readonly PreviewRailQuestion[]>([]);
 
   const [scrolled, setScrolled] = useState(0);
   useEffect(() => {
@@ -228,6 +275,8 @@ export function BuilderPreview({
       return undefined;
     }
     const handle = requestAnimationFrame(() => {
+      const shown = railQuestions(surface);
+      setQuestions((current) => (sameQuestions(current, shown) ? current : shown));
       const measured = measureStep(surface, scale);
       publishLayout(
         layoutReportFact({
@@ -298,6 +347,16 @@ export function BuilderPreview({
     if (!inspecting || frameNode === null) return;
     const wrapper = questionAt(event.target);
     setHovered(wrapper === undefined ? undefined : outlineOf(wrapper, frameNode, scale));
+  };
+
+  const focusQuestion = (key: string): void => {
+    const wrapper = Array.from(
+      surfaceRef.current?.querySelectorAll(`[${QUESTION_ATTRIBUTE}]`) ?? [],
+    ).find((candidate) => candidate.getAttribute("data-qcms-field") === key);
+    const control = wrapper?.querySelector<HTMLElement>(
+      "input, textarea, select, button, [tabindex]",
+    );
+    control?.focus();
   };
 
   const reset = (): void => {
@@ -475,38 +534,44 @@ export function BuilderPreview({
               tokens={surfaceTokens(look, appearance)}
               surfaceRef={surfaceRef}
             >
-              <div className="qcms-builder-device__main">
-                <div className="qcms-builder-device__card shadow-sm">
-                  {state.preview !== undefined && step !== undefined && (
-                    <>
-                      <A2UIStepRenderer
-                        document={documentForVisible(
-                          { stepId: step.stepId, root: step.root as A2UIStepDocument["root"] },
-                          state.preview.flow.visibleQuestions,
-                        )}
-                        values={answers}
-                        onChange={handleChange}
-                        specVersion={state.preview.a2uiSpecVersion}
-                        repeat={{
-                          rosters: served,
-                          ...(view !== undefined ? { view } : {}),
-                          visible: new Set(state.preview.flow.visibleQuestions),
-                        }}
-                        locale={previewLocale}
-                        headingLevelOffset={1}
-                      />
-                      {!hasVisibleQuestion(
-                        draft,
-                        step.stepId,
+              <PreviewPortalChrome
+                brand={appearance === null ? brand : { name: brand.name, logoSrc: undefined }}
+                mode={mode}
+                progress={progress}
+                steps={rail}
+                questions={questions}
+                onJump={setStepIndex}
+                onQuestion={focusQuestion}
+              >
+                {state.preview !== undefined && step !== undefined && (
+                  <>
+                    <A2UIStepRenderer
+                      document={documentForVisible(
+                        { stepId: step.stepId, root: step.root as A2UIStepDocument["root"] },
                         state.preview.flow.visibleQuestions,
-                        view === undefined
-                          ? served
-                          : { ...served, [view.groupId]: [view.instanceId] },
-                      ) && <p>{t("builder.preview.emptyStep")}</p>}
-                    </>
-                  )}
-                </div>
-              </div>
+                      )}
+                      values={answers}
+                      onChange={handleChange}
+                      specVersion={state.preview.a2uiSpecVersion}
+                      repeat={{
+                        rosters: served,
+                        ...(view !== undefined ? { view } : {}),
+                        visible: new Set(state.preview.flow.visibleQuestions),
+                      }}
+                      locale={previewLocale}
+                      headingLevelOffset={1}
+                    />
+                    {!hasVisibleQuestion(
+                      draft,
+                      step.stepId,
+                      state.preview.flow.visibleQuestions,
+                      view === undefined
+                        ? served
+                        : { ...served, [view.groupId]: [view.instanceId] },
+                    ) && <p>{t("builder.preview.emptyStep")}</p>}
+                  </>
+                )}
+              </PreviewPortalChrome>
             </PreviewSurface>
             {inspecting && hovered !== undefined && (
               <div

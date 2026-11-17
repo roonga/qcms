@@ -688,7 +688,8 @@ button {
   position: relative;
   container: qcms-respondent / inline-size;
   overflow: hidden;
-  border: 1px solid var(--color-border-strong);
+  /* An outline, not a border: a border would take two pixels off the container the breakpoints read. */
+  outline: 1px solid var(--color-border-strong);
   transform-origin: 0 0;
 }
 .qcms-builder-device > .qcms-preview-surface {
@@ -701,16 +702,22 @@ button {
 .qcms-builder-device[data-inspecting] {
   cursor: crosshair;
 }
-.qcms-builder-device__main {
-  padding: 1.5rem 1rem;
+/* The portal header's brand mark, as `apps/portal/app/globals.css` declares it. */
+.qcms-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
 }
-.qcms-builder-device__card {
-  max-inline-size: 42rem;
-  margin-inline: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  background-color: var(--color-surface);
-  padding: var(--space-section-pad);
+.qcms-brand__logo {
+  max-height: 1.75rem;
+  width: auto;
+}
+.qcms-brand__name {
+  font-size: var(--type-body);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 .qcms-builder-device__outline {
   position: absolute;
@@ -727,6 +734,13 @@ button {
 .qcms-builder-device [data-qcms-theme-scope] {
   --space-section-pad: 1.25rem;
 }
+/* The admin's @theme shrinks these for its chrome; the respondent page around the step uses Tailwind's own. */
+.qcms-builder-device [data-qcms-theme-scope] {
+  --text-xs: 0.75rem;
+  --text-xs--line-height: calc(1 / 0.75);
+  --text-sm: 0.875rem;
+  --text-sm--line-height: calc(1.25 / 0.875);
+}
 .qcms-builder-device [data-qcms-theme-scope].density-compact {
   --space-section-pad: 0.875rem;
 }
@@ -734,8 +748,9 @@ button {
   --space-section-pad: 1.75rem;
 }
 
+/* The portal's `sm:` and `lg:` utilities, read off the frame's container instead of the viewport. */
 @container qcms-respondent (min-width: 40rem) {
-  .qcms-builder-device__main {
+  .qcms-cq-sm-py-10 {
     padding-block: 2.5rem;
   }
 
@@ -749,6 +764,16 @@ button {
 
   .qcms-builder-device :is(:root, [data-qcms-theme-scope]).density-spacious {
     --space-section-pad: 3rem;
+  }
+}
+
+@container qcms-respondent (min-width: 64rem) {
+  .qcms-cq-lg-flex {
+    display: flex;
+  }
+
+  .qcms-cq-lg-hidden {
+    display: none;
   }
 }
 
