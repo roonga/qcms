@@ -242,10 +242,9 @@ describe("who reaches the builder (X3, U1)", () => {
       canPublish: true,
     });
     expect(builderProps[0]?.["startDraft"]).toBeUndefined();
-    expect(builderProps[0]?.["edits"]).toMatchObject({
-      apply: expect.any(Function),
-      readStored: expect.any(Function),
-    });
+    const edits = builderProps[0]?.["edits"] as Record<string, unknown> | undefined;
+    expect(typeof edits?.["apply"]).toBe("function");
+    expect(typeof edits?.["readStored"]).toBe("function");
   });
 
   it("answers 404 to a View forms holder, so no tool is reached", async () => {
