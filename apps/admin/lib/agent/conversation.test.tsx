@@ -25,11 +25,7 @@ function Probe({ append }: { readonly append?: readonly AgentTurnRecord[] }) {
       <span data-testid="id">{conversation.id}</span>
       <span data-testid="visit">{conversation.visitId}</span>
       <span data-testid="dropped">{conversation.dropped}</span>
-      <span data-testid="turns">
-        {conversation.turns
-          .map(turnLabel)
-          .join("|")}
-      </span>
+      <span data-testid="turns">{conversation.turns.map(turnLabel).join("|")}</span>
       <button
         type="button"
         data-testid="append"

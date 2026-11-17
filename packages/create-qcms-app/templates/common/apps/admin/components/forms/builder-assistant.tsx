@@ -49,6 +49,13 @@ function noop(): void {
   return undefined;
 }
 
+function noteFor(record: EditRecord): string | undefined {
+  if (record.state === "failed") return t("builder.edit.failed", { message: record.message ?? "" });
+  if (record.state === "not-run") return t("builder.edit.notRun");
+  if (record.undoMessage === undefined) return undefined;
+  return t("builder.edit.undoFailed", { message: record.undoMessage });
+}
+
 function EditRow({
   record,
   number,
@@ -63,14 +70,7 @@ function EditRow({
   readonly onUndo: () => void;
 }) {
   const what = t(OP_LABELS[record.op]);
-  const note =
-    record.state === "failed"
-      ? t("builder.edit.failed", { message: record.message ?? "" })
-      : record.state === "not-run"
-        ? t("builder.edit.notRun")
-        : record.undoMessage === undefined
-          ? undefined
-          : t("builder.edit.undoFailed", { message: record.undoMessage });
+  const note = noteFor(record);
   return (
     <li className="qcms-builder-edit" data-state={record.state} data-testid="qcms-builder-edit">
       <div className="qcms-builder-edit__row">

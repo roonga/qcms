@@ -100,24 +100,23 @@ export interface AssistParamsRelay {
   readonly filters?: AssistFiltersRelay;
 }
 
+function parseTurn(entry: Record<string, unknown>): AssistConversationRelay | undefined {
+  const { role, content } = entry;
+  if ((role === "user" || role === "assistant") && typeof content === "string") {
+    return { role, content };
+  }
+  if (role === "edit-result") return parseEditResult(entry);
+  if (role === "action-result") return parseActionResult(entry);
+  return undefined;
+}
+
 export function parseAssistConversation(raw: unknown): readonly AssistConversationRelay[] {
   if (!Array.isArray(raw)) return [];
   const turns: AssistConversationRelay[] = [];
   for (const entry of raw) {
     if (!isRecord(entry)) continue;
-    const { role, content } = entry;
-    if ((role === "user" || role === "assistant") && typeof content === "string") {
-      turns.push({ role, content });
-      continue;
-    }
-    if (role === "edit-result") {
-      const edited = parseEditResult(entry);
-      if (edited !== undefined) turns.push(edited);
-      continue;
-    }
-    if (role !== "action-result") continue;
-    const settled = parseActionResult(entry);
-    if (settled !== undefined) turns.push(settled);
+    const turn = parseTurn(entry);
+    if (turn !== undefined) turns.push(turn);
   }
   return turns;
 }
