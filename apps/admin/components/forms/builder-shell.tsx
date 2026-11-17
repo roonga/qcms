@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
+  useRef,
   useState,
   useSyncExternalStore,
   useTransition,
@@ -52,14 +53,20 @@ function AssistantPane({
 }) {
   const conversation = useConversation();
   const turns = conversation.turns.filter(isProseTurn);
+  const subject = useRef<HTMLParagraphElement>(null);
   return (
     <div className="qcms-builder__pane-body" data-testid="qcms-builder-assistant">
-      <p className="text-sm text-(--color-text-muted)">
+      <p
+        ref={subject}
+        tabIndex={-1}
+        className="text-sm text-(--color-text-muted)"
+        data-testid="qcms-builder-assistant-subject"
+      >
         {formId === null
           ? t("builder.assistant.subjectNew")
           : t("builder.assistant.subject", { name })}
       </p>
-      <SelectedQuestion />
+      <SelectedQuestion returnFocusTo={subject} />
       {turns.length === 0 ? (
         <p data-testid="qcms-builder-assistant-empty">{t("builder.assistant.empty")}</p>
       ) : (

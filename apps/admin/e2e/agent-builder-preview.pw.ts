@@ -231,6 +231,8 @@ test("inspect selects a question, and the fact carries only its id", async ({ pa
   await page.keyboard.press("Enter");
   await expect(selection).toContainText(TEXT_ID);
 
-  await page.getByRole("button", { name: "Clear the selection" }).click();
+  await page.getByRole("button", { name: "Clear the selection" }).focus();
+  await page.keyboard.press("Enter");
   await expect(selection).toHaveCount(0);
+  await expect(page.getByTestId("qcms-builder-assistant-subject")).toBeFocused();
 });

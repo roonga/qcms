@@ -67,6 +67,84 @@ describe("the admin's builder facts against the API's strict schemas", () => {
     expect(LayoutReportFact.safeParse(fact).error).toBeUndefined();
   });
 
+  const selection = {
+    formId: "frm_contact",
+    stepId: "stp_one",
+    questionId: "q_first_name",
+    device: "phone",
+    viewport: { width: 390, height: 844 },
+  } as const;
+
+  it.each([
+    ["a form id that is not one", { formId: "contact" }],
+    ["a step id that is not one", { stepId: "stp_One" }],
+    ["a question id that is not one", { questionId: "first name" }],
+    ["an instance id that is not one", { instanceId: "ins-1" }],
+    ["an id past the slot's bound", { questionId: `q_${"a".repeat(130)}` }],
+  ])("refuses a selection the API rejects: %s", (_case, change) => {
+    const raw = { fact: "preview-selection", ...selection, ...change };
+    expect(PreviewSelectionFact.safeParse(raw).success).toBe(false);
+    expect(selectionFact({ ...selection, ...change })).toBeUndefined();
+  });
+
+  it("brings a selection's out-of-range viewport inside the API's bounds", () => {
+    const viewport = { width: 120.4, height: 9_999 };
+    expect(
+      PreviewSelectionFact.safeParse({ fact: "preview-selection", ...selection, viewport }).success,
+    ).toBe(false);
+    const fact = selectionFact({ ...selection, viewport });
+    expect(PreviewSelectionFact.safeParse(fact).error).toBeUndefined();
+  });
+
+  const report = {
+    formId: "frm_contact",
+    stepId: "stp_one",
+    device: "desktop",
+    viewport: { width: 1024, height: 768 },
+    zoomPercent: 100,
+    colorScheme: "light",
+    highContrast: false,
+    pageHeight: 1200,
+    findings: [],
+  } as const;
+
+  it.each([
+    ["a form id that is not one", { formId: "frm-contact" }],
+    ["a step id that is not one", { stepId: "step_one" }],
+  ])("refuses a layout report the API rejects: %s", (_case, change) => {
+    const raw = { fact: "layout-report", orientation: "landscape", ...report, ...change };
+    expect(LayoutReportFact.safeParse(raw).success).toBe(false);
+    expect(layoutReportFact({ ...report, ...change })).toBeUndefined();
+  });
+
+  it.each([
+    [
+      "a 51st finding",
+      {
+        findings: Array.from({ length: 51 }, (_unused, at) => ({
+          questionId: `q_${String(at)}`,
+          issue: "clipped" as const,
+        })),
+      },
+    ],
+    [
+      "a finding whose question id is not one",
+      { findings: [{ questionId: "Q 1", issue: "clipped" as const }] },
+    ],
+    ["a zoom past the bounds", { zoomPercent: 401 }],
+    ["a zoom below the bounds", { zoomPercent: 10 }],
+    ["a fractional zoom", { zoomPercent: 99.5 }],
+    ["a negative page height", { pageHeight: -1 }],
+    ["a page height past the bounds", { pageHeight: 100_001 }],
+    ["a viewport past the bounds", { viewport: { width: 4_001, height: 199 } }],
+  ])("drops or bounds what the API rejects in a layout report: %s", (_case, change) => {
+    const raw = { fact: "layout-report", orientation: "landscape", ...report, ...change };
+    expect(LayoutReportFact.safeParse(raw).success).toBe(false);
+    const fact = layoutReportFact({ ...report, ...change });
+    expect(fact).toBeDefined();
+    expect(LayoutReportFact.safeParse(fact).error).toBeUndefined();
+  });
+
   it("shares the API's issue vocabulary", () => {
     expect([...ADMIN_LAYOUT_ISSUES]).toEqual([...LAYOUT_ISSUES]);
   });

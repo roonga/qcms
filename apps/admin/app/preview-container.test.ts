@@ -18,7 +18,6 @@ function stripComments(css: string): string {
   return css.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
 }
 
-/** Each `<at-rule> (<condition>) { ... }` block, keyed by its condition, with its body. */
 function blocks(css: string, atRule: string): { condition: string; body: string }[] {
   const found: { condition: string; body: string }[] = [];
   const source = stripComments(css);
