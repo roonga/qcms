@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "../node_modules/@roonga/qcms-ui/src/theme.css";
 @import "../node_modules/@roonga/qcms-ui/src/theme-components.css";
-@import "../node_modules/@roonga/qcms-ui/src/fonts.css";
 @import "./theme.css";
 
 @source "../app";

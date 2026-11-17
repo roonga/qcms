@@ -14,6 +14,8 @@ import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
 import { previewDraftAction, startBuildDraftAction } from "../../actions";
 
+import "./preview-fonts.css";
+
 export async function generateMetadata({
   params,
 }: {
