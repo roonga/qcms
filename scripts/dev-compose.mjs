@@ -14,7 +14,12 @@ import { createFirstAdmin, generatePassword } from "./compose-admin.mjs";
 import { databaseUrlFor, seedFixtures } from "./compose-seed.mjs";
 import { CommandFailed, DOCKER, REPOSITORY_ROOT, runProcess } from "./docker.mjs";
 import { isInDockerContainer } from "./docker-host.mjs";
-import { assertPortSeatChosen, localStackProjectName, stablePort } from "./ports.mjs";
+import {
+  assertPortSeatChosen,
+  assertTeardownSeatChosen,
+  localStackProjectName,
+  stablePort,
+} from "./ports.mjs";
 
 export const COMPOSE_FILES = ["docker-compose.yml", "docker-compose.dev-tools.yml"];
 
@@ -606,6 +611,9 @@ export const SUBCOMMANDS = {
   down,
 };
 
+/** Subcommands that remove volumes, and so must name their seat even in the primary checkout. */
+export const TEARDOWN_SUBCOMMANDS = new Set(["down", "fresh"]);
+
 export function usageLine() {
   return `Usage: node scripts/dev-compose.mjs <${Object.keys(SUBCOMMANDS).join("|")}>`;
 }
@@ -617,7 +625,10 @@ function main() {
   // Before anything is spawned, for every subcommand: a silent fallback to seat 0 from
   // a worktree picks another lane's project name, and `down` deletes what it finds.
   try {
-    assertPortSeatChosen(REPOSITORY_ROOT, `pnpm dev:${command}`);
+    const guard = TEARDOWN_SUBCOMMANDS.has(command)
+      ? assertTeardownSeatChosen
+      : assertPortSeatChosen;
+    guard(REPOSITORY_ROOT, `pnpm dev:${command}`);
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error));
   }

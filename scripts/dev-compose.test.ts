@@ -31,7 +31,12 @@ import {
   teardownPlaceholders,
   usageLine,
 } from "./dev-compose.mjs";
-import { composeProjectName, localStackProjectName, stablePort } from "./ports.mjs";
+import {
+  assertTeardownSeatChosen,
+  composeProjectName,
+  localStackProjectName,
+  stablePort,
+} from "./ports.mjs";
 
 const scratch = mkdtempSync(join(tmpdir(), "qcms-dev-compose-"));
 
@@ -444,5 +449,43 @@ describe("seedNoticeLine", () => {
     expect(seedNoticeLine("seed", "p")).toMatch(/seeding/u);
     expect(seedNoticeLine("clear", "p")).toMatch(/clearing/u);
     expect(seedNoticeLine("reset", "p")).toMatch(/clearing and reseeding/u);
+  });
+});
+
+describe("assertTeardownSeatChosen", () => {
+  const primary = mkdtempSync(join(tmpdir(), "qcms-primary-"));
+  mkdirSync(join(primary, ".git"));
+  const linked = mkdtempSync(join(tmpdir(), "qcms-linked-"));
+  writeFileSync(join(linked, ".git"), "gitdir: elsewhere\n");
+  afterAll(() => {
+    rmSync(primary, { recursive: true, force: true });
+    rmSync(linked, { recursive: true, force: true });
+  });
+
+  it("refuses an unset seat in the primary checkout and says how to proceed", () => {
+    expect(() => {
+      assertTeardownSeatChosen(primary, "pnpm dev:down", undefined);
+    }).toThrow("QCMS_PORT_SEAT=0 pnpm dev:down");
+    expect(() => {
+      assertTeardownSeatChosen(primary, "pnpm dev:down", "  ");
+    }).toThrow(/seat 0/);
+  });
+
+  it("accepts an explicit seat, including 0", () => {
+    expect(() => {
+      assertTeardownSeatChosen(primary, "pnpm dev:down", "0");
+    }).not.toThrow();
+    expect(() => {
+      assertTeardownSeatChosen(primary, "pnpm dev:down", "3");
+    }).not.toThrow();
+  });
+
+  it("keeps the linked-worktree rule", () => {
+    expect(() => {
+      assertTeardownSeatChosen(linked, "pnpm dev:down", undefined);
+    }).toThrow(/linked git worktree/);
+    expect(() => {
+      assertTeardownSeatChosen(linked, "pnpm dev:down", "0");
+    }).not.toThrow();
   });
 });

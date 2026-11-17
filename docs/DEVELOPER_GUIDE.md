@@ -406,6 +406,8 @@ Bring it down with the matching command, which removes the containers, the netwo
 pnpm dev:down
 ```
 
+`dev:down` (and any `dev:fresh`) refuses to run on seat 0 by default: it deletes the stack's volumes, so in the primary checkout it requires `QCMS_PORT_SEAT` to be set. For the default stack, say so explicitly with `QCMS_PORT_SEAT=0 pnpm dev:down`. `dev:up` is unchanged.
+
 ### Sample data: `pnpm dev:seed`, `pnpm dev:seed:clear`, `pnpm dev:seed:reset`
 
 A freshly created stack has an empty question library and no form, which is the right default: the empty state is a screen worth reviewing, and it is what every list screen's empty-state copy is written against. When you want content instead:
