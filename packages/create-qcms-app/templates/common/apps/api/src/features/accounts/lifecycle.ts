@@ -95,13 +95,12 @@ export function makeDisableAccountHandler(
 
     const exec = deps.databases.control;
     if ((await accountOf(exec, id)).role === SITE_ADMINISTRATOR_ROLE) {
-      await requireSiteActStepUp(deps, c, "disable", id, actor.userId);
-      const outcome = await requestOrApplySiteAct(deps, {
-        kind: "disable",
-        target: id,
-        requester: actor.userId,
-        payload: {},
-      });
+      const stepUp = await requireSiteActStepUp(deps, c, "disable", id, actor.userId);
+      const outcome = await requestOrApplySiteAct(
+        deps,
+        { kind: "disable", target: id, requester: actor.userId, payload: {} },
+        stepUp,
+      );
       if (outcome.held !== undefined) return c.json({ request: requestView(outcome.held) }, 202);
       return c.json(
         {
@@ -201,13 +200,17 @@ export function makeResetAccountHandler(
     const exec = deps.databases.control;
     const target = await accountOf(exec, id);
     if (target.role === SITE_ADMINISTRATOR_ROLE) {
-      await requireSiteActStepUp(deps, c, "reset", id, actor.userId);
-      const outcome = await requestOrApplySiteAct(deps, {
-        kind: "reset",
-        target: id,
-        requester: actor.userId,
-        payload: { password: body.password, factor: body.factor },
-      });
+      const stepUp = await requireSiteActStepUp(deps, c, "reset", id, actor.userId);
+      const outcome = await requestOrApplySiteAct(
+        deps,
+        {
+          kind: "reset",
+          target: id,
+          requester: actor.userId,
+          payload: { password: body.password, factor: body.factor },
+        },
+        stepUp,
+      );
       if (outcome.held !== undefined) return c.json({ request: requestView(outcome.held) }, 202);
       return c.json(
         { account: accountView(await accountOf(exec, id)), delivery: outcome.delivery ?? "sent" },

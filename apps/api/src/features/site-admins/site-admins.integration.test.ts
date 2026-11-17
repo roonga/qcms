@@ -528,9 +528,7 @@ describe("a TOTP code is spent once", () => {
     async () => {
       const code = await codeFor(a);
       const sessions = [a.session, await secondSession(a)];
-      const responses = await Promise.all(
-        sessions.map((session) => stepUpWith(a, code, session)),
-      );
+      const responses = await Promise.all(sessions.map((session) => stepUpWith(a, code, session)));
       expect(responses.map((response) => response.status).sort()).toEqual([200, 403]);
       const stepped = await Promise.all(sessions.map(hasStepUp));
       expect(stepped.filter(Boolean)).toHaveLength(1);

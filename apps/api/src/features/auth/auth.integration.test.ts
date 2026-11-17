@@ -11,7 +11,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import { ADMIN_SESSION_HEADER } from "../../middleware/admin-auth.js";
 import { appGroups } from "../../registrars.js";
-import { freshTotpCode, internalTokenFor, makeDeps, recordingLogger, validEnv } from "../../test-support.js";
+import {
+  freshTotpCode,
+  internalTokenFor,
+  makeDeps,
+  recordingLogger,
+  validEnv,
+} from "../../test-support.js";
 import { createInitialAdmin } from "./bootstrap.js";
 import { createAdminAuth } from "./instance.js";
 

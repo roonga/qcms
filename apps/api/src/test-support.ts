@@ -380,6 +380,8 @@ export async function freshTotpCode(secret: string): Promise<string> {
       spentTotpSteps.set(secret, step);
       return generate({ secret, epoch: (step * TOTP_PERIOD_MS) / 1000 });
     }
-    await new Promise((resolve) => setTimeout(resolve, (now + 1) * TOTP_PERIOD_MS - Date.now() + 50));
+    await new Promise((resolve) =>
+      setTimeout(resolve, (now + 1) * TOTP_PERIOD_MS - Date.now() + 50),
+    );
   }
 }

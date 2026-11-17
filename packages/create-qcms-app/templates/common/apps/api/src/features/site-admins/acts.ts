@@ -30,7 +30,7 @@ import {
   resetAccountWithin,
 } from "../accounts/lifecycle-acts.js";
 import { issueAndSendSignInLink, type SignInLinkDeliveryOutcome } from "../accounts/links.js";
-import { requireStepUp } from "../auth/step-up.js";
+import { requireStepUp, requireStepUpOn, type StepUpSession } from "../auth/step-up.js";
 
 export const siteFail = {
   busy: (): ApiError =>
@@ -84,6 +84,12 @@ export const siteFail = {
       "TARGET_DECIDES",
       409,
       "This request is about your own account, so another Site administrator decides it",
+    ),
+  approverGone: (): ApiError =>
+    new ApiError(
+      "APPROVER_NOT_SITE_ADMINISTRATOR",
+      409,
+      "You are no longer an active Site administrator, so you cannot approve this",
     ),
   requesterGone: (): ApiError =>
     new ApiError(
@@ -173,10 +179,10 @@ export async function requireSiteActStepUp(
   kind: SiteApprovalKind,
   target: string,
   actorId: string,
-): Promise<void> {
+): Promise<StepUpSession> {
   const exec = deps.databases.control;
   await refuseSiteAct(exec, kind, await accountOf(exec, target), actorId);
-  await requireStepUp(deps, c);
+  return requireStepUp(deps, c);
 }
 
 /** The Site administrators who could approve: active, claimed, neither requester nor target. */
@@ -270,10 +276,12 @@ async function applyReset(
 export async function requestOrApplySiteAct(
   deps: Deps,
   input: SiteActInput,
+  stepUp: StepUpSession,
 ): Promise<SiteActOutcome> {
   const exec = deps.databases.control;
   const decided = await exec.transaction(async (tx) => {
     await lockFor(tx, input.target);
+    await requireStepUpOn(tx, deps, stepUp);
     const current = await accountOf(tx, input.target);
     await refuseSiteAct(tx, input.kind, current, input.requester);
     const approvers = await approversFor(tx, input);
@@ -303,6 +311,7 @@ export async function requestOrApplySiteAct(
 
   if (!("applyReset" in decided)) return decided;
   const delivery = await applyReset(deps, input, async (tx) => {
+    await requireStepUpOn(tx, deps, stepUp);
     const current = await accountOf(tx, input.target);
     await refuseSiteAct(tx, input.kind, current, input.requester);
     if ((await approversFor(tx, input)).length > 0) throw siteFail.approvalsChanged();
@@ -347,13 +356,14 @@ async function decide(
 
 /**
  * Approve a pending site request and apply it in the same transaction, re-checked as it is
- * applied: the requester must still be an active Site administrator, and the act's own
- * refusals hold as they did when it was asked for.
+ * applied: the approver's step-up must still be fresh, both people must still be active Site
+ * administrators, and the act's own refusals hold as they did when it was asked for.
  */
 export async function approveSiteRequest(
   deps: Deps,
   request: ApprovalRequestRow,
   approverId: string,
+  stepUp: StepUpSession,
 ): Promise<{
   readonly request: ApprovalRequestRow;
   readonly delivery?: SignInLinkDeliveryOutcome;
@@ -367,10 +377,11 @@ export async function approveSiteRequest(
   };
   const approval = `request=${request.requestId} approver=${approverId}`;
   const recheck = async (tx: Executor): Promise<ApprovalRequestRow> => {
+    await requireStepUpOn(tx, deps, stepUp);
     const decided = await decide(tx, deps, request, approverId, "approved");
-    if (!(await listActiveSiteAdministratorIds(tx)).includes(request.requestedBy)) {
-      throw siteFail.requesterGone();
-    }
+    const active = await listActiveSiteAdministratorIds(tx);
+    if (!active.includes(approverId)) throw siteFail.approverGone();
+    if (!active.includes(request.requestedBy)) throw siteFail.requesterGone();
     const current = await accountOf(tx, request.target);
     await refuseSiteAct(tx, input.kind, current, input.requester);
     return decided;

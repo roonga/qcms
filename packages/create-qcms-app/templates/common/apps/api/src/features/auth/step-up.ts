@@ -1,15 +1,13 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
-  authTwoFactor,
+  acceptTotpStep,
+  claimStepUpAttempt,
+  dropStepUp,
   hasFreshStepUp,
   recordStepUp,
-  recordStepUpFailure,
   stepUpExpiresAt,
-  stepUpLocked,
+  type Executor,
 } from "@roonga/qcms-db";
-// eslint-disable-next-line no-restricted-imports -- the vendor's own cipher module, not Node's; the built-in fence matches its `crypto` segment
-import { symmetricDecrypt } from "better-auth/crypto";
-import { and, eq } from "drizzle-orm";
 import type { Context } from "hono";
 
 import type { SliceRegistrar } from "../../app.js";
@@ -18,10 +16,7 @@ import { ApiError } from "../../errors.js";
 import { errorResponses, jsonBody, withScopes, type ApiEnv } from "../../openapi.js";
 import { verifyAccountPassword } from "../accounts/credential.js";
 import { adminAuthFor } from "./route.js";
-
-const TOTP_PERIOD_S = 30;
-const TOTP_DIGITS = 6;
-const TOTP_WINDOW = 1;
+import { factorStep } from "./totp.js";
 
 const fail = {
   noSession: (): ApiError =>
@@ -43,71 +38,33 @@ const fail = {
     ),
 } as const;
 
-async function hotp(key: CryptoKey, counter: number): Promise<string> {
-  const message = new ArrayBuffer(8);
-  new DataView(message).setBigUint64(0, BigInt(counter), false);
-  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, message));
-  const offset = (mac[mac.length - 1] ?? 0) & 0xf;
-  const word =
-    (((mac[offset] ?? 0) & 0x7f) << 24) |
-    ((mac[offset + 1] ?? 0) << 16) |
-    ((mac[offset + 2] ?? 0) << 8) |
-    (mac[offset + 3] ?? 0);
-  return (word % 10 ** TOTP_DIGITS).toString().padStart(TOTP_DIGITS, "0");
+/** The session a step-up is bound to. */
+export interface StepUpSession {
+  readonly userId: string;
+  readonly sessionId: string;
 }
 
-/** RFC 6238 over the secret the vendor enrolled, with the vendor's period, digits and window. */
-async function totpMatches(secret: string, code: string, now: Date): Promise<boolean> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-1" },
-    false,
-    ["sign"],
-  );
-  const counter = Math.floor(now.getTime() / (TOTP_PERIOD_S * 1000));
-  let matched = false;
-  for (let step = -TOTP_WINDOW; step <= TOTP_WINDOW; step += 1) {
-    const expected = await hotp(key, counter + step);
-    let difference = expected.length ^ code.length;
-    for (let i = 0; i < expected.length; i += 1) {
-      difference |= expected.charCodeAt(i) ^ code.charCodeAt(i);
-    }
-    matched = difference === 0 || matched;
-  }
-  return matched;
-}
-
-async function factorMatches(deps: Deps, userId: string, code: string): Promise<boolean> {
-  const [factor] = await deps.databases.control
-    .select({ secret: authTwoFactor.secret })
-    .from(authTwoFactor)
-    .where(and(eq(authTwoFactor.userId, userId), eq(authTwoFactor.verified, true)))
-    .limit(1);
-  if (factor === undefined) return false;
-  const ctx = await adminAuthFor(deps).$context;
-  const secret = await symmetricDecrypt({ key: ctx.secretConfig, data: factor.secret });
-  // An imported secret is stored base32-prefixed; QCMS only ever enrols generated ones.
-  if (secret.startsWith("base32:")) return false;
-  // Wall time, not the injected clock: the code on the person's device is.
-  return totpMatches(secret, code, new Date());
-}
-
-function sessionOf(c: Context<ApiEnv>): { readonly userId: string; readonly sessionId: string } {
+function sessionOf(c: Context<ApiEnv>): StepUpSession {
   const principal = c.get("adminPrincipal");
   if (principal?.sessionId === undefined) throw fail.noSession();
   return { userId: principal.userId, sessionId: principal.sessionId };
 }
 
-/** Refuse unless the request's own session stepped up within the last five minutes. */
-export async function requireStepUp(deps: Deps, c: Context<ApiEnv>): Promise<void> {
-  const { userId, sessionId } = sessionOf(c);
-  const fresh = await hasFreshStepUp(deps.databases.control, {
-    sessionId,
-    userId,
-    now: deps.clock.now(),
-  });
+/** Refuse unless `session` stepped up within the last five minutes, read on `exec`. */
+export async function requireStepUpOn(
+  exec: Executor,
+  deps: Deps,
+  session: StepUpSession,
+): Promise<void> {
+  const fresh = await hasFreshStepUp(exec, { ...session, now: deps.clock.now() });
   if (!fresh) throw fail.required();
+}
+
+/** Refuse unless the request's own session stepped up within the last five minutes. */
+export async function requireStepUp(deps: Deps, c: Context<ApiEnv>): Promise<StepUpSession> {
+  const session = sessionOf(c);
+  await requireStepUpOn(deps.databases.control, deps, session);
+  return session;
 }
 
 const StepUpBody = z
@@ -145,12 +102,21 @@ export const registerStepUp: SliceRegistrar = (group, deps) => {
     const { userId, sessionId } = sessionOf(c);
     const body = c.req.valid("json");
     const exec = deps.databases.control;
-    if (await stepUpLocked(exec, sessionId)) throw fail.locked();
+    if (!(await claimStepUpAttempt(exec, { sessionId, userId }))) throw fail.locked();
 
-    const passwordOk = await verifyAccountPassword(adminAuthFor(deps), userId, body.password);
-    const codeOk = passwordOk && (await factorMatches(deps, userId, body.code));
-    if (!codeOk) {
-      await recordStepUpFailure(exec, { sessionId, userId });
+    const auth = adminAuthFor(deps);
+    const { secretConfig } = await auth.$context;
+    // Both halves always run, so the time taken does not say which one was wrong.
+    const [passwordOk, step] = await Promise.all([
+      verifyAccountPassword(auth, userId, body.password),
+      factorStep(exec, secretConfig, { userId, code: body.code, verifiedOnly: true }),
+    ]);
+    const spent =
+      passwordOk &&
+      step !== undefined &&
+      (await acceptTotpStep(exec, { userId, step, verifiedOnly: true }));
+    if (!spent) {
+      await dropStepUp(exec, sessionId);
       throw fail.refused();
     }
     const at = deps.clock.now();

@@ -15,7 +15,13 @@ import type { Deps } from "../../deps.js";
 import { ADMIN_SESSION_HEADER } from "../../middleware/admin-auth.js";
 import { appGroups } from "../../registrars.js";
 import { BREACH_LOOKUP_FAILED_CODE, BREACH_LOOKUP_TIMEOUT_MS } from "../auth/instance.js";
-import { freshTotpCode, internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
+import {
+  freshTotpCode,
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  validEnv,
+} from "../../test-support.js";
 import type { Mailer, MailMessage } from "../email/mailer.js";
 import { SIGN_IN_LINK_TTL_HOURS } from "../email/templates.js";
 import { claimAfterFactorVerified } from "./claim.js";
