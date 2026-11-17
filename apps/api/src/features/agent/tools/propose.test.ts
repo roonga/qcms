@@ -17,6 +17,7 @@ const VIEWER: HeldGrant = { roles: ["forms.viewer"], environments: [] };
 
 function propose(args: {
   readonly steps: readonly ProposedStep[];
+  readonly title?: string;
   readonly grants?: readonly HeldGrant[];
   readonly memberRole?: string;
   readonly current?: string;
@@ -34,6 +35,7 @@ function propose(args: {
   const grants = args.grants ?? [EDITOR, PUBLISHER];
   return buildProposal({
     steps: args.steps,
+    ...(args.title === undefined ? {} : { title: args.title }),
     ...(args.savedDraft === undefined ? {} : { savedDraft: args.savedDraft }),
     ...(args.workspaceNames === undefined ? {} : { workspaceNames: args.workspaceNames }),
     ...(args.canWriteDraft === undefined ? {} : { canWriteDraft: args.canWriteDraft }),
@@ -1278,5 +1280,32 @@ describe("buildProposal: a hand-off step finishes on the screen itself", () => {
       screen: "/operations/forms/[formId]/responses",
     });
     expect(outcome.ok).toBe(true);
+  });
+});
+
+describe("buildProposal: the plan's own title", () => {
+  it("carries the outcome line the assistant wrote onto the proposal", async () => {
+    const outcome = await propose({
+      steps: [publish],
+      title: "Ask about allergies, then publish to test",
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.title).toBe("Ask about allergies, then publish to test");
+  });
+
+  it("leaves the title off a plan that named none, so the card titles itself", async () => {
+    const outcome = await propose({ steps: [publish] });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.title).toBeUndefined();
+  });
+
+  it("refuses the plan outright when its title names an id", async () => {
+    const outcome = await propose({ steps: [publish], title: "Publish frm_a to test" });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("frm_a");
+    expect(outcome.reason).toContain("never by an id");
   });
 });

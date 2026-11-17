@@ -228,6 +228,22 @@ describe("a card names its subject rather than its ids", () => {
     ).toBeTruthy();
   });
 
+  it("heads the plan with the assistant's own outcome line where it wrote one", () => {
+    const plan = { ...proposal([CREATE, SAVE]), title: "Start the patient form and save it" };
+    renderCard(plan, initialCard(plan));
+    expect(
+      screen.getByRole("heading", { name: "Start the patient form and save it" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps the catalogue's own sentence on a single-step card, whatever the plan is titled", () => {
+    const plan = { ...proposal([step()]), title: "Give them a way in" };
+    renderCard(plan, initialCard(plan));
+    expect(
+      screen.getByRole("heading", { name: "Create 20 test links for this form" }),
+    ).toBeTruthy();
+  });
+
   it("puts the id behind a closed disclosure once a title stands in for it", () => {
     const plan = proposal([step()]);
     const { container } = renderCard(plan, initialCard(plan), {

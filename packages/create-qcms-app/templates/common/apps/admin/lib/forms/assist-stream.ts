@@ -77,6 +77,10 @@ export interface AgentProposal {
   readonly workspaces?: readonly AgentWorkspaceName[];
 
   readonly currentEnvironment: string;
+
+  /* The plan's outcome as the assistant wrote it. The API refuses one carrying an id or a
+     builder word, so a card that has it can show it as its heading. */
+  readonly title?: string;
 }
 
 // assist-error-codes tests compare this wire mirror with API declarations and require distinct catalog copy.
@@ -353,6 +357,7 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
   const formId = raw["formId"];
   const currentEnvironment = raw["currentEnvironment"];
   const workspaces = toWorkspaceNames(raw["workspaces"]);
+  const title = raw["title"];
   // Do not invent a missing destination environment: confirmation is bound to the selection under which the turn ran.
   if (typeof currentEnvironment !== "string" || currentEnvironment === "") return undefined;
   return {
@@ -364,6 +369,7 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
     formId: typeof formId === "string" ? formId : undefined,
     currentEnvironment,
     ...(workspaces.length === 0 ? {} : { workspaces }),
+    ...(typeof title === "string" && title.trim() !== "" ? { title: title.trim() } : {}),
   };
 }
 

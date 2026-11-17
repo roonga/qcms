@@ -117,6 +117,8 @@ export type FormDefinitionPort = (input: {
  */
 export type ProposePort = (input: {
   readonly steps: readonly ProposedStep[];
+  /** The plan's outcome as the assistant wrote it, which the card may use as its heading. */
+  readonly title?: string | undefined;
 
   readonly proposalsThisTurn: number;
   /**

@@ -682,15 +682,17 @@ interface AgentToolDef {
  * its reason to the model rather than ending the turn.
  */
 async function propose(
-  steps: readonly ProposedStep[],
+  input: unknown,
   ctx: AgentContext,
   state: ProposalState,
 ): Promise<Record<string, unknown>> {
+  const title = (input ?? {}) as { title?: unknown };
   const outcome = await port(
     ctx.propose,
     "propose_plan",
   )({
-    steps,
+    steps: stepsOf(input),
+    ...(typeof title.title === "string" ? { title: title.title } : {}),
     proposalsThisTurn: state.actionProposals.length,
     // Present only once `propose_draft` has recorded one, which is what the kind that
     // applies a draft is refused without.
@@ -1054,7 +1056,7 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
     inputSchema: proposePlanSchema([]),
     schemaFor: (ctx) => proposePlanSchema(ctx.offeredActionKinds ?? []),
     outputSchema: Outputs.propose_plan,
-    execute: (input, ctx, state) => propose(stepsOf(input), ctx, state),
+    execute: (input, ctx, state) => propose(input, ctx, state),
   },
 });
 

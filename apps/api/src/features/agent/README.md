@@ -212,6 +212,12 @@ The draft preamble that asks for changes is sent only on a screen that offers a
 propose verb, so a screen holding the draft for a read tool alone is not told to
 propose against it.
 
+A plan's own `title` is the one piece of model prose a card heading carries. It is held
+to a heading's length, flattened to a single line, and the plan is refused outright where
+it names a branded id or a word on the avoid list (`tools/plan-title.ts`), so a heading
+reads like the catalogue sentences under it. A card of one step keeps the catalogue's own
+title, which is the only place that step's words appear.
+
 The facts preamble also carries the turn's date. The browser sends `viewerToday`,
 the day on the viewer's own clock, because that is the day their screen writes
 dates in and a date bound the model works out is read back off that screen; the

@@ -13,3 +13,8 @@ does. Never end it on the card itself or on what their Confirm will do. "Nothing
 changes until you confirm it.", "The plan is on a card for you to confirm." and every
 sentence like them say what the card already says for itself, and each one reads as
 stale the moment they confirm it.
+
+A plan of more than one step takes a title as well: what the whole plan leaves behind,
+in a few plain words, which the card uses as its heading. Name the outcome rather than
+the last step. "Ask about allergies, then publish to test" is one; "Publish the form to
+test" names a step the card already lists below it.

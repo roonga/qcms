@@ -337,7 +337,10 @@ test("ends the plan on Pending approval when production holds the change", async
   await openWebhooks(page, prodFormId);
   await propose(page, "plan-pending-at-1", "move the endpoint and resend what is stuck");
 
-  await expect(card(page)).toContainText(t("agent.card.environment.production"));
+  // A webhook step in prod gets the plain note; the sentence about respondents belongs to a
+  // form publish, which is the only step that puts one in front of them.
+  await expect(card(page)).toContainText(t("agent.card.environment.prodNote"));
+  await expect(card(page)).not.toContainText(t("agent.card.environment.production"));
   await expectWaitingStepStates(page, "Proposed");
 
   await confirmButton(page).click();

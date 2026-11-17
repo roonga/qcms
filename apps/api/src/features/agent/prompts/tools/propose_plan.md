@@ -8,4 +8,5 @@ on the card as its reason and stays there after the card has run, so make it say
 plan does what it does. Never end it on the card itself or on what their Confirm will do:
 "waiting for your Confirm", "Nothing changes until you confirm it." and every sentence
 like them say what the card already says, and each one is wrong the moment they confirm
-it.
+it. Give a plan of more than one step a title as well: what it leaves behind, in the
+person's own words, which the card uses as its heading.

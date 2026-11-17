@@ -202,6 +202,23 @@ describe("readAssistEvents", () => {
     expect(event.proposal.workspaces).toEqual([{ workspaceId: "wsp_a", name: "Clinic forms" }]);
   });
 
+  it("carries the plan's own title, and treats a blank one as none", async () => {
+    const draft = { definition: { formId: "frm_a" }, newQuestions: [], issues: [] };
+    const titled = {
+      ...proposalWith(applyDraftStep(draft)),
+      title: "  Start the patient form and save it  ",
+    };
+    const blank = { ...proposalWith(applyDraftStep(draft)), title: "   " };
+
+    const [one] = await collect(streamOf([frame("plan", { proposal: titled })]));
+    if (one?.type !== "plan") throw new Error("expected a plan frame");
+    expect(one.proposal.title).toBe("Start the patient form and save it");
+
+    const [two] = await collect(streamOf([frame("plan", { proposal: blank })]));
+    if (two?.type !== "plan") throw new Error("expected a plan frame");
+    expect(two.proposal.title).toBeUndefined();
+  });
+
   it("reads an applied draft with no warnings key as no warnings, not as absent", async () => {
     const events = await collect(
       streamOf([
