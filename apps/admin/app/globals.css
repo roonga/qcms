@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "../../../packages/ui/src/theme.css";
 @import "../../../packages/ui/src/theme-components.css";
-@import "../../../packages/ui/src/fonts.css";
 @import "./theme.css";
 
 @source "../app";
