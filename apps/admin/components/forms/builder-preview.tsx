@@ -21,11 +21,7 @@ import { Alert, Button, Select } from "@/components/kit";
 import { usePreviewLocale } from "@/components/locale-context";
 import { PreviewSurface } from "@/components/preview-theme-island";
 import { layoutFindings, layoutReportFact, selectionFact } from "@/lib/agent/builder-facts";
-import {
-  publishLayout,
-  publishSelection,
-  useBuilderFacts,
-} from "@/lib/agent/builder-facts-store";
+import { publishLayout, publishSelection, useBuilderFacts } from "@/lib/agent/builder-facts-store";
 import { QUESTION_ATTRIBUTE, measureStep } from "@/lib/forms/layout-collector";
 import {
   INITIAL_LOOK,

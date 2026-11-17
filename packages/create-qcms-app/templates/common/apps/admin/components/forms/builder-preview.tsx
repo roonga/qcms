@@ -21,12 +21,7 @@ import { Alert, Button, Select } from "@/components/kit";
 import { usePreviewLocale } from "@/components/locale-context";
 import { PreviewSurface } from "@/components/preview-theme-island";
 import { layoutFindings, layoutReportFact, selectionFact } from "@/lib/agent/builder-facts";
-import {
-  clearBuilderFacts,
-  publishLayout,
-  publishSelection,
-  useBuilderFacts,
-} from "@/lib/agent/builder-facts-store";
+import { publishLayout, publishSelection, useBuilderFacts } from "@/lib/agent/builder-facts-store";
 import { QUESTION_ATTRIBUTE, measureStep } from "@/lib/forms/layout-collector";
 import {
   INITIAL_LOOK,
@@ -196,11 +191,21 @@ export function BuilderPreview({
   const served = useMemo(() => rosterRecord(state.preview?.flow.rosters ?? []), [state.preview]);
   const view = previewViewNarrowing(draft, views[index], served);
 
-  useEffect(() => clearBuilderFacts, []);
+  const [scrolled, setScrolled] = useState(0);
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (surface === null) return undefined;
+    const onScroll = (): void => {
+      setHovered(undefined);
+      setScrolled((count) => count + 1);
+    };
+    surface.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      surface.removeEventListener("scroll", onScroll);
+    };
+  }, []);
 
   const selected = facts.selection;
-  const selectedKey =
-    selected === undefined ? undefined : `${selected.instanceId ?? ""}/${selected.questionId}`;
 
   useLayoutEffect(() => {
     const frameNode = frameRef.current;
@@ -214,7 +219,7 @@ export function BuilderPreview({
         instanceIdOfField(candidate.getAttribute("data-qcms-field") ?? "") === selected.instanceId,
     );
     setSelectedOutline(wrapper === undefined ? undefined : outlineOf(wrapper, frameNode, scale));
-  }, [selected, selectedKey, scale, size.width, size.height, state.preview, index, look]);
+  }, [selected, scale, size.width, size.height, state.preview, index, look, scrolled]);
 
   useEffect(() => {
     const surface = surfaceRef.current;
@@ -229,7 +234,7 @@ export function BuilderPreview({
           formId,
           stepId: step.stepId,
           device: kind,
-          viewport: size,
+          viewport: { width: size.width, height: size.height },
           zoomPercent: percent,
           colorScheme: look.polarity,
           highContrast: look.highContrast,

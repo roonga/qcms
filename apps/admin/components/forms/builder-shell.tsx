@@ -59,6 +59,7 @@ function AssistantPane({
           ? t("builder.assistant.subjectNew")
           : t("builder.assistant.subject", { name })}
       </p>
+      <SelectedQuestion />
       {turns.length === 0 ? (
         <p data-testid="qcms-builder-assistant-empty">{t("builder.assistant.empty")}</p>
       ) : (
