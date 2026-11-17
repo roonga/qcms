@@ -28,6 +28,7 @@ import {
   optionalProp,
   unplacedIssues,
 } from "@/lib/questions/errors";
+import { withFormatPattern } from "@/lib/questions/format-patterns";
 import {
   DEFAULT_QUESTION_PANEL,
   firstPanelWithIssue,
@@ -298,6 +299,9 @@ function PanelBody(props: PanelBodyProps) {
           isFrozen={isFrozen}
           onChange={(constraints: ConstraintsView) => {
             onPatch({ constraints });
+          }}
+          onApplyFormat={(name) => {
+            onPatch(withFormatPattern(definition, name));
           }}
         />
       );
