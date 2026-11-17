@@ -3,7 +3,11 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { ACCESS_AUDIT_KINDS, ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
+import {
+  ACCESS_AUDIT_KIND_CHECK,
+  ACCESS_AUDIT_KINDS,
+  ACCESS_AUDIT_TABLE,
+} from "../schema/control/access-audit.js";
 import {
   SITE_AUDIT_KIND_CHECK,
   SITE_AUDIT_KINDS,
@@ -88,6 +92,10 @@ const TAKEDOWN_MIGRATION = fileURLToPath(
 
 const SIGN_IN_LINKS_MIGRATION = fileURLToPath(
   new URL("../../migrations/0013_sign_in_links.sql", import.meta.url),
+);
+
+const LINK_KIND_MIGRATION = fileURLToPath(
+  new URL("../../migrations/0014_access_audit_link_kind.sql", import.meta.url),
 );
 
 describe("the `form_releases` grants", () => {
@@ -312,7 +320,10 @@ describe("the site audit's grants (criterion 112)", () => {
     for (const kind of SITE_AUDIT_KINDS.filter((name) => name !== "logo")) {
       expect(sql).toContain(`'${kind}'`);
     }
-    for (const kind of ACCESS_AUDIT_KINDS) expect(sql).toContain(`'${kind}'`);
+    // The twelfth access kind, `link`, arrives in 0014 and is asserted there.
+    for (const kind of ACCESS_AUDIT_KINDS.filter((name) => name !== "link")) {
+      expect(sql).toContain(`'${kind}'`);
+    }
   });
 });
 
@@ -486,5 +497,18 @@ describe("the sign-in links' grants (task 090)", () => {
     expect(sql).toContain('"expires_at" timestamp with time zone NOT NULL');
     expect(sql).toContain('"used_at" timestamp with time zone');
     expect(sql).toContain('"invalidated_at" timestamp with time zone');
+  });
+});
+
+describe("the twelfth access audit kind", () => {
+  const sql = readFileSync(LINK_KIND_MIGRATION, "utf8");
+
+  it("rebuilds the kind CHECK with every access kind, `link` included", () => {
+    expect(sql).toContain(`CONSTRAINT "${ACCESS_AUDIT_KIND_CHECK}"`);
+    for (const kind of ACCESS_AUDIT_KINDS) expect(sql).toContain(`'${kind}'`);
+  });
+
+  it("changes no grant, because the control role already holds INSERT on the table", () => {
+    expect(sql).not.toMatch(/(GRANT|REVOKE)/);
   });
 });
