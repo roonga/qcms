@@ -67,15 +67,22 @@ export function isGithubLanePath(path) {
   return !GITHUB_OFF_LANE_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
-/** The scaffold's mirror of a repository path classifies as the path it mirrors. */
 export const TEMPLATE_MIRROR_PREFIX = "packages/create-qcms-app/templates/common/";
 
 /**
- * @param {string} path
- * @returns {string}
+ * A template path classifies as the path it mirrors only when that source path is in the
+ * same diff, so a template-only change never rides a lane its source would.
+ *
+ * @param {readonly string[]} paths
+ * @returns {string[]}
  */
-export function mirrorSource(path) {
-  return path.startsWith(TEMPLATE_MIRROR_PREFIX) ? path.slice(TEMPLATE_MIRROR_PREFIX.length) : path;
+export function mirrorSources(paths) {
+  const changed = new Set(paths);
+  return paths.map((path) => {
+    if (!path.startsWith(TEMPLATE_MIRROR_PREFIX)) return path;
+    const source = path.slice(TEMPLATE_MIRROR_PREFIX.length);
+    return changed.has(source) ? source : path;
+  });
 }
 
 /**
@@ -83,7 +90,7 @@ export function mirrorSource(path) {
  * @returns {string[]}
  */
 function classifiable(files) {
-  return files.filter((path) => path !== "").map(mirrorSource);
+  return mirrorSources(files.filter((path) => path !== ""));
 }
 
 const LOG_LIMIT = 40;

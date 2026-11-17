@@ -27,7 +27,7 @@ import {
   isGithubLanePath,
   isPlanOnly,
   isUiNeeded,
-  mirrorSource,
+  mirrorSources,
   parsePaths,
 } from "./ci-plan-only.mjs";
 
@@ -311,14 +311,28 @@ describe("plan-only classification: changesets and repository metadata", () => {
 });
 
 describe("the create-qcms-app template mirror", () => {
-  it("maps a templates/common path to the path it mirrors", () => {
-    expect(mirrorSource("packages/create-qcms-app/templates/common/apps/admin/app/page.tsx")).toBe(
+  it("maps a templates/common path only when its source is in the same diff", () => {
+    const mirror = "packages/create-qcms-app/templates/common/apps/admin/app/page.tsx";
+    expect(mirrorSources(["apps/admin/app/page.tsx", mirror])).toEqual([
       "apps/admin/app/page.tsx",
+      "apps/admin/app/page.tsx",
+    ]);
+    expect(mirrorSources([mirror])).toEqual([mirror]);
+    const solo = "packages/create-qcms-app/templates/solo/docker/Caddyfile";
+    expect(mirrorSources(["docker/Caddyfile", solo])).toEqual(["docker/Caddyfile", solo]);
+  });
+
+  it("never puts a template-only path on the fast lane", () => {
+    const templateDoc = "packages/create-qcms-app/templates/common/docs/x.md";
+    expect(isPlanOnly([templateDoc])).toBe(false);
+    expect(isPlanOnly(["docs/PORTS.md", templateDoc])).toBe(false);
+    expect(isPlanOnly(["packages/create-qcms-app/templates/common/CLAUDE.md"])).toBe(false);
+    expect(isAdminOnly([templateDoc])).toBe(false);
+    expect(isUiNeeded([templateDoc])).toBe(true);
+    expect(isApiNeeded([templateDoc])).toBe(true);
+    expect(isAdminOnly(["packages/create-qcms-app/templates/common/apps/admin/app/page.tsx"])).toBe(
+      false,
     );
-    expect(mirrorSource("packages/create-qcms-app/templates/solo/docker/Caddyfile")).toBe(
-      "packages/create-qcms-app/templates/solo/docker/Caddyfile",
-    );
-    expect(mirrorSource("apps/admin/app/page.tsx")).toBe("apps/admin/app/page.tsx");
   });
 
   it("keeps an admin change and its mirror on the admin lane", () => {
