@@ -15,6 +15,7 @@ import { Alert, Button, Tab, TabList, TabPanel, Tabs } from "@/components/kit";
 import { BuilderPreview, type BuilderPreviewSource } from "@/components/forms/builder-preview";
 import { SelectedQuestion } from "@/components/forms/selected-question";
 import { isProseTurn, ConversationProvider, useConversation } from "@/lib/agent/conversation";
+import { clearBuilderFacts } from "@/lib/agent/builder-facts-store";
 import { builderConversationKey } from "@/lib/agent/conversation-state";
 import { BUILDER_PANE_WIDTH, BUILDER_TABS_QUERY } from "@/lib/agent/panel";
 import { builderPublishHref, editByHandHref, sharePreviewHref } from "@/lib/forms/build-return";
@@ -291,6 +292,7 @@ export function BuilderShell({
     setBuilderSubjectName(name);
     return () => {
       setBuilderSubjectName("");
+      clearBuilderFacts();
     };
   }, [name]);
 
