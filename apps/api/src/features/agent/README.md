@@ -168,7 +168,7 @@ unpublished version is meant to sit.
 ## `form.saveDraft` takes a form from nothing to a reviewable draft
 
 `form.saveDraft` saves a complete draft through `PUT /admin/forms/{id}/draft`,
-the route every other edit takes, with the sticky agent-assisted mark. It is
+the route every other edit takes; its token writes the step's audit row. It is
 proposable from any screen and its `formId` may name an earlier step's result, so
 one card can be `form.create`, a `question.create` per new question, then
 `form.saveDraft` pinning them. Publishing stays a separate card.
@@ -292,10 +292,10 @@ UI is never handed a draft the agent validated for itself, and no separate
 proposal event travels beside the card, so one proposal per turn (P1) holds for a
 draft as it does for every other act.
 
-`apply-draft` reaches no route. Confirm hands the draft to the builder, which
-stores it through the one save path every other edit takes, with the sticky
-agent-assisted mark; the kind therefore carries no token, no provenance check
-stands behind it, and the builder's own `form: write` route is what authorises it.
+`apply-draft` reaches no route of its own. Confirm hands the draft to the builder,
+which stores it through the accept route below, and that route writes one
+`apply-draft` audit row; the kind therefore carries no token, no provenance check
+stands behind it, and the accept route's own `form: write` is what authorises it.
 It may be a plan's first step, and the plan's token binds only the steps that do
 reach a route.
 
@@ -342,7 +342,8 @@ puts that kind alone up for review: `propose-form-settings`,
 `propose-access-grant`, `propose-access-revoke`, `propose-member-role`,
 `propose-workspace-settings`, and the agent builder's `builder-edits`,
 `builder-undo`, `builder-open-wizard`, `builder-library-question`,
-`builder-injection` and `builder-edit-cap`.
+`builder-injection`, `builder-edit-cap` and `builder-first-edits` (three edits on
+a new form's empty first draft, a step added first).
 The `rogue-*` scripts
 exist because a hostile model is the threat the allowlist is for, and the only
 honest way to test a refusal is to have something actually attempt the forbidden
@@ -394,12 +395,12 @@ against the shared harness database and fail every run after.
 
 ## Accepting a proposal
 
-Accepting a proposal that only re-pins **existing library questions** is the
-ordinary draft save (`PUT /admin/forms/:id/draft`) with `agentAssisted: true`,
-which sets a sticky provenance flag on the draft row. The builder header and the
-publish confirmation show it, so the human publishing knows what they are
-signing. An ordinary later save never clears it; discarding the draft does,
-because that removes the row.
+Every accept goes through `POST /admin/forms/:id/draft/assist/accept`, with or
+without new questions, and writes one `apply-draft` row in `control.agent_actions`
+in the accept's own transaction, so the wizard's read counts it as the
+assistant's. The draft save body takes no `agentAssisted` mark: the row is the
+record. The accept also sets the draft row's sticky flag, which the builder header
+shows; an ordinary later save never clears it, and discarding the draft does.
 
 Accepting a proposal that carries **new question definitions** goes to
 `POST /admin/forms/:id/draft/assist/accept` instead, and that route is issue
@@ -544,7 +545,7 @@ an Undo applies only while nothing has changed since and restores exactly the
 state before; Undos therefore run latest first. A library write is never an
 edit (Q22): the token is refused on every route but the draft save. The
 wizard's read takes provenance from these rows alone, never from the draft's
-`agentAssisted` mark.
+`agentAssisted` flag, which no request body sets.
 
 ## The agent builder's tools
 

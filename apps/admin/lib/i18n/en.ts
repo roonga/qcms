@@ -1179,7 +1179,6 @@ export const messages = {
   /** Pluralize each count separately; a single sentence cannot choose the correct form for three independent numbers. */
   "forms.publish.freezes": "Freezes {steps}, {pins}, {rules}.",
   "forms.publish.changes.heading": "Every change since the last publish",
-  "forms.publish.changes.headingFirst": "Every change in this first version",
   "forms.publish.changes.none": "The draft matches the last publish.",
   "forms.publish.changes.added": "Added",
   "forms.publish.changes.changed": "Changed",

@@ -403,9 +403,8 @@ describe("the assist slice over HTTP", () => {
       await seedPublishedQuestion("q_prov", "Provenance");
       await seedForm("frm_prov", ["q_prov"]);
 
-      const accepted = await put(`/forms/frm_prov/draft`, {
+      const accepted = await post(`/forms/frm_prov/draft/assist/accept`, {
         definition: draftFor("frm_prov", ["q_prov"]),
-        agentAssisted: true,
       });
       expect((await accepted.json()) as { agentAssisted: boolean }).toMatchObject({
         agentAssisted: true,

@@ -132,7 +132,6 @@ function PublishResult({
   state,
   secureCookies,
   returnTo,
-  changes,
 }: {
   readonly formId: string;
   readonly state: PublishBatchState;
@@ -337,6 +336,7 @@ export function PublishWizard({
   lookup,
   secureCookies,
   returnTo,
+  changes,
 }: {
   readonly formId: string;
   readonly versions: readonly number[];

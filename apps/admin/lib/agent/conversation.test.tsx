@@ -21,7 +21,9 @@ function Probe({ append }: { readonly append?: readonly AgentTurnRecord[] }) {
       <span data-testid="dropped">{conversation.dropped}</span>
       <span data-testid="turns">
         {conversation.turns
-          .map((turn) => (isProseTurn(turn) ? turn.content : turn.proposalId))
+          .map((turn) =>
+            isProseTurn(turn) ? turn.content : turn.role === "edit-result" ? "edits" : turn.proposalId,
+          )
           .join("|")}
       </span>
       <button

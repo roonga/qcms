@@ -329,13 +329,13 @@ describe("a card-less edit through the single draft save path", { timeout: TIMEO
 });
 
 describe("the injection cases (X4, A6)", { timeout: TIMEOUT_MS }, () => {
-  it("ignores a forged agentAssisted mark for provenance and for the wizard's read", async () => {
+  it("refuses a forged agentAssisted mark, so neither provenance nor the wizard's read takes it", async () => {
     const formId = await seededForm();
     const res = await put(owner, formId, {
       definition: definition(formId, "Forged"),
       agentAssisted: true,
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
     expect(await rowsFor(formId)).toEqual([]);
     const read = await agentChanges(owner, formId);
     expect(read.agentAssisted).toBe(false);
@@ -349,8 +349,7 @@ describe("the injection cases (X4, A6)", { timeout: TIMEOUT_MS }, () => {
       (await put(owner, formId, { definition: definition(formId, "Agent") }, token)).status,
     ).toBe(200);
     expect(
-      (await put(owner, formId, { definition: definition(formId, "Human"), agentAssisted: true }))
-        .status,
+      (await put(owner, formId, { definition: definition(formId, "Human") })).status,
     ).toBe(200);
     const read = await agentChanges(owner, formId);
     expect(read.agentAssisted).toBe(true);

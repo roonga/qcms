@@ -60,9 +60,7 @@ export function PublishChanges({ read }: { readonly read: PublishChangesRead }) 
       data-testid="qcms-publish-changes"
     >
       <h3 id="qcms-publish-changes-heading" className="text-sm font-semibold">
-        {read.base === null
-          ? t("forms.publish.changes.headingFirst")
-          : t("forms.publish.changes.heading")}
+        {t("forms.publish.changes.heading")}
       </h3>
       {changes.length === 0 ? (
         <p className="text-sm">{t("forms.publish.changes.none")}</p>
