@@ -122,8 +122,8 @@
 
 /*
  * Text size (Q9): the root size is the page's base ratio (`--text-base`, the form's admin base over 16px) times the
- * respondent's scale, capped at 32px and never below the browser's own default. Only a root carrying a scale class
- * opts in, so a host's own root size is untouched.
+ * respondent's scale, capped at 32px and never below the inherited size. Only an element carrying a scale class opts
+ * in, so a host's own root size is untouched.
  */
 :is(:root, [data-qcms-theme-scope]) {
   --text-base: 1;
@@ -142,7 +142,7 @@
   --text-scale: 2;
 }
 
-:root:is(.text-scale-100, .text-scale-125, .text-scale-150, .text-scale-200) {
+:is(:root, [data-qcms-theme-scope]):is(.text-scale-100, .text-scale-125, .text-scale-150, .text-scale-200) {
   font-size: min(calc(100% * var(--text-base) * var(--text-scale)), max(32px, 100%));
 }
 
