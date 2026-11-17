@@ -914,9 +914,13 @@ describe("concurrency", () => {
       );
       const elapsed = Date.now() - started;
       const statuses = responses.map((response) => response.status);
+      const outcomes = await Promise.all(
+        responses.map(async (response) => `${response.status} ${await errorCodeOf(response)}`),
+      );
+      // A request that reaches the gate after the demotion committed is refused there.
       expect(
-        statuses.every((status) => status === 200 || status === 409),
-        String(statuses),
+        outcomes.every((outcome) => /^(200|409 \w+|403 FORBIDDEN)/.test(outcome)),
+        String(outcomes),
       ).toBe(true);
       expect(statuses.filter((status) => status === 200)).toHaveLength(1);
       const [remaining] = await testDb.db
