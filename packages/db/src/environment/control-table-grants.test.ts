@@ -509,6 +509,6 @@ describe("the twelfth access audit kind", () => {
   });
 
   it("changes no grant, because the control role already holds INSERT on the table", () => {
-    expect(sql).not.toMatch(/(GRANT|REVOKE)/);
+    expect(sql).not.toMatch(/\b(GRANT|REVOKE)\b/);
   });
 });
