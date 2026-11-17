@@ -1,5 +1,3 @@
-import { FormId, InstanceId, QuestionId, StepId } from "@roonga/qcms-core";
-
 /**
  * The builder's two facts, built in the browser from ids, enums and bounded numbers only,
  * in the shape the API's strict `PreviewSelectionFact` and `LayoutReportFact` accept.
@@ -62,8 +60,18 @@ function viewportOf(viewport: FactViewport): FactViewport {
   return { width: clamp(viewport.width, 200, 4_000), height: clamp(viewport.height, 200, 4_000) };
 }
 
-function idOk(schema: { safeParse: (value: unknown) => { success: boolean } }, value: string) {
-  return value.length <= FACT_ID_MAX && schema.safeParse(value).success;
+/** The kernel's id grammar, restated because the admin runs no kernel code. */
+function idPattern(prefix: string): RegExp {
+  return new RegExp(`^${prefix}_[a-z0-9_]+$`, "u");
+}
+
+const FormId = idPattern("frm");
+const StepId = idPattern("stp");
+const QuestionId = idPattern("q");
+const InstanceId = idPattern("ins");
+
+function idOk(pattern: RegExp, value: string): boolean {
+  return value.length <= FACT_ID_MAX && pattern.test(value);
 }
 
 /** `undefined` when any id is not one, so a fact never carries a string that is not an id. */
