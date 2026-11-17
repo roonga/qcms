@@ -47,7 +47,10 @@ export const signInLinks = controlSchema.table(
     /** Set when a later link for the same account supersedes this one. */
     invalidatedAt: timestamp("invalidated_at", { withTimezone: true, mode: "date" }),
     delivery: text("delivery").notNull().default("pending"),
-    /** `user.id` of the Site administrator who issued it, or the account itself at bootstrap. */
+    /**
+     * `user.id` of the Site administrator who issued it, or the account itself at bootstrap. A
+     * resent reset or reactivation link keeps the issuer of the one it replaces, the act's performer.
+     */
     issuedBy: text("issued_by").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },

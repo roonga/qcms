@@ -67,9 +67,9 @@ Code Owner, 2026-10-24; the full rules are "Code comments" and "Written text" in
 - Numbered tasks use `feat/NNN-slug`; issues use `fix/NN-slug` and close through `Fixes #NN` in the PR.
 - The pushed branch is the claim. Park incomplete work with a committed `HANDOFF.md` whose first line states `HANDOFF: AWAITING-HUMAN`, `HANDOFF: BLOCKED`, or `HANDOFF: INTERRUPTED`. That file is the only freeze signal a seat can raise on a live branch; nothing else is honoured and there is no second lock (issue #589).
 - Combine small chores into one PR; avoid single-purpose micro PRs (Code Owner, 2026-10-29).
-- Open the PR from a branch rebased onto current `origin/main` with the applicable gates green.
+- Open the PR from a branch cut from `origin/main` with the applicable gates green. Rebase or merge `main` in only to resolve a conflict.
 - Review the complete PR at its current head. Record `AGENT-REVIEW: APPROVE @<sha>` or `AGENT-REVIEW: CHANGES-REQUESTED @<sha>` in a PR comment. A verdict for an older SHA is stale.
 - Before merging, address every review comment, confirm the approval matches the current head, confirm required CI is green, and confirm any explicit human gate is complete.
-- Squash-merge through GitHub and serialize merges. Never force-push `main` or create a local squash on `main`.
+- Merge through the GitHub merge queue (`gh pr merge <n>`), which tests each entry on current `main` and squash-merges it. Never force-push `main` or create a local squash on `main`.
 
 The detailed orchestration lives in `.claude/skills/`; the operator guide is `docs/DEVELOPER_GUIDE.md`.

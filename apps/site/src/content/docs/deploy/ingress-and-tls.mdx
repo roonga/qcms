@@ -1,0 +1,129 @@
+---
+title: Ingress and TLS
+description: What the operator puts in front, and the six invariants it must hold.
+---
+
+QCMS runs four containers and none of them terminates TLS. No reverse proxy ships as a fifth
+standing service. Ingress is operator infrastructure: it is vendor-shaped, adopters already own one,
+and keeping it out of the base stack is what lets "the API is never publicly routable" be a property
+of the Compose file instead of a property of somebody's proxy-configuration discipline.
+
+Two recipes ship. They are alternatives, not layers: on a cloud load balancer you do not also run
+the Caddy overlay.
+
+## The six invariants
+
+1. **TLS terminates at the ingress.** The apps speak plain HTTP on a private network and never hold
+   a certificate.
+2. **HSTS is set at the ingress**, not by the apps.
+3. **Only the portal and the admin are routed.**
+4. **The API and Postgres are never publicly reachable.**
+5. **The ingress tells the apps the browser-facing scheme is https.**
+6. **The ingress writes an `X-Forwarded-For` whose rightmost entry is the address it accepted the
+   connection from**, on both hostnames.
+
+For invariant 5, set `QCMS_PORTAL_BASE_URL` to the portal's public https origin: left at a local
+value, every link a respondent receives points at your own loopback. Set `QCMS_ADMIN_BASE_URL` to
+the admin's public https origin: a mismatch fails sign-in, not merely link generation. Leave
+`QCMS_SECURE_COOKIES` and `QCMS_ADMIN_SECURE_COOKIES` unset; set to false here and the portal
+refuses to start.
+
+## Recipe A: the Caddy overlay
+
+Two DNS records must point at the machine and resolve before first boot, because Caddy proves
+control of each name at startup. Inbound 80 and 443 must be open: 443 carries the traffic, and 80 is
+needed for the certificate challenge. Caddy also listens on 443/udp for HTTP/3.
+
+Three variables are required and have no defaults: `QCMS_PORTAL_DOMAIN`, `QCMS_ADMIN_DOMAIN` and
+`QCMS_ACME_EMAIL`. Compose refuses to start if any is missing.
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml up --detach --wait
+```
+
+The overlay adds one service that waits on the portal and the admin being healthy. Its ports are the
+only publicly bound ones in the stack. It takes two named volumes; back the data volume up with the
+database.
+
+The edge policy it applies:
+
+| Directive                 | Why                                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Strict-Transport-Security | Invariant 2. Drop `preload` if any sibling hostname under the same parent domain still serves plain HTTP |
+| Remove the server banner  | No version disclosure                                                                                    |
+| Request body size limit   | The edge-side match for the API's own body limit. Raise both together or neither                         |
+| Response compression      | At the edge                                                                                              |
+| Set the forwarded scheme  | Invariant 5                                                                                              |
+| Set the forwarded address | Invariant 6. Set, never append                                                                           |
+
+HTTP redirects to HTTPS on its own; there is no rule to write for it.
+
+Verify:
+
+```sh
+curl -sSI https://$QCMS_PORTAL_DOMAIN/  | grep -i strict-transport-security
+curl -sSI https://$QCMS_ADMIN_DOMAIN/healthz
+curl -sSI http://$QCMS_PORTAL_DOMAIN/ | head -n 1
+```
+
+If the first certificate does not appear, read the proxy's logs before retrying: repeated failed
+issuance counts against the issuer's rate limit for that name.
+
+## Recipe B: a cloud load balancer
+
+One internet-facing application load balancer and three services, with no target group for the API.
+The hop count stays 1, because such a balancer appends the connection source to whatever arrived and
+the count runs from the right. Leave the balancer's forwarded-header processing at its append
+default.
+
+## Trusted proxy hops
+
+`QCMS_PORTAL_TRUSTED_PROXY_HOPS` and `QCMS_ADMIN_TRUSTED_PROXY_HOPS` both default to 1.
+
+`X-Forwarded-For` is not a fact, it is a list of claims. The rightmost entry was written by the
+nearest proxy, so each app counts its hop-count entries from the right.
+
+| Setting                                   | Consequence                                                                                                                                                                         |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Higher than reality                       | **The dangerous one.** The app reads into caller-supplied text, so a caller picks its own bucket and per-address rate limiting stops existing. Nothing in the stack can detect this |
+| Lower than reality                        | Safe but coarse                                                                                                                                                                     |
+| `0`                                       | Every caller on that hostname shares one bucket                                                                                                                                     |
+| App reachable directly, count left at `1` | Set it to `0`                                                                                                                                                                       |
+
+Stacking a CDN or WAF in front means configuring the proxy to trust the CDN's ranges and append
+rather than set, **and then** raising the hop count to 2. Doing only the second half is the bypass
+this section exists to prevent.
+
+:::caution[The default stack has no proxy]
+Without an ingress, or without its forwarded header, every administrator shares one sign-in throttle
+bucket.
+:::
+
+## Restricting the admin surface
+
+On one machine there are three options: an address allowlist in the proxy, basic authentication in
+the same site block, or an identity-aware proxy in front of the admin hostname. If you choose the
+third, invariant 4 moves to that layer.
+
+## Restricting a non-prod environment
+
+Two optional portal variables shape this. `QCMS_PORTAL_ENVIRONMENTS` names the non-production
+environments this portal serves, comma-separated; empty means production only, and an unlisted
+environment's addresses are not found. `QCMS_PORTAL_ENVIRONMENT_HOSTS` takes `<env>=<host>` pairs,
+and on a host named there the portal serves no public form slug at all.
+
+The intended shape is three hostnames: the portal name serving production from the internet, a test
+name serving secure links only, under its own path prefix and reachable from an allowlisted network
+or a VPN, and the admin name for authoring and releases.
+
+The app half of this is built; the edge half is yours.
+
+:::note
+Only these two recipes ship. The reasoning transfers to any layer-7 balancer, but the attribute
+names do not. There is no nginx, Traefik, HAProxy or Kubernetes Ingress example, and no mTLS
+guidance.
+:::
+
+## Source
+
+- [`docs/deploy-ingress.md`](https://github.com/roonga/qcms/blob/main/docs/deploy-ingress.md)

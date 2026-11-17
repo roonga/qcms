@@ -370,8 +370,8 @@ const allSurfaces = createApp(
 
 const WALKED: ReadonlyArray<readonly [string, OpenApiDocument, number]> = [
   ["respondent", readCommitted("respondent"), 6],
-  ["admin", committedAdmin, 35],
-  ["all surfaces with every flag on", allSurfaces, 44],
+  ["admin", committedAdmin, 36],
+  ["all surfaces with every flag on", allSurfaces, 45],
 ];
 
 describe("every request body rejects unknown keys (issue #893)", () => {

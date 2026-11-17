@@ -3,6 +3,7 @@ import {
   issueSignInLink,
   lockAccount,
   recordSignInLinkDelivery,
+  tryLockAccount,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 
@@ -17,9 +18,9 @@ const HOUR_MS = 60 * 60 * 1000;
 export type SignInLinkDeliveryOutcome = "sent" | "undeliverable";
 
 /**
- * Mint one link, store its digest and email it; the token is never returned, logged or
- * stored. `withinIssue` runs in the issuing transaction under the account's lock, before
- * the mail, so a check it makes holds for the issue and a row it writes commits with it.
+ * Mint, store the digest of and email one link. `withinIssue`, and `purpose` given as a
+ * function, run in the issuing transaction under the account's lock, before the mail. With
+ * `busy`, the lock is tried, and `busy()` thrown while it is held.
  */
 export async function issueAndSendSignInLink(
   deps: Deps,
@@ -27,33 +28,39 @@ export async function issueAndSendSignInLink(
   input: {
     readonly userId: string;
     readonly email: string;
-    readonly purpose: SignInLinkPurpose;
-    readonly issuedBy: string;
+    readonly purpose: SignInLinkPurpose | ((tx: Executor) => Promise<SignInLinkPurpose>);
+    readonly issuedBy: string | ((tx: Executor) => Promise<string>);
   },
   withinIssue?: (tx: Executor) => Promise<void>,
+  busy?: () => Error,
 ): Promise<SignInLinkDeliveryOutcome> {
   if (!deps.config.mail.configured) throw new Error("outbound mail is not configured");
   const now = deps.clock.now();
   const token = mintSignInToken();
   const tokenHash = await signInTokenHash(token);
-  const link = await exec.transaction(async (tx) => {
+  const { issued: link, purpose } = await exec.transaction(async (tx) => {
     await boundAccountTransaction(tx);
-    await lockAccount(tx, input.userId);
+    if (busy === undefined) await lockAccount(tx, input.userId);
+    else if (!(await tryLockAccount(tx, input.userId))) throw busy();
     await withinIssue?.(tx);
-    return issueSignInLink(tx, {
+    const purpose = typeof input.purpose === "function" ? await input.purpose(tx) : input.purpose;
+    const issuedBy =
+      typeof input.issuedBy === "function" ? await input.issuedBy(tx) : input.issuedBy;
+    const issued = await issueSignInLink(tx, {
       userId: input.userId,
       tokenHash,
-      purpose: input.purpose,
+      purpose,
       expiresAt: new Date(now.getTime() + SIGN_IN_LINK_TTL_HOURS * HOUR_MS),
-      issuedBy: input.issuedBy,
+      issuedBy,
       now,
     });
+    return { issued, purpose };
   });
 
   const result = await deps.mailer.send(
     signInLinkMessage(
       input.email,
-      input.purpose,
+      purpose,
       adminLink(deps.config.mail.linkBaseUrl, claimPathFor(token)),
     ),
   );

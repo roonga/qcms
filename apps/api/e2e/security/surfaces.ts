@@ -399,6 +399,41 @@ export const SURFACES: readonly Surface[] = [
     path: (ctx) => `/admin/accounts/${ctx.holderId}/sign-in-link`,
     anonymousReachable: false,
   },
+  // An account no probe can find, so a caller the gate admits reaches a 404 and never
+  // disables, reactivates or resets an account a later probe depends on.
+  {
+    name: "GET /admin/accounts/{id}/holdings",
+    row: "membership",
+    group: "admin",
+    method: "GET",
+    path: () => "/admin/accounts/au_matrix_missing/holdings",
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/accounts/{id}/disable",
+    row: "membership",
+    group: "admin",
+    method: "POST",
+    path: () => "/admin/accounts/au_matrix_missing/disable",
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/accounts/{id}/reactivate",
+    row: "membership",
+    group: "admin",
+    method: "POST",
+    path: () => "/admin/accounts/au_matrix_missing/reactivate",
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/accounts/{id}/reset",
+    row: "membership",
+    group: "admin",
+    method: "POST",
+    path: () => "/admin/accounts/au_matrix_missing/reset",
+    body: { password: true, factor: false },
+    anonymousReachable: false,
+  },
   {
     name: "GET /admin/workspaces/{id}/members",
     row: "membership",
@@ -480,6 +515,15 @@ export const SURFACES: readonly Surface[] = [
     method: "DELETE",
     path: (ctx) =>
       `/admin/workspaces/${ctx.workspaceId}/access-groups/${ctx.teamId}/holders/${ctx.holderId}`,
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/workspaces/{id}/access-groups/{teamId}/holders/{userId}/reconfirm",
+    row: "membership",
+    group: "admin",
+    method: "POST",
+    path: (ctx) =>
+      `/admin/workspaces/${ctx.workspaceId}/access-groups/${ctx.teamId}/holders/${ctx.holderId}/reconfirm`,
     anonymousReachable: false,
   },
   {

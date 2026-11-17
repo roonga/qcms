@@ -62,6 +62,8 @@ export default tseslint.config(
       "**/coverage/**",
       "**/.next/**",
       "**/.next-dev/**",
+      // Astro's generated content-collection types and sync output; untracked, so no coverage gap.
+      "**/.astro/**",
       "**/next-env.d.ts",
       "apps/portal/.playwright/**",
       "apps/admin/.playwright/**",
