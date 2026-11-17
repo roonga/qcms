@@ -18,6 +18,7 @@ import {
   seedRepeatTableForm,
   seedRailForm,
   seedUnpublishedPinForm,
+  siteAdminLogin,
   startTestDb,
   MOUNT,
   NOW,
@@ -81,6 +82,7 @@ type AppearanceFormName = (typeof APPEARANCE_FORMS)[number];
 
 export interface FormAppearanceFixtures {
   readonly adminSessionToken: string;
+  readonly siteAdminSessionToken: string;
   readonly workspaceId: string;
   readonly forms: Readonly<Record<AppearanceFormName, AppearanceForm>>;
   /** Keyed by the seed primary. */
@@ -260,7 +262,12 @@ export async function startApiServer(): Promise<void> {
   });
 
   const { formId: unpublishedPinFormId } = await seedUnpublishedPinForm(testDb.db);
-  const formAppearance = await seedAppearanceForms(testDb.db, adminSessionToken);
+  const siteAdminSessionToken = await siteAdminLogin(testDb.db);
+  const formAppearance = await seedAppearanceForms(
+    testDb.db,
+    adminSessionToken,
+    siteAdminSessionToken,
+  );
 
   const fixtures: PortalFixtures = {
     slug,
@@ -301,6 +308,7 @@ interface CoreAppearance {
 async function seedAppearanceForms(
   db: TestDb["db"],
   adminSessionToken: string,
+  siteAdminSessionToken: string,
 ): Promise<FormAppearanceFixtures> {
   const forms = {} as Record<keyof FormAppearanceFixtures["forms"], AppearanceForm>;
   for (const name of APPEARANCE_FORMS) {
@@ -320,6 +328,7 @@ async function seedAppearanceForms(
   )) as { SEED_WORKSPACE_ID: string };
   return {
     adminSessionToken,
+    siteAdminSessionToken,
     workspaceId: testing.SEED_WORKSPACE_ID,
     forms,
     looks: {

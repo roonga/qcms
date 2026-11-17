@@ -39,13 +39,14 @@ export async function admin(
   method: string,
   path: string,
   body?: unknown,
+  sessionToken: string = fixtures.adminSessionToken,
 ): Promise<Response> {
   return fetch(`${API_BASE_URL}/admin${path}`, {
     method,
     headers: {
       "content-type": "application/json",
       "x-qcms-internal-token": FIXED_INTERNAL_TOKEN,
-      "x-qcms-admin-session": fixtures.adminSessionToken,
+      "x-qcms-admin-session": sessionToken,
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
@@ -177,5 +178,8 @@ export function solidPng(rgb: readonly [number, number, number]): string {
 
 /** A Site administrator's takedown, which leaves every version still naming the key. */
 export async function takeDownLogo(fixtures: FormAppearanceFixtures, key: string): Promise<void> {
-  await ok(await admin(fixtures, "DELETE", `/logos/${key}`), "take the logo down");
+  await ok(
+    await admin(fixtures, "DELETE", `/logos/${key}`, undefined, fixtures.siteAdminSessionToken),
+    "take the logo down",
+  );
 }
