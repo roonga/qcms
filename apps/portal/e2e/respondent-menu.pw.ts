@@ -24,6 +24,10 @@ const FORM_FACE = "roboto";
 /** The largest admin base, which reaches the 32px cap from 150 percent upward. */
 const LARGEST_BASE = 24;
 
+// Each test republishes a form another spec also uses: the suite runs on one worker, a
+// session is pinned to the version it started on, and every extra form a harness release
+// adds to `test` pushes the admin Operations fixtures off that list's first page.
+
 async function pin(page: Page, cookies: Readonly<Record<string, string>>): Promise<void> {
   await page
     .context()
@@ -89,7 +93,7 @@ test("the menu offers the legibility faces and the form's face, and each one app
 }) => {
   for (const key of [FORM_FACE, "lexend", "opendyslexic"]) expect(HARNESS_FONTS).not.toContain(key);
   const { formAppearance: fixtures } = readFixtures();
-  const { formId, slug } = fixtures.forms.menu;
+  const { formId, slug } = fixtures.forms.face;
   await publishAppearance(fixtures, formId, appearanceOf(fixtures.looks.teal, { face: FORM_FACE }));
 
   await startSession(page, slug);
@@ -120,7 +124,7 @@ test("every scale over the largest base stays within 32px and reflows at 320px",
   page,
 }) => {
   const { formAppearance: fixtures } = readFixtures();
-  const { formId, slug } = fixtures.forms.textSize;
+  const { formId, slug } = fixtures.forms.noLogo;
   await publishAppearance(
     fixtures,
     formId,
@@ -155,7 +159,7 @@ test.describe("without JavaScript", () => {
 
   test("the menu opens and applies a text size on a themed form", async ({ page }) => {
     const { formAppearance: fixtures } = readFixtures();
-    const { formId, slug } = fixtures.forms.textSizeNoJs;
+    const { formId, slug } = fixtures.forms.faceNoJs;
     await publishAppearance(
       fixtures,
       formId,
