@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { generate } from "otplib";
 
-import { TEST_PASSWORD } from "./admin-account.js";
+import { rewindTotpStep, TEST_PASSWORD } from "./admin-account.js";
 import { waitForHydration } from "./hydration.js";
 
 // Hydration can overwrite pre-attach input, and dev recompilation can replace the whole document.
@@ -35,9 +35,11 @@ export async function readSetupKey(page: Page): Promise<string> {
 
 const TOTP_PERIOD_MS = 30_000;
 const spentTotpSteps = new Map<string, number>();
+const accountOfSecret = new Map<string, string>();
 
-// The server accepts each time step once, so each call takes a step no earlier one used, waiting
-// for the clock when the steps it still accepts are spent.
+// The server accepts each time step once, so each call takes a step no earlier one used. Once the
+// steps it still accepts are spent, an account this module enrolled or signed in is rewound in the
+// database instead of waiting out the period, which a sign-in per test would otherwise pay.
 export async function freshTotpCode(secret: string): Promise<string> {
   for (;;) {
     const now = Math.floor(Date.now() / TOTP_PERIOD_MS);
@@ -45,6 +47,12 @@ export async function freshTotpCode(secret: string): Promise<string> {
     if (step <= now + 1) {
       spentTotpSteps.set(secret, step);
       return generate({ secret, epoch: (step * TOTP_PERIOD_MS) / 1000 });
+    }
+    const email = accountOfSecret.get(secret);
+    if (email !== undefined) {
+      await rewindTotpStep(email);
+      spentTotpSteps.delete(secret);
+      continue;
     }
     await new Promise((resolve) =>
       setTimeout(resolve, (now + 1) * TOTP_PERIOD_MS - Date.now() + 50),
@@ -72,6 +80,7 @@ export async function signInWithTotp(
   secret: string,
   landing: RegExp = DEFAULT_LANDING,
 ): Promise<void> {
+  accountOfSecret.set(secret, email);
   await submitSignIn(page, email);
   await submitTotp(page, secret);
   await page.waitForURL(landing);
@@ -122,6 +131,7 @@ export async function enrollNewAdmin(
   // The URL can commit before the enrollment DOM is ready for the secret read.
   await waitForHydration(page);
   const secret = await readSetupKey(page);
+  accountOfSecret.set(secret, email);
   await submitTotp(page, secret);
   await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
   await page.getByRole("button", { name: "I have saved these codes" }).click();

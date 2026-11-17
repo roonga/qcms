@@ -64,6 +64,20 @@ export async function markProvisional(email: string): Promise<void> {
   }
 }
 
+/** Forget the newest TOTP time step the account spent, so its next code need not wait for the clock. */
+export async function rewindTotpStep(email: string): Promise<void> {
+  const handle = openDbHandle(readFixtures().databaseUrl);
+  try {
+    await handle.query(
+      `update "twoFactor" set "lastTotpStep" = null
+         where "userId" = (select id from "user" where email = $1)`,
+      [email],
+    );
+  } finally {
+    await handle.close();
+  }
+}
+
 /** The token an emailed sign-in link would carry, for a spec that drives the claim screen. */
 export async function signInLinkFor(
   email: string,
