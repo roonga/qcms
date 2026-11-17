@@ -303,12 +303,8 @@ async function validateGroup(
   return { roles: input.roles, environments: normaliseEnvironmentSet(input.environments, live) };
 }
 
-/**
- * Who a response grant of this group to this account is written suspended by, or `undefined`
- * when it is written live. A marker on the hold survives its removal, so a re-add by anyone
- * stays suspended; while the account's run is open, a grant by the account itself or by a
- * performer of the run is suspended too.
- */
+// Who a response grant is written suspended by, or `undefined` for a live one: a hold's marker
+// survives its removal, and while the run is open its performers and the account suspend too.
 async function suspendingGrantor(
   tx: Executor,
   userId: string,
