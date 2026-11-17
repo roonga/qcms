@@ -345,7 +345,7 @@ describe("devStackBannerLines", () => {
   it("explains the skip when an administrator already existed", () => {
     const skipped = banner(undefined);
     expect(skipped).toContain("already had an administrator");
-    expect(skipped).toContain("pnpm dev:down");
+    expect(skipped).toContain("QCMS_PORT_SEAT=0 pnpm dev:down");
     expect(skipped).not.toContain("password  ");
   });
 
@@ -354,8 +354,17 @@ describe("devStackBannerLines", () => {
     expect(banner(undefined, false)).not.toContain("HOST's");
   });
 
-  it("always says how to stop it", () => {
-    expect(created).toContain("pnpm dev:down");
+  it("always says how to stop it, naming the seat so the command works in the primary checkout", () => {
+    expect(created).toContain("QCMS_PORT_SEAT=0 pnpm dev:down");
+    const seated = devStackBannerLines({
+      ports: seatPorts(3),
+      project: "p",
+      credentials: undefined,
+      inContainer: false,
+      seat: 3,
+    }).join("\n");
+    expect(seated).toContain("QCMS_PORT_SEAT=3 pnpm dev:down");
+    expect(seated).not.toContain("QCMS_PORT_SEAT=0");
   });
 });
 
