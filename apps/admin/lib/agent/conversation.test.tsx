@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { CONVERSATION_STORAGE_KEY } from "./conversation-state";
+import { CONVERSATION_STORAGE_KEY, builderConversationKey } from "./conversation-state";
 import {
   CONVERSATION_TURN_CAP,
   ConversationProvider,
@@ -212,5 +212,53 @@ describe("the conversation between page loads", () => {
     fireEvent.click(screen.getByTestId("append"));
     expect(window.localStorage.length).toBe(0);
     expect(window.sessionStorage.getItem(CONVERSATION_STORAGE_KEY)).not.toBeNull();
+  });
+});
+
+describe("the agent builder's own conversation", () => {
+  const key = builderConversationKey("usr_1", "ws_a", "frm_a");
+
+  function builder(append?: readonly AgentTurnRecord[], storageKey = key) {
+    return (
+      <ConversationProvider pathname="/forms/frm_a/build" userId="usr_1" storageKey={storageKey}>
+        <Probe {...(append === undefined ? {} : { append })} />
+      </ConversationProvider>
+    );
+  }
+
+  it("writes its own key and never the dock's", () => {
+    render(builder([{ role: "user", content: "build it" }]));
+    fireEvent.click(screen.getByTestId("append"));
+    expect(window.sessionStorage.getItem(key)).toContain("build it");
+    expect(window.sessionStorage.getItem(CONVERSATION_STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it("does not show the dock's conversation, nor another form's", () => {
+    const dock = render(at("/forms", [{ role: "user", content: "dock turn" }]));
+    fireEvent.click(screen.getByTestId("append"));
+    dock.unmount();
+
+    const first = render(builder());
+    expect(read().turns).toBe("");
+    first.unmount();
+
+    render(builder(undefined, builderConversationKey("usr_1", "ws_a", "frm_b")));
+    expect(read().turns).toBe("");
+  });
+
+  it("comes back in the same tab, and is gone once sign-out has cleared it", () => {
+    const first = render(builder([{ role: "user", content: "kept" }]));
+    fireEvent.click(screen.getByTestId("append"));
+    first.unmount();
+
+    const again = render(builder());
+    expect(read().turns).toBe("kept");
+    again.unmount();
+
+    clearStoredConversation();
+    expect(window.sessionStorage.getItem(key)).toBeNull();
+    render(builder());
+    expect(read().turns).toBe("");
   });
 });

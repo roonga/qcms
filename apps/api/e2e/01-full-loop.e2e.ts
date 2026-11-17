@@ -2,7 +2,6 @@ import { DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  adminLogin,
   AdminClient,
   INSURANCE_DEF,
   INSURANCE_GOLDEN,
@@ -15,6 +14,8 @@ import {
   buildEnv,
   composeApi,
   drainWebhooks,
+  adminLogin,
+  siteAdminLogin,
   startTestDb,
   tokenFromLinkUrl,
   verifyWebhookSignature,
@@ -44,6 +45,7 @@ interface Receipt {
 let testDb: TestDb;
 let admin: AdminClient;
 let respondent: RespondentClient;
+let composed: ReturnType<typeof composeApi>;
 let deps: ReturnType<typeof composeApi>["deps"];
 const receiver = new WebhookReceiver();
 
@@ -51,7 +53,7 @@ beforeAll(async () => {
   testDb = await startTestDb();
   await receiver.start();
   const env = buildEnv();
-  const composed = composeApi(testDb.db, env, MOUNT.all);
+  composed = composeApi(testDb.db, env, MOUNT.all);
   deps = composed.deps;
   admin = new AdminClient(composed.app, composed.internalToken, await adminLogin(testDb.db));
   respondent = new RespondentClient(composed.app, composed.internalToken);
@@ -246,7 +248,13 @@ describe("scenario 1: full loop end to end", () => {
     const rows = JSON.parse(json.text) as { sessionId: string }[];
     expect(rows.map((r) => r.sessionId)).not.toContain(sessionId);
 
-    const tombstones = await admin.listTombstones<{ erasures: { sessionId: string }[] }>({
+    // Site administrator only until #1336: the erasure log is installation-only. check-comments: allow only pointer to the tracked limit
+    const siteAdmin = new AdminClient(
+      composed.app,
+      composed.internalToken,
+      await siteAdminLogin(testDb.db),
+    );
+    const tombstones = await siteAdmin.listTombstones<{ erasures: { sessionId: string }[] }>({
       formId: FORM_ID,
     });
     expect(tombstones.body.erasures.map((t) => t.sessionId)).toContain(sessionId);

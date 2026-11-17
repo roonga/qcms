@@ -30,6 +30,7 @@ export const messages = {
   /** Use route identity for tab titles to avoid a second upstream read solely for metadata. */
   "title.formSection": "{section}: {formId}",
   "title.workspaceSection": "{section}: {workspace}",
+  "title.builder": "Agent builder: {subject}",
 
   /** The admin requires JavaScript; name enabling it and reloading as the actionable remedy. */
   "requiresJs.title": "JavaScript is required",
@@ -116,6 +117,11 @@ export const messages = {
   "shell.mode.operations.exit": "Exit Operations",
   "shell.mode.operations.exitText": "Exit",
   "shell.mode.operations.announce": "Operations. Links out of it ask before leaving.",
+  "shell.mode.builder.name": "Agent builder",
+  /** Starts with the visible "Exit" so speech input reaches it by what it shows (WCAG 2.5.3). */
+  "shell.mode.builder.exit": "Exit the agent builder",
+  "shell.mode.builder.exitText": "Exit",
+  "shell.mode.builder.announce": "Agent builder.",
   "shell.leave.title": "Leave Operations?",
   "shell.leave.goes": "This link opens {area}, outside Operations.",
   "shell.leave.environment":
@@ -507,11 +513,33 @@ export const messages = {
   "forms.title": "Forms",
   "forms.new": "New form",
 
+  "builder.newForm": "New form",
+  "builder.heading": "Agent builder: {name}",
+  "builder.editByHand": "Edit by hand",
+  "builder.sharePreview": "Share preview",
+  "builder.publish": "Publish",
+  "builder.notYetCreated": "Edit by hand, Share preview and Publish open once the form is created.",
+  "builder.panes": "Builder panes",
+  "builder.pane.assistant": "Assistant",
+  "builder.pane.preview": "Preview",
+  "builder.assistant.subject": "Editing {name}",
+  "builder.assistant.subjectNew": "Creating a new form",
+  "builder.assistant.empty": "Describe the form you want, and the assistant builds the draft here.",
+  "builder.preview.empty": "The draft's preview appears here.",
+  "builder.preview.newForm": "There is nothing to preview until the form is created.",
+  "builder.newDraft.heading": "This form has no open draft",
+  "builder.newDraft.body":
+    "The agent builder edits an open draft only. Start a new draft from the newest version to continue.",
+  "builder.newDraft.start": "Start a new draft",
+  "builder.newDraft.starting": "Starting the draft...",
+  "builder.newDraft.failed": "The draft was not started. {message}",
+
   "forms.table.label": "Form library",
   /** Built from the painted name so speech input can activate the text the operator sees. */
   "forms.open": "Open form {name}",
   /** Name the row's own form: a column of triggers is otherwise a column of identical names. */
   "forms.rowActions": "Actions for form {name}",
+  "forms.menu.agentBuilder": "Edit with the agent builder",
   "forms.column.form": "Form",
   "forms.column.locale": "Locale",
   "forms.column.status": "Availability",
@@ -545,6 +573,10 @@ export const messages = {
   "forms.empty.filtered": "No form matches this search.",
 
   "forms.create.title": "New form",
+  "forms.create.blank": "Start blank",
+  "forms.create.assistant": "Build with the assistant",
+  "forms.create.assistantHint":
+    "Describe the form and the assistant drafts it. Nothing is created until you confirm the first step.",
   "forms.create.slug": "Slug",
   "forms.create.slugHint": "Lower-case words separated by hyphens, for example vehicle-insurance.",
   "forms.create.id": "Form ID",
@@ -1310,6 +1342,8 @@ export const messages = {
   "forms.publish.result.noRelease": "Live nowhere.",
   "forms.publish.result.operations": "Open {environment} operations",
   "forms.publish.result.versions": "Back to versions",
+  "forms.publish.result.backToBuilder": "Back to the agent builder",
+  "forms.publish.result.backToForm": "Back to the form",
   "forms.publish.wizardFailed": "Nothing was published. {message}",
   "forms.publish.wizardBlockedCount.one":
     "1 issue blocks publishing. It is listed in the builder, linking to its cause.",

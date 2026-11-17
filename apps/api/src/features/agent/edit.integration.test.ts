@@ -904,7 +904,6 @@ describe(
         label: "edit_suspended",
         at: now,
         membership: false,
-        claim: false,
       });
       const { teamIds } = await seedGrants(testDb.db, {
         userId: editor.userId,

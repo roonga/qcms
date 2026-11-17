@@ -21,7 +21,7 @@ const OUTSIDE = "qcms-e2e-outside-link";
 let secret = "";
 
 test.beforeAll(async () => {
-  await createTestAdmin(EMAIL);
+  await createTestAdmin(EMAIL, { siteAdministrator: true });
 });
 
 /**

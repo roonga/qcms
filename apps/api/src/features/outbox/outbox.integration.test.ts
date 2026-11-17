@@ -429,8 +429,14 @@ describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the ADR-17 re
     for (let i = 0; i < OUTBOX_MAX_ATTEMPTS; i++) {
       await recordDeliveryFailure(testDb.db, deliveryId, "http_500", new Date());
     }
+    const siteAdmin = await seedAdminSession(testDb.db, {
+      label: "deadletters",
+      siteAdministrator: true,
+    });
     const onQueue = async (): Promise<boolean> => {
-      const res = await app.request("/admin/outbox/dead-letters", { headers: headers() });
+      const res = await app.request("/admin/outbox/dead-letters", {
+        headers: { ...headers(), [ADMIN_SESSION_HEADER]: siteAdmin.token },
+      });
       const body = (await res.json()) as { deadLetters: Array<{ deliveryId: string }> };
       return body.deadLetters.some((d) => d.deliveryId === deliveryId);
     };

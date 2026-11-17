@@ -44,7 +44,11 @@ beforeAll(async () => {
     },
   });
   internalToken = internalTokenFor(deps.config);
-  siteAdmin = await seedAdminSession(testDb.db, { label: "site-admin", membership: false });
+  siteAdmin = await seedAdminSession(testDb.db, {
+    label: "site-admin",
+    siteAdministrator: true,
+    membership: false,
+  });
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -127,7 +131,6 @@ describe("who creates a workspace (criterion 92)", () => {
   it("refuses an account that is not a Site administrator, even its Workspace administrators", async () => {
     const other = await seedAdminSession(testDb.db, {
       label: "not-site-admin",
-      claim: false,
       owner: true,
     });
     const res = await createWorkspace(other.token, { name: "Refused", slug: "refused" });
@@ -150,7 +153,6 @@ describe("who creates a workspace (criterion 92)", () => {
   it("makes the named account the first Workspace administrator, not the caller", async () => {
     const named = await seedAdminSession(testDb.db, {
       label: "named-first",
-      claim: false,
       membership: false,
     });
     const workspaceId = await created("named", {
@@ -179,7 +181,6 @@ describe("who creates a workspace (criterion 92)", () => {
   it("refuses an unclaimed first administrator, and creates nothing (criterion 93)", async () => {
     const unclaimed = await seedAdminSession(testDb.db, {
       label: "unclaimed-first",
-      claim: false,
       claimed: false,
       membership: false,
     });
@@ -196,7 +197,6 @@ describe("who creates a workspace (criterion 92)", () => {
   it("refuses a disabled first administrator with the same answer", async () => {
     const disabled = await seedAdminSession(testDb.db, {
       label: "disabled-first",
-      claim: false,
       membership: false,
       disabledAt: new Date("2026-07-20T00:00:00.000Z"),
     });

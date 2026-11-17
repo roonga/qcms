@@ -317,7 +317,6 @@ describe("a publisher reads links only in its group's environments", () => {
   it("lists links in test and is refused in prod", async () => {
     const publisher = await seedAdminSession(testDb.db, {
       label: "links-test-publisher",
-      claim: false,
       owner: false,
       grants: [],
     });

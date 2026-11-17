@@ -19,7 +19,7 @@ const GROUP_NAME = `Response viewers ${Date.now().toString(36)}`;
 let totpSecret = "";
 
 test.beforeAll(async () => {
-  await createTestAdmin(EMAIL);
+  await createTestAdmin(EMAIL, { siteAdministrator: true });
   await createTestAdmin(MEMBER, { grants: ["forms.viewer"], owner: false });
 });
 

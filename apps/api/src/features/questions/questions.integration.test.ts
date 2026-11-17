@@ -574,7 +574,6 @@ describe("GET /admin/questions - summary, status filter, search", () => {
     it("reads empty when a scoped caller names a workspace they hold nothing in", async () => {
       const scoped = await seedAdminSession(testDb.db, {
         label: "ws_scoped",
-        claim: false,
         owner: false,
       });
 
