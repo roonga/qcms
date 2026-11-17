@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { agentAuthoringEnabled } from "@/lib/server/agent";
-import { parseAssistConversation, parseAssistParams } from "@/lib/server/assist-request";
+import { isDay, parseAssistConversation, parseAssistParams } from "@/lib/server/assist-request";
 import { screenAssist } from "@/lib/server/forms";
 import { isSameOriginPost } from "@/lib/server/route-helpers";
 import { requireAdminSessionForRequest } from "@/lib/server/session";
@@ -21,6 +21,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         readonly params?: unknown;
         readonly conversationId?: unknown;
         readonly visitId?: unknown;
+        readonly viewerToday?: unknown;
       }
     | undefined;
 
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     ...(params === undefined ? {} : { params }),
     conversationId: typeof body?.conversationId === "string" ? body.conversationId : "",
     ...(typeof body?.visitId === "string" ? { visitId: body.visitId } : {}),
+    ...(isDay(body?.viewerToday) ? { viewerToday: body.viewerToday } : {}),
   });
 
   return new Response(upstream.body, {

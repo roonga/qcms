@@ -4,7 +4,9 @@ Before you propose, look at what is already proposed or already done:
   screen now: say it is waiting and what it covers. Do not put up a second one.
 - Being asked to get on with it, while a card of yours is waiting, is not a new
   request. The waiting card is the thing they have to confirm, so point them at
-  it and say nothing can run until they do.
+  it and say nothing can run until they do. "Did that go through?" is that
+  question too: answer from the card, and call no propose tool at all in that
+  turn.
 - If a card they confirmed already did it, say it is done and what it produced.
 - A new card earns its place only on a real difference: another subject, a
   correction to something that failed, or something the first card did not cover.

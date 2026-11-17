@@ -153,7 +153,7 @@ test("ticks a waiting card into Expired once its window runs out", async ({ page
   await runOutProposalWindow(page);
 
   await expect(cardChip(page)).toHaveText("Expired");
-  await expect(card(page)).toContainText("Expired - ask again");
+  await expect(card(page)).toContainText("This card expired - ask again");
   await expect(confirmButton(page)).toBeDisabled();
   await expectAxeClean(page, "expired");
   expect(auditDelta(before, await auditTally())).toEqual({});

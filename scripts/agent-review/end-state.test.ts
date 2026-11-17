@@ -279,7 +279,21 @@ describe("the question settings a scenario may assert", () => {
       dateMin: "1900-01-01",
       dateMax: "2021-11-14",
       pattern: null,
+      minSelected: null,
+      maxSelected: null,
     });
+  });
+
+  it("reads the selection bounds a tick-all question carries", () => {
+    expect(
+      questionSettings({
+        type: "multiChoice",
+        label: { en: "How did you get in touch?" },
+        required: true,
+        options: [{ optionId: "opt_a" }, { optionId: "opt_b" }],
+        constraints: { minSelected: 1, maxSelected: 1 },
+      }),
+    ).toMatchObject({ optionCount: 2, minSelected: 1, maxSelected: 1 });
   });
 
   it("says a setting is absent rather than guessing at one", () => {
@@ -482,7 +496,7 @@ describe("the environments a snapshot is read in", () => {
     vi.unstubAllGlobals();
   });
 
-  it("reads a link and a release in every one, so an absence is a read rather than a guess", async () => {
+  it("reads a link in every one, and the publish history once, which answers for the form", async () => {
     /** The environment each path was asked for, in call order. */
     const asked: [string, string][] = [];
     vi.stubGlobal("fetch", (url: string, init: { headers: Record<string, string> }) => {
@@ -509,6 +523,9 @@ describe("the environments a snapshot is read in", () => {
       "prod",
     ]);
     expect(asked.filter(([path]) => path === "/admin/forms")).toEqual([["/admin/forms", "test"]]);
-    expect(snapshot.forms[0]?.["releases"]).toHaveLength(2);
+    expect(asked.filter(([path]) => path.endsWith("/releases")).map(([, env]) => env)).toEqual([
+      "test",
+    ]);
+    expect(snapshot.forms[0]?.["releases"]).toHaveLength(1);
   });
 });

@@ -749,6 +749,28 @@ describe("prompt framing", () => {
     expect(contentOf(dated[1])).toContain("The user is now on");
   });
 
+  it("prefers the viewer's own date, because theirs is the one their screen writes", () => {
+    const { ctx } = contextFor("a date of birth that rules out under-fives");
+    const dated = toModelMessages({
+      ...builderTurnContext(ctx),
+      today: "2026-07-20",
+      viewerToday: "2026-07-21",
+    });
+    const facts = dated.map((message) => contentOf(message)).find((text) => text.includes("Today"));
+
+    expect(facts).toContain("Today is 2026-07-21 where the person is.");
+    expect(facts).not.toContain("2026-07-20");
+  });
+
+  it("falls back to the installation's date, and says which of the two it is", () => {
+    const { ctx } = contextFor("a date of birth that rules out under-fives");
+    const dated = toModelMessages({ ...builderTurnContext(ctx), today: "2026-07-20" });
+    const facts = dated.map((message) => contentOf(message)).find((text) => text.includes("Today"));
+
+    expect(facts).toContain("where this installation runs.");
+    expect(facts).not.toContain("where the person is.");
+  });
+
   it("says nothing about a date when the turn carries none", () => {
     const { ctx } = contextFor("a date of birth that rules out under-fives");
     const undated = toModelMessages(builderTurnContext(ctx));

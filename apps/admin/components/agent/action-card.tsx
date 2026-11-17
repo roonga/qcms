@@ -100,12 +100,16 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
         <header className="qcms-acard__head">
           <h2 className="qcms-acard__title" id={titleId} tabIndex={-1} ref={headingRef}>
             {multi
-              ? tPlural(
+              ? // The assistant's own outcome line where it wrote one. A single-step card
+                // keeps the catalogue's sentence, which is the only place that step's words
+                // appear at all.
+                (proposal.title ??
+                tPlural(
                   "agent.card.planTitle.one",
                   "agent.card.planTitle.other",
                   proposal.steps.length,
                   { subject: planTitleSubject(proposal.steps, reported, names) },
-                )
+                ))
               : stepTitle(proposal.steps[0] as AgentPlanStep, reported, proposal.steps, names)}
           </h2>
           <span className="qcms-acard__state" data-s={card.state}>
@@ -114,6 +118,8 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
         </header>
 
         <IrreversibleBand steps={proposal.steps} />
+
+        <ReasonBlock reason={props.reason} />
 
         <ol className="qcms-acard__steps" aria-label={t("agent.card.stepsLabel")}>
           {proposal.steps.map((step, index) => (
@@ -133,8 +139,6 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
             />
           ))}
         </ol>
-
-        <ReasonBlock reason={props.reason} />
 
         <CardFooter
           card={card}

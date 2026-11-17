@@ -109,6 +109,8 @@ export function questionSettings(definition) {
   const options = question["options"];
   /** @param {unknown} value */
   const text = (value) => (typeof value === "string" ? value : null);
+  /** @param {unknown} value */
+  const number = (value) => (typeof value === "number" ? value : null);
 
   return {
     type: text(question["type"]),
@@ -118,6 +120,8 @@ export function questionSettings(definition) {
     dateMin: question["type"] === "date" ? text(constraints["min"]) : null,
     dateMax: question["type"] === "date" ? text(constraints["max"]) : null,
     pattern: text(constraints["pattern"]),
+    minSelected: number(constraints["minSelected"]),
+    maxSelected: number(constraints["maxSelected"]),
   };
 }
 
@@ -256,31 +260,32 @@ async function read(access, path, environment) {
 
 /**
  * Every environment an installation has, which is what a scenario may assert about. A links
- * or releases read answers for the environment its header names alone, so a snapshot read in
- * one of them cannot tell "not released to prod" from "not asked about prod".
+ * read answers for the environment its header names alone, so a snapshot read in one of them
+ * cannot tell "no link in prod" from "not asked about prod".
  */
 export const ENVIRONMENTS = ["test", "prod"];
 
 /**
- * One form's links and releases across every environment, each entry carrying the
- * environment it was read in so a merged list stays attributable.
+ * One form's links in every environment, and its whole publish history once: that history
+ * answers for the form rather than for the header's environment, so a read per environment
+ * counts every row as many times as there are environments.
  *
  * @param {{ baseUrl: string; internalToken: string; session: string }} access
  * @param {string} id
- * @param {readonly string[]} environments
+ * @param {readonly string[]} environments the environments to read links in; the first is
+ *   where the publish history is read
  * @returns {Promise<{ links: Record<string, unknown>; releases: Record<string, unknown> }>}
  */
 async function readOperational(access, id, environments) {
   /** @type {unknown[]} */
   const links = [];
-  /** @type {unknown[]} */
-  const releases = [];
   for (const environment of environments) {
     const linked = await read(access, `/forms/${id}/links`, environment);
-    const released = await read(access, `/forms/${id}/releases`, environment);
     links.push(...(Array.isArray(linked["links"]) ? linked["links"] : []));
-    releases.push(...(Array.isArray(released["releases"]) ? released["releases"] : []));
   }
+  const [primary = "test"] = environments;
+  const history = await read(access, `/forms/${id}/releases`, primary);
+  const releases = Array.isArray(history["releases"]) ? history["releases"] : [];
   return { links: { links }, releases: { releases } };
 }
 

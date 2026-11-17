@@ -19,6 +19,6 @@
 
 **Say this**
 
-> I added "None of these" as the last answer. One thing I cannot do: stop someone ticking it as well as the others. The form will accept both, and nothing flags it. I have put a line of guidance under the question, and if that is not enough I can split it into two questions instead: first whether any apply, and then the list.
+> The plan adds "None of these" as the last answer. One thing nothing here can do: stop someone ticking it as well as the others. The form will accept both, and nothing flags it. There is a line of guidance under the question, and if that is not enough the plan can split it into two questions instead: first whether any apply, and then the list.
 
 **Corpus sources:** US American Community Survey (not-applicable routes), US BRFSS health survey (refusal and do-not-know codes kept separate from ordinary choices), Council customer satisfaction survey, Australian Medicare enrolment MS004 (voluntary demographic questions).

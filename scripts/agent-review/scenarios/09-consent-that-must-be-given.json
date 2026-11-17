@@ -15,6 +15,13 @@
   "seed": {
     "reset": "fresh",
     "requires": "A dev database with no form titled Brackenhill Practice record sharing.",
+    "expect": [
+      {
+        "check": "formCount",
+        "titleContains": "brackenhill practice record sharing",
+        "exactly": 0
+      }
+    ],
     "fixtures": "All data is invented: Brackenhill Practice is not a real practice and no scenario sends a real person's details."
   },
   "budget": {

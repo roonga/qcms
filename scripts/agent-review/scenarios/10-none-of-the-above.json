@@ -15,6 +15,13 @@
   "seed": {
     "reset": "fresh",
     "requires": "A dev database with no form titled Marchfield Council contact survey.",
+    "expect": [
+      {
+        "check": "formCount",
+        "titleContains": "marchfield council contact survey",
+        "exactly": 0
+      }
+    ],
     "fixtures": "All data is invented: Marchfield Council is not a real council and no scenario sends a real person's details."
   },
   "budget": {

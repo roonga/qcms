@@ -21,8 +21,13 @@ node scripts/agent-review/end-state.mjs --out "$(node scripts/agent-scratch.mjs 
 node scripts/agent-review/checks.mjs \
   scripts/agent-review/scenarios/02-publish-and-test-link.json \
   "$(node scripts/agent-scratch.mjs agent-review-02-publish-and-test-link)/transcript.json" \
-  "$(node scripts/agent-scratch.mjs end-state.json)"
+  "$(node scripts/agent-scratch.mjs end-state.json)" \
+  --before "$(node scripts/agent-scratch.mjs before-02.json)"
 ```
+
+`--before` takes an end state read _before_ the scenario ran, which is what the scenario's
+`seed.expect` is checked against. Reading one is optional; without it a chain run out of
+order shows up later, as end-state findings that do not say why.
 
 Exit 0 is a pass, 1 is a finding, 2 is a usage or credential problem. The checks and the end-state reader run under `pnpm verify` against the committed fixtures, with no stack and no key.
 
@@ -38,6 +43,11 @@ node scripts/agent-review/eval-status.mjs set "$status" publish-and-test-link '{
 
 Each write replaces the whole file through a rename, so a reader never catches half of one, and the shape is validated before it lands. It holds no credential, no address and no transcript text beyond a check's own short message.
 
+A scenario's `seed.reset` is `fresh` or `after:<id>`. `fresh` is `QCMS_PORT_SEAT=<0-9> pnpm
+dev:fresh`, which takes this seat's stack down with its database and brings it back: one
+named command, rather than a lane dropping a Docker volume by hand. `seed.requires` is the
+prose beside it, and `seed.expect` is the half the checks read.
+
 Every scenario invents its data. No scenario sends a real person's details, and a scenario's end state is read back from the API rather than taken from what the assistant said.
 
 A scenario names the environment its screen is set to, and a message may name how many
@@ -50,4 +60,4 @@ acted in, because "not released to prod" read from `test` alone says nothing. Na
 narrower set with `--environment test` or `--environment test,prod`; the first one named is
 where the form list and the question library are read.
 
-A scenario may assert one question's settings as well as the form's shape: `required`, `optionCount`, `dateMin`, `dateMax` and `pattern`, each naming the question by a substring of its label. `notAfter` and `notBefore` take a literal date or `today`, which resolves to the day the end state was read rather than the day the checks run. A setting that was never set reads as absent, which is what makes "the date of birth accepts the year 2100" a failure rather than a judgement call.
+A scenario may assert one question's settings as well as the form's shape: `required`, `optionCount`, `dateMin`, `dateMax`, `pattern`, `minSelected` and `maxSelected`, each naming the question by a substring of its label. `notAfter` and `notBefore` take a literal date or `today`, which resolves to the day the end state was read rather than the day the checks run. A setting that was never set reads as absent, which is what makes "the date of birth accepts the year 2100" a failure rather than a judgement call.

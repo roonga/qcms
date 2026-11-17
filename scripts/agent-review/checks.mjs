@@ -121,14 +121,14 @@ const FAILURE_WORDS = [
 ];
 
 /**
- * @typedef {{ check: string; severity: "fail" | "warn"; turn: number | null; where: string;
- *   evidence: string; text: string }} Finding
+ * @typedef {{ check: string; severity: "fail" | "warn" | "note"; turn: number | null;
+ *   where: string; evidence: string; text: string }} Finding
  */
 
 /**
  * @param {string} check
  * @param {{ turn?: number | null; where: string; evidence?: string; text: string;
- *   severity?: "fail" | "warn" }} detail
+ *   severity?: "fail" | "warn" | "note" }} detail
  * @returns {Finding}
  */
 function finding(check, detail) {
@@ -352,14 +352,18 @@ export function cardTextOf(card) {
 }
 
 /**
+ * The card's words are the admin's own, written from the catalogue and the plan's arguments
+ * rather than by the model, so a fault here is a rendering fault and is named as one. The
+ * reply's own voice is {@link checkVoice}.
+ *
  * @param {{ where: string; text: string; title: boolean }} piece
  * @returns {{ check: string; index: number; text: string }[]}
  */
 function cardTextFaults(piece) {
   return voiceFaults(piece.text, {
     subject: piece.where,
-    identifier: piece.title ? "voice.id-in-title" : "voice.card-identifier",
-    term: "voice.card-term",
+    identifier: piece.title ? "card.id-in-title" : "card.identifier",
+    term: "card.term",
   });
 }
 
@@ -864,7 +868,15 @@ function boundText(bound) {
 }
 
 /** The settings a scenario may assert about one question, each one a check of its own. */
-const QUESTION_CHECKS = ["required", "optionCount", "dateMin", "dateMax", "pattern"];
+const QUESTION_CHECKS = [
+  "required",
+  "optionCount",
+  "dateMin",
+  "dateMax",
+  "pattern",
+  "minSelected",
+  "maxSelected",
+];
 
 /**
  * @param {Record<string, unknown>} form
@@ -917,6 +929,14 @@ function settingProblem(question, assertion, readAt) {
     return withinBound(actual, bound)
       ? undefined
       : `found ${String(actual)} option(s), expected ${boundText(bound)}`;
+  }
+  if (check === "minSelected" || check === "maxSelected") {
+    const actual = question[check];
+    if (typeof actual !== "number") return set ? "it is not set at all" : undefined;
+    if (!set) return `it is set, to ${String(actual)}`;
+    return withinBound(actual, bound)
+      ? undefined
+      : `found ${String(actual)}, expected ${boundText(bound)}`;
   }
   const value = question[check];
   if (typeof value !== "string" || value === "") {
@@ -1086,18 +1106,63 @@ export function checkEndState(scenario, snapshot) {
 }
 
 /**
+ * The state a scenario says it starts from, read back before the run. `seed.requires` is
+ * prose for whoever sets the stack up; `seed.expect` is the half a run can refuse on, so a
+ * chain run out of order fails here rather than as a puzzling end-state finding later.
+ *
+ * @param {{ seed?: { expect?: readonly Record<string, unknown>[] } }} scenario
+ * @param {{ readAt?: string | null; forms?: readonly Record<string, unknown>[] }} [before]
+ * @returns {Finding[]}
+ */
+export function checkSeedExpectations(scenario, before) {
+  const wanted = scenario.seed?.expect ?? [];
+  if (wanted.length === 0 || before === undefined) return [];
+  return checkEndState({ expect: { endState: wanted } }, before).map((entry) => ({
+    ...entry,
+    check: entry.check.replace(/^end-state\./u, "seed-state."),
+    where: `before the run, ${entry.where}`,
+  }));
+}
+
+/**
+ * Every `assistantMust` line, recorded as a note. Nothing here judges one: they are the
+ * reviewer's half of the rubric, and a run that passed every check still has these open.
+ *
+ * @param {{ expect?: { assistantMust?: readonly unknown[] } }} scenario
+ * @returns {Finding[]}
+ */
+export function checkAssistantMust(scenario) {
+  const lines = scenario.expect?.assistantMust ?? [];
+  return lines
+    .filter((line) => typeof line === "string" && line !== "")
+    .map((line) =>
+      finding("assistant-must.unread", {
+        severity: "note",
+        where: "the scenario's assistantMust",
+        evidence: String(line),
+        text: "no check reads this line; a reviewer judges it against the transcript",
+      }),
+    );
+}
+
+/**
  * @param {{ turns?: readonly Record<string, unknown>[] }} transcript
  * @param {Record<string, unknown>} scenario
  * @param {{ forms?: readonly Record<string, unknown>[] }} [snapshot]
+ * @param {{ forms?: readonly Record<string, unknown>[] }} [before] the end state read before
+ *   the run, which `seed.expect` is checked against
  * @returns {{ scenario: string; passed: boolean; turns: number; findings: Finding[] }}
  */
-export function reviewTranscript(transcript, scenario, snapshot) {
+export function reviewTranscript(transcript, scenario, snapshot, before) {
   const run = { turns: transcript.turns ?? [] };
   const spec = /** @type {{ budget?: { turns?: number };
     messages?: readonly Record<string, unknown>[];
-    expect?: { endState?: readonly Record<string, unknown>[] } }} */ (scenario);
+    seed?: { expect?: readonly Record<string, unknown>[] };
+    expect?: { endState?: readonly Record<string, unknown>[];
+      assistantMust?: readonly unknown[] } }} */ (scenario);
 
   const findings = [
+    ...checkSeedExpectations(spec, before),
     ...checkVoice(run),
     ...checkCardText(run),
     ...checkBudget(run, spec),
@@ -1108,6 +1173,7 @@ export function reviewTranscript(transcript, scenario, snapshot) {
     ...checkContradictions(run),
     ...checkSecrets(run),
     ...(snapshot === undefined ? [] : checkEndState(spec, snapshot)),
+    ...checkAssistantMust(spec),
   ];
   return {
     scenario: String(scenario["id"] ?? "unnamed"),
@@ -1122,7 +1188,8 @@ export function reviewTranscript(transcript, scenario, snapshot) {
  * @returns {string}
  */
 export function formatReport(result) {
-  const head = `${result.scenario}: ${result.passed ? "pass" : "FAIL"} in ${String(result.turns)} turn(s), ${String(result.findings.length)} finding(s)`;
+  const notes = result.findings.filter((entry) => entry.severity === "note").length;
+  const head = `${result.scenario}: ${result.passed ? "pass" : "FAIL"} in ${String(result.turns)} turn(s), ${String(result.findings.length - notes)} finding(s), ${String(notes)} line(s) for a reviewer`;
   const lines = result.findings.map((entry) => {
     const where = entry.turn === null ? entry.where : `turn ${String(entry.turn)}, ${entry.where}`;
     const evidence = entry.evidence === "" ? "" : `\n      "${entry.evidence}"`;
@@ -1136,9 +1203,16 @@ export function formatReport(result) {
  * @returns {number}
  */
 export function main(args) {
-  const [scenarioFile, transcriptFile, endStateFile] = args;
+  const before = args[args.indexOf("--before") + 1];
+  const beforeFile = args.indexOf("--before") === -1 ? undefined : before;
+  const [scenarioFile, transcriptFile, endStateFile] = args.filter(
+    (arg, at) => arg !== "--before" && args[at - 1] !== "--before",
+  );
   if (scenarioFile === undefined || transcriptFile === undefined) {
-    stderr.write("usage: checks.mjs <scenario.json> <transcript.json> [end-state.json]\n");
+    stderr.write(
+      "usage: checks.mjs <scenario.json> <transcript.json> [end-state.json] " +
+        "[--before <end-state.json>]\n",
+    );
     return 2;
   }
   /** @param {string} file */
@@ -1148,6 +1222,7 @@ export function main(args) {
     load(transcriptFile),
     load(scenarioFile),
     endStateFile === undefined ? undefined : load(endStateFile),
+    beforeFile === undefined ? undefined : load(beforeFile),
   );
   stdout.write(`${formatReport(result)}\n`);
   return result.passed ? 0 : 1;

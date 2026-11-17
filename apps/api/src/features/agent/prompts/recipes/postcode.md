@@ -17,6 +17,6 @@
 
 **Say this when the form serves more than one country**
 
-> I left the postcode open, because the shape differs per country and the check cannot follow the country they pick. If the form only ever serves one country, tell me which and I will tighten it.
+> The postcode is left open, because the shape differs per country and the check cannot follow the country they pick. If the form only ever serves one country, tell me which and the plan can tighten it.
 
 **Corpus sources:** Council customer satisfaction survey (contact details), NHS new-patient questionnaire, Canadian adult passport (address history), US American Community Survey.

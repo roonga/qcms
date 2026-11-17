@@ -17,6 +17,7 @@ import {
   checkLeadingSentence,
   checkProposals,
   checkSecrets,
+  checkSeedExpectations,
   checkVoice,
   firstSentence,
   formatReport,
@@ -53,7 +54,9 @@ describe("the deterministic review of a transcript", () => {
 
     expect(result.passed).toBe(false);
     expect(checksFired(result.findings)).toEqual([
+      "assistant-must.unread",
       "budget.round-trips",
+      "card.term",
       "honesty.claimed-own-action",
       "honesty.claimed-without-run",
       "honesty.success-after-failure",
@@ -113,9 +116,36 @@ describe("the deterministic review of a transcript", () => {
   it("passes a run that reached the same end in two turns", () => {
     const result = reviewTranscript(fixture("clean-session.transcript.json"), PUBLISH);
 
-    expect(result.findings).toEqual([]);
+    expect(result.findings.filter((entry) => entry.severity !== "note")).toEqual([]);
     expect(result.passed).toBe(true);
     expect(result.turns).toBe(2);
+  });
+
+  it("ends a clean run with the lines no check read, so a reviewer knows what is left", () => {
+    const result = reviewTranscript(fixture("clean-session.transcript.json"), PUBLISH);
+    const notes = result.findings.filter((entry) => entry.check === "assistant-must.unread");
+    const must = (PUBLISH["expect"] as { assistantMust: readonly string[] }).assistantMust;
+
+    expect(notes.map((entry) => entry.evidence)).toEqual([...must]);
+    for (const note of notes) expect(note.severity).toBe("note");
+    expect(formatReport(result)).toContain(`${String(notes.length)} line(s) for a reviewer`);
+  });
+
+  it("checks the state a scenario says it starts from against an end state read before the run", () => {
+    const before = { readAt: "2026-11-16", forms: [] };
+    const findings = checkSeedExpectations(
+      PUBLISH as { seed?: { expect?: readonly Record<string, unknown>[] } },
+      before,
+    );
+
+    expect(findings.map((entry) => entry.check)).toContain("seed-state.missing-form");
+    expect(findings[0]?.where).toContain("before the run");
+  });
+
+  it("says nothing about the starting state when no end state was read before the run", () => {
+    expect(
+      checkSeedExpectations(PUBLISH as { seed?: { expect?: readonly Record<string, unknown>[] } }),
+    ).toEqual([]);
   });
 
   it("reads one card per turn and a list of them the same way", () => {
@@ -316,8 +346,8 @@ describe("the card, which the person reads as closely as the reply", () => {
 
   it("names an identifier in a title apart from one buried in a detail", () => {
     const findings = checkCardText({ turns: [{ reply: "", cards: [card] }] });
-    const titles = findings.filter((entry) => entry.check === "voice.id-in-title");
-    const elsewhere = findings.filter((entry) => entry.check === "voice.card-identifier");
+    const titles = findings.filter((entry) => entry.check === "card.id-in-title");
+    const elsewhere = findings.filter((entry) => entry.check === "card.identifier");
 
     expect(titles).toHaveLength(1);
     expect(titles[0]?.where).toBe("step 1's title");
@@ -327,7 +357,7 @@ describe("the card, which the person reads as closely as the reply", () => {
 
   it("finds the builder words in a card's own words, wherever they sit", () => {
     const words = checkCardText({ turns: [{ reply: "", cards: [card] }] })
-      .filter((entry) => entry.check === "voice.card-term")
+      .filter((entry) => entry.check === "card.term")
       .map((entry) => `${entry.where}: ${entry.text}`);
 
     expect(words).toEqual(
@@ -345,10 +375,7 @@ describe("the card, which the person reads as closely as the reply", () => {
       entry.text.includes("q_phone_number"),
     );
 
-    expect(findings.map((entry) => entry.check)).toEqual([
-      "voice.id-in-title",
-      "voice.card-identifier",
-    ]);
+    expect(findings.map((entry) => entry.check)).toEqual(["card.id-in-title", "card.identifier"]);
     for (const entry of findings) {
       expect(entry.text).toContain('which is also the builder word "q_"');
     }

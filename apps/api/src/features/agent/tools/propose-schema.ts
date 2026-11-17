@@ -10,6 +10,7 @@ import { actionKind } from "../actions/registry.js";
 import type { ActionKindDef } from "../actions/types.js";
 import type { OfferedActionKind } from "../grant-filter.js";
 import { argumentMembers, StepReferenceSchema } from "./args-schema.js";
+import { MAX_PLAN_TITLE } from "./plan-title.js";
 import { MAX_PLAN_STEPS } from "./propose.js";
 
 function isOptional(member: z.ZodType): boolean {
@@ -77,6 +78,16 @@ export function proposePlanSchema(offered: readonly OfferedActionKind[]): z.ZodT
       .max(MAX_PLAN_STEPS)
       .describe(
         "The steps in the order they run. A single action is a plan of one step. One plan, one Confirm.",
+      ),
+    title: z
+      .string()
+      .max(MAX_PLAN_TITLE)
+      .optional()
+      .describe(
+        "What this plan leaves behind, in a few plain words, which the card uses as its " +
+          'heading: "Ask about allergies, then publish to test". Name the outcome rather ' +
+          "than the last step. No id and none of the words you may never write to the " +
+          "person, or the plan is refused. Leave it out and the card titles itself.",
       ),
   });
 }

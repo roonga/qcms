@@ -60,6 +60,15 @@ import { useSubjectTitles } from "./subject-titles";
    half word no later pass could repair. The card quotes REASON_CHARS of what this keeps. */
 const REASON_SOURCE_CHARS = 4 * REASON_CHARS;
 
+/**
+ * The day on this browser's own clock, as the turn context wants it. The assistant writes
+ * dates the screen also writes, and the screen reads them in the viewer's zone.
+ */
+export function viewerDay(now: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return `${String(now.getFullYear())}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 /* The builder holds the open draft's title, so a card about that form can name it. */
 function builderNames(
   builder: BuilderAssistSnapshot | undefined,
@@ -191,6 +200,7 @@ function ScreenConversation({
   const requestHandOff = seam?.requestHandOff;
   const cardId = useId();
   const turnsRef = useRef<HTMLOListElement>(null);
+  const openCardRef = useRef<HTMLLIElement>(null);
   const followsNewest = useRef(true);
   const known = useMemo(() => builderNames(builder), [builder]);
   const names = useSubjectTitles(proposal, known);
@@ -202,6 +212,17 @@ function ScreenConversation({
     if (list === null || !followsNewest.current) return;
     list.scrollTop = list.scrollHeight;
   }, [cards, live, shown]);
+
+  // A card is read from its title down, so an arriving one brings its own top into view
+  // instead of leaving the panel pinned past its foot. Declared after the follow above,
+  // so it is this one that decides where an arriving card leaves the panel.
+  useEffect(() => {
+    const list = turnsRef.current;
+    const item = openCardRef.current;
+    if (list === null || item === null) return;
+    followsNewest.current = false;
+    list.scrollTop += item.getBoundingClientRect().top - list.getBoundingClientRect().top;
+  }, [cards.open?.proposal.proposalId]);
 
   useEffect(() => {
     if (publish === undefined) return;
@@ -354,6 +375,7 @@ function ScreenConversation({
         params: on.params,
         conversationId: conversation.id,
         visitId: conversation.visitId,
+        viewerToday: viewerDay(new Date()),
         ...(draftUpdatedAt === undefined ? {} : { clientState: draftUpdatedAt }),
       }),
     });
@@ -405,6 +427,7 @@ function ScreenConversation({
     const controller = new AbortController();
     abortRef.current = controller;
     stoppedRef.current = false;
+    const cardBefore = cardsRef.current.open?.proposal.proposalId;
 
     try {
       const response = await postTurn(screen, controller.signal, savedDraft, waitingCard);
@@ -427,7 +450,11 @@ function ScreenConversation({
       }
       const text = turnText(ended).trim();
       if (text !== "") conversation.append([{ role: "assistant", content: text }]);
-      setReason(lastTextSegment(ended).trim().slice(0, REASON_SOURCE_CHARS));
+      // The quote belongs to the turn that proposed the card and stays with it; a later
+      // turn's prose is about something else and must not overwrite it.
+      if (cardsRef.current.open?.proposal.proposalId !== cardBefore) {
+        setReason(lastTextSegment(ended).trim().slice(0, REASON_SOURCE_CHARS));
+      }
       onAnnounce(stoppedRef.current ? t("agent.announce.stopped") : t("agent.announce.done"));
     } catch {
       if (!stoppedRef.current) {
@@ -552,7 +579,7 @@ function ScreenConversation({
           </li>
         ))}
         {proposal !== undefined && card !== undefined && (
-          <li className="qcms-assistant__turn" data-role="assistant">
+          <li className="qcms-assistant__turn" data-role="assistant" ref={openCardRef}>
             <ActionCard
               id={cardId}
               proposal={proposal}
@@ -680,6 +707,30 @@ function StepIcon({ state }: { readonly state: StepState }) {
   );
 }
 
+/**
+ * A run of identical rows says nothing five rows the second four cannot, and none of them
+ * names its subject.
+ */
+export function collapsedSteps(
+  steps: readonly TurnStep[],
+): readonly { readonly at: number; readonly step: TurnStep; readonly count: number }[] {
+  const rows: { at: number; step: TurnStep; count: number }[] = [];
+  for (const [at, step] of steps.entries()) {
+    const last = rows.at(-1);
+    if (
+      last !== undefined &&
+      last.step.label === step.label &&
+      last.step.state === step.state &&
+      wasRetried(steps, last.at) === wasRetried(steps, at)
+    ) {
+      last.count += 1;
+      continue;
+    }
+    rows.push({ at, step, count: 1 });
+  }
+  return rows;
+}
+
 function StepTimeline({ steps }: { readonly steps: readonly TurnStep[] }) {
   return (
     <ol
@@ -687,7 +738,7 @@ function StepTimeline({ steps }: { readonly steps: readonly TurnStep[] }) {
       aria-label={t("forms.assist.stepsLabel")}
       data-testid="qcms-assistant-steps"
     >
-      {steps.map((step, at) => {
+      {collapsedSteps(steps).map(({ at, step, count }) => {
         const again = wasRetried(steps, at);
         const problem = !again && (step.state === "failed" || step.state === "interrupted");
         return (
@@ -695,7 +746,11 @@ function StepTimeline({ steps }: { readonly steps: readonly TurnStep[] }) {
             <span className="qcms-assist-steps__icon" aria-hidden="true">
               <StepIcon state={again ? "interrupted" : step.state} />
             </span>
-            <span>{t(step.label)}</span>
+            <span>
+              {count === 1
+                ? t(step.label)
+                : t("forms.assist.stepTimes", { label: t(step.label), count })}
+            </span>
             <span className="qcms-visually-hidden">, </span>
             <span className={problem ? "qcms-assist-steps__state" : "qcms-visually-hidden"}>
               {again ? t("forms.assist.stepRetried") : t(STEP_STATE_LABELS[step.state])}

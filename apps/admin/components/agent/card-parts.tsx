@@ -139,7 +139,7 @@ function EnvironmentLine({ step }: { readonly step: AgentPlanStep }): React.Reac
       {production ? (
         <>
           {" · "}
-          <span className="qcms-acard__label">{productionSentence()}</span>
+          <span className="qcms-acard__label">{productionSentence(step)}</span>
         </>
       ) : null}
     </span>

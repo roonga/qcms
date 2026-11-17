@@ -120,9 +120,10 @@ describe("rule 1: the admin writes the card", () => {
     const quotes = container.querySelectorAll("q");
     expect(quotes).toHaveLength(1);
     expect(quotes[0]?.textContent).toBe(HOSTILE_REASON);
+    // Above the steps: it is the sentence that says why they are there.
     const steps = container.querySelector(".qcms-acard__steps");
     const reason = container.querySelector(".qcms-acard__reason");
-    expect(steps?.compareDocumentPosition(reason as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(steps?.compareDocumentPosition(reason as Node)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
   });
 });
 
@@ -189,7 +190,7 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
     ]);
     const { container } = renderCard(plan, initialCard(plan));
     const rows = container.querySelectorAll(".qcms-acard__step");
-    expect((rows[1] as HTMLElement).textContent).toContain("Uses the version step 1 sets");
+    expect((rows[1] as HTMLElement).textContent).toContain("Uses what step 1 makes");
     expect((rows[1] as HTMLElement).querySelector(".qcms-acard__what")?.textContent).toContain(
       "step 1's version",
     );
@@ -224,6 +225,22 @@ describe("a card names its subject rather than its ids", () => {
     renderCard(plan, initialCard(plan));
     expect(
       screen.getByRole("heading", { name: "Save the draft of Patient onboarding: 2 steps" }),
+    ).toBeTruthy();
+  });
+
+  it("heads the plan with the assistant's own outcome line where it wrote one", () => {
+    const plan = { ...proposal([CREATE, SAVE]), title: "Start the patient form and save it" };
+    renderCard(plan, initialCard(plan));
+    expect(
+      screen.getByRole("heading", { name: "Start the patient form and save it" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps the catalogue's own sentence on a single-step card, whatever the plan is titled", () => {
+    const plan = { ...proposal([step()]), title: "Give them a way in" };
+    renderCard(plan, initialCard(plan));
+    expect(
+      screen.getByRole("heading", { name: "Create 20 test links for this form" }),
     ).toBeTruthy();
   });
 
@@ -348,10 +365,10 @@ describe("the step states", () => {
     expect(screen.getAllByRole("listitem")[1]?.textContent).toContain("Not run");
   });
 
-  it("shows `Expired - ask again` with Confirm disabled", () => {
+  it("shows `This card expired - ask again` with Confirm disabled", () => {
     const plan = proposal([step()]);
     renderCard(plan, expireCard(initialCard(plan)));
-    expect(screen.getByText("Expired - ask again")).toBeTruthy();
+    expect(screen.getByText("This card expired - ask again")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Confirm" }).hasAttribute("disabled")).toBe(true);
   });
 });

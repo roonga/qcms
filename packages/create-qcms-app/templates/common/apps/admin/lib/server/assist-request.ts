@@ -90,6 +90,13 @@ export function parseAssistConversation(raw: unknown): readonly AssistConversati
   return turns;
 }
 
+const DAY = /^\d{4}-\d{2}-\d{2}$/u;
+
+/** The viewer's own day, relayed only in that shape: it reaches the model's turn context. */
+export function isDay(raw: unknown): raw is string {
+  return typeof raw === "string" && DAY.test(raw);
+}
+
 const ID_KEYS = ["formId", "questionId", "workspaceId", "sessionId"] as const;
 
 export function parseAssistParams(raw: unknown): AssistParamsRelay | undefined {

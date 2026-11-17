@@ -14,7 +14,30 @@
   ],
   "seed": {
     "reset": "after:publish-and-test-link",
-    "requires": "The form released to test at version 1, with the reason for the visit always asked, and the signed-in person holding Edit forms and Publish forms for test.",
+    "requires": "The form published to test at version 1 with no rule on it, so the reason for the visit is asked of everyone, and the signed-in person holding Edit forms and Publish forms for test. This scenario changes the form, so it runs after every other scenario starting from publish-and-test-link.",
+    "expect": [
+      {
+        "check": "released",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test"
+      },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "prod"
+      },
+      {
+        "check": "linkCount",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test",
+        "exactly": 1
+      },
+      {
+        "check": "ruleCount",
+        "title": "Larkmead new patient sign-up",
+        "exactly": 0
+      }
+    ],
     "fixtures": "Fake clinic data only."
   },
   "budget": {
@@ -47,9 +70,9 @@
     "assistantMust": [
       "say that what is already out on test does not change, and that this makes a new version",
       "state the rule back in the clinic's own words before proposing it",
-      "put the change and the release on as few plans as the rules allow",
+      "put the change and the publish on as few plans as the rules allow",
       "not revoke or replace the existing link without being asked"
     ]
   },
-  "notes": "One plan covers this, so one turn is the budget; a clarifying question spends it and leaves the end state unmet, which is the finding. Published versions are immutable (R1). The person asked for an outcome, not a mechanism, so the reply explains the new version in one sentence rather than teaching the model."
+  "notes": "One plan covers this, so one turn is the budget; a clarifying question spends it and leaves the end state unmet, which is the finding. Published versions are immutable (R1). The person asked for an outcome, not a mechanism, so the reply explains the new version in one sentence rather than teaching the model. The production-prod scenario starts from the same point and leaves it untouched, so it runs before this one."
 }

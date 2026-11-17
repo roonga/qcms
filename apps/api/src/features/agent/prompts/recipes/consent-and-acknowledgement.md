@@ -1,6 +1,6 @@
 # Consent, and an acknowledgement that has to be given
 
-**Use for:** consent to share a record, consent to a privacy notice, "I have read and understood", an authorisation to release information, a declaration that must be agreed to before the form can be sent.
+**Use for:** consent to share a record, consent to a privacy notice, "I have read and understood", an authorisation to share information, a declaration that must be agreed to before the form can be sent.
 
 **Settings**
 
@@ -25,6 +25,6 @@ Offer a yes or no only where they say recording a refusal matters more than bloc
 
 **Say this**
 
-> I made the consent a one-answer list rather than a yes or no. A yes or no can be answered No and sent, and there is no way to insist on Yes, so a single answer they have to pick is what actually stops the form going without consent. If recording a refusal matters to you, say so and I will make it yes or no instead, and then it can be sent either way.
+> The plan makes the consent a one-answer list rather than a yes or no. A yes or no can be answered No and sent, and there is no way to insist on Yes, so a single answer they have to pick is what actually stops the form going without consent. If recording a refusal matters to you, say so and the plan can make it yes or no instead, and then it can be sent either way.
 
 **Corpus sources:** NHS new-patient questionnaire (Emergency Care Summary consent and the final privacy acknowledgement), Australian Medicare enrolment MS004 (consent distinctions, My Health Record route), US health insurance claim CMS-1500 (assignment and signature fields), NZ tax code declaration IR330 (employee declaration), Australian passport B11 general declaration.

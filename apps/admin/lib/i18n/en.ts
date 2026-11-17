@@ -1563,6 +1563,8 @@ export const messages = {
   "forms.assist.stepFailed": "Failed",
   /** A step the assistant went on to get right is not a failure of the turn. */
   "forms.assist.stepRetried": "Tried again",
+  /** A run of identical rows reads as one line of progress, because that is what it is. */
+  "forms.assist.stepTimes": "{label}, {count} times",
   "forms.assist.stepInterrupted": "Did not finish",
   "forms.assist.step.search_question_library": "Searching the question library",
   "forms.assist.step.propose_questions": "Drafting questions",
@@ -1679,6 +1681,20 @@ export const messages = {
   "forms.assist.definition.options": "Options",
   "forms.assist.definition.other": "Other fields",
   "forms.assist.definition.raw": "Show the whole definition",
+  /** A constraint and the message beside it are named for the reader, never by their field. */
+  "forms.assist.definition.field.minLength": "Fewest characters",
+  "forms.assist.definition.field.maxLength": "Most characters",
+  "forms.assist.definition.field.pattern": "Shape it has to match",
+  "forms.assist.definition.field.integer": "Whole numbers only",
+  "forms.assist.definition.field.min": "Lowest number",
+  "forms.assist.definition.field.max": "Highest number",
+  "forms.assist.definition.field.dateMin": "Earliest date",
+  "forms.assist.definition.field.dateMax": "Latest date",
+  "forms.assist.definition.field.minSelected": "Fewest answers to tick",
+  "forms.assist.definition.field.maxSelected": "Most answers to tick",
+  "forms.assist.definition.field.required": "Has to be answered",
+  "forms.assist.definition.field.yesLabel": "Wording of the yes answer",
+  "forms.assist.definition.field.noLabel": "Wording of the no answer",
   "forms.assist.newQuestionFromStep":
     "{question} is a new question, added to the library by step {step} of this plan and not published yet. Publish it from the question library before you publish this form.",
 
@@ -1719,7 +1735,7 @@ export const messages = {
     "Freezes the working draft as a version that never changes and makes that version live in {environment}, in one step. Anyone starting from now gets it there.",
   "agent.card.form.release.title": "Publish version {version} of {form} to {environment}",
   "agent.card.form.release.consequence":
-    "Anyone starting from now gets this version in {environment}. Nothing is frozen.",
+    "Anyone starting from now gets this version in {environment}. No new version is made: this one is already published.",
   "agent.card.apply-draft.title": "Put the proposed changes into the {form} draft",
   "agent.card.apply-draft.consequence":
     "Replaces the working draft with the one below. It publishes nothing: nobody answering the form sees a change until you publish it.",
@@ -1757,12 +1773,12 @@ export const messages = {
   "agent.card.webhook.redeliver.title": "Redeliver {deliveryId}",
   "agent.card.webhook.redeliver.consequence":
     "The delivery is reset to due-now and the worker attempts it again.",
-  "agent.card.link.mint.title": "Create test links for this form",
-  "agent.card.link.mint.title.one": "Create 1 test link for this form",
-  "agent.card.link.mint.title.other": "Create {count} test links for this form",
-  "agent.card.link.mint.title.prod": "Create respondent links for this form",
-  "agent.card.link.mint.title.prod.one": "Create 1 respondent link for this form",
-  "agent.card.link.mint.title.prod.other": "Create {count} respondent links for this form",
+  "agent.card.link.mint.title": "Create test links for {form}",
+  "agent.card.link.mint.title.one": "Create 1 test link for {form}",
+  "agent.card.link.mint.title.other": "Create {count} test links for {form}",
+  "agent.card.link.mint.title.prod": "Create respondent links for {form}",
+  "agent.card.link.mint.title.prod.one": "Create 1 respondent link for {form}",
+  "agent.card.link.mint.title.prod.other": "Create {count} respondent links for {form}",
   "agent.card.link.mint.consequence":
     "Anyone holding a link can open this form and answer it. The web addresses are shown to you once, on this card, and cannot be read again.",
   "agent.card.response.erase.title": "Erase the respondent data for {sessionId}",
@@ -1802,8 +1818,10 @@ export const messages = {
 
   "agent.card.environment.production":
     "This is prod. Real respondents get this from the moment you confirm, and what they have already sent is untouched.",
+  /** Every other prod step: the environment is worth naming, a warning about the form is not. */
+  "agent.card.environment.prodNote": "This is prod, where real respondents answer.",
   "agent.card.environmentLabel": "Environment",
-  "agent.card.usesStep": "Uses the {field} step {step} sets",
+  "agent.card.usesStep": "Uses what step {step} makes",
 
   "agent.card.fromStepShort": "step {step}'s {field}",
 
@@ -1897,14 +1915,14 @@ export const messages = {
   "agent.card.stop": "Stop after this step",
   "agent.card.stopping": "Stopping after this step",
   "agent.card.openScreen": "Open the screen",
-  "agent.card.open": "Open",
+  "agent.card.open": "Review step by step",
   "agent.card.wizard.progress": "Step {step} of {count}",
   "agent.card.wizard.reviewTitle": "Review all {count} steps",
   "agent.card.wizard.back": "Back",
   "agent.card.wizard.next": "Next",
-  "agent.card.expiresIn.one": "Expires in 1 minute",
-  "agent.card.expiresIn.other": "Expires in {count} minutes",
-  "agent.card.expiredAsk": "Expired - ask again",
+  "agent.card.expiresIn.one": "This card expires in 1 minute",
+  "agent.card.expiresIn.other": "This card expires in {count} minutes",
+  "agent.card.expiredAsk": "This card expired - ask again",
   "agent.card.handOffHint":
     "This step finishes on the screen itself. Confirm opens that control with these values filled in.",
 

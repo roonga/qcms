@@ -203,15 +203,20 @@ describe("a card names what it acts on", () => {
 });
 
 describe("a counted title agrees with its count", () => {
-  it("reads as one link for one link", () => {
+  it("reads as one link for one link, and names the form it is for", () => {
     const { steps, names } = plan([MINT], BUILDER_KNOWS);
-    expect(stepTitle(MINT, {}, steps, names)).toBe("Create 1 test link for this form");
+    expect(stepTitle(MINT, {}, steps, names)).toBe("Create 1 test link for Patient onboarding");
   });
 
   it("reads as several links for several", () => {
     const many = step({ ...MINT, args: { ...MINT.args, count: 3 } });
     const { steps, names } = plan([many], BUILDER_KNOWS);
-    expect(stepTitle(many, {}, steps, names)).toBe("Create 3 test links for this form");
+    expect(stepTitle(many, {}, steps, names)).toBe("Create 3 test links for Patient onboarding");
+  });
+
+  it("falls back to the generic subject where nothing names the form", () => {
+    const { steps, names } = plan([MINT]);
+    expect(stepTitle(MINT, {}, steps, names)).toBe("Create 1 test link for this form");
   });
 });
 

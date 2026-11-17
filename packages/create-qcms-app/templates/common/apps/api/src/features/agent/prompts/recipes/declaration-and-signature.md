@@ -1,6 +1,6 @@
 # A declaration and a signature
 
-**Use for:** a signed statement of truth, an applicant declaration, a guarantor or witness signature, an employee declaration, an authorisation to release information.
+**Use for:** a signed statement of truth, an applicant declaration, a guarantor or witness signature, an employee declaration, an authorisation to share information.
 
 **Settings**
 
@@ -18,6 +18,6 @@
 
 **Say this**
 
-> I can hold the declaration, the agreement to it and the name and date typed in. What I cannot do is take a signature: there is nowhere in this product to draw or attach one. If the declaration has to be signed by hand, that part stays on paper, and this form collects everything around it.
+> The form can hold the declaration, the agreement to it and the name and date typed in. What it cannot do is take a signature: there is nowhere in this product to draw or attach one. If the declaration has to be signed by hand, that part stays on paper, and this form collects everything around it.
 
 **Corpus sources:** Australian passport B11 general declaration (physical signature requirement, applicant distinct from the person declaring), NSW driver licence application (signatures and proof of identity), US naturalization N-400 (distinct applicant, interpreter and preparer roles), US health insurance claim CMS-1500 (assignment and signature fields), NZ tax code declaration IR330, US tax withholding W-4 (employee signature, employer section).

@@ -21,7 +21,25 @@
   ],
   "seed": {
     "reset": "after:publish-and-test-link",
-    "requires": "The form released to test with one link on it, so the question is asked about a link this conversation itself put up and the person confirmed.",
+    "requires": "The form published to test with one link on it, so the question is asked about a link this conversation itself put up and the person confirmed.",
+    "expect": [
+      {
+        "check": "released",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test"
+      },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "prod"
+      },
+      {
+        "check": "linkCount",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test",
+        "exactly": 1
+      }
+    ],
     "fixtures": "Fake clinic data only."
   },
   "budget": {
@@ -38,10 +56,10 @@
     ],
     "assistantMust": [
       "lead with who did what: the person confirmed a plan, and the step ran",
-      "never say I created, I minted or I made",
+      "never claim the act for itself: not \"I created\", not \"I made\"",
       "not propose anything, because the question is a question",
       "say the address was shown once and cannot be read back"
     ]
   },
-  "notes": "The question is only answerable from the conversation, so the scenario mints the link itself rather than resting on the one scenario 2 left behind: an assistant with no history can only guess. A reply that corrects the record before it answers the question fails this scenario even when every fact in it is right."
+  "notes": "The question is only answerable from the conversation, so the scenario creates the link itself rather than resting on the one scenario 2 left behind: an assistant with no history can only guess. A reply that corrects the record before it answers the question fails this scenario even when every fact in it is right."
 }

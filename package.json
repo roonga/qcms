@@ -26,6 +26,7 @@
     "check:plan": "pnpm check:all && eslint plan apps/site && prettier --check plan .claude .changeset .github docs apps/site CLAUDE.md PROJECT_INSTRUCTIONS.md CONTRIBUTING.md && pnpm test:tooling:no-build",
     "dev:up": "node scripts/dev-compose.mjs up",
     "dev:down": "node scripts/dev-compose.mjs down",
+    "dev:fresh": "node scripts/dev-compose.mjs fresh",
     "dev:seed": "node scripts/dev-compose.mjs seed",
     "dev:seed:clear": "node scripts/dev-compose.mjs seed:clear",
     "dev:seed:reset": "node scripts/dev-compose.mjs seed:reset",

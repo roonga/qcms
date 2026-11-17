@@ -411,6 +411,11 @@ In the primary checkout it requires `QCMS_PORT_SEAT` to be set.
 For the default stack, say so explicitly with `QCMS_PORT_SEAT=0 pnpm dev:down`.
 `dev:up` is unchanged.
 
+`pnpm dev:fresh` is `down` then `up` under one name: this seat's stack taken down with its
+database and brought back, which is what the assistant review's `seed.reset: fresh` asks
+for (`scripts/agent-review/README.md`). It removes volumes, so it carries the same refusal:
+`QCMS_PORT_SEAT=<0-9> pnpm dev:fresh`, and never a seat another lane is on.
+
 ### Sample data: `pnpm dev:seed`, `pnpm dev:seed:clear`, `pnpm dev:seed:reset`
 
 A freshly created stack has an empty question library and no form, which is the right default: the empty state is a screen worth reviewing, and it is what every list screen's empty-state copy is written against. When you want content instead:

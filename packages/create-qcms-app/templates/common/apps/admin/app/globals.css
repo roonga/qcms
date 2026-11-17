@@ -3791,6 +3791,8 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 .qcms-acard__args code {
   font-family: var(--font-mono);
   font-size: 13px;
+  /* A branded id is longer than the dock is wide, and an unwrapped one pushes the card out. */
+  overflow-wrap: anywhere;
 }
 .qcms-acard__label {
   font-weight: 600;
@@ -3874,10 +3876,12 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   gap: 2px;
   margin: 0;
 }
+/* One column: the dock is narrower than a page column, and a 9rem label track left the value
+   a sliver. Size containment is not the answer here, because the card is a shrink-to-fit flex
+   item and containment zeroes the intrinsic width it is sized from. */
 .qcms-acard__deflist dd {
   display: grid;
-  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
-  column-gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
   align-items: baseline;
   margin: 0;
 }

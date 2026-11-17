@@ -51,14 +51,20 @@ function trimEnd(text: string, drop: ReadonlySet<string>): string {
 
 const ENDS_SENTENCE = /[.!?]$/;
 
+/* A quote that stopped short says so however it was cut: a full stop at the end of a clipped
+   quote reads as the writer's own last word. */
+function marked(text: string): string {
+  if (text === "") return "";
+  return ENDS_SENTENCE.test(text) ? `${text} ${ELLIPSIS}` : `${trimEnd(text, CUT)}${ELLIPSIS}`;
+}
+
 /* One line too long for the quote on its own: cut at its last sentence end, else at a word. */
 function cutLine(line: string, max: number): string {
   const head = line.slice(0, max);
   const sentence = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "));
-  if (sentence > max / 2) return head.slice(0, sentence + 1);
+  if (sentence > max / 2) return marked(head.slice(0, sentence + 1));
   const space = head.lastIndexOf(" ");
-  const kept = trimEnd(space > 0 ? head.slice(0, space) : head, CUT);
-  return kept === "" ? "" : `${kept}${ELLIPSIS}`;
+  return marked(trimEnd(space > 0 ? head.slice(0, space) : head, CUT));
 }
 
 /* Keep whole lines: a quote that stops mid-thought reads as the writer trailing off. */
@@ -73,8 +79,7 @@ function shorten(kept: readonly string[], max: number): string {
   }
   if (whole.length === 0) return cutLine(kept[0] ?? "", max);
   const text = whole.join("\n");
-  if (whole.length === kept.length || ENDS_SENTENCE.test(text)) return text;
-  return `${trimEnd(text, TRAILING)}${ELLIPSIS}`;
+  return whole.length === kept.length ? text : marked(trimEnd(text, TRAILING));
 }
 
 /** The reason as a card may quote it, or `undefined` when there is nothing to quote. */

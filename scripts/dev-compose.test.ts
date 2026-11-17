@@ -19,6 +19,7 @@ import {
   COMPOSE_FILES,
   SUBCOMMANDS,
   SUPPLIED_VARIABLES,
+  TEARDOWN_SUBCOMMANDS,
   bannerOptionsFor,
   devStackBannerLines,
   devStackEnvironmentOverrides,
@@ -432,12 +433,24 @@ describe("pinNoticeLines", () => {
 });
 
 describe("SUBCOMMANDS (issue #994)", () => {
-  it("answers to the three seeding commands as well as up and down", () => {
-    expect(Object.keys(SUBCOMMANDS)).toEqual(["up", "seed", "seed:clear", "seed:reset", "down"]);
+  it("answers to the three seeding commands as well as up, down and fresh", () => {
+    expect(Object.keys(SUBCOMMANDS)).toEqual([
+      "up",
+      "seed",
+      "seed:clear",
+      "seed:reset",
+      "down",
+      "fresh",
+    ]);
   });
 
   it("derives the usage line from the table rather than restating it", () => {
     for (const command of Object.keys(SUBCOMMANDS)) expect(usageLine()).toContain(command);
+  });
+
+  it("counts every subcommand that removes a volume as a teardown", () => {
+    expect([...TEARDOWN_SUBCOMMANDS].sort()).toEqual(["down", "fresh"]);
+    for (const command of TEARDOWN_SUBCOMMANDS) expect(SUBCOMMANDS).toHaveProperty(command);
   });
 
   it("is what package.json's dev:* scripts invoke, with no orphan on either side", () => {
@@ -532,6 +545,14 @@ describe("dev-compose teardown seat refusal", () => {
     const { status, stderr } = runUnseated(primaryCheckout(), ["down"]);
     expect(status).toBe(1);
     expect(stderr).toContain("QCMS_PORT_SEAT=0 pnpm dev:down");
+    expect(stderr).not.toContain("removing project");
+    expect(stderr).not.toMatch(/\n\s+at /);
+  });
+
+  it("refuses fresh the same way, because it takes the stack down before it brings it up", () => {
+    const { status, stderr } = runUnseated(primaryCheckout(), ["fresh"]);
+    expect(status).toBe(1);
+    expect(stderr).toContain("QCMS_PORT_SEAT=0 pnpm dev:fresh");
     expect(stderr).not.toContain("removing project");
     expect(stderr).not.toMatch(/\n\s+at /);
   });

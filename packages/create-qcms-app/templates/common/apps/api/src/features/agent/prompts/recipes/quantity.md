@@ -18,6 +18,6 @@
 
 **Say this when the source form offers two units**
 
-> This asks for centimetres only. The form cannot offer a choice of units and convert between them, so either we pick one, or I add a second question for inches and you get one filled in and one empty.
+> This asks for centimetres only. The form cannot offer a choice of units and convert between them, so either we pick one, or the plan adds a second question for inches and you get one filled in and one empty.
 
 **Corpus sources:** US health insurance claim CMS-1500 (service units), Canadian adult passport (metric and imperial height units), US tax withholding W-4 (dependants), Australian Medicare enrolment MS004 (up to five people), US American Community Survey.

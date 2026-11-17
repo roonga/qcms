@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { advertisedJsonSchema } from "./registry.js";
+import { MAX_PLAN_TITLE } from "./plan-title.js";
 import { proposePlanSchema } from "./propose-schema.js";
 import { collectRefs } from "./tool-schema.js";
 
@@ -60,6 +61,17 @@ describe("the propose tool's advertised schema", () => {
     const schema = JSON.stringify(await advertisedJsonSchema(proposePlanSchema([])));
     expect(schema).not.toContain("link.mint");
     expect(schema).not.toContain("form.publish");
+  });
+
+  it("offers an optional title, capped at a heading's length", () => {
+    const schema = proposePlanSchema([{ kind: "form.publish", environments: ["test"] }]);
+    const steps = [{ kind: "form.publish", args: { formId: "frm_a", environment: "test" } }];
+
+    expect(schema.safeParse({ steps }).success).toBe(true);
+    expect(
+      schema.safeParse({ steps, title: "Add the questions, then publish to test" }).success,
+    ).toBe(true);
+    expect(schema.safeParse({ steps, title: "x".repeat(MAX_PLAN_TITLE + 1) }).success).toBe(false);
   });
 
   it("accepts a plan of one step, which is how a single action is proposed", () => {
