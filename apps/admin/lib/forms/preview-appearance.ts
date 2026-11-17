@@ -25,7 +25,7 @@ export function paletteKind(look: PreviewLook): PaletteKind {
  * density. Subtle corners and Comfortable density are the base blocks and take no class.
  */
 export function surfaceClasses(look: PreviewLook, appearance: Appearance | null): string[] {
-  const classes = [look.polarity];
+  const classes: string[] = [look.polarity];
   if (look.highContrast) classes.push("hc");
   if (appearance === null) return classes;
   if (appearance.corners !== "subtle") classes.push(`radius-${appearance.corners}`);

@@ -1,6 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -14,7 +13,7 @@ import {
 import { loadGoldenForms } from "./test-support/golden.ts";
 
 const ATTRIBUTE = "data-qcms-question-id";
-const VENDORED = fileURLToPath(new URL("./components/a2ui", import.meta.url));
+const VENDORED = join(import.meta.dirname, "components", "a2ui");
 
 function goldenStep(version: string, form: string, stepId: string) {
   const golden = loadGoldenForms().find((entry) => entry.version === version && entry.form === form);
