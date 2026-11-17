@@ -87,7 +87,7 @@ export const SPEC_ALLOW: readonly {
     file: "agent-blank-to-published.pw.ts",
     title: "refuses the publish card after the editor changes the saved draft",
     source: "api",
-    pattern: /"reason":"AGENT_PROPOSAL_DRAFT"/,
+    pattern: /"code":"AGENT_PROPOSAL_DRAFT"/,
   },
   {
     // Under host load the abort lands mid-body often enough to be sampled, and the dev

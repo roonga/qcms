@@ -63,6 +63,14 @@ function gitWorktree(branch: string): string {
   return directory;
 }
 
+function addWorktree(repository: string, folder: string, branch: string): string {
+  const directory = join(temporaryDirectory("qcms-scratch-lanes-"), folder);
+  execFileSync("git", ["-C", repository, "worktree", "add", "--quiet", "-b", branch, directory], {
+    encoding: "utf8",
+  });
+  return directory;
+}
+
 describe("laneSlug", () => {
   it("turns a branch name into one safe path segment", () => {
     expect(laneSlug("fix/396-scratchpad")).toBe("fix-396-scratchpad");
@@ -77,21 +85,32 @@ describe("laneSlug", () => {
 });
 
 describe("resolveLane", () => {
-  it("keys on the checked-out branch, so one lane owns one directory", () => {
-    expect(resolveLane(gitWorktree("fix/602-stale-gate-log"), {})).toBe("fix-602-stale-gate-log");
+  it("keys on the worktree folder, not the branch", () => {
+    const repository = gitWorktree("fix/602-stale-gate-log");
+    const worktree = addWorktree(repository, "Lane-One", "fix/1-other");
+    expect(resolveLane(worktree, {})).toBe("lane-one");
   });
 
-  it("keys a detached HEAD on its SHA rather than a shared fallback name", () => {
-    const directory = gitWorktree("main");
-    const head = execFileSync("git", ["-C", directory, "rev-parse", "--short", "HEAD"], {
-      encoding: "utf8",
-    }).trim();
-    execFileSync("git", ["-C", directory, "checkout", "--quiet", "--detach", "HEAD"]);
-    expect(resolveLane(directory, {})).toBe(`detached-${head}`);
+  it("gives two worktrees on one branch name, or a renamed branch, distinct lanes", () => {
+    const repository = gitWorktree("main");
+    const first = addWorktree(repository, "lane-a", "fix/9-shared");
+    const second = addWorktree(repository, "lane-b", "fix/9-other");
+    expect(resolveLane(first, {})).toBe("lane-a");
+    expect(resolveLane(second, {})).toBe("lane-b");
+    execFileSync("git", ["-C", second, "branch", "-m", "fix/9-shared-renamed"]);
+    expect(resolveLane(second, {})).toBe("lane-b");
   });
 
-  it("lets a second agent on the same branch take its own lane through QCMS_AGENT_LANE", () => {
-    // A reviewer and its executor share a branch, so without the override the two would
+  it("keeps the folder's lane from a subdirectory and on a detached HEAD", () => {
+    const repository = gitWorktree("main");
+    const worktree = addWorktree(repository, "lane-detached", "fix/10-x");
+    mkdirSync(join(worktree, "nested"));
+    execFileSync("git", ["-C", worktree, "checkout", "--quiet", "--detach", "HEAD"]);
+    expect(resolveLane(join(worktree, "nested"), {})).toBe("lane-detached");
+  });
+
+  it("lets a second agent in the same worktree take its own lane through QCMS_AGENT_LANE", () => {
+    // A reviewer and its executor share a worktree, so without the override the two would
     // share a lane directory.
     const directory = gitWorktree("fix/396-scratchpad");
     expect(resolveLane(directory, { QCMS_AGENT_LANE: "fix/396-scratchpad review" })).toBe(
@@ -101,7 +120,7 @@ describe("resolveLane", () => {
 
   it("refuses a directory that is not a working tree instead of guessing a lane", () => {
     const directory = temporaryDirectory("qcms-scratch-plain-");
-    expect(() => resolveLane(directory, {})).toThrow(/git could not name the branch/);
+    expect(() => resolveLane(directory, {})).toThrow(/git could not find the worktree root/);
     expect(() => resolveLane(directory, {})).toThrow(/not a git repository/i);
   });
 });
@@ -279,7 +298,7 @@ describe("parseArgs", () => {
 describe("as a command", () => {
   it("prints one absolute path on stdout, so a shell can capture it", () => {
     const root = scratchRoot();
-    const worktree = gitWorktree("fix/396-command");
+    const worktree = addWorktree(gitWorktree("main"), "fix-396-command", "fix/396-command");
     const output = execFileSync("node", [SCRIPT, "verify.log"], {
       cwd: worktree,
       encoding: "utf8",
@@ -341,7 +360,7 @@ describe("the lane override works the way the briefings spell it", () => {
 
   it("honours QCMS_AGENT_LANE only when it is genuinely exported", () => {
     const root = scratchRoot();
-    const worktree = gitWorktree("fix/396-reviewer");
+    const worktree = addWorktree(gitWorktree("main"), "fix-396-reviewer", "fix/396-reviewer");
     const exported = execFileSync("node", [SCRIPT, "verify.log"], {
       cwd: worktree,
       encoding: "utf8",

@@ -1,0 +1,107 @@
+---
+title: Environments
+description: Release states over shared versions, and what is shared rather than copied.
+---
+
+An environment is a release state over shared authoring content, not a separate copy of it.
+Environment names are configurable: `dev`, `test`, `stg` and `prod` are an example deployment, not
+four mandatory environments.
+
+Each environment is a set of Postgres schemas: one shared control schema, plus a data schema and a
+reporting schema per environment.
+
+## Shared or separate
+
+| Shared across the deployment                                 | Separate for each environment                  |
+| ------------------------------------------------------------ | ---------------------------------------------- |
+| Workspaces, memberships and access grants                    | The form version currently released            |
+| Question identities and version history                      | Whether a form accepts new sessions            |
+| Form identities, editable drafts and immutable versions      | Respondent sessions, answers and submissions   |
+| A form version's exact question-version references and rules | Secure-link destination and access             |
+| Form-level challenge and minimum-submit-time settings        | Webhook endpoints, delivery history and outbox |
+
+The rules that follow from that split:
+
+- Editing a question or form draft changes shared authoring content. There is no independent copy of
+  that draft per environment.
+- Publishing creates an immutable version. Releasing makes an existing version available in an
+  environment. The combined operation can do both atomically.
+- Promotion releases the same version in another environment. It copies neither content nor
+  respondent data.
+- A new session uses its environment's released version. Existing sessions keep the version they
+  started with, including after a promotion or a rollback.
+- Closing a form is per form and per environment. Releasing another version does not automatically
+  reopen a closed form.
+
+## The registry
+
+The live set is a table in the control schema, and `QCMS_ENVIRONMENTS` must match it exactly or the
+API refuses to boot. The default is `test,prod`.
+
+Adding one later is three steps under the migration credential, then a restart:
+
+```sh
+pnpm qcms:environment create <name> --password ...
+```
+
+Then add a matching `QCMS_DATABASE_URL_<NAME>` and a new entry in `QCMS_ENVIRONMENTS`, and restart
+every API instance.
+
+An environment that anything was ever released to cannot be dropped, permanently, because the
+release history is append-only.
+
+## Release constraints
+
+Where production is served beside any non-production environment, a production candidate must have a
+prior release in one of them, or a prior production release for rollback. An unreleased draft cannot
+be a production candidate. This floor is fixed and no workflow revision lifts it. On a
+production-only deployment a draft publishes to production.
+
+A test release records availability, not a successful manual test. There is no separate persisted
+test-pass gate.
+
+A workspace can turn on a second-approver requirement for production. The approver must then differ
+from the account that froze that version, including for a rollback, and production webhook changes
+become a proposal followed by confirmation from another eligible account.
+
+Release history records the version, the destination, the actor, the time, and the applicable source
+and approval information. A rollback adds another release record.
+
+## In the admin
+
+Operations is the one area that has an environment. It carries the environment selector; every other
+area shows none.
+
+Availability is where a form is closed to new responses and reopened, and it reads as Open, Closed
+or Not live.
+
+The screens call the one act Publish and never Release: release stays an API path, a record name and
+a code, not a word the forms UI shows.
+
+To serve non-production links from the portal, set `QCMS_PORTAL_ENVIRONMENTS` and recreate the
+portal container. The portal serves only production when that setting is empty.
+
+## Feature flags
+
+`QCMS_FLAG_*` is the flag namespace, and an unknown name in it refuses boot. Three exist, all
+installation-wide boot-time settings rather than per-environment toggles:
+
+| Flag                           | Values                                                                 |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| `QCMS_FLAG_CHALLENGE_PROVIDER` | `none` (default), `turnstile`                                          |
+| `QCMS_FLAG_AGENT_AUTHORING`    | `none` (default), `anthropic`, `openai`, `google`, `openai-compatible` |
+| `QCMS_FLAG_THEME_DERIVE`       | `off` (default), `on`                                                  |
+
+The per-environment settings that do exist are the two retention windows and the challenge provider
+row. A null in either retention column leaves the installation-wide value in force.
+
+:::note
+There is no per-environment feature-flag system, and promotion copies no data. There is no tool for
+copying production data into a test environment, by design: that is a different thing and should be
+built as one.
+:::
+
+## Source
+
+- [`docs/form-publishing-flow.md`](https://github.com/roonga/qcms/blob/main/docs/form-publishing-flow.md)
+- [`docs/environment-capabilities.md`](https://github.com/roonga/qcms/blob/main/docs/environment-capabilities.md)

@@ -37,7 +37,7 @@ Keep tasks small enough for one executor. Tests ship with behavior, and named do
 5. Open or update the PR. For numbered work, update the ledger only in the completing PR.
 6. Delegate an independent review of the exact current head. The root conductor posts the report with `AGENT-REVIEW: APPROVE @<full-head-sha>` or `AGENT-REVIEW: CHANGES-REQUESTED @<full-head-sha>`.
 7. A push invalidates the verdict. Resolve every current comment and repeat review when needed.
-8. Merge only a current approved head with required CI green and every explicit human gate complete. Squash-merge through GitHub and serialize merges.
+8. Merge only a current approved head with required CI green and every explicit human gate complete. Add it to the merge queue, which serializes merges, tests each entry on current `main` and squash-merges it.
 
 If work cannot finish, leave the branch green or commit `HANDOFF.md` with `HANDOFF: AWAITING-HUMAN`, `HANDOFF: BLOCKED`, or `HANDOFF: INTERRUPTED`, plus the next action and any failing checks. Never merge red or leave `main` broken.
 

@@ -57,6 +57,8 @@ apps/
   portal/          # Next.js. SSR pages + route handlers as a strict BFF.
   admin/           # Next.js. Client-heavy authoring UI + BFF; separate app
                    # so it deploys independently on the VPN.
+  site/            # Astro + Starlight. The public website and user docs;
+                   # static, outside the serving path (ADR-44).
 ```
 
 ### 4.1 The domain kernel (`@roonga/qcms-core`)
@@ -374,4 +376,4 @@ Layout rules: golden/fixture directories live with the package that owns their m
 
 ---
 
-_Companion documents: `PROJECT_GOAL.md` (vision and scope) · `adr/` (ADR-01…43) · `SECURITY_DESIGN.md` (SEC-1…17) · `IMPLEMENTATION_PLAN.md` (staged delivery) · `DOMAIN_SCHEMA.md` (domain model and rule semantics)._
+_Companion documents: `PROJECT_GOAL.md` (vision and scope) · `adr/` (ADR-01…44) · `SECURITY_DESIGN.md` (SEC-1…17) · `IMPLEMENTATION_PLAN.md` (staged delivery) · `DOMAIN_SCHEMA.md` (domain model and rule semantics)._

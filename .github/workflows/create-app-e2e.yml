@@ -8,6 +8,7 @@ on:
     paths-ignore:
       - ".claude/**"
       - "plan/**"
+      - "apps/site/**"
       - "CLAUDE.md"
       - "PROJECT_INSTRUCTIONS.md"
       - "CONTRIBUTING.md"

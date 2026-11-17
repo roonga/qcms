@@ -126,6 +126,18 @@ export const JOB_GUARDS = {
     prepull: true,
     why: "runs the backup-and-restore drill against the mirrored Postgres through Compose, and brings the application images up, so it builds them: mirror and pre-pull both. The pre-pull matters most here, because this workflow runs on a schedule, so a Hub blip fails a run nobody is watching and the drill's whole value is that it ran. Outside the Hub assertion for the same build-time reason as full-stack-e2e.",
   },
+  "site.yml#build": {
+    mirror: false,
+    assert: false,
+    prepull: false,
+    why: "a checkout, an install and a static Astro build. No container is started.",
+  },
+  "site.yml#deploy": {
+    mirror: false,
+    assert: false,
+    prepull: false,
+    why: "publishes the already-built artifact to Pages. No checkout and no container.",
+  },
 };
 
 /**

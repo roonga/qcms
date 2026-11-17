@@ -4,11 +4,13 @@ import {
   findAccountById,
   findAdminsByEmail,
   listAccountDirectory,
+  newestSignInLink,
   SITE_ADMINISTRATOR_ROLE,
   writeSiteAuditRow,
   type AccountDirectoryRow,
   type AccountRoleFilter,
   type AccountStatus,
+  type Executor,
 } from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
@@ -59,7 +61,7 @@ const fail = {
     ),
 } as const;
 
-function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
+export function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
   readonly userId: string;
   readonly role: string;
 } {
@@ -69,7 +71,7 @@ function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
   return principal;
 }
 
-function accountView(row: AccountDirectoryRow): {
+export function accountView(row: AccountDirectoryRow): {
   readonly userId: string;
   readonly email: string;
   readonly name: string;
@@ -175,16 +177,26 @@ export function makeResendSignInLinkHandler(
     const row = await findAccountById(exec, id);
     if (row === undefined) throw fail.notFound();
 
-    // The state is read again under the account's lock, so a resend crossing the claim's
-    // commit is refused rather than leaving a live creation link on a claimed account.
+    // A reset or reactivation link is resent as one and keeps its act's performer as issuer,
+    // so a resender never becomes a performer. Both are read under the account's lock, so a
+    // resend crossing the claim's or a reset's commit never leaves the wrong link.
+    const pendingAct = async (
+      tx: Executor,
+    ): Promise<{ purpose: "reset" | "reactivated"; issuedBy: string } | undefined> => {
+      const newest = await newestSignInLink(tx, id);
+      const purpose = newest?.purpose;
+      return newest !== undefined && (purpose === "reset" || purpose === "reactivated")
+        ? { purpose, issuedBy: newest.issuedBy }
+        : undefined;
+    };
     const delivery = await issueAndSendSignInLink(
       deps,
       exec,
       {
         userId: row.userId,
         email: row.email,
-        purpose: "account-created",
-        issuedBy: actor.userId,
+        purpose: async (tx) => (await pendingAct(tx))?.purpose ?? "account-created",
+        issuedBy: async (tx) => (await pendingAct(tx))?.issuedBy ?? actor.userId,
       },
       async (tx) => {
         const current = await findAccountById(tx, id);

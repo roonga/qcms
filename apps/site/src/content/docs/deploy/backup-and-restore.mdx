@@ -1,0 +1,140 @@
+---
+title: Backup and restore
+description: One database, the key material beside it, and the drill that proves both.
+---
+
+Postgres is the only durable state QCMS has. The containers are disposable, the images are
+rebuildable, and the secrets live in your environment. So this is about one database, and one claim
+worth making about it: **a backup nobody has restored is not a backup, it is a file.**
+
+## What is in scope
+
+| State                                          | Where it lives                      | Backed up by        |
+| ---------------------------------------------- | ----------------------------------- | ------------------- |
+| Forms, versions, responses, answers, sessions  | Postgres                            | `pg_dump`           |
+| Administrator accounts and two-factor material | Postgres                            | `pg_dump`           |
+| Outbox and delivery history                    | Postgres                            | `pg_dump`           |
+| Erasure tombstones, the compliance evidence    | Postgres                            | `pg_dump`           |
+| Signing and encryption keys                    | the environment, never the database | **you**, separately |
+| Built images                                   | a registry, or rebuilt from a tag   | not backed up       |
+
+The last two rows are the ones that bite.
+
+## Keys are not in the dump
+
+A dump is useless without the key material.
+
+`QCMS_APP_KEY` encrypts stored webhook signing secrets. That much is recoverable without the old
+key, by rotating each form's webhook secret under the current key. What it costs is handing every
+consumer a new secret, not the data.
+
+`QCMS_ADMIN_AUTH_SECRET` protects stored two-factor material, both the TOTP secret and the recovery
+codes. Losing it locks every administrator out of two-factor on a restored database.
+
+`QCMS_LINK_KEYS` and `QCMS_SESSION_KEYS` are less severe: losing them invalidates outstanding secure
+links and respondent sessions, which is a disruption rather than a data loss.
+
+Back the key material up with the same care and the same schedule as the database, and store it
+somewhere the database dump is not, so one compromise is not both.
+
+## Taking a backup
+
+```bash
+docker compose exec -T postgres \
+  sh -c 'pg_dump --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
+         --clean --if-exists --no-owner --no-privileges' \
+  > qcms-$(date -u +%Y%m%dT%H%M%SZ).sql
+```
+
+`--clean --if-exists` makes the dump drop what it is about to create. `--no-owner` is because the
+restore target's role may not be named the same thing. `--no-privileges` is because grants are the
+target deployment's business, not the source's, so the dump carries no grant at all.
+
+For anything but a small deployment prefer the custom format, which restores with `pg_restore`,
+supports parallel restore and compresses as it writes.
+
+A reasonable default for a single-machine deployment is a nightly dump, kept 7 daily, 4 weekly and
+12 monthly, written to storage that is not the machine being backed up, with the drill running
+weekly.
+
+:::caution[Encrypt the dumps at rest]
+They contain every answer every respondent has submitted.
+:::
+
+## Restoring
+
+Order matters, and the two steps people skip are 1 and 5.
+
+```bash
+# 1. Stop the writers. A restore into a live database races the application.
+docker compose stop api portal admin
+
+# 2. Make sure the roles exist.
+docker compose up --no-deps db-roles
+
+# 3. Recreate an empty database. Connections must go first: Postgres refuses to
+#    drop a database anything is still connected to. The last statement is not
+#    optional: `CREATE ON DATABASE` is a privilege ON the database, so dropping the
+#    database destroys it, and without it the restore in step 4 cannot create a schema.
+docker compose exec -T postgres sh -c '
+  psql --username "$POSTGRES_USER" --dbname postgres --command \
+    "select pg_terminate_backend(pid) from pg_stat_activity
+     where datname = '"'"'$POSTGRES_DB'"'"' and pid <> pg_backend_pid();" &&
+  dropdb --username "$POSTGRES_USER" "$POSTGRES_DB" &&
+  createdb --username "$POSTGRES_USER" --owner "$POSTGRES_USER" "$POSTGRES_DB" &&
+  psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --command \
+    "GRANT CREATE ON DATABASE \"$POSTGRES_DB\" TO qcms_migrate;"'
+
+# 4. Restore AS THE MIGRATION ROLE.
+docker compose exec -T postgres \
+  sh -c 'psql --username qcms_migrate --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=on' \
+  < qcms-20260807T000000Z.sql
+
+# 5. Re-apply the grants. The dump carries none.
+docker compose run --rm --no-deps migrate qcms-db-environment regrant
+
+# 6. Bring the application back.
+docker compose up --detach --wait
+```
+
+`ON_ERROR_STOP=on` is the difference between a restore that failed and a restore that reported
+success while skipping every statement after the first error.
+
+Step 5 exists because the dump carries no grant and no revoke. Without it the application role holds
+no privilege on its own schema, and the first respondent write answers a 500.
+
+The regrant command is idempotent, cannot widen privilege, runs under the migration credential, and
+needs no restart.
+
+Do not run the migration service in order to migrate after a restore: the dump contains the
+migration history table. If the restore is to a newer QCMS version than the dump was taken from,
+restore first and then migrate.
+
+## The drill
+
+```bash
+pnpm qcms:drill-restore
+```
+
+The drill is not a smoke test of `pg_dump`. It is the assertion that the restore path produces a
+database the product actually works on. It boots a fresh stack and bootstraps an administrator, runs
+the full browser suite so the database holds real data, fingerprints every table and view row count
+and takes a dump, destroys the database and asserts nothing is left, restores and re-applies the
+grants while comparing the whole grant map for equality, compares the fingerprint, checks the
+administrator survived by identity including the two-factor enrolment, and starts a real respondent
+session on a form published before the dump.
+
+What it does not cover: losing the Postgres host, which is your own topology drill; per-environment
+restore, because the environments are schemas in one database so there is one dump and one restore;
+and the key material. Rehearse that last half by restoring into a stack whose `QCMS_APP_KEY` came
+from your key backup.
+
+:::note
+There is no point-in-time recovery guidance. Continuous archiving, or a managed Postgres with
+point-in-time recovery, is the upgrade when a day of loss stops being acceptable, and it is your
+infrastructure rather than something QCMS ships.
+:::
+
+## Source
+
+- [`docs/backup-restore.md`](https://github.com/roonga/qcms/blob/main/docs/backup-restore.md)

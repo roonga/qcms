@@ -80,3 +80,53 @@ export const AccountCreatedResponse = z
 export const SignInLinkResponse = z
   .object({ delivery: SignInLinkDeliveryView })
   .openapi("SignInLinkResponse");
+
+export const ResetAccountBody = z
+  .strictObject({
+    password: z.boolean().openapi({ description: "Take the password away; a new one is set" }),
+    factor: z
+      .boolean()
+      .openapi({ description: "Take the second factor away; a new one is enrolled" }),
+  })
+  .refine((body) => body.password || body.factor, {
+    message: "A reset takes away the password, the second factor or both",
+  })
+  .openapi("ResetAccountBody");
+
+const AccountGroupHoldingView = z.object({
+  workspaceId: z.string(),
+  workspaceName: z.string(),
+  groupId: z.string(),
+  groupName: z.string(),
+  roles: z.array(z.string()),
+  environments: z.array(z.string()),
+  suspended: z.boolean(),
+});
+
+/** What the person holds across every workspace, for the disable confirmation. */
+export const AccountHoldingsView = z
+  .object({
+    groups: z.array(AccountGroupHoldingView),
+    responseGroups: z.array(AccountGroupHoldingView),
+    administratorOf: z.array(
+      z.object({
+        workspaceId: z.string(),
+        workspaceName: z.string(),
+        /** No other active, claimed Workspace administrator; the disable still proceeds. */
+        last: z.boolean(),
+      }),
+    ),
+  })
+  .openapi("AccountHoldings");
+
+export const AccountHoldingsResponse = z
+  .object({ holdings: AccountHoldingsView })
+  .openapi("AccountHoldingsResponse");
+
+export const AccountDisabledResponse = z
+  .object({ account: AccountView, holdings: AccountHoldingsView })
+  .openapi("AccountDisabledResponse");
+
+export const AccountLinkSentResponse = z
+  .object({ account: AccountView, delivery: SignInLinkDeliveryView })
+  .openapi("AccountLinkSentResponse");
