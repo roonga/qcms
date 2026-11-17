@@ -6,11 +6,9 @@ import { controlSchema } from "../schemas.js";
 export const SUSPENSION_MARKERS_TABLE = "suspension_markers";
 
 /**
- * Who owes a re-confirmation for an account's response access after a reset or a
- * reactivation. A row with `team_id` names one access group and outlives the membership, so
- * a removal and re-add never lifts it; a row without names the account's run, during which a
- * response grant by its performer or the account itself is written suspended. No foreign
- * key: a marker must survive the membership and the group it names.
+ * Who owes a re-confirmation after a reset or reactivation. A row with `team_id` outlives the
+ * membership it names; one without is the account's run. No foreign key, so a marker
+ * survives both the membership and the group.
  */
 export const suspensionMarkers = controlSchema.table(
   SUSPENSION_MARKERS_TABLE,

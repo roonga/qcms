@@ -23,6 +23,7 @@ import { appGroups } from "../../registrars.js";
 import { expireDueApprovalRequests } from "../../schedulers/retention-sweep.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import type { Mailer, MailMessage } from "../email/mailer.js";
+import { ACTION_KINDS } from "../agent/actions/registry.js";
 import { ROUTE_POLICIES } from "../membership/route-policy.js";
 
 const ALL = { public: true, internal: true, admin: true } as const;
@@ -291,6 +292,16 @@ describe("only a Site administrator reaches a site route (criterion 22)", () => 
         expect(response.status, `${row.method} ${row.path}`).toBe(403);
       }
     }
+  });
+});
+
+describe("no assistant step reaches a Site administrator act", () => {
+  it("maps no agent kind to a step-up, promote, demote or approval route", () => {
+    const routes = Object.values(ACTION_KINDS).map((def) => def.route.path);
+    for (const path of routes) {
+      expect(path).not.toMatch(/\/(step-up|promote|demote|approval-requests)(\/|$)/);
+    }
+    expect(routes.length).toBeGreaterThan(0);
   });
 });
 
