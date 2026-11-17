@@ -93,12 +93,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (776 files common to both shapes)
+### Scaffolded paths (783 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 10    |
-| `apps/`                                                                         | 761   |
+| `apps/`                                                                         | 768   |
 | `apps/admin/`                                                                   | 402   |
 | `apps/admin/app/`                                                               | 106   |
 | `apps/admin/app/(shell)/`                                                       | 80    |
@@ -215,19 +215,19 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 33    |
 | `apps/admin/lib/shell/`                                                         | 7     |
-| `apps/api/`                                                                     | 283   |
-| `apps/api/src/`                                                                 | 280   |
-| `apps/api/src/features/`                                                        | 248   |
+| `apps/api/`                                                                     | 290   |
+| `apps/api/src/`                                                                 | 287   |
+| `apps/api/src/features/`                                                        | 255   |
 | `apps/api/src/features/accounts/`                                               | 9     |
-| `apps/api/src/features/agent/`                                                  | 152   |
+| `apps/api/src/features/agent/`                                                  | 159   |
 | `apps/api/src/features/agent/actions/`                                          | 11    |
 | `apps/api/src/features/agent/contexts/`                                         | 5     |
-| `apps/api/src/features/agent/prompts/`                                          | 113   |
+| `apps/api/src/features/agent/prompts/`                                          | 119   |
 | `apps/api/src/features/agent/prompts/actions/`                                  | 30    |
 | `apps/api/src/features/agent/prompts/recipes/`                                  | 29    |
-| `apps/api/src/features/agent/prompts/system/`                                   | 27    |
-| `apps/api/src/features/agent/prompts/tools/`                                    | 26    |
-| `apps/api/src/features/agent/tools/`                                            | 5     |
+| `apps/api/src/features/agent/prompts/system/`                                   | 28    |
+| `apps/api/src/features/agent/prompts/tools/`                                    | 31    |
+| `apps/api/src/features/agent/tools/`                                            | 6     |
 | `apps/api/src/features/auth/`                                                   | 6     |
 | `apps/api/src/features/email/`                                                  | 3     |
 | `apps/api/src/features/forms/`                                                  | 3     |
@@ -312,7 +312,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (776)</summary>
+<summary>Every scaffolded file (783)</summary>
 
 ```
 .dockerignore
@@ -841,24 +841,29 @@ apps/api/src/features/agent/prompts/system/12-server-side-validation.md
 apps/api/src/features/agent/prompts/system/13-propose-without-asking.md
 apps/api/src/features/agent/prompts/system/14-draft-saves-replace-the-draft.md
 apps/api/src/features/agent/prompts/system/15-editing-an-existing-form.md
-apps/api/src/features/agent/prompts/system/16-blank-to-a-fillable-link.md
-apps/api/src/features/agent/prompts/system/17-a-complete-question-definition.md
-apps/api/src/features/agent/prompts/system/18-question-recipes.md
-apps/api/src/features/agent/prompts/system/19-markdown-output.md
-apps/api/src/features/agent/prompts/system/20-domain-contracts.md
-apps/api/src/features/agent/prompts/system/21-question-types.md
-apps/api/src/features/agent/prompts/system/22-answer-encodings.md
-apps/api/src/features/agent/prompts/system/23-identifiers.md
-apps/api/src/features/agent/prompts/system/24-rules-dsl.md
-apps/api/src/features/agent/prompts/system/25-repeating-groups.md
-apps/api/src/features/agent/prompts/system/26-draft-shape.md
-apps/api/src/features/agent/prompts/system/27-be-concise.md
+apps/api/src/features/agent/prompts/system/16-the-agent-builder.md
+apps/api/src/features/agent/prompts/system/17-blank-to-a-fillable-link.md
+apps/api/src/features/agent/prompts/system/18-a-complete-question-definition.md
+apps/api/src/features/agent/prompts/system/19-question-recipes.md
+apps/api/src/features/agent/prompts/system/20-markdown-output.md
+apps/api/src/features/agent/prompts/system/21-domain-contracts.md
+apps/api/src/features/agent/prompts/system/22-question-types.md
+apps/api/src/features/agent/prompts/system/23-answer-encodings.md
+apps/api/src/features/agent/prompts/system/24-identifiers.md
+apps/api/src/features/agent/prompts/system/25-rules-dsl.md
+apps/api/src/features/agent/prompts/system/26-repeating-groups.md
+apps/api/src/features/agent/prompts/system/27-draft-shape.md
+apps/api/src/features/agent/prompts/system/28-be-concise.md
 apps/api/src/features/agent/prompts/tools/count_dead_letters.md
 apps/api/src/features/agent/prompts/tools/count_links.md
 apps/api/src/features/agent/prompts/tools/count_responses.md
 apps/api/src/features/agent/prompts/tools/delivery_status.md
 apps/api/src/features/agent/prompts/tools/diff_form_versions.md
 apps/api/src/features/agent/prompts/tools/diff_question_versions.md
+apps/api/src/features/agent/prompts/tools/edit_copy.md
+apps/api/src/features/agent/prompts/tools/edit_question.md
+apps/api/src/features/agent/prompts/tools/edit_rule.md
+apps/api/src/features/agent/prompts/tools/edit_step.md
 apps/api/src/features/agent/prompts/tools/list_erasures.md
 apps/api/src/features/agent/prompts/tools/list_form_versions.md
 apps/api/src/features/agent/prompts/tools/list_links.md
@@ -867,6 +872,7 @@ apps/api/src/features/agent/prompts/tools/list_releases.md
 apps/api/src/features/agent/prompts/tools/list_responses.md
 apps/api/src/features/agent/prompts/tools/list_webhooks.md
 apps/api/src/features/agent/prompts/tools/list_workspaces.md
+apps/api/src/features/agent/prompts/tools/open_publish_wizard.md
 apps/api/src/features/agent/prompts/tools/project_draft.md
 apps/api/src/features/agent/prompts/tools/propose_draft.md
 apps/api/src/features/agent/prompts/tools/propose_plan.md
@@ -888,6 +894,7 @@ apps/api/src/features/agent/screens.ts
 apps/api/src/features/agent/system-prompt.ts
 apps/api/src/features/agent/thinking.ts
 apps/api/src/features/agent/tools/args-schema.ts
+apps/api/src/features/agent/tools/edit.ts
 apps/api/src/features/agent/tools/propose-schema.ts
 apps/api/src/features/agent/tools/propose.ts
 apps/api/src/features/agent/tools/registry.ts
