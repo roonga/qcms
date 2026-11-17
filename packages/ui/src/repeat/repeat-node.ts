@@ -76,6 +76,18 @@ export function qualifiedFieldName(instanceId: string, questionId: string): stri
   return `${instanceId}${INSTANCE_NAME_SEPARATOR}${questionId}`;
 }
 
+/** The question a field name belongs to, with any instance qualifier removed. */
+export function questionIdOfField(name: string): string {
+  const at = name.lastIndexOf(INSTANCE_NAME_SEPARATOR);
+  return at === -1 ? name : name.slice(at + 1);
+}
+
+/** The repeat instance a qualified field name belongs to, or undefined for an unqualified one. */
+export function instanceIdOfField(name: string): string | undefined {
+  const at = name.lastIndexOf(INSTANCE_NAME_SEPARATOR);
+  return at === -1 ? undefined : name.slice(0, at);
+}
+
 /** The live ordinal's placeholder in an instance-label template. */
 export const INSTANCE_ORDINAL_PLACEHOLDER = "{n}";
 
