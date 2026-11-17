@@ -463,12 +463,12 @@ interface LinkAuditRow {
   readonly detail: string | null;
 }
 
-async function linkAuditRows(): Promise<LinkAuditRow[]> {
+async function linkAuditRows(): Promise<Array<LinkAuditRow & { readonly id: string }>> {
   const result = await testDb.db.execute(
-    sql`select actor, workspace_id, environment, form_id, detail from control.access_audit
-         where kind = 'link' order by occurred_at, id`,
+    sql`select id, actor, workspace_id, environment, form_id, detail from control.access_audit
+         where kind = 'link'`,
   );
-  return result.rows as unknown as LinkAuditRow[];
+  return result.rows as unknown as Array<LinkAuditRow & { readonly id: string }>;
 }
 
 async function agentActionCount(): Promise<number> {
@@ -482,9 +482,18 @@ async function newAuditRows(act: () => Promise<Response>): Promise<{
   readonly res: Response;
   readonly rows: LinkAuditRow[];
 }> {
-  const before = (await linkAuditRows()).length;
+  const before = new Set((await linkAuditRows()).map((row) => row.id));
   const res = await act();
-  return { res, rows: (await linkAuditRows()).slice(before) };
+  const rows = (await linkAuditRows())
+    .filter((row) => !before.has(row.id))
+    .map((row) => ({
+      actor: row.actor,
+      workspace_id: row.workspace_id,
+      environment: row.environment,
+      form_id: row.form_id,
+      detail: row.detail,
+    }));
+  return { res, rows };
 }
 
 describe("link mints and revokes are audited in the workspace audit (#1272)", () => {
@@ -536,7 +545,7 @@ describe("link mints and revokes are audited in the workspace audit (#1272)", ()
     const refusals: Array<() => Promise<Response>> = [
       () => mint(app, { environment: "test", expiresAt: FUTURE }),
       () => mint(app, { expiresAt: "2020-01-01T00:00:00.000Z" }),
-      () =>
+      async () =>
         app.request(`/admin/forms/${OTHER_FORM_ID}/links`, {
           method: "POST",
           headers: adminHeaders(),
