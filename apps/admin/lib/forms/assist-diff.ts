@@ -297,8 +297,17 @@ export function changesSincePublish(
       label: textOf(step.title, locale) || step.stepId,
     });
   }
-  for (const pin of removed(flattenPins(before.steps), flattenPins(draft.steps), (item) => item.questionId)) {
-    changes.push({ kind: "question", change: "removed", id: pin.questionId, label: pin.questionId });
+  for (const pin of removed(
+    flattenPins(before.steps),
+    flattenPins(draft.steps),
+    (item) => item.questionId,
+  )) {
+    changes.push({
+      kind: "question",
+      change: "removed",
+      id: pin.questionId,
+      label: pin.questionId,
+    });
   }
   for (const rule of removed(before.rules, draft.rules, (item) => item.ruleId)) {
     changes.push({ kind: "rule", change: "removed", id: rule.ruleId, label: rule.ruleId });

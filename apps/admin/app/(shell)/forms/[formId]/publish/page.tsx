@@ -85,9 +85,7 @@ export default async function FormPublishPage({
         confirm={confirmPublishAction.bind(null, form.formId)}
         lookup={lookupPublishResultAction.bind(null, form.formId)}
         secureCookies={secureCookies()}
-        {...(back === undefined
-          ? {}
-          : { returnTo: { href: back, toBuilder } })}
+        {...(back === undefined ? {} : { returnTo: { href: back, toBuilder } })}
         {...(showChanges ? { changes } : {})}
       />
     </div>

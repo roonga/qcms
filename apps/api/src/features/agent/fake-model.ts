@@ -1438,7 +1438,10 @@ function planBuilderFirstEditsStep(
     ];
   }
   if (toolCallCount(prompt, "edit_copy") === 0 && hit !== undefined) {
-    return oneCall("edit_copy", { target: "form-title", text: { [locale]: "Built by the builder" } });
+    return oneCall("edit_copy", {
+      target: "form-title",
+      text: { [locale]: "Built by the builder" },
+    });
   }
   if (toolCallCount(prompt, "edit_copy") === 1 && hit !== undefined) {
     return oneCall(

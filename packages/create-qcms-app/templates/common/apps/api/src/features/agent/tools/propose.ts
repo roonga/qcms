@@ -462,6 +462,15 @@ function kindRefusal(
   return undefined;
 }
 
+function withScreenDefaults(
+  input: ProposeInput,
+  def: ActionKindDef,
+  step: ProposedStep,
+): ProposedStep {
+  if (def.screenDefaults === undefined) return step;
+  return { ...step, args: def.screenDefaults(step.args, { workspaceId: input.screenWorkspaceId }) };
+}
+
 async function stepRefusal(
   input: ProposeInput,
   proposed: ProposedStep,
@@ -473,13 +482,7 @@ async function stepRefusal(
   if (def === undefined) {
     return { reason: `There is no action kind named "${proposed.kind}".` };
   }
-  const step: ProposedStep =
-    def.screenDefaults === undefined
-      ? proposed
-      : {
-          ...proposed,
-          args: def.screenDefaults(proposed.args, { workspaceId: input.screenWorkspaceId }),
-        };
+  const step = withScreenDefaults(input, def, proposed);
 
   const allowed = offeredEnvironments(input.offered, step.kind);
   if (allowed.length === 0) {

@@ -153,7 +153,8 @@ export async function saveDraft(
     readonly updatedAt: string;
   }>
 > {
-  const accepting = agentAssisted === true || (newQuestions !== undefined && newQuestions.length > 0);
+  const accepting =
+    agentAssisted === true || (newQuestions !== undefined && newQuestions.length > 0);
   const draftPath = `/forms/${encodeURIComponent(formId)}/draft` as const;
 
   const result = await read<{

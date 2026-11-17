@@ -24,9 +24,7 @@ export interface AssistEditResultRelay {
 }
 
 export type AssistConversationRelay =
-  | AssistTurnRelay
-  | AssistActionResultRelay
-  | AssistEditResultRelay;
+  AssistTurnRelay | AssistActionResultRelay | AssistEditResultRelay;
 
 const EDIT_OPS: readonly string[] = ["question", "step", "rule", "copy"];
 const EDIT_OUTCOMES: readonly string[] = ["applied", "undone", "failed", "not-run"];

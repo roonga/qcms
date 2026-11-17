@@ -889,8 +889,7 @@ const DRAFT_CHANGE_KINDS: readonly string[] = [...DRAFT_EDIT_KINDS, "form.saveDr
 const REVISION_KINDS: readonly string[] = [...DRAFT_EDIT_KINDS, ACCEPT_KIND];
 
 function revisionOf(kind: string, detail: string | null): number | null {
-  if (!REVISION_KINDS.includes(kind) || detail === null || !/^\d{1,10}$/u.test(detail))
-    return null;
+  if (!REVISION_KINDS.includes(kind) || detail === null || !/^\d{1,10}$/u.test(detail)) return null;
   return Number.parseInt(detail, 10);
 }
 

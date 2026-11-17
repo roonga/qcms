@@ -348,9 +348,9 @@ describe("the injection cases (X4, A6)", { timeout: TIMEOUT_MS }, () => {
     expect(
       (await put(owner, formId, { definition: definition(formId, "Agent") }, token)).status,
     ).toBe(200);
-    expect(
-      (await put(owner, formId, { definition: definition(formId, "Human") })).status,
-    ).toBe(200);
+    expect((await put(owner, formId, { definition: definition(formId, "Human") })).status).toBe(
+      200,
+    );
     const read = await agentChanges(owner, formId);
     expect(read.agentAssisted).toBe(true);
     expect(read.changes).toEqual([
