@@ -1,6 +1,7 @@
 /**
- * The agent audit rows: one per confirmed card step and one per card-less builder edit or Undo, each written
- * inside **the act's own transaction**, so a failed act writes no row and the trail and the result agree.
+ * The agent audit rows: one per confirmed card step, one per card-less builder edit or Undo, and one per
+ * docked-assistant accept, each from a verified token and written inside **the act's own transaction**, so a
+ * failed act writes no row and the trail and the result agree.
  */
 
 import { FormId, type Appearance } from "@roonga/qcms-core";
@@ -15,6 +16,14 @@ import {
 import type { Context } from "hono";
 
 import type { ApiEnv } from "../../openapi.js";
+import {
+  ACCEPT_KIND,
+  acceptRefusal,
+  acceptRowKey,
+  verifyAcceptToken,
+  type AcceptRefusalCode,
+  type AcceptTokenPayload,
+} from "./accept-token.js";
 import { editRefusal, type VerifiedEdit } from "./edit-provenance.js";
 import {
   BUILDER_SCREEN,
@@ -259,3 +268,72 @@ export async function recordAgentEdit(
     exp: iat + deps.undoTtlMs,
   });
 }
+
+export interface AgentAcceptSite {
+  readonly accept: AcceptTokenPayload;
+  readonly actor: string;
+  readonly workspaceId: string;
+}
+
+/**
+ * The accept route's token check, before any write: present, signed, unexpired, and issued to this caller
+ * for this form. Single use is checked inside the transaction by {@link admitAgentAccept}.
+ */
+export async function verifyAgentAccept(
+  token: string | undefined,
+  args: {
+    readonly appKey: string;
+    readonly now: Date;
+    readonly actor: string;
+    readonly formId: string;
+    readonly log: (code: AcceptRefusalCode) => void;
+  },
+): Promise<AcceptTokenPayload> {
+  const refuse = (code: AcceptRefusalCode) => {
+    args.log(code);
+    return acceptRefusal(code);
+  };
+  if (token === undefined || token === "") throw refuse("AGENT_ACCEPT_MISSING");
+  const verified = await verifyAcceptToken(args.appKey, token, args.now);
+  if (!verified.ok) throw refuse(verified.code);
+  if (verified.payload.sub !== args.actor) throw refuse("AGENT_ACCEPT_SUBJECT");
+  if (verified.payload.formId !== args.formId) throw refuse("AGENT_ACCEPT_FORM");
+  return verified.payload;
+}
+
+/** Refuses a token whose row already exists, read inside the accept's transaction before it writes. */
+export async function admitAgentAccept(exec: Executor, site: AgentAcceptSite): Promise<void> {
+  const key = acceptRowKey(site.accept.pid);
+  if (await agentStepRecorded(exec, key.proposalId, key.stepIndex)) {
+    throw acceptRefusal("AGENT_ACCEPT_REPLAYED");
+  }
+}
+
+/** The accept's one row, in its own transaction; the unique key is the backstop under a race. */
+export async function recordAgentAccept(
+  exec: Executor,
+  site: AgentAcceptSite,
+  saved: { readonly revision: number },
+  confirmedAt: Date,
+): Promise<void> {
+  try {
+    await writeAgentActionRow(exec, {
+      ...acceptRowKey(site.accept.pid),
+      stepCount: 1,
+      actor: site.actor,
+      workspaceId: site.workspaceId,
+      formId: site.accept.formId,
+      kind: ACCEPT_KIND,
+      screen: ACCEPT_SCREEN,
+      proposedAt: new Date(site.accept.iat),
+      confirmedAt,
+      detail: String(saved.revision),
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) throw acceptRefusal("AGENT_ACCEPT_REPLAYED");
+    throw error;
+  }
+}
+
+/** The apply-draft kind's own screen, which is where the docked assistant runs. */
+const ACCEPT_SCREEN = "/forms/[formId]";

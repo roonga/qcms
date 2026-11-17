@@ -114,11 +114,18 @@ function proposalRef(
 const applyDraftRunner: StepRunner = ({ step }) => {
   const proposed = step.draft;
   const builder = builderAssistSnapshot();
-  if (proposed === undefined || builder === undefined || !builder.canPropose) {
+  if (
+    proposed?.acceptToken === undefined ||
+    builder === undefined ||
+    !builder.canPropose
+  ) {
     return Promise.resolve({ outcome: "failed", message: t("agent.card.note.noBuilder") });
   }
   const diff = proposalDiff(builder.draft, proposed.definition, proposed.newQuestions);
-  builder.accept(acceptedDraft(builder.draft, proposed.definition), proposed.newQuestions);
+  builder.accept(acceptedDraft(builder.draft, proposed.definition), {
+    token: proposed.acceptToken,
+    newQuestions: proposed.newQuestions,
+  });
   return Promise.resolve({
     outcome: "done",
     result: { changes: diff.length, newQuestions: proposed.newQuestions.length },
@@ -437,7 +444,6 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
     const state = await saveFormDraftAction(
       formId,
       draft,
-      undefined,
       undefined,
       proposalRef(agentProposal, tokenStep),
     );

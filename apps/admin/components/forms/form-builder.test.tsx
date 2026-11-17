@@ -76,9 +76,12 @@ function builderActions() {
   };
 }
 
+const ACCEPT_TOKEN = "acc.tok";
+
 function applyDraftStep(draft: {
   readonly definition: unknown;
   readonly newQuestions?: readonly unknown[];
+  readonly acceptToken?: string | null;
 }): AgentPlanStep {
   return {
     kind: "apply-draft",
@@ -92,6 +95,7 @@ function applyDraftStep(draft: {
       newQuestions: draft.newQuestions ?? [],
       issues: [],
       warnings: [],
+      ...(draft.acceptToken === null ? {} : { acceptToken: draft.acceptToken ?? ACCEPT_TOKEN }),
     },
     card: { titleKey: "agent.card.apply-draft.title", consequenceKeys: [] },
     resultAllowlist: ["changes", "newQuestions"],
@@ -133,7 +137,7 @@ describe("FormBuilder and the apply-draft card", () => {
     expect(result.outcome).toBe("failed");
   });
 
-  it("saves a confirmed draft through the builder's own autosave path, agentAssisted: true", async () => {
+  it("saves a confirmed draft through the builder's own autosave path, under its accept token", async () => {
     const actions = builderActions();
     render(
       <FormBuilder
@@ -153,10 +157,10 @@ describe("FormBuilder and the apply-draft card", () => {
 
     const call = actions.saveDraft.mock.calls[0] as [
       { steps: readonly { stepId: string; title: Record<string, string> }[] },
-      boolean,
+      { token: string; newQuestions: readonly unknown[] },
     ];
-    const [savedDraft, agentAssisted] = call;
-    expect(agentAssisted).toBe(true);
+    const [savedDraft, accept] = call;
+    expect(accept).toEqual({ token: ACCEPT_TOKEN, newQuestions: [] });
     expect(savedDraft.steps[0]?.title["en"]).toBe("Basics (renamed)");
   });
 
@@ -181,13 +185,94 @@ describe("FormBuilder and the apply-draft card", () => {
 
     await waitFor(() => expect(actions.saveDraft).toHaveBeenCalled(), { timeout: 2000 });
 
-    const [, agentAssisted, newQuestions] = actions.saveDraft.mock.calls[0] as [
+    const [, accept] = actions.saveDraft.mock.calls[0] as [
       unknown,
-      boolean,
-      readonly unknown[],
+      { token: string; newQuestions: readonly unknown[] },
     ];
-    expect(agentAssisted).toBe(true);
-    expect(newQuestions).toEqual([newQuestion]);
+    expect(accept).toEqual({ token: ACCEPT_TOKEN, newQuestions: [newQuestion] });
+  });
+
+  it("refuses a proposal that carries no accept token, and saves nothing", async () => {
+    const actions = builderActions();
+    render(
+      <FormBuilder
+        detail={DETAIL}
+        {...CHROME}
+        {...actions}
+        assist={{ endpoint: "/forms/frm_quote/assist" }}
+      />,
+    );
+    const result = await confirmApplyDraft(
+      applyDraftStep({ definition: renamedDraft("Untokened"), acceptToken: null }),
+    );
+    expect(result.outcome).toBe("failed");
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(actions.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed accept with its token on the next edit, then saves plainly", async () => {
+    const actions = builderActions();
+    actions.saveDraft
+      .mockResolvedValueOnce({
+        status: "error" as const,
+        issues: [],
+        warnings: [],
+        code: "INTERNAL",
+        message: "down",
+      })
+      .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] });
+    render(
+      <FormBuilder
+        detail={DETAIL}
+        {...CHROME}
+        {...actions}
+        assist={{ endpoint: "/forms/frm_quote/assist" }}
+      />,
+    );
+    await confirmApplyDraft(applyDraftStep({ definition: renamedDraft("Accepted") }));
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(1), { timeout: 2000 });
+
+    fireEvent.change(screen.getByLabelText(t("forms.builder.formTitle")), {
+      target: { value: "First edit" },
+    });
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(2), { timeout: 2000 });
+    expect(actions.saveDraft.mock.calls[1]?.[1]).toEqual({ token: ACCEPT_TOKEN, newQuestions: [] });
+
+    fireEvent.change(screen.getByLabelText(t("forms.builder.formTitle")), {
+      target: { value: "Second edit" },
+    });
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(3), { timeout: 2000 });
+    expect(actions.saveDraft.mock.calls[2]?.[1]).toBeUndefined();
+  });
+
+  it("withdraws the proposal when the accept token is refused, rather than saving it plainly", async () => {
+    const actions = builderActions();
+    actions.saveDraft
+      .mockResolvedValueOnce({
+        status: "error" as const,
+        issues: [],
+        warnings: [],
+        code: "AGENT_ACCEPT_EXPIRED",
+        message: "That proposal is more than ten minutes old. Ask the assistant again.",
+      })
+      .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] });
+    render(
+      <FormBuilder
+        detail={DETAIL}
+        {...CHROME}
+        {...actions}
+        assist={{ endpoint: "/forms/frm_quote/assist" }}
+      />,
+    );
+    await confirmApplyDraft(applyDraftStep({ definition: renamedDraft("Expired") }));
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(2), { timeout: 3000 });
+
+    const [restored, accept] = actions.saveDraft.mock.calls[1] as [
+      { steps: readonly { title: Record<string, string> }[] },
+      unknown,
+    ];
+    expect(accept).toBeUndefined();
+    expect(restored.steps[0]?.title["en"]).toBe("Basics");
   });
 
   it("returns to the form when the applied draft deletes the step on screen", async () => {

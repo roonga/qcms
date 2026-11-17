@@ -7,7 +7,6 @@ import {
   listQuestionVersions,
   listQuestions,
   listWorkspaces,
-  writeAgentActionRow,
 } from "@roonga/qcms-db";
 import { getForm, getWorkspace } from "@roonga/qcms-db";
 import type { QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
@@ -32,6 +31,8 @@ import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../f
 import { decideAccess, type Resource } from "../membership/policy.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, type ResolvedMembership } from "../membership/resolver.js";
+import { ACCEPT_HEADER, ACCEPT_KIND } from "./accept-token.js";
+import { admitAgentAccept, recordAgentAccept, verifyAgentAccept } from "./audit.js";
 import { savedDraftPins } from "./draft-pins.js";
 import { mergeOffers, offeredActionKinds, offersNoAction } from "./grant-filter.js";
 import { buildProposal } from "./tools/propose.js";
@@ -325,7 +326,11 @@ function actionPorts(args: {
           productionEnvironment: PRODUCTION_ENVIRONMENT,
           formId: named,
           screenWorkspaceId: workspaceId,
-          workspaceNames: (ids) => workspaceNamesFor(args.deps, ids),
+          workspaceNames: (ids) =>
+            workspaceNamesFor(
+              args.deps,
+              ids.filter((id) => args.held.some((membership) => membership.workspaceId === id)),
+            ),
           issuedAt: args.deps.clock.now(),
           validate: (definition, pending) => validateDraft(args.deps, definition, pending),
         }),
@@ -333,7 +338,10 @@ function actionPorts(args: {
   };
 }
 
-/** The names of the workspaces a plan's own arguments name, so a card shows a name and not an id. */
+/**
+ * The names of the workspaces a plan's own arguments name, so a card shows a name and not an id. The
+ * caller passes only workspaces it holds a membership or grant in, so no other workspace's name is read.
+ */
 async function workspaceNamesFor(
   deps: Deps,
   workspaceIds: readonly string[],
@@ -783,6 +791,17 @@ export function makeAcceptProposalHandler(
     if (!parsedId.ok) throw fail.invalidId();
     const formId: FormId = parsedId.value;
 
+    const actor = callerOf(c).userId;
+    const accept = await verifyAgentAccept(c.req.header(ACCEPT_HEADER), {
+      appKey: deps.config.keys.app,
+      now: deps.clock.now(),
+      actor,
+      formId,
+      log: (code) => {
+        deps.logger.warn("agent accept refused", { code });
+      },
+    });
+
     const body = c.req.valid("json");
     const definition = requireFormDefinition(body.definition);
 
@@ -814,9 +833,10 @@ export function makeAcceptProposalHandler(
     // without the publish rule refusing them (ADR-41).
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
-    const acceptedAt = deps.clock.now();
+    const site = { accept, actor, workspaceId: form.workspaceId };
 
     const stored = await deps.databases.control.transaction(async (tx) => {
+      await admitAgentAccept(tx, site);
       const created: CreatedQuestion[] = [];
       for (const question of proposed) {
         // Sequential: these share one connection handle, and a collision must name its question.
@@ -834,19 +854,7 @@ export function makeAcceptProposalHandler(
         }
       }
       const draft = await storeDraftDefinition(tx, formId, definition, true);
-      await writeAgentActionRow(tx, {
-        proposalId: `acc_${crypto.randomUUID().replaceAll("-", "")}`,
-        stepIndex: 0,
-        stepCount: 1,
-        actor: callerOf(c).userId,
-        workspaceId: form.workspaceId,
-        formId,
-        kind: ACCEPT_KIND,
-        screen: APPLY_DRAFT_SCREEN,
-        proposedAt: acceptedAt,
-        confirmedAt: acceptedAt,
-        detail: String(draft.revision),
-      });
+      await recordAgentAccept(tx, site, draft, deps.clock.now());
       return { created, draft };
     });
 
@@ -879,9 +887,6 @@ export function makeAcceptProposalHandler(
   };
 }
 
-/** The row an accepted docked proposal writes, so the wizard's read counts it as the assistant's. */
-const ACCEPT_KIND = "apply-draft";
-
 /** The card kinds that save a whole draft, which the wizard counts with the card-less edits. */
 const DRAFT_CHANGE_KINDS: readonly string[] = [...DRAFT_EDIT_KINDS, "form.saveDraft", ACCEPT_KIND];
 
@@ -895,8 +900,8 @@ function revisionOf(kind: string, detail: string | null): number | null {
 
 /**
  * What the agent changed since a human last reviewed the form, which is its newest
- * publish: the wizard diffs `base` against `draft`. Read from the audit rows alone, so the
- * draft's client-supplied `agentAssisted` mark never reaches it.
+ * publish: the wizard diffs `base` against `draft`. Read from the audit rows alone, never
+ * from the draft row's `agentAssisted` flag.
  */
 export function makeAgentChangesHandler(
   deps: Deps,

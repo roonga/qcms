@@ -56,6 +56,9 @@ export const acceptProposalRoute = createRoute({
   summary:
     "Accept an agent proposal: save the draft and create its new questions (admin, flag-gated)",
   description:
+    "Requires the single-use `x-qcms-agent-accept` token the proposing turn minted for its " +
+    "apply-draft step, bound to the caller, the form and the proposal, for ten minutes; a " +
+    "missing, forged, foreign, expired or replayed token is refused with nothing written. " +
     "Stores the accepted draft with agent provenance, writes one `control.agent_actions` row " +
     "for the accept, and materialises the proposal's new " +
     "question definitions as UNPUBLISHED question drafts in the library, in one transaction. " +
@@ -72,7 +75,7 @@ export const acceptProposalRoute = createRoute({
       description: "The saved draft, its advisory issues, and the question drafts created",
       content: { "application/json": { schema: AcceptProposalResponse } },
     },
-    ...errorResponses(400, 401, 404, 409, 422),
+    ...errorResponses(400, 401, 403, 404, 409, 422),
   },
   ...withScopes("forms:write", "questions:write"),
 });
@@ -112,7 +115,7 @@ export const agentChangesRoute = createRoute({
     "The cumulative agent change since the last human-reviewed revision, which is the " +
     "newest published version: that version and the open draft for the publish wizard to " +
     "diff, and one entry per recorded agent change. Read from `control.agent_actions` " +
-    "alone, never from the draft's client-supplied `agentAssisted` mark.",
+    "alone, never from the draft row's `agentAssisted` flag.",
   tags,
   request: { params: FormIdParam },
   responses: {
