@@ -496,6 +496,25 @@ function withScreenDefaults(
   return { ...step, args: def.screenDefaults(step.args, { workspaceId: input.screenWorkspaceId }) };
 }
 
+/**
+ * Each asks a question the route will ask anyway, before this step's draft is read or
+ * validated, so no card offers a step the route would refuse on its subject alone.
+ */
+async function subjectRefusal(
+  input: ProposeInput,
+  def: ActionKindDef,
+  step: ProposedStep,
+  index: number,
+): Promise<string | undefined> {
+  const taken = await takenQuestionIdRefusal(input, step, index);
+  if (taken !== undefined) return taken;
+  if (def.carriesDraftArgument === true) {
+    const unwritable = await draftWriteRefusal(input, input.steps, step, index);
+    if (unwritable !== undefined) return unwritable;
+  }
+  return formCreateRefusal(input, step, index);
+}
+
 async function stepRefusal(
   input: ProposeInput,
   proposed: ProposedStep,
@@ -550,16 +569,8 @@ async function stepRefusal(
   const descriptorIssue = kindRefusal(input, def, step, index, pinned, pinChecked);
   if (descriptorIssue !== undefined) return { reason: descriptorIssue };
 
-  // Both ask a question the route will ask anyway, before this step's draft is read or
-  // validated, so no card offers a step the route would refuse on its subject alone.
-  const taken = await takenQuestionIdRefusal(input, step, index);
-  if (taken !== undefined) return { reason: taken };
-  if (def.carriesDraftArgument === true) {
-    const unwritable = await draftWriteRefusal(input, input.steps, step, index);
-    if (unwritable !== undefined) return { reason: unwritable };
-  }
-  const uncreatable = await formCreateRefusal(input, step, index);
-  if (uncreatable !== undefined) return { reason: uncreatable };
+  const subjectIssue = await subjectRefusal(input, def, step, index);
+  if (subjectIssue !== undefined) return { reason: subjectIssue };
 
   return {
     step: {

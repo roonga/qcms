@@ -152,10 +152,10 @@ describe("a plan of apply-draft then form.publish", () => {
 
   it("runs the publish only after the accept's own save has landed", async () => {
     const { runStepAction } = await import("./step-actions");
-    let land: (value: AcceptSettled) => void = () => undefined;
+    const held: { land?: (value: AcceptSettled) => void } = {};
     acceptSettles = () =>
       new Promise((resolve) => {
-        land = resolve;
+        held.land = resolve;
       });
     try {
       const running = runPlan({
@@ -168,7 +168,7 @@ describe("a plan of apply-draft then form.publish", () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(accept).toHaveBeenCalledTimes(1);
       expect(reviewReleaseAction).not.toHaveBeenCalled();
-      land({ saved: true });
+      held.land?.({ saved: true });
       expect((await running).state).toBe("done");
       expect(confirmPublishAction).toHaveBeenCalledTimes(1);
     } finally {

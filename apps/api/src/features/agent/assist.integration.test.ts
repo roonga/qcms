@@ -505,14 +505,14 @@ describe("the accept token (SEC-17)", () => {
       expect(JSON.stringify(providerCalls)).not.toContain(token);
 
       const body = { definition: draftFor("frm_tok_turn", ["q_tok_turn"]) };
-      const accepted = await postAccept("frm_tok_turn", body, token as string);
+      const accepted = await postAccept("frm_tok_turn", body, token);
       expect(accepted.status).toBe(200);
       const rows = await rowsFor("frm_tok_turn");
       expect(rows).toHaveLength(1);
       expect(rows[0]?.proposal_id).toBe(`${card.proposal.proposalId}.accept`);
       expect(new Date(rows[0]?.proposed_at ?? 0).toISOString()).toBe(card.proposal.proposedAt);
 
-      const replay = await postAccept("frm_tok_turn", body, token as string);
+      const replay = await postAccept("frm_tok_turn", body, token);
       expect(replay.status).toBe(403);
       expect(await codeOf(replay)).toBe("AGENT_ACCEPT_REPLAYED");
       expect(await rowsFor("frm_tok_turn")).toHaveLength(1);
