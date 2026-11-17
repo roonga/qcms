@@ -1,9 +1,6 @@
-/**
- * The plan's own outcome line. It is the one piece of model prose a card heading carries,
- * so it is flattened to a single plain line here and refused outright where it names an id
- * or a word the person may not be written to in (SEC-17 section 8d): every other word on a
- * card comes from the catalogue, and this one has to read like it did.
- */
+/* The plan's own outcome line, and the one piece of model prose a card heading carries. It
+   is flattened to a plain line here and refused outright where it names an id or a word the
+   person may not be written to in, so a heading reads as the catalogue's do (SEC-17 8d). */
 
 import { AVOID_WORDS } from "../system-prompt.js";
 
