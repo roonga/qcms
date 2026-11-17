@@ -75,7 +75,7 @@ async function adminGet(path: string, token: string): Promise<Response> {
 }
 
 async function adminSend(
-  method: "POST" | "PUT" | "DELETE",
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
   token: string,
   body: unknown = {},
@@ -297,7 +297,7 @@ describe("only a Site administrator reaches a site route (criterion 22)", () => 
 
 describe("no assistant step reaches a Site administrator act", () => {
   it("maps no agent kind to a step-up, promote, demote or approval route", () => {
-    const routes = Object.values(ACTION_KINDS).map((def) => def.route.path);
+    const routes = Object.values(ACTION_KINDS).map((def) => def.route?.path ?? "");
     for (const path of routes) {
       expect(path).not.toMatch(/\/(step-up|promote|demote|approval-requests)(\/|$)/);
     }
