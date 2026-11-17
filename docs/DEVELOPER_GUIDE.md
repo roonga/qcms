@@ -716,6 +716,18 @@ It carries no credential, no address and no transcript text beyond a check's own
 1. `sudo pnpm exec playwright install-deps chromium`, once per host.
 2. Run the gate in the dev container, or leave it to CI. Both run `playwright install --with-deps chromium` already (`.devcontainer/post-create.sh`). **This does not work from a host-created worktree**, which is where every agent lane works: the repository mounts at a different path inside the container, and the container's pnpm refuses to reuse the host `node_modules` - it aborts with `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY` and wants to purge and reinstall, which would break the host-side install every other gate depends on.
 
+**One browser cache serves every worktree, and an install can delete the build a neighbour is running** (issue #1325). Playwright downloads into `~/.cache/ms-playwright` on Linux (`~/Library/Caches/ms-playwright` on macOS), one directory for the whole host, and it ["keeps track of the clients that use its browsers"](https://playwright.dev/docs/browsers#managing-browser-binaries): "when there are no more clients that require a particular version of the browser, that version is deleted from the system". Across worktrees that bookkeeping does not hold, so a bare `pnpm exec playwright install` in one lane removed `chromium_headless_shell` from under two running gates on 2026-11-16. The documented opt-out is `PLAYWRIGHT_SKIP_BROWSER_GC=1`, or the equivalent `--no-remove` flag.
+
+So the gate owns it. Loading `playwright.config.ts` checks that both pinned builds (`chromium-<rev>` and `chromium_headless_shell-<rev>`) carry Playwright's `INSTALLATION_COMPLETE` marker, and installs with the collection disabled when one is gone - before the first launch, rather than minutes in. It costs two `stat` calls when the cache is intact. The same code is on hand as commands:
+
+```sh
+pnpm playwright:install        # install by hand; never collects another lane's build
+pnpm playwright:prune          # what is in the shared cache, and which builds this checkout pins
+pnpm playwright:prune --apply  # Playwright's own `uninstall --all`: empties it for every checkout
+```
+
+Use `pnpm playwright:install` rather than `pnpm exec playwright install chromium`, which still collects. Reclaiming the disk is now deliberate: `--apply` removes every build on the host, so run it only when no browser gate is running anywhere, and the next gate downloads what it needs. CI and the dev container keep the default collection, because each owns a cache no other lane shares and pruning on upgrade is what you want there.
+
 Every portal Playwright spec imports `test` from `apps/portal/e2e/support/gates.ts` rather than from `@playwright/test`, so two gates run automatically: a **browser-fault gate** (any `console.error`, any `console.warn`, any uncaught `pageerror`) and a **server-log gate** (any error-level line the API, Postgres or the portal dev server wrote during the test). That file is the authority on what each one fails on, and on why every allowlist entry is there.
 
 **To find out what the console actually said, do not patch the gate.** Reviewing a change to `gates.ts` needs the real message population broken down by level, and hand-adding a temporary recorder to that file means editing the file under review in order to review it, then reverting and re-verifying the tree - which cost two people a full suite run each on issue #147. Use the census helper instead:
