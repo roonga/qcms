@@ -68,11 +68,17 @@ describe("saveDraft endpoint selection", () => {
     expect(calls[0]?.body).toEqual({ definition: DRAFT });
   });
 
-  it("still PUTs the draft route for an accept that proposed no new questions", async () => {
+  it("POSTs the accept route for an accept that proposed no new questions, so the accept is audited", async () => {
     await save(true, []);
-    expect(calls[0]?.path).toBe("/forms/frm_quote/draft");
+    expect(calls[0]?.path).toBe("/forms/frm_quote/draft/assist/accept");
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.body).toEqual({ definition: DRAFT, newQuestions: [] });
+  });
+
+  it("never sends an agentAssisted mark on a plain save", async () => {
+    await save(false);
     expect(calls[0]?.method).toBe("PUT");
-    expect(calls[0]?.body).toEqual({ definition: DRAFT, agentAssisted: true });
+    expect(calls[0]?.body).toEqual({ definition: DRAFT });
   });
 
   it("POSTs the accept route, with the definitions, when the proposal carried new questions", async () => {

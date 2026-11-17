@@ -30,6 +30,7 @@ export {
   waitingProposalTurns,
   type AgentProseTurn,
   type AgentTurnRecord,
+  type EditResultTurn,
   type PromptTurn,
   type WaitingProposalTurn,
 } from "./conversation-state";

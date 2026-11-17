@@ -18,7 +18,36 @@ export interface AssistActionResultRelay {
   }[];
 }
 
-export type AssistConversationRelay = AssistTurnRelay | AssistActionResultRelay;
+export interface AssistEditResultRelay {
+  readonly role: "edit-result";
+  readonly edits: readonly { readonly op: string; readonly outcome: string }[];
+}
+
+export type AssistConversationRelay =
+  | AssistTurnRelay
+  | AssistActionResultRelay
+  | AssistEditResultRelay;
+
+const EDIT_OPS: readonly string[] = ["question", "step", "rule", "copy"];
+const EDIT_OUTCOMES: readonly string[] = ["applied", "undone", "failed", "not-run"];
+/** The API's per-turn edit cap; a longer list would be refused whole there. */
+const EDITS_PER_TURN = 25;
+
+function parseEditResult(entry: Record<string, unknown>): AssistEditResultRelay | undefined {
+  const { edits } = entry;
+  if (!Array.isArray(edits) || edits.length === 0 || edits.length > EDITS_PER_TURN) {
+    return undefined;
+  }
+  const parsed: { op: string; outcome: string }[] = [];
+  for (const edit of edits) {
+    if (!isRecord(edit)) return undefined;
+    const { op, outcome } = edit;
+    if (typeof op !== "string" || !EDIT_OPS.includes(op)) return undefined;
+    if (typeof outcome !== "string" || !EDIT_OUTCOMES.includes(outcome)) return undefined;
+    parsed.push({ op, outcome });
+  }
+  return { role: "edit-result", edits: parsed };
+}
 
 const OUTCOMES: readonly string[] = [
   "done",
@@ -81,6 +110,11 @@ export function parseAssistConversation(raw: unknown): readonly AssistConversati
     const { role, content } = entry;
     if ((role === "user" || role === "assistant") && typeof content === "string") {
       turns.push({ role, content });
+      continue;
+    }
+    if (role === "edit-result") {
+      const edited = parseEditResult(entry);
+      if (edited !== undefined) turns.push(edited);
       continue;
     }
     if (role !== "action-result") continue;

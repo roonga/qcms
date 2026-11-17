@@ -79,6 +79,24 @@ export interface AgentProposal {
   readonly currentEnvironment: string;
 }
 
+export const BUILDER_EDIT_OPS = ["question", "step", "rule", "copy"] as const;
+
+export type BuilderEditOp = (typeof BUILDER_EDIT_OPS)[number];
+
+/** One card-less edit. `definition` is kept as parsed: its token binds that exact post-state. */
+export interface BuilderEdit {
+  readonly index: number;
+  readonly op: BuilderEditOp;
+  readonly token: string;
+  readonly definition: Readonly<Record<string, unknown>>;
+}
+
+export interface BuilderEdits {
+  readonly formId: string;
+  readonly turnId: string;
+  readonly edits: readonly BuilderEdit[];
+}
+
 // assist-error-codes tests compare this wire mirror with API declarations and require distinct catalog copy.
 export const ASSIST_ERROR_CODES = [
   "PROVIDER_ERROR",
@@ -111,6 +129,8 @@ export type AssistEvent =
       readonly steps: number;
     }
   | { readonly type: "plan"; readonly proposal: AgentProposal }
+  | ({ readonly type: "edits" } & BuilderEdits)
+  | { readonly type: "open-wizard"; readonly formId: string; readonly returnTo: string }
   | { readonly type: "error"; readonly code: AssistErrorCode; readonly message: string };
 
 const FRAME_SEPARATOR = "\n\n";
@@ -193,6 +213,12 @@ function toAssistEvent(raw: unknown): AssistEvent | undefined {
     }
     case "error":
       return toErrorEvent(raw);
+    case "edits":
+      return toEditsEvent(raw);
+    case "open-wizard":
+      return typeof raw["formId"] === "string" && typeof raw["returnTo"] === "string"
+        ? { type: "open-wizard", formId: raw["formId"], returnTo: raw["returnTo"] }
+        : undefined;
     default:
       return undefined;
   }
@@ -249,6 +275,31 @@ function toErrorEvent(raw: Record<string, unknown>): AssistEvent | undefined {
   if (typeof code !== "string" || typeof message !== "string") return undefined;
   const known = ASSIST_ERROR_CODES.find((candidate) => candidate === code);
   return known === undefined ? undefined : { type: "error", code: known, message };
+}
+
+function toBuilderEdit(raw: unknown): BuilderEdit | undefined {
+  if (!isKeyedObject(raw)) return undefined;
+  const { index, op, token, definition } = raw;
+  if (typeof index !== "number" || !Number.isInteger(index) || index < 0) return undefined;
+  const known = BUILDER_EDIT_OPS.find((candidate) => candidate === op);
+  if (known === undefined || typeof token !== "string" || token === "") return undefined;
+  if (!isKeyedObject(definition) || Array.isArray(definition)) return undefined;
+  return { index, op: known, token, definition };
+}
+
+// An unreadable edit drops the whole set: a later edit's token binds the state an earlier one left.
+function toEditsEvent(raw: Record<string, unknown>): AssistEvent | undefined {
+  const { formId, turnId, edits } = raw;
+  if (typeof formId !== "string" || typeof turnId !== "string" || !Array.isArray(edits)) {
+    return undefined;
+  }
+  const parsed: BuilderEdit[] = [];
+  for (const entry of edits) {
+    const edit = toBuilderEdit(entry);
+    if (edit === undefined) return undefined;
+    parsed.push(edit);
+  }
+  return parsed.length === 0 ? undefined : { type: "edits", formId, turnId, edits: parsed };
 }
 
 function textList(raw: unknown): readonly string[] {

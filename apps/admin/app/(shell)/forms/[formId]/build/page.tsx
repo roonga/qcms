@@ -11,7 +11,11 @@ import { getForm } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
-import { startBuildDraftAction } from "../../actions";
+import {
+  applyAgentEditAction,
+  readStoredDraftAction,
+  startBuildDraftAction,
+} from "../../actions";
 
 export async function generateMetadata({
   params,
@@ -51,6 +55,11 @@ export default async function FormBuildPage({
       userId={session.userId}
       workspaceId={workspaceId ?? ""}
       canPublish={form.workflow?.canPublish !== false}
+      draft={form.draft}
+      edits={{
+        apply: applyAgentEditAction.bind(null, form.formId),
+        readStored: readStoredDraftAction.bind(null, form.formId),
+      }}
       {...(form.draftSource === "open"
         ? {}
         : { startDraft: startBuildDraftAction.bind(null, form.formId) })}

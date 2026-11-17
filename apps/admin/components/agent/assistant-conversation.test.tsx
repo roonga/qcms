@@ -538,3 +538,69 @@ describe("a waiting card nobody answered", () => {
     expect(settlements()).toHaveLength(1);
   });
 });
+
+describe("a builder turn's edits and the wizard", () => {
+  function sse(events: readonly Record<string, unknown>[]): Response {
+    const body = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+    return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+  }
+
+  it("finishes every save before it opens the wizard", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          sse([
+            { type: "text", delta: "Done." },
+            {
+              type: "edits",
+              formId: "frm_quote",
+              turnId: "edt_abc12345",
+              edits: [{ index: 0, op: "copy", token: "tok", definition: { title: {} } }],
+            },
+            { type: "open-wizard", formId: "frm_quote", returnTo: "/forms/frm_quote/build" },
+          ]),
+        ),
+      ),
+    );
+    const order: string[] = [];
+    let release: () => void = () => undefined;
+    const applyEdits = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          order.push("saving");
+          release = () => {
+            order.push("saved");
+            resolve();
+          };
+        }),
+    );
+    const openWizard = vi.fn(() => {
+      order.push("wizard");
+    });
+    render(
+      <AssistantConversation
+        screen={{ screen: "/forms/[formId]/build", params: { formId: "frm_quote" } }}
+        environment="test"
+        conversation={CONVERSATION}
+        builder={snapshot(true)}
+        composerRef={{ current: null }}
+        onWorkingChange={() => undefined}
+        onAnnounce={() => undefined}
+        turnHooks={{ applyEdits, openWizard, renderEdits: () => null }}
+      />,
+    );
+    const composer = screen.getByTestId("qcms-assistant-composer");
+    fireEvent.change(composer, { target: { value: "tidy it and publish" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await vi.waitFor(() => {
+      expect(applyEdits).toHaveBeenCalledTimes(1);
+    });
+    expect(openWizard).not.toHaveBeenCalled();
+    release();
+    await vi.waitFor(() => {
+      expect(openWizard).toHaveBeenCalledWith("/forms/frm_quote/build");
+    });
+    expect(order).toEqual(["saving", "saved", "wizard"]);
+  });
+});
