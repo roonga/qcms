@@ -2,7 +2,6 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import * as prettier from "prettier";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -17,15 +16,16 @@ import {
   rewriteDependencies,
   buildTemplates,
   diffTrees,
+  documentedPackages,
   isExcludedAppPath,
   outputName,
   publishedVersions,
   renderEnvExample,
-  renderSeamBlock,
-  replaceSeamBlock,
+  renderSeamInventory,
   REPOSITORY_ROOT,
   SEAM_DOC,
-  seamDocumentText,
+  seamDocumentProblems,
+  stampedPackages,
   templateName,
   transformDockerfile,
   transformPromptSources,
@@ -513,22 +513,39 @@ describe("the prompt generator the scaffold ships (issue #1307)", () => {
   });
 });
 
-describe("the seam document the generator writes (issue #866)", () => {
-  const path = join(REPOSITORY_ROOT, SEAM_DOC);
+describe("the ownership-seam document", () => {
+  const tree = buildTemplates();
+  const text = readFileSync(join(REPOSITORY_ROOT, SEAM_DOC), "utf8");
 
-  async function isPrettierClean(text: string): Promise<boolean> {
-    const options = await prettier.resolveConfig(path);
-    return prettier.check(text, { ...options, filepath: path });
-  }
-
-  // Test both formatting drift and the rendered result; an already formatted fixture alone cannot prove the formatting step runs.
-  it("needs formatting when the block goes in as rendered", async () => {
-    const compact = replaceSeamBlock(readFileSync(path, "utf8"), renderSeamBlock());
-
-    expect(await isPrettierClean(compact)).toBe(false);
+  it("names exactly the packages the scaffold stamps", () => {
+    expect(stampedPackages(tree)).toEqual(Object.keys(publishedVersions()).sort());
+    expect(seamDocumentProblems(tree, text)).toEqual([]);
   });
 
-  it("is Prettier-clean as written, so a regeneration needs no `pnpm format`", async () => {
-    expect(await isPrettierClean(await seamDocumentText())).toBe(true);
+  it("reports a stamped package with no row and a row for a package not stamped", () => {
+    const missing = text.replace(/^\| `@roonga\/qcms-csv`.*\n/m, "");
+    expect(documentedPackages(missing)).not.toContain("@roonga/qcms-csv");
+    expect(seamDocumentProblems(tree, missing)).toEqual([
+      expect.stringContaining("@roonga/qcms-csv is stamped"),
+    ]);
+
+    const extra = `${text}\n| \`@roonga/qcms-gone\` | carries | story |\n`;
+    expect(seamDocumentProblems(tree, extra)).toEqual([
+      expect.stringContaining("row for @roonga/qcms-gone"),
+    ]);
+  });
+
+  it("commits no generated inventory", () => {
+    expect(text).not.toMatch(/BEGIN GENERATED/);
+    expect(text).not.toMatch(/files common to both shapes/);
+  });
+
+  it("renders the inventory on demand from the stamped tree", () => {
+    const inventory = renderSeamInventory(tree);
+    const common = [...tree.keys()].filter((path) => path.startsWith("common/")).length;
+    expect(inventory).toContain(
+      `### Scaffolded paths (${String(common)} files common to both shapes)`,
+    );
+    expect(inventory).toContain("apps/portal/package.json");
   });
 });

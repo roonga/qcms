@@ -37,7 +37,6 @@ export declare function countInternalReferences(tree: Map<string, string>): {
 export declare const GIT_BIN_OVERRIDE_ENV_VAR: string;
 export declare function checkedGitOverride(value: string): string;
 export declare function walk(root: string, base?: string): string[];
-export declare function normalizeSeamBlock(block: string): string;
 export declare function renderEnvExample(
   composeFiles: { text: string; alwaysRuns: boolean }[],
 ): string;
@@ -48,7 +47,8 @@ export declare function diffTrees(
   actual: Map<string, string>,
 ): string[];
 export declare const SEAM_DOC: string;
-export declare function renderSeamBlock(tree?: Map<string, string>): string;
-export declare function replaceSeamBlock(text: string, block: string): string;
-export declare function seamDocumentText(block?: string, current?: string): Promise<string>;
+export declare function renderSeamInventory(tree?: Map<string, string>): string;
+export declare function stampedPackages(tree: Map<string, string>): string[];
+export declare function documentedPackages(text: string): string[];
+export declare function seamDocumentProblems(tree: Map<string, string>, text: string): string[];
 export declare function main(args?: string[]): Promise<number>;
