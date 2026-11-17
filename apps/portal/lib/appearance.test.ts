@@ -61,13 +61,19 @@ describe("text size (Q9)", () => {
 
   it("covers every admin base", () => {
     expect(EXPECTED.map(([base]) => base)).toEqual(
-      Array.from({ length: TEXT_BASE_MAX - TEXT_BASE_MIN + 1 }, (_, index) => TEXT_BASE_MIN + index),
+      Array.from(
+        { length: TEXT_BASE_MAX - TEXT_BASE_MIN + 1 },
+        (_, index) => TEXT_BASE_MIN + index,
+      ),
     );
   });
 
-  it.each(EXPECTED)("multiplies a %ipx base by every scale and caps the product at 32px", (base, px) => {
-    expect(TEXT_SCALES.map((scale) => textSizePx(base, scale))).toEqual(px);
-  });
+  it.each(EXPECTED)(
+    "multiplies a %ipx base by every scale and caps the product at 32px",
+    (base, px) => {
+      expect(TEXT_SCALES.map((scale) => textSizePx(base, scale))).toEqual(px);
+    },
+  );
 });
 
 describe("parsers distinguish `no choice` from `a choice`", () => {
