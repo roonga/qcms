@@ -1,5 +1,7 @@
+import { spawnSync } from "node:child_process";
 import {
   chmodSync,
+  cpSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -9,6 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -31,7 +34,12 @@ import {
   teardownPlaceholders,
   usageLine,
 } from "./dev-compose.mjs";
-import { composeProjectName, localStackProjectName, stablePort } from "./ports.mjs";
+import {
+  assertTeardownSeatChosen,
+  composeProjectName,
+  localStackProjectName,
+  stablePort,
+} from "./ports.mjs";
 
 const scratch = mkdtempSync(join(tmpdir(), "qcms-dev-compose-"));
 
@@ -337,7 +345,7 @@ describe("devStackBannerLines", () => {
   it("explains the skip when an administrator already existed", () => {
     const skipped = banner(undefined);
     expect(skipped).toContain("already had an administrator");
-    expect(skipped).toContain("pnpm dev:down");
+    expect(skipped).toContain("QCMS_PORT_SEAT=0 pnpm dev:down");
     expect(skipped).not.toContain("password  ");
   });
 
@@ -346,8 +354,17 @@ describe("devStackBannerLines", () => {
     expect(banner(undefined, false)).not.toContain("HOST's");
   });
 
-  it("always says how to stop it", () => {
-    expect(created).toContain("pnpm dev:down");
+  it("always says how to stop it, naming the seat so the command works in the primary checkout", () => {
+    expect(created).toContain("QCMS_PORT_SEAT=0 pnpm dev:down");
+    const seated = devStackBannerLines({
+      ports: seatPorts(3),
+      project: "p",
+      credentials: undefined,
+      inContainer: false,
+      seat: 3,
+    }).join("\n");
+    expect(seated).toContain("QCMS_PORT_SEAT=3 pnpm dev:down");
+    expect(seated).not.toContain("QCMS_PORT_SEAT=0");
   });
 });
 
@@ -444,5 +461,83 @@ describe("seedNoticeLine", () => {
     expect(seedNoticeLine("seed", "p")).toMatch(/seeding/u);
     expect(seedNoticeLine("clear", "p")).toMatch(/clearing/u);
     expect(seedNoticeLine("reset", "p")).toMatch(/clearing and reseeding/u);
+  });
+});
+
+describe("assertTeardownSeatChosen", () => {
+  const primary = mkdtempSync(join(tmpdir(), "qcms-primary-"));
+  mkdirSync(join(primary, ".git"));
+  const linked = mkdtempSync(join(tmpdir(), "qcms-linked-"));
+  writeFileSync(join(linked, ".git"), "gitdir: elsewhere\n");
+  afterAll(() => {
+    rmSync(primary, { recursive: true, force: true });
+    rmSync(linked, { recursive: true, force: true });
+  });
+
+  it("refuses an unset seat in the primary checkout and says how to proceed", () => {
+    expect(() => {
+      assertTeardownSeatChosen(primary, "pnpm dev:down", undefined);
+    }).toThrow("QCMS_PORT_SEAT=0 pnpm dev:down");
+    expect(() => {
+      assertTeardownSeatChosen(primary, "pnpm dev:down", "  ");
+    }).toThrow(/seat 0/);
+  });
+
+  it("accepts an explicit seat, including 0", () => {
+    expect(() => {
+      assertTeardownSeatChosen(primary, "pnpm dev:down", "0");
+    }).not.toThrow();
+    expect(() => {
+      assertTeardownSeatChosen(primary, "pnpm dev:down", "3");
+    }).not.toThrow();
+  });
+
+  it("keeps the linked-worktree rule", () => {
+    expect(() => {
+      assertTeardownSeatChosen(linked, "pnpm dev:down", undefined);
+    }).toThrow(/linked git worktree/);
+    expect(() => {
+      assertTeardownSeatChosen(linked, "pnpm dev:down", "0");
+    }).not.toThrow();
+  });
+});
+
+describe("dev-compose teardown seat refusal", () => {
+  const scripts = fileURLToPath(new URL(".", import.meta.url));
+  const roots: string[] = [];
+  afterAll(() => {
+    for (const root of roots) rmSync(root, { recursive: true, force: true });
+  });
+
+  function primaryCheckout(): string {
+    const root = mkdtempSync(join(tmpdir(), "qcms-dev-compose-"));
+    roots.push(root);
+    cpSync(scripts, join(root, "scripts"), { recursive: true });
+    mkdirSync(join(root, ".git"));
+    return root;
+  }
+
+  function runUnseated(root: string, args: string[]) {
+    const environment = { ...process.env };
+    delete environment.QCMS_PORT_SEAT;
+    const result = spawnSync(
+      process.execPath,
+      [join(root, "scripts", "dev-compose.mjs"), ...args],
+      { cwd: root, env: environment, encoding: "utf8" },
+    );
+    return { status: result.status, stderr: result.stderr };
+  }
+
+  it("refuses down with no seat in the primary checkout before anything spawns", () => {
+    const { status, stderr } = runUnseated(primaryCheckout(), ["down"]);
+    expect(status).toBe(1);
+    expect(stderr).toContain("QCMS_PORT_SEAT=0 pnpm dev:down");
+    expect(stderr).not.toContain("removing project");
+    expect(stderr).not.toMatch(/\n\s+at /);
+  });
+
+  it("does not subject up to the teardown refusal", () => {
+    const { stderr } = runUnseated(primaryCheckout(), ["up"]);
+    expect(stderr).not.toContain("would target seat 0");
   });
 });
