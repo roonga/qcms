@@ -16,6 +16,7 @@ const SAFE_EVENTS = new Set([
   "agent proposal accepted",
   "agent proposal refused",
   "agent edit refused",
+  "agent accept refused",
   "handled error",
   "http exception",
   "listening",
