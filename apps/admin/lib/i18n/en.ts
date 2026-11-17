@@ -349,6 +349,22 @@ export const messages = {
     "A browser reads the pattern attribute more strictly than this and would ignore this expression. The same rule written as {suggestion} works everywhere.",
   "questions.constraint.patternVUnsafe":
     "A browser reads the pattern attribute more strictly than this and would ignore this expression. Answers are still checked by the engine, but the in-page hint is lost.",
+  "questions.constraint.format": "Checked format",
+  "questions.constraint.formatHint":
+    "Fills the pattern and the longest answer with tested values, and writes a matching message. All three stay editable afterwards.",
+  "questions.constraint.formatPlaceholder": "Choose a format",
+  "questions.constraint.formatExample": "Accepts values like {example}.",
+  "questions.constraint.formatApply": "Use this format",
+  "questions.constraint.formatApplied":
+    "{label} applied to the pattern and the longest answer. Its wording is on the validation messages panel.",
+  "questions.format.email": "Email address",
+  "questions.format.phone": "Phone number, any country",
+  "questions.format.postcode-au": "Postcode, Australia",
+  "questions.format.postcode-ca": "Postal code, Canada",
+  "questions.format.postcode-gb": "Postcode, United Kingdom",
+  "questions.format.postcode-nz": "Postcode, New Zealand",
+  "questions.format.postcode-us": "ZIP Code, United States",
+
   "questions.constraint.min": "Smallest value",
   "questions.constraint.max": "Largest value",
   "questions.constraint.integer": "Whole numbers only",

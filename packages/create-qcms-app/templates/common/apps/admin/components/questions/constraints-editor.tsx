@@ -4,10 +4,15 @@ import { compilesUnderV, toVSafePattern } from "@roonga/qcms-ui";
 import { useState } from "react";
 
 import { FieldHelp } from "@/components/help-tip";
-import { Checkbox, DatePicker, NumberField, TextField } from "@/components/kit";
+import { Button, Checkbox, DatePicker, NumberField, Select, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import { PATTERN_INPUT_LIMIT } from "@/lib/questions/definition";
 import { fieldErrorProps, optionalProp } from "@/lib/questions/errors";
+import {
+  FORMAT_PATTERNS,
+  formatPatternNamed,
+  type FormatPatternName,
+} from "@/lib/questions/format-patterns";
 import type { ConstraintsView, DefinitionIssue, QuestionType } from "@/lib/questions/types";
 
 interface PanelProps {
@@ -15,6 +20,7 @@ interface PanelProps {
   readonly onChange: (constraints: ConstraintsView) => void;
   readonly issues: ReadonlyMap<string, DefinitionIssue[]>;
   readonly isFrozen: boolean;
+  readonly onApplyFormat?: ((name: FormatPatternName) => void) | undefined;
 }
 
 /* A cleared NumberField reports NaN, meaning no constraint rather than zero. */
@@ -64,9 +70,72 @@ function vSafeNote(pattern: string): string {
     : t("questions.constraint.patternVSuggestion", { suggestion });
 }
 
+/* The pattern and its message move together, so the picker reports what it wrote: the message field it filled
+   is on a different panel and the author cannot see it change. */
+function FormatPicker({
+  onApplyFormat,
+}: {
+  readonly onApplyFormat: (name: FormatPatternName) => void;
+}) {
+  const [chosen, setChosen] = useState<FormatPatternName | null>(null);
+  const [applied, setApplied] = useState("");
+  const format = formatPatternNamed(chosen);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <FieldHelp help={t("questions.constraint.formatHint")}>
+        <Select
+          label={t("questions.constraint.format")}
+          placeholder={t("questions.constraint.formatPlaceholder")}
+          value={chosen}
+          items={FORMAT_PATTERNS.map((entry) => ({
+            label: t(`questions.format.${entry.name}`),
+            value: entry.name,
+          }))}
+          {...optionalProp(
+            "description",
+            format === undefined
+              ? undefined
+              : t("questions.constraint.formatExample", { example: format.example }),
+          )}
+          onChange={(next) => {
+            setChosen(next as FormatPatternName);
+            setApplied("");
+          }}
+        />
+      </FieldHelp>
+      <div>
+        <Button
+          type="button"
+          variant="secondary"
+          isDisabled={format === undefined}
+          onPress={() => {
+            if (format === undefined) return;
+            onApplyFormat(format.name);
+            setApplied(
+              t("questions.constraint.formatApplied", {
+                label: t(`questions.format.${format.name}`),
+              }),
+            );
+          }}
+        >
+          {t("questions.constraint.formatApply")}
+        </Button>
+      </div>
+      <p
+        aria-live="polite"
+        className="text-sm text-(--color-text-muted)"
+        data-testid="qcms-format-applied"
+      >
+        {applied}
+      </p>
+    </div>
+  );
+}
+
 /* This browser regex test is only a convenience; the kernel's restricted RE2-safe validation remains
    authoritative. */
-function PatternField({ constraints, onChange, issues, isFrozen }: PanelProps) {
+function PatternField({ constraints, onChange, issues, isFrozen, onApplyFormat }: PanelProps) {
   const [sample, setSample] = useState("");
   const pattern = typeof constraints.pattern === "string" ? constraints.pattern : "";
 
@@ -85,6 +154,7 @@ function PatternField({ constraints, onChange, issues, isFrozen }: PanelProps) {
 
   return (
     <div className="flex flex-col gap-2">
+      {!isFrozen && onApplyFormat !== undefined && <FormatPicker onApplyFormat={onApplyFormat} />}
       <FieldHelp help={t("questions.constraint.patternHint")}>
         <TextField
           label={t("questions.constraint.pattern")}

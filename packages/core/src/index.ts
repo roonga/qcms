@@ -93,6 +93,13 @@ export {
 } from "./safe-pattern.js";
 
 export {
+  FORMAT_PATTERNS,
+  FORMAT_PATTERN_NAMES,
+  type FormatPattern,
+  type FormatPatternName,
+} from "./format-patterns.js";
+
+export {
   ChoiceOption,
   QuestionBase,
   QuestionDefinition,
