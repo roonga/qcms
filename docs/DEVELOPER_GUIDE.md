@@ -1078,7 +1078,8 @@ The create response carries the comment it made, so `--jq .body` on the POST is 
 Repository-side facts the queue depends on:
 
 - Every required check comes from a workflow with `merge_group: { types: [checks_requested] }`; `pnpm check:ci-parity` fails if one loses it, since a required check that never reports stalls the queue.
-- The `changes` jobs classify a queue entry by diffing from `github.event.merge_group.base_sha`, so a group of prose PRs still takes the fast lane; any doubt runs the full suite.
+- The `changes` jobs classify a queue entry by diffing from `github.event.merge_group.base_sha`, so a group of prose PRs still takes the fast lane and `ui_needed` and `api_needed` still skip a suite no queued PR reaches; any doubt runs the full suite.
+- `verify (node-26)` does not run for a queue entry or a pull request, only after merge.
 - Queue runs have their own `gh-readonly-queue/...` ref, so they never share a concurrency group with a PR run, and `cancel-in-progress` is only on for `pull_request`.
 
 **Enabling it is a Code Owner action on the `protect-main` ruleset** (Settings, Rules, Rulesets, `protect-main`, **Require merge queue**). Agents never change rulesets. The settings:
