@@ -11,6 +11,9 @@ const reviewReleaseAction = vi.fn<ActionDouble>();
 const confirmPublishAction = vi.fn<ActionDouble>();
 const accept = vi.fn<(...args: readonly unknown[]) => void>();
 
+type AcceptSettled = { saved: true } | { saved: false; message: string };
+let acceptSettles: () => Promise<AcceptSettled> = () => Promise.resolve({ saved: true });
+
 vi.mock("@/app/(shell)/forms/actions", () => ({
   confirmPublishAction: (...args: readonly unknown[]): Promise<unknown> =>
     confirmPublishAction(...args),
@@ -43,8 +46,9 @@ vi.mock("@/lib/agent/builder-assist-bridge", () => ({
     canPropose: true,
     draft: DRAFT,
     draftUpdatedAt: undefined,
-    accept: (...args: readonly unknown[]): void => {
+    accept: (...args: readonly unknown[]): Promise<AcceptSettled> => {
       accept(...args);
+      return acceptSettles();
     },
   }),
 }));
@@ -65,6 +69,7 @@ const APPLY_DRAFT: AgentPlanStep = {
     newQuestions: [],
     issues: [],
     warnings: [],
+    acceptToken: "acc.tok",
   },
   card: { titleKey: "agent.card.apply-draft.title", consequenceKeys: [] },
   resultAllowlist: ["changes", "newQuestions"],
@@ -143,6 +148,50 @@ describe("a plan of apply-draft then form.publish", () => {
       source: { kind: "draft", draftRevision: 4 },
       targets: [{ environment: "test", expectedSequence: 9 }],
     });
+  });
+
+  it("runs the publish only after the accept's own save has landed", async () => {
+    const { runStepAction } = await import("./step-actions");
+    let land: (value: AcceptSettled) => void = () => undefined;
+    acceptSettles = () =>
+      new Promise((resolve) => {
+        land = resolve;
+      });
+    try {
+      const running = runPlan({
+        proposal: PLAN,
+        card: startRun(initialCard(PLAN)),
+        runStep: runStepAction,
+        now: () => NOW,
+        windowLeftMs: () => WINDOW_LEFT,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(accept).toHaveBeenCalledTimes(1);
+      expect(reviewReleaseAction).not.toHaveBeenCalled();
+      land({ saved: true });
+      expect((await running).state).toBe("done");
+      expect(confirmPublishAction).toHaveBeenCalledTimes(1);
+    } finally {
+      acceptSettles = () => Promise.resolve({ saved: true });
+    }
+  });
+
+  it("stops the plan when the accept's save fails, so nothing is published", async () => {
+    const { runStepAction } = await import("./step-actions");
+    acceptSettles = () => Promise.resolve({ saved: false, message: "refused" });
+    try {
+      const card = await runPlan({
+        proposal: PLAN,
+        card: startRun(initialCard(PLAN)),
+        runStep: runStepAction,
+        now: () => NOW,
+        windowLeftMs: () => WINDOW_LEFT,
+      });
+      expect(card.steps.map((step) => step.state)).toEqual(["failed", "not-run"]);
+      expect(confirmPublishAction).not.toHaveBeenCalled();
+    } finally {
+      acceptSettles = () => Promise.resolve({ saved: true });
+    }
   });
 
   it("carries no token on the local step, because it reaches no route", async () => {

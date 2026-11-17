@@ -56,7 +56,7 @@ const BUILDER: BuilderAssistSnapshot = {
   canPropose: true,
   draft: DRAFT,
   draftUpdatedAt: undefined,
-  accept: () => undefined,
+  accept: () => Promise.resolve({ saved: true as const }),
 };
 
 afterEach(() => {

@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Alert, Button, TextField } from "@/components/kit";
 import { AmbientSaveStatus, AutosaveFlash } from "@/components/save-model";
-import { recordDraftSaved, usePublishBuilderAssist } from "@/lib/agent/builder-assist-bridge";
+import {
+  recordDraftSaved,
+  usePublishBuilderAssist,
+  type AcceptOutcome,
+} from "@/lib/agent/builder-assist-bridge";
 import { AUTOSAVE_DEBOUNCE_MS, useDraftAutosave } from "@/lib/forms/autosave";
 import type { SaveDraftState, SettingsState, ValidateDraftState } from "@/lib/forms/builder-state";
 import {
@@ -58,6 +62,7 @@ interface PendingAccept {
   readonly accept: AgentAccept;
   /* The draft before the first unsaved accept, which a refused token restores. */
   readonly before: DraftForm;
+  readonly settle: (outcome: AcceptOutcome) => void;
 }
 
 function isAcceptRefusal(code: string | undefined): boolean {
@@ -117,6 +122,11 @@ export function FormBuilder({
       const held = pendingAccept.current;
       const saved = await saveDraft(next, held?.accept);
       if (held === undefined || pendingAccept.current !== held) return saved;
+      held.settle(
+        saved.status === "saved"
+          ? { saved: true }
+          : { saved: false, message: saved.message ?? t("agent.card.note.unreachable") },
+      );
       if (saved.status === "saved") {
         pendingAccept.current = undefined;
       } else if (isAcceptRefusal(saved.code)) {
@@ -285,8 +295,19 @@ export function FormBuilder({
         },
   );
 
-  function acceptAssistProposal(proposedDraft: DraftForm, accept: AgentAccept) {
-    pendingAccept.current = { accept, before: pendingAccept.current?.before ?? draft };
+  function acceptAssistProposal(proposedDraft: DraftForm, accept: AgentAccept): Promise<AcceptOutcome> {
+    const superseded = pendingAccept.current;
+    superseded?.settle({ saved: false, message: t("agent.card.note.unreachable") });
+    let settle: (outcome: AcceptOutcome) => void = () => undefined;
+    const outcome = new Promise<AcceptOutcome>((resolve) => {
+      let settled = false;
+      settle = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+    });
+    pendingAccept.current = { accept, before: superseded?.before ?? draft, settle };
     if (
       selection.kind === "step" &&
       !proposedDraft.steps.some((step) => step.stepId === selection.stepId)
@@ -294,6 +315,7 @@ export function FormBuilder({
       setSelection({ kind: "form" });
     }
     mutate(proposedDraft);
+    return outcome;
   }
 
   return (

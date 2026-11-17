@@ -111,7 +111,10 @@ function proposalRef(
   return agentProposal === undefined ? undefined : { agentProposal, step: tokenStep };
 }
 
-const applyDraftRunner: StepRunner = ({ step }) => {
+/* An accept the builder could not save at all, such as a draft over the save cap, never settles on its own. */
+const ACCEPT_SAVE_WAIT_MS = 20_000;
+
+const applyDraftRunner: StepRunner = async ({ step }) => {
   const proposed = step.draft;
   const builder = builderAssistSnapshot();
   if (
@@ -119,17 +122,27 @@ const applyDraftRunner: StepRunner = ({ step }) => {
     builder === undefined ||
     !builder.canPropose
   ) {
-    return Promise.resolve({ outcome: "failed", message: t("agent.card.note.noBuilder") });
+    return { outcome: "failed", message: t("agent.card.note.noBuilder") };
   }
   const diff = proposalDiff(builder.draft, proposed.definition, proposed.newQuestions);
-  builder.accept(acceptedDraft(builder.draft, proposed.definition), {
-    token: proposed.acceptToken,
-    newQuestions: proposed.newQuestions,
-  });
-  return Promise.resolve({
+  const held: { timer?: ReturnType<typeof setTimeout> } = {};
+  const saved = await Promise.race([
+    builder.accept(acceptedDraft(builder.draft, proposed.definition), {
+      token: proposed.acceptToken,
+      newQuestions: proposed.newQuestions,
+    }),
+    new Promise<{ saved: false; message: string }>((resolve) => {
+      held.timer = setTimeout(() => {
+        resolve({ saved: false, message: t("agent.card.note.unreachable") });
+      }, ACCEPT_SAVE_WAIT_MS);
+    }),
+  ]);
+  clearTimeout(held.timer);
+  if (!saved.saved) return { outcome: "failed", message: saved.message };
+  return {
     outcome: "done",
     result: { changes: diff.length, newQuestions: proposed.newQuestions.length },
-  });
+  };
 };
 
 function intakeRunner(action: "close" | "reopen"): StepRunner {

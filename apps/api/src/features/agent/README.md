@@ -411,7 +411,10 @@ shows; an ordinary later save never clears it, and discarding the draft does.
 
 The builder holds an accepted draft's token until a save succeeds, so a failed
 accept is retried under it rather than landing as a plain save; a refused token
-withdraws the proposal and restores the draft as it stood before.
+withdraws the proposal and restores the draft as it stood before. The card's
+`apply-draft` step settles only when that save has landed or failed, so a plan's
+later step, a publish above all, never runs against the draft as it stood before
+the accept.
 
 The route also materialises every proposed **new question definition** as an
 **unpublished question draft** in the library, in the same transaction (issue

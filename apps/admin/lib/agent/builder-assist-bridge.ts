@@ -12,8 +12,13 @@ export interface BuilderAssistSnapshot {
   readonly canPropose: boolean;
   readonly draft: DraftForm;
   readonly draftUpdatedAt: string | undefined;
-  readonly accept: (proposedDraft: DraftForm, accept: AgentAccept) => void;
+  /* Settles once the accept's own save has succeeded or failed, so a plan's next step never runs ahead of it. */
+  readonly accept: (proposedDraft: DraftForm, accept: AgentAccept) => Promise<AcceptOutcome>;
 }
+
+export type AcceptOutcome =
+  | { readonly saved: true }
+  | { readonly saved: false; readonly message: string };
 
 let snapshot: BuilderAssistSnapshot | undefined;
 let listeners: readonly (() => void)[] = [];

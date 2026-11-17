@@ -8,7 +8,7 @@ import {
   AssistantConversation,
   type BuilderTurnHooks,
 } from "@/components/agent/assistant-conversation";
-import type { BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
+import type { AcceptOutcome, BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
 import {
   applyTurnEdits,
   editResultTurn,
@@ -44,6 +44,11 @@ const STATE_LABELS: Readonly<Record<EditRecordState, MessageKey>> = {
   undoing: "builder.edit.state.undoing",
   undone: "builder.edit.state.undone",
 };
+
+/* The agent builder carries no apply-draft step: its edits are card-less. */
+function noAccept(): Promise<AcceptOutcome> {
+  return Promise.resolve({ saved: false, message: t("agent.card.note.noBuilder") });
+}
 
 function noop(): void {
   return undefined;
@@ -140,7 +145,7 @@ export function BuilderAssistant({
             canPropose: true,
             draft,
             draftUpdatedAt: undefined,
-            accept: noop,
+            accept: noAccept,
           },
     [draft, formId],
   );

@@ -38,7 +38,7 @@ function snapshot(canPropose: boolean): BuilderAssistSnapshot {
     canPropose,
     draft: DRAFT,
     draftUpdatedAt: undefined,
-    accept: () => undefined,
+    accept: () => Promise.resolve({ saved: true as const }),
   };
 }
 
