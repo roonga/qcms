@@ -406,7 +406,10 @@ Bring it down with the matching command, which removes the containers, the netwo
 pnpm dev:down
 ```
 
-`dev:down` (and any `dev:fresh`) refuses to run on seat 0 by default: it deletes the stack's volumes, so in the primary checkout it requires `QCMS_PORT_SEAT` to be set. For the default stack, say so explicitly with `QCMS_PORT_SEAT=0 pnpm dev:down`. `dev:up` is unchanged.
+`dev:down` refuses to run on seat 0 by default, because it deletes the stack's volumes.
+In the primary checkout it requires `QCMS_PORT_SEAT` to be set.
+For the default stack, say so explicitly with `QCMS_PORT_SEAT=0 pnpm dev:down`.
+`dev:up` is unchanged.
 
 ### Sample data: `pnpm dev:seed`, `pnpm dev:seed:clear`, `pnpm dev:seed:reset`
 
@@ -469,12 +472,12 @@ Refusing to clear: frm_sample_library is referenced by rows this seed did not cr
 ...
 NOTHING WAS DELETED. For a stack with no respondent data, drop this one and start again:
 
-  pnpm dev:down && pnpm dev:up && pnpm dev:seed
+  export QCMS_PORT_SEAT=<your seat> && pnpm dev:down && pnpm dev:up && pnpm dev:seed
 ```
 
 Secure links and webhooks authored against the seeded form block it the same way and for the same reason: they are hand-authored rows, and this script deletes none of those.
 
-**The refusal is a decision, not a gap.** The Code Owner ruled on 2026-09-25 (issue #994) that it stays and that there is no `--force` erasing the sessions through the sanctioned erasure door: a sample-data script opening the GDPR path on respondent rows is not worth the thirty seconds `pnpm dev:down && pnpm dev:up && pnpm dev:seed` costs, and that escape is already in the refusal text. If a force is ever wanted it comes back as its own issue with its own security note.
+**The refusal is a decision, not a gap.** The Code Owner ruled on 2026-09-25 (issue #994) that it stays and that there is no `--force` erasing the sessions through the sanctioned erasure door: a sample-data script opening the GDPR path on respondent rows is not worth the thirty seconds `export QCMS_PORT_SEAT=<your seat> && pnpm dev:down && pnpm dev:up && pnpm dev:seed` costs, and that escape is already in the refusal text. If a force is ever wanted it comes back as its own issue with its own security note.
 
 **Why these are commands rather than `DATABASE_URL=... pnpm qcms:seed-fixtures`.** That is the documented way to seed the `7S20` dev database, and it cannot reach this stack: the composed topology's Postgres is deliberately unpublished, and `scripts/compose-config.test.ts` asserts it stays that way with the toolbox overlay layered on. So the loader runs **inside** the network, as a one-shot container built from the API image (`docker/seed.Dockerfile`), which is the one image whose dependency tree already has `@roonga/qcms-core`, `@roonga/qcms-db`, drizzle and `pg`. All three commands take that one door with a different subcommand, which is what makes a command that _deletes_ sample data incapable of reaching any database but this stack's: it is handed a URL naming `postgres:5432`, a host that resolves on this Compose network and nowhere else. The database URL travels in the docker CLI's environment and never in an argv (issue #440).
 
@@ -487,7 +490,7 @@ The service is behind a Compose `seed` profile, so `dev:up` neither builds nor r
 **What `dev:up` does beyond `docker compose up`**, because each piece is a step that used to be manual and easy to get wrong:
 
 - **It creates the first administrator, inside this stack.** The composed stack has a Postgres of its own, separate from the `7S20` database `pnpm dev:portal` uses, so `create-admin` is run in this stack's `api` container (`scripts/compose-admin.mjs`, the same step the full-stack harness uses). An admin created against the wrong database is invisible here, and the symptom is a sign-in that fails with nothing wrong anywhere you would look.
-- **It is safe to re-run.** `create-admin` refuses once a Site administrator exists (SEC-1) and that refusal is correct, so a second `dev:up` reports the skip and prints the URLs rather than working around it. To get a fresh account, `pnpm dev:down` first: the volume goes with it.
+- **It is safe to re-run.** `create-admin` refuses once a Site administrator exists (SEC-1) and that refusal is correct, so a second `dev:up` reports the skip and prints the URLs rather than working around it. To get a fresh account, run `QCMS_PORT_SEAT=<your seat> pnpm dev:down` first: the volume goes with it.
 - **A promoted account prints no password.** If an interrupted first run left an ordinary account behind, the next `dev:up` promotes it to Site administrator and says so. Its existing password applies; the one `dev:up` generated is not printed, because it was never set.
 - **It pins `QCMS_ADMIN_AUTH_SECRET`** in `.env.dev-admin` (gitignored), generating one on first use. Unpinned, the API mints a fresh secret every boot, which makes an existing TOTP enrolment permanently unverifiable and burns a recovery code per restart - see the pinning note earlier in this guide. An exported value wins; `.env` is deliberately not consulted, so re-copying the operator template cannot silently replace a pinned secret with its placeholder. The file is made **owner-only on every run**, not just when it is created: if you already have one that other users on the machine can read, `dev:up` tightens it and prints one line saying so. (`writeFileSync`'s `mode` option applies only when the call creates the file, so setting it at creation would have protected the one case that needs it least.)
 - **It derives the seat's ports and Compose project name** from `scripts/ports.mjs` (R8). Seat 0's project is `qcms-local-stack`, so `docker compose ls` shows one named group; another seat gets `qcms-local-stack-s<N>`, its own containers and its own volume. Neither collides with the dev database (`qcms-dev`) or the full-stack e2e stack. From a linked worktree, `QCMS_PORT_SEAT` is refused rather than defaulted (issue #296): `dev:down` removes volumes, so an adopted seat would delete another lane's stack rather than read it.

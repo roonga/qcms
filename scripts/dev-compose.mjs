@@ -612,7 +612,7 @@ export const SUBCOMMANDS = {
 };
 
 /** Subcommands that remove volumes, and so must name their seat even in the primary checkout. */
-export const TEARDOWN_SUBCOMMANDS = new Set(["down", "fresh"]);
+export const TEARDOWN_SUBCOMMANDS = new Set(["down"]);
 
 export function usageLine() {
   return `Usage: node scripts/dev-compose.mjs <${Object.keys(SUBCOMMANDS).join("|")}>`;
