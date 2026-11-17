@@ -7,10 +7,11 @@ Decisions are surface-specific unless explicitly shared (ADR-26). The **admin** 
 - [`core.md`](core.md) - decisions binding the engine, the data model, the API, the platform, both frontends, or the development process
 - [`portal.md`](portal.md) - decisions binding only the respondent portal
 - [`admin.md`](admin.md) - decisions binding only the admin
+- [`proposals.md`](proposals.md) - proposed decisions awaiting a Code Owner ruling; nothing in it binds
 
 ADR numbering is stable across the split: `ADR-NN` cites the same decision it always has, wherever the text now lives. The operational companions remain `docs/portal-constraints.md` and `docs/admin-constraints.md` ("what binds this surface"); this record holds the decisions those documents cite.
 
-Each record carries a **Status** line (implemented; amended, with date and task or issue; partly built; not built, with owning task; process). A **Note** records verified drift between the decision text and the code as of the 2026-08-31 review; an item that needs a Code Owner decision is marked **flagged**.
+A decision that is **proposed** lives in `proposals.md`, cited by its issue number, and takes an ADR number and a row in the index below only when the Code Owner accepts it. Each record carries a **Status** line (implemented; amended, with date and task or issue; partly built; not built, with owning task; process). A **Note** records verified drift between the decision text and the code as of the 2026-08-31 review; an item that needs a Code Owner decision is marked **flagged**.
 
 ## Index
 
