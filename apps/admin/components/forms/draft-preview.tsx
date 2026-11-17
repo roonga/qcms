@@ -29,23 +29,16 @@ import type { PreviewTheme } from "@/lib/preview-theme";
 
 const DEBOUNCE_MS = 250;
 
-export function DraftPreview({
-  draft,
-  preview,
-  defaultTheme,
-}: {
-  readonly draft: DraftForm | null;
-  readonly defaultTheme: PreviewTheme;
-  readonly preview: (input: {
-    readonly draft: DraftForm;
-    readonly answers: Readonly<Record<string, unknown>>;
-    readonly instances: Readonly<Record<string, readonly string[]>>;
-  }) => Promise<DraftPreviewState>;
-}) {
-  const previewLocale = usePreviewLocale();
+export type DraftPreviewAction = (input: {
+  readonly draft: DraftForm;
+  readonly answers: Readonly<Record<string, unknown>>;
+  readonly instances: Readonly<Record<string, readonly string[]>>;
+}) => Promise<DraftPreviewState>;
+
+/** Hypothetical answers and roster sizes for a draft, and the served preview they produce. */
+export function useDraftPreview(draft: DraftForm | null, preview: DraftPreviewAction) {
   const [answers, setAnswers] = useState<A2UIValues>({});
   const [state, setState] = useState<DraftPreviewState>(IDLE_DRAFT_PREVIEW);
-  const [stepIndex, setStepIndex] = useState(0);
   /* Mint hypothetical instance ids before the request because the same request's answer keys already
      reference them. */
   const [counts, setCounts] = useState<Readonly<Record<string, number>>>({});
@@ -86,11 +79,86 @@ export function DraftPreview({
     });
   }, []);
 
-  const reset = useCallback(() => {
+  const clearAnswers = useCallback(() => {
     setAnswers({});
-    setStepIndex(0);
     setCounts({});
   }, []);
+
+  return { answers, state, counts, setCounts, groups, handleChange, clearAnswers };
+}
+
+/* Positional ids are safe only for these unstored hypotheses; real session instance ids must never be
+   renumbered or reused. */
+function previewRoster(
+  groups: readonly DraftGroup[],
+  counts: Readonly<Record<string, number>>,
+): Readonly<Record<string, readonly string[]>> {
+  const rosters: Record<string, readonly string[]> = {};
+  for (const group of groups) {
+    const asked = counts[group.groupId] ?? countBounds(group.count).min;
+    const ceiling = countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP;
+    rosters[group.groupId] = Array.from(
+      { length: Math.min(Math.max(0, asked), ceiling) },
+      (_entry, at) => `ins_p${String(at + 1)}`,
+    );
+  }
+  return rosters;
+}
+
+export function rosterRecord(
+  rosters: readonly { readonly groupId: string; readonly instances: readonly string[] }[],
+): Readonly<Record<string, readonly string[]>> {
+  const record: Record<string, readonly string[]> = {};
+  for (const entry of rosters) record[entry.groupId] = entry.instances;
+  return record;
+}
+
+/* Read headings from the draft; compiled nodes are opaque and belong to the renderer. */
+export function stepTitle(draft: DraftForm | null, stepId: string): string {
+  const step = draft?.steps.find((candidate) => candidate.stepId === stepId);
+  const title = step?.title[draft?.defaultLocale ?? ""];
+  return title === undefined || title === "" ? stepId : title;
+}
+
+export function hasVisibleQuestion(
+  draft: DraftForm | null,
+  stepId: string,
+  visibleQuestions: readonly string[],
+  rosters: Readonly<Record<string, readonly string[]>>,
+): boolean {
+  const step = draft?.steps.find((candidate) => candidate.stepId === stepId);
+  if (step === undefined) return true;
+  // Visibility for group members is instance-qualified; the same question can be visible in one instance and
+  // hidden in another.
+  const visible = new Set(visibleQuestions);
+  const groupOf = draft === null ? new Map<string, string>() : questionGroupIds(draft);
+  return stepPins(step).some((pin) => {
+    const groupId = groupOf.get(pin.questionId);
+    if (groupId === undefined) return visible.has(pin.questionId);
+    return (rosters[groupId] ?? []).some((instanceId) =>
+      visible.has(`${instanceId}/${pin.questionId}`),
+    );
+  });
+}
+
+export function DraftPreview({
+  draft,
+  preview,
+  defaultTheme,
+}: {
+  readonly draft: DraftForm | null;
+  readonly defaultTheme: PreviewTheme;
+  readonly preview: DraftPreviewAction;
+}) {
+  const previewLocale = usePreviewLocale();
+  const { answers, state, counts, setCounts, groups, handleChange, clearAnswers } =
+    useDraftPreview(draft, preview);
+  const [stepIndex, setStepIndex] = useState(0);
+
+  const reset = useCallback(() => {
+    clearAnswers();
+    setStepIndex(0);
+  }, [clearAnswers]);
 
   const views = useMemo(
     () => previewViews(state.preview?.documents ?? [], state.preview?.flow),
@@ -285,61 +353,7 @@ export function DraftPreview({
   );
 }
 
-/* Read headings from the draft; compiled nodes are opaque and belong to the renderer. */
-function stepTitle(draft: DraftForm | null, stepId: string): string {
-  const step = draft?.steps.find((candidate) => candidate.stepId === stepId);
-  const title = step?.title[draft?.defaultLocale ?? ""];
-  return title === undefined || title === "" ? stepId : title;
-}
-
-/* Positional ids are safe only for these unstored hypotheses; real session instance ids must never be
-   renumbered or reused. */
-function previewRoster(
-  groups: readonly DraftGroup[],
-  counts: Readonly<Record<string, number>>,
-): Readonly<Record<string, readonly string[]>> {
-  const rosters: Record<string, readonly string[]> = {};
-  for (const group of groups) {
-    const asked = counts[group.groupId] ?? countBounds(group.count).min;
-    const ceiling = countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP;
-    rosters[group.groupId] = Array.from(
-      { length: Math.min(Math.max(0, asked), ceiling) },
-      (_entry, at) => `ins_p${String(at + 1)}`,
-    );
-  }
-  return rosters;
-}
-
-function rosterRecord(
-  rosters: readonly { readonly groupId: string; readonly instances: readonly string[] }[],
-): Readonly<Record<string, readonly string[]>> {
-  const record: Record<string, readonly string[]> = {};
-  for (const entry of rosters) record[entry.groupId] = entry.instances;
-  return record;
-}
-
 function groupDisplayName(group: DraftGroup, draft: DraftForm | null): string {
   const label = group.label[draft?.defaultLocale ?? ""] ?? Object.values(group.label)[0] ?? "";
   return label === "" ? group.groupId : label;
-}
-
-function hasVisibleQuestion(
-  draft: DraftForm | null,
-  stepId: string,
-  visibleQuestions: readonly string[],
-  rosters: Readonly<Record<string, readonly string[]>>,
-): boolean {
-  const step = draft?.steps.find((candidate) => candidate.stepId === stepId);
-  if (step === undefined) return true;
-  // Visibility for group members is instance-qualified; the same question can be visible in one instance and
-  // hidden in another.
-  const visible = new Set(visibleQuestions);
-  const groupOf = draft === null ? new Map<string, string>() : questionGroupIds(draft);
-  return stepPins(step).some((pin) => {
-    const groupId = groupOf.get(pin.questionId);
-    if (groupId === undefined) return visible.has(pin.questionId);
-    return (rosters[groupId] ?? []).some((instanceId) =>
-      visible.has(`${instanceId}/${pin.questionId}`),
-    );
-  });
 }

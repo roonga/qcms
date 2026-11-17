@@ -1,6 +1,6 @@
 # 114 - Builder preview and inspect
 
-**Stage:** 9 (Phase 4) · **Apps/packages:** `apps/admin`, `@roonga/qcms-ui` (`form-field.tsx` only) · **Depends on:** 113, 111, 109; the preview toolbar on the Agent Builder design canvas seen by the Code Owner
+**Stage:** 9 (Phase 4) · **Apps/packages:** `apps/admin`, `@roonga/qcms-ui` (the field wrapper in `registry.tsx` only) · **Depends on:** 113, 111, 109; the preview toolbar on the Agent Builder design canvas seen by the Code Owner
 **References:** `plan/agent-builder-decisions.md` (U2, U3, Q3, review findings) · ADR-22 · ADR-38 · `plan/work-order-sequence.md`
 
 ## Context
@@ -15,7 +15,7 @@ The preview is the inline ADR-38 island with container-query breakpoints; no ifr
   - The layout collector: measures in the browser and sends 111's layout fact; no API route.
 - U3:
   - Inspect mode: hover and select a question in the preview; the selection is sent as 111's selection fact.
-  - `data-qcms-question-id` on the qcms-owned wrapper in `packages/ui/src/form-field.tsx`, never on vendored files (ADR-22).
+  - `data-qcms-question-id` on the qcms-owned field wrapper (`FieldBlur` in `packages/ui/src/registry.tsx`), never on vendored files (ADR-22).
 - Strings in `apps/admin/lib/i18n/en.ts`.
 
 ## Exit criteria
@@ -31,7 +31,7 @@ Spec criteria owned: none.
 
 ## Files and areas
 
-`apps/admin/components/forms/` (preview pane, new), `apps/admin/components/preview-theme-island.tsx`, `apps/admin/lib/{preview-theme,measure}.ts`, `apps/admin/lib/forms/preview-views.ts`, `packages/ui/src/form-field.tsx`, `apps/admin/lib/i18n/en.ts`, `apps/admin/e2e/`.
+`apps/admin/components/forms/` (preview pane, new), `apps/admin/components/preview-theme-island.tsx`, `apps/admin/lib/{preview-theme,measure}.ts`, `apps/admin/lib/forms/preview-views.ts`, `packages/ui/src/registry.tsx`, `apps/admin/lib/i18n/en.ts`, `apps/admin/e2e/`.
 
 ## Migration
 
