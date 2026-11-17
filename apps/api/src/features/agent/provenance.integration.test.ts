@@ -304,6 +304,14 @@ async function linkCount(formId: string): Promise<number> {
   return (res.rows[0] as { n: number }).n;
 }
 
+async function linkAuditCount(formId: string): Promise<number> {
+  const res = await testDb.client.query<{ n: number }>(
+    `select count(*)::int as n from control.access_audit where kind = 'link' and form_id = $1`,
+    [formId],
+  );
+  return (res.rows[0] as { n: number }).n;
+}
+
 const mintArgs = (formId: string): Record<string, unknown> => ({
   formId,
   count: 1,
@@ -408,6 +416,7 @@ describe("provenance adds provenance and never rights (criterion 2)", () => {
       body: mintBody,
     });
     expect(plain.status).toBe(201);
+    expect(await linkAuditCount(FORM_ID)).toBe(1);
 
     const { token, proposalId } = await mintToken({
       subject: owner.userId,
@@ -422,6 +431,7 @@ describe("provenance adds provenance and never rights (criterion 2)", () => {
       proposal: { token, step: 0 },
     });
     expect(proposed.status).toBe(plain.status);
+    expect(await linkAuditCount(FORM_ID)).toBe(2);
 
     expect(await rowsFor(proposalId)).toEqual([
       { step_index: 0, kind: "link.mint", environment: "prod", detail: "1" },
@@ -494,6 +504,7 @@ describe("a replayed step rolls back on the unique constraint (criterion 1)", ()
     expect(await errorCode(replay)).toBe("AGENT_PROPOSAL_ORDER");
     expect(await linkCount(FORM_ID)).toBe(minted);
     expect(await countRows(proposalId)).toBe(1);
+    expect(await linkAuditCount(FORM_ID)).toBe(1);
   });
 
   it("rolls the step's own transaction back when the constraint catches the duplicate", async () => {

@@ -27,6 +27,8 @@ export const ACCESS_AUDIT_KINDS = [
   "approval",
   /** The mirror of a site-level account act into a workspace this account held something in. */
   "account",
+  /** A respondent link batch minted or one link revoked. */
+  "link",
 ] as const;
 
 /** One of {@link ACCESS_AUDIT_KINDS}. */
@@ -62,7 +64,7 @@ export const accessAudit = controlSchema.table(
   (t) => [
     check(
       ACCESS_AUDIT_KIND_CHECK,
-      sql`${t.kind} in ('read', 'export', 'erasure', 'grant', 'revoke', 'setting', 'derive', 'group', 'administrator', 'approval', 'account')`,
+      sql`${t.kind} in ('read', 'export', 'erasure', 'grant', 'revoke', 'setting', 'derive', 'group', 'administrator', 'approval', 'account', 'link')`,
     ),
   ],
 );

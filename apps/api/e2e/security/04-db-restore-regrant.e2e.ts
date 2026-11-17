@@ -431,6 +431,19 @@ describe("after the restore and the re-grant", () => {
 });
 
 describe("the projections of that map, named so a failure says which claim broke", () => {
+  it("lets the control role append a link audit row, so the restored kind CHECK carries it", async () => {
+    const client = clients.get(CONTROL_ROLE) as pg.Client;
+    await client.query(
+      `insert into control.${ACCESS_AUDIT_TABLE} (actor, workspace_id, kind, detail)
+       values ('usr_restore', 'org_restore_home', 'link', 'link=revoked id=lnk_restore')`,
+    );
+    const held = await owner.query<{ n: string }>(
+      `select count(*) as n from control.${ACCESS_AUDIT_TABLE}
+        where kind = 'link' and actor = 'usr_restore'`,
+    );
+    expect(Number(held.rows[0]?.n)).toBe(1);
+  });
+
   it("gives the control role DML on `control` with the append-only tables carved out", async () => {
     const held = await tablePrivileges("control", CONTROL_ROLE);
     expect(held["two_factor_resets"]).toBeUndefined();

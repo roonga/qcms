@@ -895,6 +895,24 @@ describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)"
     );
     expect(keys.rows).toEqual([]);
   });
+
+  it("lets the control role append a link row, the pool a link mint or revoke runs on", async () => {
+    const client = clients.get(CONTROL_ROLE) as pg.Client;
+    await client.query(
+      `insert into control.access_audit (actor, workspace_id, environment, form_id, kind, detail)
+       values ('usr_e2e', 'org_e2e', 'prod', 'frm_e2e', 'link', 'link=revoked id=lnk_e2e')`,
+    );
+    const read = await client.query<{ n: string }>(
+      `select count(*) as n from control.access_audit where kind = 'link' and actor = 'usr_e2e'`,
+    );
+    expect(Number(read.rows[0]?.n)).toBeGreaterThan(0);
+    expect(
+      await refusalFor(
+        client,
+        `insert into control.access_audit (actor, workspace_id, kind) values ('usr_e2e', 'org_e2e', 'links')`,
+      ),
+    ).toMatch(/access_audit_kind/);
+  });
 });
 
 describe("the site audit's grants and revokes (criterion 112)", () => {

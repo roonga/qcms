@@ -7,8 +7,11 @@ import {
   insertSecureLink,
   listSecureLinks,
   revokeSecureLink,
+  writeAccessAuditRow,
+  type FormRow,
   type SecureLinkRow,
 } from "@roonga/qcms-db";
+import type { Context } from "hono";
 
 import { environmentPrefix } from "../../app.js";
 import type { Deps } from "../../deps.js";
@@ -18,6 +21,7 @@ import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import type { listLinksRoute, mintLinksRoute, revokeLinkRoute } from "./route.js";
 
 const fail = {
+  noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
   invalidId: (): ApiError => new ApiError("INVALID_FORM_ID", 400, "Malformed form id"),
   invalidLinkId: (): ApiError => new ApiError("INVALID_LINK_ID", 400, "Malformed link id"),
   formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
@@ -41,9 +45,16 @@ function requireFormId(id: string): FormId {
   return parsed.value;
 }
 
-async function requireForm(deps: Deps, formId: FormId): Promise<void> {
+async function requireForm(deps: Deps, formId: FormId): Promise<FormRow> {
   const form = await getForm(deps.databases.control, formId);
   if (form === undefined) throw fail.formNotFound();
+  return form;
+}
+
+function actorOf(c: Context<ApiEnv>): string {
+  const principal = c.get("adminPrincipal");
+  if (principal === undefined) throw fail.noPrincipal();
+  return principal.userId;
 }
 
 // A link into an environment with nothing released would start working by itself the
@@ -91,8 +102,9 @@ export function makeMintLinksHandler(deps: Deps): RouteHandler<typeof mintLinksR
     // From the body, not the switcher header: minting distributes a link, so the caller
     // must state the environment rather than inherit it.
     const environment = requireEnvironment(deps, named);
+    const actor = actorOf(c);
 
-    await requireForm(deps, formId);
+    const form = await requireForm(deps, formId);
     await requireRelease(deps, formId, environment);
 
     const expiry = new Date(expiresAt);
@@ -107,8 +119,8 @@ export function makeMintLinksHandler(deps: Deps): RouteHandler<typeof mintLinksR
 
     const expiresAtIso = expiry.toISOString();
     const site = agentStepSite(c);
-    // One transaction over the batch and its agent step row, so a confirmed step that fails halfway mints no
-    // link and writes no audit row.
+    // One transaction over the batch and its audit rows, so a mint that fails halfway mints no link and
+    // writes no audit row, and no link exists without its row.
     const links = await deps.databases.control.transaction(async (tx) => {
       const minted: Array<{ linkId: string; environment: string; url: string; expiresAt: string }> =
         [];
@@ -134,6 +146,17 @@ export function makeMintLinksHandler(deps: Deps): RouteHandler<typeof mintLinksR
           expiresAt: expiresAtIso,
         });
       }
+      await writeAccessAuditRow(tx, {
+        actor,
+        workspaceId: form.workspaceId,
+        environment,
+        formId,
+        kind: "link",
+        detail:
+          `link=minted count=${String(count)} oneTime=${String(oneTime)} ` +
+          `expiresAt=${expiresAtIso} ids=${minted.map((link) => link.linkId).join(",")}`,
+        occurredAt: now,
+      });
       await writeAgentStep(tx, site, String(count), now);
       return minted;
     });
@@ -185,11 +208,23 @@ export function makeRevokeLinkHandler(deps: Deps): RouteHandler<typeof revokeLin
       c.get("requestEnvironment") ?? deps.databases.defaultEnvironment,
     );
 
+    const actor = actorOf(c);
     const now = deps.clock.now();
     const site = agentStepSite(c);
     const row = await deps.databases.control.transaction(async (tx) => {
       const revoked = await revokeSecureLink(tx, linkId.data, formId, environment, now);
       if (revoked === undefined) return undefined;
+      const form = await getForm(tx, formId);
+      if (form === undefined) throw new Error(`revoked link ${revoked.linkId} has no form`);
+      await writeAccessAuditRow(tx, {
+        actor,
+        workspaceId: form.workspaceId,
+        environment,
+        formId,
+        kind: "link",
+        detail: `link=revoked id=${revoked.linkId}`,
+        occurredAt: now,
+      });
       await writeAgentStep(tx, site, revoked.linkId, now);
       return revoked;
     });
