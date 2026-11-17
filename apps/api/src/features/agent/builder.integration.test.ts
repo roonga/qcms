@@ -109,14 +109,12 @@ beforeAll(async () => {
   editor = await seedAdminSession(testDb.db, {
     label: "bld_editor",
     at: now,
-    claim: false,
     grants: ["forms.editor"],
     owner: false,
   });
   viewer = await seedAdminSession(testDb.db, {
     label: "bld_viewer",
     at: now,
-    claim: false,
     grants: ["forms.viewer"],
     owner: false,
   });
@@ -124,7 +122,6 @@ beforeAll(async () => {
   elsewherePublisher = await seedAdminSession(testDb.db, {
     label: "bld_elsewhere",
     at: now,
-    claim: false,
     grants: ["forms.editor"],
     owner: false,
   });
