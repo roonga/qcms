@@ -158,6 +158,14 @@ const screenRef = {
    * already has a row for in that environment, and leaves none unrecorded.
    */
   visitId: z.string().min(1).max(64).optional(),
+  /**
+   * The day on the viewer's own clock. It reaches the model's turn context, so its shape
+   * is fixed here rather than trusted: nothing but a date can ride in on it.
+   */
+  viewerToday: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/u)
+    .optional(),
 };
 
 export const AssistBody = z
@@ -174,6 +182,7 @@ export const AssistBody = z
     // direction: an audited read then writes its row for every turn.
     conversationId: screenRef.conversationId.optional(),
     visitId: screenRef.visitId,
+    viewerToday: screenRef.viewerToday,
   })
   .openapi("AssistRequest");
 

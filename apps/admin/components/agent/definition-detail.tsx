@@ -46,10 +46,33 @@ function headLines(definition: Readonly<Record<string, unknown>>): readonly Line
   return lines;
 }
 
-function mapLines(raw: unknown): readonly Line[] {
+const FIELD_KEYS: ReadonlySet<string> = new Set([
+  "minLength",
+  "maxLength",
+  "pattern",
+  "integer",
+  "min",
+  "max",
+  "minSelected",
+  "maxSelected",
+  "required",
+  "yesLabel",
+  "noLabel",
+]);
+
+const DATED_KEYS: Readonly<Record<string, string>> = { min: "dateMin", max: "dateMax" };
+
+/** `min` and `max` are a date on a date question and a number everywhere else. */
+function fieldLabel(name: string, type: unknown): string {
+  if (!FIELD_KEYS.has(name)) return name;
+  const key = (type === "date" ? DATED_KEYS[name] : undefined) ?? name;
+  return t(`forms.assist.definition.field.${key}` as MessageKey);
+}
+
+function mapLines(raw: unknown, type: unknown): readonly Line[] {
   if (typeof raw !== "object" || raw === null) return [];
   return Object.entries(raw as Record<string, unknown>).map(([name, value]) => ({
-    label: name,
+    label: fieldLabel(name, type),
     value: localized(value) ?? scalar(value),
     mono: name === "pattern",
   }));
@@ -119,11 +142,11 @@ export function DefinitionDetail({
         <Group heading={t("forms.assist.definition.question")} lines={headLines(fields)} />
         <Group
           heading={t("forms.assist.definition.constraints")}
-          lines={mapLines(fields["constraints"])}
+          lines={mapLines(fields["constraints"], fields["type"])}
         />
         <Group
           heading={t("forms.assist.definition.messages")}
-          lines={mapLines(fields["messages"])}
+          lines={mapLines(fields["messages"], fields["type"])}
         />
         <Group
           heading={t("forms.assist.definition.options")}
@@ -133,7 +156,10 @@ export function DefinitionDetail({
             mono: true,
           }))}
         />
-        <Group heading={t("forms.assist.definition.other")} lines={mapLines(remainder(fields))} />
+        <Group
+          heading={t("forms.assist.definition.other")}
+          lines={mapLines(remainder(fields), fields["type"])}
+        />
       </dl>
       <details>
         <summary>{t("forms.assist.definition.raw")}</summary>

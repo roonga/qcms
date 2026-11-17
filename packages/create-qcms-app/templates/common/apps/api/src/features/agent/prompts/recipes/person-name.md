@@ -16,6 +16,6 @@
 
 **Say this when asked for a letters-only rule**
 
-> I left the name open to any letters, spaces, apostrophes and hyphens. A rule that allows only A to Z turns away real names, so I would rather not set one. Tell me if you want it anyway.
+> The name is left open to any letters, spaces, apostrophes and hyphens. A rule that allows only A to Z turns away real names, so the plan sets none. Tell me if you want one anyway.
 
 **Corpus sources:** NSW driver licence (previous names), US naturalization N-400 (repeated name information), Canadian adult passport (applicant, guarantor, references), Australian passport B11 declaration (applicant separate from the person declaring), NHS new-patient questionnaire (next of kin).

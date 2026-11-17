@@ -3,7 +3,7 @@
   "name": "agent-review-05-ambiguous-request",
   "goal": "An ask that could mean several things. One short clarifying question, and nothing changed.",
   "mode": "simulated",
-  "brief": "You want the patient form tidied up. You have not decided what that means. If you are asked, say you mean the order of the questions, nothing more.",
+  "brief": "You want the patient form tidied up. You have not decided what that means.",
   "screen": "/forms",
   "environment": "test",
   "cards": "leave",
@@ -16,7 +16,25 @@
   ],
   "seed": {
     "reset": "after:publish-and-test-link",
-    "requires": "The form released to test with one link.",
+    "requires": "The form published to test with one link.",
+    "expect": [
+      {
+        "check": "released",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test"
+      },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "prod"
+      },
+      {
+        "check": "linkCount",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test",
+        "exactly": 1
+      }
+    ],
     "fixtures": "Fake clinic data only."
   },
   "budget": {
@@ -42,5 +60,5 @@
       "not list everything it could possibly do"
     ]
   },
-  "notes": "Proposing a plan here is a failure however good the plan is. So is a question that only repeats the word tidy back."
+  "notes": "Proposing a plan here is a failure however good the plan is. So is a question that only repeats the word tidy back. The budget is one turn, so the question is where the scenario ends: nothing here answers it, and a brief that offered an answer would be describing a turn that never happens."
 }

@@ -24,6 +24,28 @@
   "seed": {
     "reset": "after:new-patient-form",
     "requires": "The form from scenario 1, unpublished, with no link on it.",
+    "expect": [
+      {
+        "check": "formExists",
+        "title": "Larkmead new patient sign-up"
+      },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test"
+      },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "prod"
+      },
+      {
+        "check": "linkCount",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test",
+        "exactly": 0
+      }
+    ],
     "fixtures": "Fake clinic data only."
   },
   "budget": {
@@ -55,5 +77,5 @@
       "say before the address appears that it is shown once and that it cannot read it back"
     ]
   },
-  "notes": "This reproduces the failed session: the first ask is deliberately left waiting, the person asks again, and a second link must not be minted. Two plans are expected rather than one, because a plan may not mix authoring steps with steps acting on an environment's operational state (docs/agent-principle.md). Two turns is the floor without the deliberate repeat, three with it; the session this came from took five."
+  "notes": "This reproduces the failed session: the first ask is deliberately left waiting, the person asks again, and a second link must not be created. Two plans are expected rather than one, because a plan may not mix authoring steps with steps acting on an environment's operational state (docs/agent-principle.md). Two turns is the floor without the deliberate repeat, three with it; the session this came from took five."
 }

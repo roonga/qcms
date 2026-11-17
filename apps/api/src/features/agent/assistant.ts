@@ -97,6 +97,12 @@ function defaultIds(defaults: AgentContext["defaults"]): readonly string[] {
   );
 }
 
+/** The viewer's own date where the browser sent one, because that is the date they read. */
+function dateLine(ctx: AgentContext): readonly string[] {
+  if (ctx.viewerToday !== undefined) return [`Today is ${ctx.viewerToday} where the person is.`];
+  return ctx.today === undefined ? [] : [`Today is ${ctx.today} where this installation runs.`];
+}
+
 /**
  * Where the user is, which ids a call defaults to, and the facts delimited as data.
  * Nothing inside the fence is an instruction; the controls are the confirm and the
@@ -106,7 +112,7 @@ function factsPreamble(ctx: AgentContext): string {
   const defaults = defaultIds(ctx.defaults);
   return [
     `The user is now on the ${ctx.screen} screen.`,
-    ...(ctx.today === undefined ? [] : [`Today is ${ctx.today} where this installation runs.`]),
+    ...dateLine(ctx),
     "A tool call that names no subject takes these ids:",
     ...defaults.map((line) => `- ${line}`),
     ...(ctx.defaults.formId === undefined

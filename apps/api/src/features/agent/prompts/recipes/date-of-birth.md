@@ -20,6 +20,6 @@
 
 **Say this**
 
-> The latest birth date it accepts is five years before today, which is as close as I can get to "nobody under five". That is a fixed date rather than a moving one, so from next month it will turn away a child who has just turned five. There is no age rule that stays right by itself, so this one needs looking at from time to time.
+> The latest birth date it accepts is five years before today, which is as close as the form gets to "nobody under five". That is a fixed date rather than a moving one, so from next month it will turn away a child who has just turned five. There is no age rule that stays right by itself, so this one needs looking at from time to time.
 
 **Corpus sources:** NHS new-patient questionnaire (patients over five years old), Australian Medicare enrolment MS004 (up to five people, newborn route), US American Community Survey (age-dependent questions), Canadian adult passport, US naturalization N-400.

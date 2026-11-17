@@ -115,6 +115,8 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
 
         <IrreversibleBand steps={proposal.steps} />
 
+        <ReasonBlock reason={props.reason} />
+
         <ol className="qcms-acard__steps" aria-label={t("agent.card.stepsLabel")}>
           {proposal.steps.map((step, index) => (
             <StepItem
@@ -133,8 +135,6 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
             />
           ))}
         </ol>
-
-        <ReasonBlock reason={props.reason} />
 
         <CardFooter
           card={card}

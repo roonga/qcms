@@ -120,9 +120,10 @@ describe("rule 1: the admin writes the card", () => {
     const quotes = container.querySelectorAll("q");
     expect(quotes).toHaveLength(1);
     expect(quotes[0]?.textContent).toBe(HOSTILE_REASON);
+    // Above the steps: it is the sentence that says why they are there.
     const steps = container.querySelector(".qcms-acard__steps");
     const reason = container.querySelector(".qcms-acard__reason");
-    expect(steps?.compareDocumentPosition(reason as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(steps?.compareDocumentPosition(reason as Node)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
   });
 });
 
@@ -189,7 +190,7 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
     ]);
     const { container } = renderCard(plan, initialCard(plan));
     const rows = container.querySelectorAll(".qcms-acard__step");
-    expect((rows[1] as HTMLElement).textContent).toContain("Uses the version step 1 sets");
+    expect((rows[1] as HTMLElement).textContent).toContain("Uses what step 1 makes");
     expect((rows[1] as HTMLElement).querySelector(".qcms-acard__what")?.textContent).toContain(
       "step 1's version",
     );
@@ -348,10 +349,10 @@ describe("the step states", () => {
     expect(screen.getAllByRole("listitem")[1]?.textContent).toContain("Not run");
   });
 
-  it("shows `Expired - ask again` with Confirm disabled", () => {
+  it("shows `This card expired - ask again` with Confirm disabled", () => {
     const plan = proposal([step()]);
     renderCard(plan, expireCard(initialCard(plan)));
-    expect(screen.getByText("Expired - ask again")).toBeTruthy();
+    expect(screen.getByText("This card expired - ask again")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Confirm" }).hasAttribute("disabled")).toBe(true);
   });
 });

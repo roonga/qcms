@@ -415,8 +415,15 @@ describe("pinNoticeLines", () => {
 });
 
 describe("SUBCOMMANDS (issue #994)", () => {
-  it("answers to the three seeding commands as well as up and down", () => {
-    expect(Object.keys(SUBCOMMANDS)).toEqual(["up", "seed", "seed:clear", "seed:reset", "down"]);
+  it("answers to the three seeding commands as well as up, down and fresh", () => {
+    expect(Object.keys(SUBCOMMANDS)).toEqual([
+      "up",
+      "seed",
+      "seed:clear",
+      "seed:reset",
+      "down",
+      "fresh",
+    ]);
   });
 
   it("derives the usage line from the table rather than restating it", () => {

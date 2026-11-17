@@ -1244,3 +1244,39 @@ describe("buildProposal: the subject a step names is checked before its draft is
     expect(outcome.ok).toBe(true);
   });
 });
+
+describe("buildProposal: a hand-off step finishes on the screen itself", () => {
+  const RESPONSES: HeldGrant = {
+    roles: ["responses.viewer", "responses.eraser"],
+    environments: ["test", "prod"],
+  };
+  const exportStep: ProposedStep = {
+    kind: "response.export",
+    args: { formId: "frm_a", format: "csv", shape: "long" },
+  };
+  const unflag: ProposedStep = {
+    kind: "response.unflag",
+    args: { formId: "frm_a", sessionId: "ses_a" },
+  };
+
+  it("refuses a plan whose hand-off is not its last step, and says which step it is", async () => {
+    const outcome = await propose({
+      steps: [exportStep, unflag],
+      grants: [RESPONSES],
+      screen: "/operations/forms/[formId]/responses",
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("Step 1");
+    expect(outcome.reason).toContain("the last step of a plan");
+  });
+
+  it("accepts the same two steps with the hand-off last", async () => {
+    const outcome = await propose({
+      steps: [unflag, exportStep],
+      grants: [RESPONSES],
+      screen: "/operations/forms/[formId]/responses",
+    });
+    expect(outcome.ok).toBe(true);
+  });
+});

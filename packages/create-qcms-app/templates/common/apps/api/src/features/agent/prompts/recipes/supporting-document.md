@@ -18,6 +18,6 @@
 
 **Say this**
 
-> This product has no way to attach a file, so the certificates cannot come through the form. What I have done is list what is needed and ask them to tick what they are sending, with the reference numbers typed in. How the documents reach you is up to you, and I have left a line in the heading for you to fill in.
+> This product has no way to attach a file, so the certificates cannot come through the form. The plan lists what is needed and asks them to tick what they are sending, with the reference numbers typed in. How the documents reach you is up to you, and the heading has a line left for you to fill in.
 
 **Corpus sources:** Australian passport application (supporting document instructions), NSW driver licence application (proof of identity instructions), ahm travel insurance claim (receipts, medical documentation), Canadian adult passport (citizenship evidence), US naturalization N-400 (eligibility evidence).

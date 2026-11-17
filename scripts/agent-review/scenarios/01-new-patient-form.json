@@ -20,6 +20,13 @@
   "seed": {
     "reset": "fresh",
     "requires": "A dev database with no form titled Larkmead new patient sign-up.",
+    "expect": [
+      {
+        "check": "formCount",
+        "titleContains": "larkmead new patient sign-up",
+        "exactly": 0
+      }
+    ],
     "fixtures": "All data is invented: Larkmead Clinic is not a real practice and no scenario sends a real person's details."
   },
   "budget": {
@@ -52,8 +59,8 @@
       "put the questions and the form on one plan, not one plan per question",
       "name the questions by their titles, in the clinic's own words",
       "say what it did not do, if anything had to wait",
-      "publish nothing, and say in one sentence that the publish is a second card it will propose next"
+      "publish nothing, and say in one sentence what stands between the form and being published, promising no card"
     ]
   },
-  "notes": "One clarifying question is within budget, and the second message is the answer to it, in the clinic's own words. Two questions in a row on the same point is not within budget. A turn that needs no question sends that message anyway, so a plan that already required the phone number and left the reason a few sentences long is being told so rather than asked: repeating the work on a second card is the failure there. Naming the publish card as the next one is right and expected: the prompt has the assistant propose each card itself rather than wait to be asked. Publishing anything here, or asking the person to come back for it, is the failure."
+  "notes": "One clarifying question is within budget, and the second message is the answer to it, in the clinic's own words. Two questions in a row on the same point is not within budget. A turn that needs no question sends that message anyway, so a plan that already required the phone number and left the reason a few sentences long is being told so rather than asked: repeating the work on a second card is the failure there. The clinic asked for a form with those questions on it and said nothing about publishing, so naming a publish card as the next one is a card in their future they never wanted: the reply says what stands between the form and being published and stops. Publishing anything here, promising a card, or asking the person to come back for one is the failure."
 }

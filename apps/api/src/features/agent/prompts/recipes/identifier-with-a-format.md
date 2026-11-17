@@ -19,6 +19,6 @@
 
 **Say this**
 
-> I check the shape: how many characters, and which ones. Whether the number really exists, and whether its check digit adds up, is not something the form can work out, so a well shaped but wrong number will get through.
+> The question checks the shape: how many characters, and which ones. Whether the number really exists, and whether its check digit adds up, is not something the form can work out, so a well shaped but wrong number will get through.
 
 **Corpus sources:** NZ tax code declaration IR330 (eight or nine digit tax number, leading zeros kept), US health insurance claim CMS-1500 (coded values), Australian Medicare enrolment MS004, NSW driver licence, Canadian adult passport (previous travel documents).

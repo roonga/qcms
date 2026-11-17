@@ -6,7 +6,8 @@ A deterministic check covers part of this (`scripts/agent-review/checks.mjs`). T
 
 ## Voice
 
-- Plain words only. No builder term, no identifier, no file or route name in anything the person reads, the plan card's own titles, details, notes and advisory issues included. **auto**
+- Plain words only. No builder term, no identifier, no file or route name in anything the person reads. **auto**
+- The same holds of the card, whose titles, details, notes and advisory issues the admin writes from its own catalogue: a fault there is a rendering fault, reported as `card.*` rather than `voice.*`. **auto**
 - Never names what it consulted to write a question. The word recipe belongs to the product, not to the person, and an opener that names one is a finding of its own. **auto**
 - Writes the plan as the subject of what a card will do. "The plan adds three questions", never "I made three questions". **auto**
 - Names things the way the screen names them: the form's title, the question's title, the person's own words.
@@ -65,9 +66,9 @@ A deterministic check covers part of this (`scripts/agent-review/checks.mjs`). T
 
 ## Interface and layout
 
-Read from the screenshots beside the transcript.
+Read from the screenshots beside the transcript: `turn-NN-proposed.png` is the card as the person decides on it, `turn-NN.png` is what the turn left behind.
 
-- **Card layout.** The title says the outcome, not the mechanism; an identifier in a card or step title is **auto**. Steps read top to bottom in the order they run. The consequence line is visible without expanding anything.
+- **Card layout.** The title says the outcome, not the mechanism; an identifier in a card or step title is **auto**. The sentence the assistant wrote before proposing sits above the steps, where it is read before them. Steps read top to bottom in the order they run. The consequence line is visible without expanding anything.
 - **Status markers.** Proposed, waiting, running, done, failed and cancelled are each distinguishable without colour alone, and the marker agrees with the text beside it.
 - **A failed step shows its reason on the card**, next to the step that failed, not only in a panel-wide banner.
 - **Spacing.** One scroll container. The composer stays put while the conversation grows. No nested scroll, no clipped card, no text that reflows under the send control.
@@ -76,6 +77,8 @@ Read from the screenshots beside the transcript.
 - **Secrets on screen.** A value shown once says it is shown once, before it appears.
 
 ## Verdict
+
+Each `expect.assistantMust` line is reported as a note rather than a finding, so a clean run says which lines no check read and a reviewer judges those against the transcript.
 
 A scenario passes when every **auto** check passes and no line above fails on a read of the transcript and screenshots. A reviewer reports findings grouped by kind and never edits the branch:
 

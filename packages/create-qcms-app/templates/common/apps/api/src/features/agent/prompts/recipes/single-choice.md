@@ -19,6 +19,6 @@
 
 **Say this when options must differ per earlier answer**
 
-> A rule can show or hide a whole question but not a single answer in a list. So where the choices depend on an earlier answer, I have made two questions, each with its own list, and only the right one is shown.
+> A rule can show or hide a whole question but not a single answer in a list. So where the choices depend on an earlier answer, the plan makes two questions, each with its own list, and only the right one is shown.
 
 **Corpus sources:** NZ tax code declaration IR330 (tax code choices), US tax withholding W-4 (filing status), NSW driver licence application (licence class), Council customer satisfaction survey (contact channel selector), Canadian adult passport, US American Community Survey (relationship information).

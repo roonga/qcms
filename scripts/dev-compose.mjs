@@ -591,6 +591,16 @@ function describe(error) {
   return String(error);
 }
 
+/**
+ * The stack this seat's lane owns, taken down with its database and brought back. One named
+ * command, because the assistant review's `seed.reset: fresh` otherwise asks a lane to drop a
+ * Docker volume by hand, which is not a thing a lane can be given.
+ */
+export function fresh() {
+  down();
+  up();
+}
+
 /** @type {Record<string, () => void>} */
 export const SUBCOMMANDS = {
   up,
@@ -604,6 +614,7 @@ export const SUBCOMMANDS = {
     seed("reset");
   },
   down,
+  fresh,
 };
 
 export function usageLine() {

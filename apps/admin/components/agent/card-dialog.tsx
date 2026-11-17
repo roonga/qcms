@@ -97,6 +97,7 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
           >
             {wizard ? <p className="qcms-acard-dialog__progress">{reviewLabel}</p> : null}
             <IrreversibleBand steps={steps} />
+            <ReasonBlock reason={props.reason} />
             <ol className="qcms-acard__steps" aria-label={t("agent.card.stepsLabel")}>
               {steps.map((step, index) => (
                 <StepItem
@@ -115,7 +116,6 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
                 />
               ))}
             </ol>
-            <ReasonBlock reason={props.reason} />
           </div>
         ) : (
           <div

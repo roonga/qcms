@@ -18,7 +18,25 @@
   ],
   "seed": {
     "reset": "after:publish-and-test-link",
-    "requires": "The form released to test at version 1, so version 9 does not exist.",
+    "requires": "The form published to test at version 1, so version 9 does not exist.",
+    "expect": [
+      {
+        "check": "released",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test"
+      },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "prod"
+      },
+      {
+        "check": "linkCount",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test",
+        "exactly": 1
+      }
+    ],
     "fixtures": "Fake clinic data only."
   },
   "budget": {

@@ -17,6 +17,6 @@
 
 **Say this**
 
-> It is a box of several lines with a 2000 character ceiling. There is no way to insist on a minimum amount, so someone can type one word, and I have said in the guidance line what you are after.
+> It is a box of several lines with a 2000 character ceiling. There is no way to insist on a minimum amount, so someone can type one word, and the guidance line says what you are after.
 
 **Corpus sources:** Course evaluation survey (optional comments), NHS new-patient questionnaire, Australian passport B11 general declaration (free text statement), Council customer satisfaction survey (comments), ahm travel insurance claim.

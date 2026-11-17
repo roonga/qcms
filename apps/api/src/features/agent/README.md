@@ -13,12 +13,12 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 
 ## Routes
 
-| Method & path                               | Scope (SEC-5)                    | Notes                                                                                                                                   |
-| ------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState?, screen?, params?, conversationId?, visitId? }`. Answers `text/event-stream`.        |
-| `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.                                               |
-| `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId, visitId? }`. Answers `text/event-stream`. |
-| `GET /admin/forms/:id/draft/agent-changes`  | `forms:read`                     | The wizard's read: the newest published version, the open draft and the agent draft changes recorded since. Mounted whatever the flag.  |
+| Method & path                               | Scope (SEC-5)                    | Notes                                                                                                                                                 |
+| ------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState?, screen?, params?, conversationId?, visitId?, viewerToday? }`. Answers `text/event-stream`.        |
+| `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.                                                             |
+| `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId, visitId?, viewerToday? }`. Answers `text/event-stream`. |
+| `GET /admin/forms/:id/draft/agent-changes`  | `forms:read`                     | The wizard's read: the newest published version, the open draft and the agent draft changes recorded since. Mounted whatever the flag.                |
 
 Both turn routes share **one per-principal limiter key** (Q19), so ten turns a
 minute is the caller's whole budget rather than one budget per route.
@@ -211,6 +211,13 @@ control: the controls are the caller's own grants, the door, and the human confi
 The draft preamble that asks for changes is sent only on a screen that offers a
 propose verb, so a screen holding the draft for a read tool alone is not told to
 propose against it.
+
+The facts preamble also carries the turn's date. The browser sends `viewerToday`,
+the day on the viewer's own clock, because that is the day their screen writes
+dates in and a date bound the model works out is read back off that screen; the
+body schema holds it to `YYYY-MM-DD` so nothing else rides in on it. A caller that
+sends none falls back to the installation's own date, and the line says which of
+the two it is.
 
 ## One prefix, cached, and the volatile part after it
 

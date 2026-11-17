@@ -30,7 +30,11 @@ const FORBIDDEN_TERMS = [
   "lnk_",
   "slug",
   "unpinned",
+  "mint",
+  "mints",
   "minted",
+  "release",
+  "releases",
   "BFF",
   "draft v1",
   "halts",
@@ -102,7 +106,8 @@ const VOICE_RULES: readonly { readonly rule: string; readonly phrases: readonly 
       "ONE short clause naming what you are",
       "is the whole opener",
       "a subordinate clause always does",
-      "never the same answer twice in one",
+      "never the same answer twice",
+      "Having to look again is not a reason for a second clause",
     ],
   },
   {
@@ -257,7 +262,7 @@ describe("the draft assistant system prompt", () => {
     for (const phrase of [
       "Publishing to prod is ordinary work you may propose",
       "never straight to prod",
-      "propose a publish to prod whenever form.release offers prod",
+      "propose a publish to prod whenever a step publishing an existing",
       "Name another person only when one is actually needed",
       'Say "publish to prod"',
     ]) {

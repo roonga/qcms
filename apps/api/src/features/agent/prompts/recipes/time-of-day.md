@@ -17,6 +17,6 @@
 
 **Say this**
 
-> There is no time question in this product, so I did it with a list of times to pick from. That keeps every answer tidy. If you need an exact time typed in I can do that instead, as a text box that checks the shape, but then nothing can compare one time with another.
+> There is no time question in this product, so the plan uses a list of times to pick from. That keeps every answer tidy. If you need an exact time typed in the plan can do that instead, as a text box that checks the shape, but then nothing can compare one time with another.
 
 **Corpus sources:** Australian national private patient hospital claim (admission and separation dates and times), ahm travel insurance claim, US BRFSS health survey.
