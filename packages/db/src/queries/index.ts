@@ -247,11 +247,12 @@ export {
 } from "./approval-requests.js";
 
 export {
+  acceptTotpStep,
+  claimStepUpAttempt,
+  dropStepUp,
   hasFreshStepUp,
   recordStepUp,
-  recordStepUpFailure,
   stepUpExpiresAt,
-  stepUpLocked,
 } from "./step-ups.js";
 
 export {

@@ -78,7 +78,7 @@ export const approvalRequests = controlSchema.table(
     check("approval_requests_payload_object", sql`jsonb_typeof(${t.payload}) = 'object'`),
     check(
       "approval_requests_seven_days",
-      sql`${t.expiresAt} = ${t.requestedAt} + interval '7 days'`,
+      sql`${t.expiresAt} = ${t.requestedAt} + interval '168 hours'`,
     ),
     check(
       APPROVAL_REQUEST_SECOND_ACCOUNT_CHECK,

@@ -201,13 +201,12 @@ export const registerSiteAdministrators: SliceRegistrar = (group, deps) => {
     async (c) => {
       const actor = principalOf(c);
       const { id } = c.req.valid("param");
-      await requireSiteActStepUp(deps, c, kind, id, actor.userId);
-      const outcome = await requestOrApplySiteAct(deps, {
-        kind,
-        target: id,
-        requester: actor.userId,
-        payload: {},
-      });
+      const stepUp = await requireSiteActStepUp(deps, c, kind, id, actor.userId);
+      const outcome = await requestOrApplySiteAct(
+        deps,
+        { kind, target: id, requester: actor.userId, payload: {} },
+        stepUp,
+      );
       if (outcome.held !== undefined) return c.json({ request: requestView(outcome.held) }, 202);
       return c.json({ account: accountView(await accountOf(deps.databases.control, id)) }, 200);
     };
@@ -239,8 +238,8 @@ export const registerSiteAdministrators: SliceRegistrar = (group, deps) => {
     if (request.scope !== "site") throw siteFail.notHere();
     if (request.requestedBy === actor.userId) throw siteFail.ownRequest();
     if (request.target === actor.userId) throw siteFail.targetDecides();
-    await requireStepUp(deps, c);
-    const approved = await approveSiteRequest(deps, request, actor.userId);
+    const stepUp = await requireStepUp(deps, c);
+    const approved = await approveSiteRequest(deps, request, actor.userId, stepUp);
     return c.json(
       {
         request: requestView(approved.request),
