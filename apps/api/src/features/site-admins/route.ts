@@ -201,8 +201,7 @@ export const registerSiteAdministrators: SliceRegistrar = (group, deps) => {
     async (c) => {
       const actor = principalOf(c);
       const { id } = c.req.valid("param");
-      await accountOf(deps.databases.control, id);
-      await requireSiteActStepUp(deps, c, id, actor.userId);
+      await requireSiteActStepUp(deps, c, kind, id, actor.userId);
       const outcome = await requestOrApplySiteAct(deps, {
         kind,
         target: id,

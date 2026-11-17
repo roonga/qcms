@@ -27,6 +27,8 @@ import {
   SignInLinkResponse,
 } from "./schema.js";
 
+import { HeldResponse } from "../site-admins/schema.js";
+
 const tags = ["accounts"];
 
 export const listAccountsRoute = createRoute({
@@ -122,15 +124,20 @@ export const disableAccountRoute = createRoute({
     "Succeeds at once. In one transaction: the account is marked disabled, loses any Site " +
     "administrator role, every session it holds is deleted and every live sign-in link " +
     "dies. Memberships are kept. One site-audit row, mirrored to every workspace the " +
-    "account holds something in. Refused for your own account and, until the step-up " +
-    "and approval guards exist, for any Site administrator; the last active one never. " +
-    "No route deletes an account.",
+    "account holds something in. Refused for your own account and for the last active " +
+    "Site administrator. Disabling a Site administrator needs a step-up on this session " +
+    "and is held as a site approval request while an active, claimed Site administrator " +
+    "other than you and the target exists. No route deletes an account.",
   tags,
   request: { params: AccountIdParam },
   responses: {
     200: {
       description: "The disabled account, and what it held when it was disabled",
       content: { "application/json": { schema: AccountDisabledResponse } },
+    },
+    202: {
+      description: "Held as a site approval request until another Site administrator approves it",
+      content: { "application/json": { schema: HeldResponse } },
     },
     ...errorResponses(401, 403, 404, 409),
   },
@@ -169,13 +176,18 @@ export const resetAccountRoute = createRoute({
     "the person signs in again through the emailed single-use link. After a password " +
     "reset they set a new password; after a factor reset they sign in with the password " +
     "they have and enrol a new factor. Refused for your own account, a disabled one, one " +
-    "never claimed and, until the step-up and approval guards exist, a Site administrator.",
+    "never claimed and the last active Site administrator. Resetting a Site administrator " +
+    "needs a step-up and a second Site administrator's approval, as disabling one does.",
   tags,
   request: { params: AccountIdParam, body: jsonBody(ResetAccountBody) },
   responses: {
     200: {
       description: "The account, and what the relay did with the message",
       content: { "application/json": { schema: AccountLinkSentResponse } },
+    },
+    202: {
+      description: "Held as a site approval request until another Site administrator approves it",
+      content: { "application/json": { schema: HeldResponse } },
     },
     ...errorResponses(400, 401, 403, 404, 409),
   },

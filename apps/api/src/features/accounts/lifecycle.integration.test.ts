@@ -592,14 +592,14 @@ describe("disabling an account (criteria 68, 70, 72)", () => {
     FLOW_TIMEOUT_MS,
   );
 
-  it("refuses to disable a Site administrator, and the last one with its own reason", async () => {
+  it("refuses to disable a Site administrator without a step-up, and the last one with its own reason", async () => {
     const other = await adminSend(
       "POST",
       `/admin/accounts/${secondSiteAdminId}/disable`,
       siteAdminToken,
     );
-    expect(other.status).toBe(409);
-    expect(await errorCodeOf(other)).toBe("SITE_ADMINISTRATOR_DISABLE_REFUSED");
+    expect(other.status).toBe(403);
+    expect(await errorCodeOf(other)).toBe("STEP_UP_REQUIRED");
     expect((await accountRow(secondSiteAdminId)).disabledAt).toBeNull();
 
     await testDb.db
@@ -930,7 +930,7 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
     FLOW_TIMEOUT_MS,
   );
 
-  it("refuses an unclaimed, a disabled and your own account, and a Site administrator", async () => {
+  it("refuses an unclaimed, a disabled and your own account, and a Site administrator without a step-up", async () => {
     const unclaimed = await adminSend("POST", "/admin/accounts", siteAdminToken, {
       email: "never.claimed@example.test",
     });
@@ -974,8 +974,8 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
       siteAdminToken,
       body,
     );
-    expect(siteAdministrator.status).toBe(409);
-    expect(await errorCodeOf(siteAdministrator)).toBe("SITE_ADMINISTRATOR_RESET_REFUSED");
+    expect(siteAdministrator.status).toBe(403);
+    expect(await errorCodeOf(siteAdministrator)).toBe("STEP_UP_REQUIRED");
     expect((await accountRow(secondSiteAdminId)).claimedAt).toEqual(claimedAt);
     expect(await sessionCount(secondSiteAdminId)).toBe(1);
   });

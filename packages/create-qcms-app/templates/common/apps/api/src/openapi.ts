@@ -10,6 +10,8 @@ export interface AdminPrincipal {
   /** `admin` for a Site administrator, otherwise `null`. */
   readonly role: string | null;
   readonly scopes: readonly Scope[];
+  /** The admin session the request rode on, which a step-up is bound to. */
+  readonly sessionId?: string;
 }
 
 export interface ApiEnv {
