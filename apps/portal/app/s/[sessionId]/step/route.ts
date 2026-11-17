@@ -20,6 +20,7 @@ import {
   writeStepContext,
   type StepContext,
 } from "@/lib/server/route-helpers";
+import { rememberCompletionAppearance } from "@/lib/server/session-appearance";
 import { clearSessionToken, readSessionToken } from "@/lib/server/session-cookie";
 import { decodeStepForm } from "@/lib/server/step-form";
 import { defaultAnswerMessage, firstAnswerRejection } from "@/lib/validation-message";
@@ -242,6 +243,7 @@ export async function POST(
   try {
     const receipt = await submitSession(sessionId, token, extras);
     await writeReceiptCookie(receipt);
+    await rememberCompletionAppearance(sessionId, token);
     await clearSessionToken();
     return NextResponse.redirect(new URL(`${await currentBasePath()}/done`, request.url), 303);
   } catch (error) {

@@ -1,3 +1,5 @@
+import { fontChoices } from "@roonga/qcms-ui/fonts";
+
 import { RETURN_FIELD, appearanceCookiesFor } from "@/lib/appearance";
 import {
   DEFAULT_RETURN,
@@ -6,7 +8,6 @@ import {
 } from "@/lib/server/appearance-form";
 import { portalBaseUrl, secureCookies } from "@/lib/server/config";
 import { isSameOriginPost } from "@/lib/server/route-helpers";
-import { portalFontChoices } from "@/lib/server/theme";
 
 function seeOther(path: string, setCookies: readonly string[] = []): Response {
   const headers = new Headers({ Location: absoluteOnThisPortal(path) });
@@ -56,7 +57,9 @@ export async function POST(request: Request): Promise<Response> {
     request.headers.get("referer") ?? undefined,
     configuredBaseUrl(),
   );
-  const offered = portalFontChoices().map((entry) => entry.key);
+  // The whole registry: a form's face can sit outside the deployment's list, and the
+  // layout drops a saved face wherever its menu does not offer it.
+  const offered = fontChoices().map((entry) => entry.key);
   const choice = parseAppearanceChoice(form, offered);
   return seeOther(target, appearanceCookiesFor(choice, secureCookies()));
 }

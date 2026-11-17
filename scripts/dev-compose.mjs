@@ -14,7 +14,13 @@ import { createFirstAdmin, generatePassword } from "./compose-admin.mjs";
 import { databaseUrlFor, seedFixtures } from "./compose-seed.mjs";
 import { CommandFailed, DOCKER, REPOSITORY_ROOT, runProcess } from "./docker.mjs";
 import { isInDockerContainer } from "./docker-host.mjs";
-import { assertPortSeatChosen, localStackProjectName, stablePort } from "./ports.mjs";
+import {
+  assertPortSeatChosen,
+  assertTeardownSeatChosen,
+  localStackProjectName,
+  resolvePortSeat,
+  stablePort,
+} from "./ports.mjs";
 
 export const COMPOSE_FILES = ["docker-compose.yml", "docker-compose.dev-tools.yml"];
 
@@ -305,6 +311,7 @@ export function devStackEnvironmentOverrides({ ports, adminAuthSecret }) {
  * @param {{ email: string; password: string } | undefined} options.credentials
  * @param {boolean} options.inContainer
  * @param {boolean} [options.promoted]
+ * @param {number} [options.seat]
  * @returns {string[]}
  */
 export function devStackBannerLines({
@@ -313,7 +320,9 @@ export function devStackBannerLines({
   credentials,
   inContainer,
   promoted = false,
+  seat = 0,
 }) {
+  const down = `QCMS_PORT_SEAT=${String(seat)} pnpm dev:down`;
   const url = (/** @type {number} */ port) => `http://localhost:${String(port)}`;
   const lines = [
     "",
@@ -330,7 +339,7 @@ export function devStackBannerLines({
   if (promoted) {
     lines.push(
       "  An existing account was promoted to Site administrator. Its existing password",
-      "  applies; none was generated. To start over, run pnpm dev:down and then pnpm dev:up.",
+      `  applies; none was generated. To start over, run ${down} and then pnpm dev:up.`,
       "",
     );
   } else if (credentials === undefined) {
@@ -338,7 +347,7 @@ export function devStackBannerLines({
       "  This stack already had an administrator, so none was created (SEC-1: the",
       "  bootstrap command only runs on a deployment with no Site administrator, and that refusal",
       "  is correct). Sign in with the credential from when it was created, or run",
-      "  pnpm dev:down and then pnpm dev:up for a fresh database and a fresh account.",
+      `  ${down} and then pnpm dev:up for a fresh database and a fresh account.`,
       "",
     );
   } else {
@@ -383,7 +392,7 @@ export function devStackBannerLines({
   }
 
   lines.push(
-    "  Stop and remove everything (containers, network, volumes):  pnpm dev:down",
+    `  Stop and remove everything (containers, network, volumes):  ${down}`,
     "==================================================================",
     "",
   );
@@ -510,6 +519,7 @@ export function up() {
       project,
       ...bannerOptionsFor(outcome, credentials),
       inContainer: isInDockerContainer(),
+      seat: resolvePortSeat(process.env.QCMS_PORT_SEAT),
     }).join("\n") + "\n",
   );
 }
@@ -606,6 +616,9 @@ export const SUBCOMMANDS = {
   down,
 };
 
+/** Subcommands that remove volumes, and so must name their seat even in the primary checkout. */
+export const TEARDOWN_SUBCOMMANDS = new Set(["down"]);
+
 export function usageLine() {
   return `Usage: node scripts/dev-compose.mjs <${Object.keys(SUBCOMMANDS).join("|")}>`;
 }
@@ -617,7 +630,10 @@ function main() {
   // Before anything is spawned, for every subcommand: a silent fallback to seat 0 from
   // a worktree picks another lane's project name, and `down` deletes what it finds.
   try {
-    assertPortSeatChosen(REPOSITORY_ROOT, `pnpm dev:${command}`);
+    const guard = TEARDOWN_SUBCOMMANDS.has(command)
+      ? assertTeardownSeatChosen
+      : assertPortSeatChosen;
+    guard(REPOSITORY_ROOT, `pnpm dev:${command}`);
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error));
   }

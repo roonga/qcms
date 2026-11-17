@@ -1,0 +1,2 @@
+ALTER TABLE "control"."access_audit" DROP CONSTRAINT "access_audit_kind";--> statement-breakpoint
+ALTER TABLE "control"."access_audit" ADD CONSTRAINT "access_audit_kind" CHECK ("control"."access_audit"."kind" in ('read', 'export', 'erasure', 'grant', 'revoke', 'setting', 'derive', 'group', 'administrator', 'approval', 'account', 'link'));

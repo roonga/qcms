@@ -298,6 +298,24 @@ export async function getStep(
   return readJson<StepResponse>(res);
 }
 
+export interface SessionStatus {
+  readonly status: "created" | "in_progress" | "submitted" | "expired";
+  /** The pinned version's appearance, or null; parsed by `form-appearance.ts`. */
+  readonly appearance: unknown;
+}
+
+/** Reads the session without serving a step, so it never evaluates the flow or mints a roster. */
+export async function getSessionStatus(sessionId: string, token: string): Promise<SessionStatus> {
+  const headers = await baseHeaders(token);
+  const res = await loggedFetch(
+    "/sessions/:sessionId",
+    await apiPath(`/sessions/${encodeURIComponent(sessionId)}`),
+    { headers, cache: "no-store" },
+    headers[REQUEST_ID_HEADER],
+  );
+  return readJson<SessionStatus>(res);
+}
+
 /**
  * `stepIndex` carries the caller's committed cursor, so the response renders that step
  * rather than advancing as a side effect of answering (ADR-28).

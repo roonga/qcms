@@ -13,6 +13,8 @@ Respondent controls: display mode, high contrast, text size and a legibility fac
 
 - P3: the respondent menu with the legibility face override, over the form's appearance; choices kept in the existing cookies; `POST /appearance` kept and extended for the face and text size.
 - P4: the text-size scale: a root multiplier of 100, 125, 150 or 200 percent over the admin base (16 to 24 px); the product capped at 32 px; reflow proven at 320 px.
+- The no-JS Appearance form writes only the fields the respondent changed, or posts a hidden baseline the route compares against. Today it posts every field at its resolved value, so a mode change on a themed form saves that form's face and density as cookies, which then override every other form's appearance.
+- Drop the density cookie from the resolution order (`resolveAppearance` in `apps/portal/lib/server/theme.ts`), since density is admin-only (Q6).
 - Strings in `apps/portal/lib/i18n/en.ts`.
 
 ## Exit criteria
@@ -28,7 +30,7 @@ Spec criteria owned: none.
 
 ## Files and areas
 
-`apps/portal/components/{appearance-controls,appearance-context}.tsx`, `apps/portal/app/appearance/route.ts`, `apps/portal/lib/appearance.ts`, `apps/portal/lib/server/appearance-form.ts`, `packages/ui/src/{theme.css,font-registry.ts}`, `apps/portal/lib/i18n/en.ts`, `apps/portal/e2e/`.
+`apps/portal/components/{appearance-controls,appearance-context}.tsx`, `apps/portal/app/appearance/route.ts`, `apps/portal/lib/appearance.ts`, `apps/portal/lib/server/{appearance-form,theme}.ts`, `packages/ui/src/{theme.css,font-registry.ts}`, `apps/portal/lib/i18n/en.ts`, `apps/portal/e2e/`.
 
 ## Migration
 

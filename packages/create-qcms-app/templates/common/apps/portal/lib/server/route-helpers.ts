@@ -44,7 +44,7 @@ function admitsAsSameOrigin(request: Request): boolean {
 }
 
 export const RECEIPT_COOKIE = "qcms_receipt";
-const RECEIPT_MAX_AGE_SECONDS = 60 * 10;
+export const RECEIPT_MAX_AGE_SECONDS = 60 * 10;
 
 /**
  * The no-JS step re-render context, written by the whole-step route right before its

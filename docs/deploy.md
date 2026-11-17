@@ -202,7 +202,7 @@ not proxied: the two variables exist because the two hostnames can differ.
 
 ## Delivery through GitHub Actions
 
-`.github/workflows/images.yml` builds all three images on every push, with an SBOM, a provenance
+`.github/workflows/images.yml` builds all three images on every push to `main` and on a pull request that changes how they are built, with an SBOM, a provenance
 attestation and a real version stamp, and **publishes them to GHCR on pushes to `main`** (issue
 #763). Every VM-less platform pulls images rather than building them, so that publish is step 0 for
 all of them. What is in place is the mechanism: the three packages come into existence on the first

@@ -1024,16 +1024,16 @@ describe("the stored suspension marker", () => {
   );
 });
 
-const MIGRATION_0014 = fileURLToPath(
+const MIGRATION_0015 = fileURLToPath(
   new URL(
-    "../../../../../packages/db/migrations/0014_site_admins_and_approvals.sql",
+    "../../../../../packages/db/migrations/0015_site_admins_and_approvals.sql",
     import.meta.url,
   ),
 );
 
-/** The marker backfills of migration 0014, verbatim. */
+/** The marker backfills of migration 0015, verbatim. */
 function markerBackfills(): string[] {
-  return readFileSync(MIGRATION_0014, "utf8")
+  return readFileSync(MIGRATION_0015, "utf8")
     .split("--> statement-breakpoint")
     .map((statement) => statement.trim())
     .filter((statement) => statement.startsWith('INSERT INTO "control"."suspension_markers"'));
@@ -1095,7 +1095,7 @@ async function resetBy(person: Person, userId: string): Promise<void> {
   expect(reset.status, await reset.clone().text()).toBe(200);
 }
 
-describe("a suspension run open at the upgrade to migration 0014", () => {
+describe("a suspension run open at the upgrade to migration 0015", () => {
   beforeEach(async () => {
     await siteAdministratorsAre(a, b, { userId: seededAdminId });
   });

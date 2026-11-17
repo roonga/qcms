@@ -5,10 +5,30 @@ name: Images
 on:
   # Docs-only pushes publish no SHA tag. Dispatch on main if that commit needs an image.
   push:
+    branches: [main]
     paths-ignore:
       - "**/*.md"
       - "plan/**"
       - "apps/site/**"
+  # A pull request builds images only when it changes how they are built; main builds every commit.
+  pull_request:
+    paths:
+      - "docker/**"
+      - "**/*.Dockerfile*"
+      - ".dockerignore"
+      - "packages/create-qcms-app/templates/*/docker/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".npmrc"
+      - "tsconfig.base.json"
+      - "scripts/build-images.mjs"
+      - "scripts/image-dev-deps.mjs"
+      - "scripts/check-changeset.mjs"
+      - "scripts/image-scan.mjs"
+      - "scripts/docker.mjs"
+      - "scripts/retry-registry.sh"
+      - ".github/workflows/images.yml"
   # Scheduled scans refresh vulnerability findings against unchanged images without publishing them.
   schedule:
     - cron: "0 3 * * 1"
@@ -17,7 +37,7 @@ on:
 # Post-merge runs retain verdicts and can race for latest; deploy immutable SHA tags.
 # Manual and scheduled runs must not displace commit builds.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ (github.event_name == 'push' || github.event_name == 'pull_request') && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Grant registry and issue-write permissions only to the jobs that need them.

@@ -1,4 +1,4 @@
-import { defineConfig, devices } from "@playwright/test";
+import { chromium, defineConfig, devices } from "@playwright/test";
 
 import { ADMIN_BASE_URL, ADMIN_PORT } from "./apps/admin/e2e/support/harness-config.js";
 import { preflightBrowserLibraries } from "./apps/portal/e2e/support/browser-libs.js";
@@ -24,12 +24,25 @@ import {
   PREFLIGHT_DONE_VAR,
   seatPreflight,
 } from "./apps/portal/e2e/support/port-seat.js";
+import { ensureBrowsers } from "./scripts/playwright-browsers.mjs";
 
 // Read BEFORE the preflight, which is what sets the sentinel.
 const FIRST_LOAD = process.env[PREFLIGHT_DONE_VAR] !== "1";
 // A free port yields `false`, so a lost bind race fails loudly rather than adopting another
 // worktree's server.
 const ADOPTABLE = seatPreflight();
+
+function chromiumExecutablePath(): string | undefined {
+  try {
+    return chromium.executablePath();
+  } catch {
+    return undefined;
+  }
+}
+
+// Lanes share one browser cache, so a neighbour's install can have removed the pinned build
+// since the last run. Downloading it here beats discovering it at the first launch.
+ensureBrowsers({ executablePath: chromiumExecutablePath() });
 
 // A downloaded browser whose OS libraries are missing fails every test minutes later
 // with "Target page, context or browser has been closed". Silent when it cannot tell.

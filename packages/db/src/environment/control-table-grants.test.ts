@@ -3,7 +3,11 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { ACCESS_AUDIT_KINDS, ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
+import {
+  ACCESS_AUDIT_KIND_CHECK,
+  ACCESS_AUDIT_KINDS,
+  ACCESS_AUDIT_TABLE,
+} from "../schema/control/access-audit.js";
 import {
   SITE_AUDIT_KIND_CHECK,
   SITE_AUDIT_KINDS,
@@ -100,7 +104,11 @@ const SIGN_IN_LINKS_MIGRATION = fileURLToPath(
 );
 
 const SITE_ADMINS_MIGRATION = fileURLToPath(
-  new URL("../../migrations/0014_site_admins_and_approvals.sql", import.meta.url),
+  new URL("../../migrations/0015_site_admins_and_approvals.sql", import.meta.url),
+);
+
+const LINK_KIND_MIGRATION = fileURLToPath(
+  new URL("../../migrations/0014_access_audit_link_kind.sql", import.meta.url),
 );
 
 describe("the `form_releases` grants", () => {
@@ -325,7 +333,10 @@ describe("the site audit's grants (criterion 112)", () => {
     for (const kind of SITE_AUDIT_KINDS.filter((name) => name !== "logo")) {
       expect(sql).toContain(`'${kind}'`);
     }
-    for (const kind of ACCESS_AUDIT_KINDS) expect(sql).toContain(`'${kind}'`);
+    // The twelfth access kind, `link`, arrives in 0014 and is asserted there.
+    for (const kind of ACCESS_AUDIT_KINDS.filter((name) => name !== "link")) {
+      expect(sql).toContain(`'${kind}'`);
+    }
   });
 });
 
@@ -538,5 +549,18 @@ describe("the approval request, step-up and suspension marker grants (task 092)"
 
   it("binds a step-up to its session, so it dies with the session", () => {
     expect(sql).toContain('REFERENCES "control"."session"("id") ON DELETE cascade');
+  });
+});
+
+describe("the twelfth access audit kind", () => {
+  const sql = readFileSync(LINK_KIND_MIGRATION, "utf8");
+
+  it("rebuilds the kind CHECK with every access kind, `link` included", () => {
+    expect(sql).toContain(`CONSTRAINT "${ACCESS_AUDIT_KIND_CHECK}"`);
+    for (const kind of ACCESS_AUDIT_KINDS) expect(sql).toContain(`'${kind}'`);
+  });
+
+  it("changes no grant, because the control role already holds INSERT on the table", () => {
+    expect(sql).not.toMatch(/\b(GRANT|REVOKE)\b/);
   });
 });

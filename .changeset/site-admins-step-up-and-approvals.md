@@ -6,7 +6,7 @@
 
 Add Site administrator appointment with step-up and approval requests (task 092).
 
-Migration `0014` adds `control.approval_requests` (site and workspace scope, a per-kind
+Migration `0015` adds `control.approval_requests` (site and workspace scope, a per-kind
 `payload`, a 7-day window and a decider who is never the requester), `control.step_ups` (a
 password and second-factor re-check bound to one session for five minutes) and
 `control.suspension_markers`, which replaces the sign-in link history as the record of who

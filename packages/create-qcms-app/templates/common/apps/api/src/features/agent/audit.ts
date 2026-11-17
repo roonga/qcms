@@ -194,6 +194,9 @@ export async function admitAgentEdit(
   if (edit.op === "appearance" ? definitionMoved : appearanceMoved) {
     throw editRefusal("AGENT_EDIT_OP");
   }
+  if ((await draftStateDigest({ definition: incoming.definition, appearance })) !== edit.post) {
+    throw editRefusal("AGENT_EDIT_MISMATCH");
+  }
   return held === undefined ? undefined : draftStateDigest(held);
 }
 

@@ -227,19 +227,19 @@ export const GRANT_SOURCES: readonly GrantSource[] = [
     statements: () => grantControlTableStatements(SIGN_IN_LINKS_TABLE),
   },
   {
-    name: `${CONTROL_SCHEMA}.${APPROVAL_REQUESTS_TABLE} (migration 0014)`,
+    name: `${CONTROL_SCHEMA}.${APPROVAL_REQUESTS_TABLE} (migration 0015)`,
     scope: "installation",
     inMigrationTree: true,
     statements: () => grantControlTableNoDeleteStatements(APPROVAL_REQUESTS_TABLE),
   },
   {
-    name: `${CONTROL_SCHEMA}.${STEP_UPS_TABLE} (migration 0014)`,
+    name: `${CONTROL_SCHEMA}.${STEP_UPS_TABLE} (migration 0015)`,
     scope: "installation",
     inMigrationTree: true,
     statements: () => grantControlTableNoDeleteStatements(STEP_UPS_TABLE),
   },
   {
-    name: `${CONTROL_SCHEMA}.${SUSPENSION_MARKERS_TABLE} (migration 0014)`,
+    name: `${CONTROL_SCHEMA}.${SUSPENSION_MARKERS_TABLE} (migration 0015)`,
     scope: "installation",
     inMigrationTree: true,
     statements: () => grantControlTableNoDeleteStatements(SUSPENSION_MARKERS_TABLE),

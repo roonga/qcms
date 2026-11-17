@@ -267,6 +267,10 @@ emptied control reports **absence** rather than an empty string or an empty arra
 **ADR-30.** Managed themes. Appearance is operator-configurable, and the portal's tokens live
 in `packages/ui/src/theme.css`.
 
+A session renders the appearance frozen with the version it is pinned to, on `<html>`, and
+the deployment configuration when the version carries none (`docs/theming.md`, "Per-form
+appearance"). The respondent's own mode, font and density choices still apply over it.
+
 ## Accessibility
 
 **WCAG 2.2 AA is a floor.** Task **030**'s manual screen-reader pass is a Code Owner human
