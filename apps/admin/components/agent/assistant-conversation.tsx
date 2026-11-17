@@ -526,29 +526,8 @@ function ScreenConversation({
             >
               {turnHooks?.renderEdits(turn.turnId)}
             </li>
-          ) : turn.role === "user" ? (
-            <li key={`user-${String(index)}`} className="qcms-assistant__turn" data-role="user">
-              <div className="qcms-assistant__said">
-                <p className="qcms-assistant__speaker">{t("agent.speaker.you")}</p>
-                <div className="qcms-assistant__bubble">
-                  <AssistMarkdown text={turn.content} />
-                </div>
-              </div>
-            </li>
           ) : (
-            <li
-              key={`assistant-${String(index)}`}
-              className="qcms-assistant__turn"
-              data-role="assistant"
-            >
-              <AssistMark size={20} />
-              <div className="qcms-assistant__segments">
-                <p className="qcms-assistant__speaker">{t("agent.speaker.assistant")}</p>
-                {turn.view.segments.map((segment, at) => (
-                  <Segment key={`${segment.kind}:${String(at)}`} segment={segment} />
-                ))}
-              </div>
-            </li>
+            <SaidTurn key={`${turn.role}-${String(index)}`} turn={turn} />
           ),
         )}
         {live !== undefined && (
@@ -675,6 +654,32 @@ function ScreenConversation({
         )}
       </div>
     </div>
+  );
+}
+
+function SaidTurn({ turn }: { readonly turn: Exclude<ShownTurn, { role: "edits" }> }) {
+  if (turn.role === "user") {
+    return (
+      <li className="qcms-assistant__turn" data-role="user">
+        <div className="qcms-assistant__said">
+          <p className="qcms-assistant__speaker">{t("agent.speaker.you")}</p>
+          <div className="qcms-assistant__bubble">
+            <AssistMarkdown text={turn.content} />
+          </div>
+        </div>
+      </li>
+    );
+  }
+  return (
+    <li className="qcms-assistant__turn" data-role="assistant">
+      <AssistMark size={20} />
+      <div className="qcms-assistant__segments">
+        <p className="qcms-assistant__speaker">{t("agent.speaker.assistant")}</p>
+        {turn.view.segments.map((segment, at) => (
+          <Segment key={`${segment.kind}:${String(at)}`} segment={segment} />
+        ))}
+      </div>
+    </li>
   );
 }
 
