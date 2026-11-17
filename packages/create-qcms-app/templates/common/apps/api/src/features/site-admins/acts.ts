@@ -99,20 +99,6 @@ export const siteFail = {
     ),
 } as const;
 
-/**
- * The step-up a Site administrator act needs, after the cheap refusals that need none, so a
- * self-act answers `OWN_ACCOUNT` rather than asking for a step-up it could never use.
- */
-export async function requireSiteActStepUp(
-  deps: Deps,
-  c: Context<ApiEnv>,
-  target: string,
-  actorId: string,
-): Promise<void> {
-  if (target === actorId) throw accountFail.self();
-  await requireStepUp(deps, c);
-}
-
 /** What a site act did: held as a request, or applied with step-up alone. */
 export interface SiteActOutcome {
   readonly held?: ApprovalRequestRow | undefined;
@@ -175,6 +161,22 @@ async function refuseSiteAct(
     case "reset":
       return refuseReset(tx, current, requester);
   }
+}
+
+/**
+ * The act's own refusals, then the step-up, so a refused act answers with its reason rather
+ * than asking for a step-up it could never use. Both are checked again under the locks.
+ */
+export async function requireSiteActStepUp(
+  deps: Deps,
+  c: Context<ApiEnv>,
+  kind: SiteApprovalKind,
+  target: string,
+  actorId: string,
+): Promise<void> {
+  const exec = deps.databases.control;
+  await refuseSiteAct(exec, kind, await accountOf(exec, target), actorId);
+  await requireStepUp(deps, c);
 }
 
 /** The Site administrators who could approve: active, claimed, neither requester nor target. */

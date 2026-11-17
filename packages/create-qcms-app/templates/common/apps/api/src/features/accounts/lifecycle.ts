@@ -95,7 +95,7 @@ export function makeDisableAccountHandler(
 
     const exec = deps.databases.control;
     if ((await accountOf(exec, id)).role === SITE_ADMINISTRATOR_ROLE) {
-      await requireSiteActStepUp(deps, c, id, actor.userId);
+      await requireSiteActStepUp(deps, c, "disable", id, actor.userId);
       const outcome = await requestOrApplySiteAct(deps, {
         kind: "disable",
         target: id,
@@ -201,7 +201,7 @@ export function makeResetAccountHandler(
     const exec = deps.databases.control;
     const target = await accountOf(exec, id);
     if (target.role === SITE_ADMINISTRATOR_ROLE) {
-      await requireSiteActStepUp(deps, c, id, actor.userId);
+      await requireSiteActStepUp(deps, c, "reset", id, actor.userId);
       const outcome = await requestOrApplySiteAct(deps, {
         kind: "reset",
         target: id,
