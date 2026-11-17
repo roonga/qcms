@@ -55,6 +55,7 @@ describe("parseFormAppearance", () => {
       face: "atkinson",
       corners: "rounded",
       density: "compact",
+      textSize: 18,
     });
   });
 
@@ -77,6 +78,10 @@ describe("parseFormAppearance", () => {
     ["a face outside the registry", { face: "papyrus" }],
     ["unknown corners", { corners: "wobbly" }],
     ["unknown density", { density: "cosy" }],
+    ["a text size below the base floor", { textSize: 15 }],
+    ["a text size above the admin maximum", { textSize: 25 }],
+    ["a fractional text size", { textSize: 18.5 }],
+    ["a missing text size", { textSize: undefined }],
     ["a logo key that is not a digest", { logo: "../../etc/passwd" }],
   ])("falls back to the deployment for %s", (_name, overrides) => {
     expect(parseFormAppearance(raw(overrides as Record<string, unknown>))).toBeNull();
@@ -87,7 +92,7 @@ describe("formAppearanceCss", () => {
   it("writes one block per palette, keyed to the root's mode classes", () => {
     const css = formAppearanceCss(parsed());
     const blocks = css.split("\n");
-    expect(blocks).toHaveLength(4);
+    expect(blocks).toHaveLength(5);
     expect(blocks[0]).toBe(
       "html:root[data-qcms-form-appearance]:not(.dark):not(.hc){--color-primary:#1d4ed8;--color-primary-foreground:#ffffff;--color-background:#fafafa;--color-text:#111111;}",
     );
@@ -97,6 +102,18 @@ describe("formAppearanceCss", () => {
     expect(blocks[2]).toContain("--color-primary:#0a2a8a;");
     expect(blocks[3]).toContain("html:root[data-qcms-form-appearance].dark.hc{");
     expect(blocks[3]).toContain("--color-primary:#c7dcff;");
+    expect(blocks[4]).toBe("html:root[data-qcms-form-appearance]{--text-base:1.125;}");
+  });
+
+  it("writes the base text size as a ratio of the browser default", () => {
+    for (const [textSize, ratio] of [
+      [16, "1"],
+      [17, "1.0625"],
+      [20, "1.25"],
+      [24, "1.5"],
+    ] as const) {
+      expect(formAppearanceCss(parsed({ textSize }))).toContain(`{--text-base:${ratio};}`);
+    }
   });
 
   it("carries nothing a style element could be broken out of", () => {
@@ -169,13 +186,17 @@ describe("packFormAppearance", () => {
   it.each([
     undefined,
     "",
-    "2~~atkinson~rounded~compact~primary~000000~000000~000000~000000",
-    "1~~atkinson~rounded~compact~primary~000000~000000~000000",
-    "1~~atkinson~rounded~compact~primary~00000~000000~000000~000000",
-    "1~~atkinson~rounded~compact~primary~zzzzzz~000000~000000~000000",
-    "1~~atkinson~rounded~compact~Primary;x~000000~000000~000000~000000",
-    "1~../x~atkinson~rounded~compact~primary~000000~000000~000000~000000",
-    "1~~no-such-face~rounded~compact~primary~000000~000000~000000~000000",
+    "3~~atkinson~rounded~compact~18~primary~000000~000000~000000~000000",
+    "1~~atkinson~rounded~compact~primary~000000~000000~000000~000000",
+    "2~~atkinson~rounded~compact~30~primary~000000~000000~000000~000000",
+    "2~~atkinson~rounded~compact~1e1~primary~000000~000000~000000~000000",
+    "2~~atkinson~rounded~compact~~primary~000000~000000~000000~000000",
+    "2~~atkinson~rounded~compact~18~primary~000000~000000~000000",
+    "2~~atkinson~rounded~compact~18~primary~00000~000000~000000~000000",
+    "2~~atkinson~rounded~compact~18~primary~zzzzzz~000000~000000~000000",
+    "2~~atkinson~rounded~compact~18~Primary;x~000000~000000~000000~000000",
+    "2~../x~atkinson~rounded~compact~18~primary~000000~000000~000000~000000",
+    "2~~no-such-face~rounded~compact~18~primary~000000~000000~000000~000000",
   ])("unpacks %s to nothing", (packed) => {
     expect(unpackFormAppearance(packed)).toBeNull();
   });

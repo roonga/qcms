@@ -343,6 +343,17 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
   }),
 ];
 
+/**
+ * The legibility faces of the respondent's face override, offered when the deployment's
+ * font curation includes them.
+ */
+export const LEGIBILITY_FONT_KEYS: readonly string[] = [
+  SYSTEM_FONT_KEY,
+  "atkinson",
+  "opendyslexic",
+  "lexend",
+];
+
 export function fontByKey(key: string): FontEntry | undefined {
   return FONT_REGISTRY.find((entry) => entry.key === key);
 }

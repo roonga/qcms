@@ -7,7 +7,7 @@
 
 In this programme by Code Owner ruling (2026-11-13), but it may slip past the builder's landing without blocking 121's closure of the other tasks.
 
-Respondent controls: display mode, high contrast, text size and a legibility face override (System, Atkinson Hyperlegible, OpenDyslexic, Lexend, all in the font registry). Density stays admin-only. `POST /appearance` stays for no-JS.
+Respondent controls: display mode, high contrast, text size and a legibility face override (System, Atkinson Hyperlegible, OpenDyslexic, Lexend, all in the font registry), offering each face when the deployment's font list (`QCMS_PORTAL_FONTS`) includes it; System is always offered (Code Owner, 2026-11-18). Density stays admin-only. `POST /appearance` stays for no-JS.
 
 ## Deliverables
 

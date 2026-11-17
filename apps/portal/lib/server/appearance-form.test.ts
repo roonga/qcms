@@ -17,25 +17,27 @@ function submission(fields: Record<string, string>): FormData {
 describe("the posted values are the enumerated ones or nothing", () => {
   it("accepts one submission of the three axes the form carries", () => {
     expect(
-      parseAppearanceChoice(
-        submission({ mode: "hc", font: "atkinson", density: "compact" }),
-        OFFERED,
-      ),
-    ).toEqual({ mode: "hc", font: "atkinson", density: "compact" });
+      parseAppearanceChoice(submission({ mode: "hc", font: "atkinson", textSize: "150" }), OFFERED),
+    ).toEqual({ mode: "hc", font: "atkinson", textSize: "150" });
   });
 
   it.each(["light", "dark", "hc"])("accepts the mode keyword %s", (mode) => {
     expect(parseAppearanceChoice(submission({ mode }), OFFERED).mode).toBe(mode);
   });
 
-  it.each(["compact", "comfortable", "spacious"])("accepts the density level %s", (density) => {
-    expect(parseAppearanceChoice(submission({ density }), OFFERED).density).toBe(density);
+  it.each(["100", "125", "150", "200"])("accepts the text scale %s", (textSize) => {
+    expect(parseAppearanceChoice(submission({ textSize }), OFFERED).textSize).toBe(textSize);
+  });
+
+  it("takes nothing from a density field, since density is not a respondent control", () => {
+    expect(parseAppearanceChoice(submission({ density: "compact" }), OFFERED)).toEqual({});
   });
 
   it.each([
-    ["a mode that is not a keyword", { mode: "neon", font: "atkinson", density: "compact" }],
+    ["a mode that is not a keyword", { mode: "neon", font: "atkinson", textSize: "150" }],
     ["`auto`, which is config and never a rendered mode", { mode: "auto" }],
-    ["a density that is not a level", { density: "cosy" }],
+    ["a text scale that is not offered", { textSize: "175" }],
+    ["a text size in px rather than a scale", { textSize: "24" }],
     ["a capitalised keyword", { mode: "HC" }],
     ["an empty value", { mode: "" }],
     ["a value carrying a cookie attribute", { mode: "hc; Domain=evil.test" }],
@@ -71,6 +73,46 @@ describe("the posted values are the enumerated ones or nothing", () => {
       OFFERED,
     );
     expect(parsed).toEqual({ mode: "dark" });
+  });
+});
+
+describe("a posted baseline limits the write to the axes that changed", () => {
+  const rendered = { "was-mode": "light", "was-font": "lexend", "was-textSize": "100" };
+
+  it("writes only the mode when only the mode changed", () => {
+    expect(
+      parseAppearanceChoice(
+        submission({ ...rendered, mode: "dark", font: "lexend", textSize: "100" }),
+        OFFERED,
+      ),
+    ).toEqual({ mode: "dark" });
+  });
+
+  it("writes every axis that differs from its baseline", () => {
+    expect(
+      parseAppearanceChoice(
+        submission({ ...rendered, mode: "light", font: "atkinson", textSize: "200" }),
+        OFFERED,
+      ),
+    ).toEqual({ font: "atkinson", textSize: "200" });
+  });
+
+  it("writes nothing when nothing changed", () => {
+    expect(
+      parseAppearanceChoice(
+        submission({ ...rendered, mode: "light", font: "lexend", textSize: "100" }),
+        OFFERED,
+      ),
+    ).toEqual({});
+  });
+
+  it("writes an axis whose baseline is absent", () => {
+    expect(
+      parseAppearanceChoice(
+        submission({ "was-mode": "light", mode: "light", font: "lexend" }),
+        OFFERED,
+      ),
+    ).toEqual({ font: "lexend" });
   });
 });
 

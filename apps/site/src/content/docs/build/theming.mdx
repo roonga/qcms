@@ -3,9 +3,9 @@ title: Theming
 description: The portal token contract, the four themes, and the self-hosted font registry.
 ---
 
-A theme is operator-set: a palette, a default font, a corner preset and the brand mark. It is
-mutable operator configuration, not form-grade immutable content. Respondent runtime choices, which
-are mode, font and density, sit on top of the theme rather than replacing it.
+A theme is operator-set: a palette, a default font, a corner preset, a density and the brand mark.
+It is mutable operator configuration, not form-grade immutable content. Respondent runtime choices,
+which are mode, face and text size, sit on top of the theme rather than replacing it.
 
 QCMS is single-tenant, so one deployment runs one theme. Only the portal reads these values; admin
 chrome is not adopter-themeable.
@@ -26,8 +26,8 @@ chrome is not adopter-themeable.
 An unrecognized value falls back to the default rather than throwing: a typo in presentation config
 must not take a deployment down.
 
-Mode, font and density are defaults, not settings. The respondent's own choice overrides them from
-then on. Theme and corners have no respondent control.
+Mode and font are defaults, not settings. The respondent's own choice overrides them from then on.
+Theme, corners and density have no respondent control.
 
 ## The four themes
 
@@ -84,14 +84,17 @@ request for a typeface. There is no CDN and no build-time download.
 
 A respondent downloads one family, so the per-visit cost is small. `QCMS_PORTAL_FONTS` is the
 curation surface: unset or empty offers the whole registry rather than an empty list, unknown keys
-are dropped rather than fatal, and `system` is always offered and cannot be removed.
+are dropped rather than fatal, and `system` is always offered and cannot be removed. The legibility
+faces (`atkinson`, `lexend`, `opendyslexic`) are offered only when the list includes them, like any
+other face.
 
 Every family is open-licensed and MIT-redistributable. The shipped subsets are Latin.
 
 ## Respondent controls
 
-The header carries an Appearance disclosure with three controls: mode, font and density. Each writes
-a cookie and swaps the root class immediately, with no round trip and no re-render of the form.
+The header carries an Appearance disclosure with three controls: mode, face and text size. Text
+size is 100, 125, 150 or 200 percent of the form's base size, capped at 32 px. Each control writes a
+cookie and swaps the root class immediately, with no round trip and no re-render of the form.
 Without JavaScript the controls post a form instead.
 
 ## The brand mark

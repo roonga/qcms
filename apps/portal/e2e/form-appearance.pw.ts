@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
 
-import { DENSITY_COOKIE, FONT_COOKIE, MODE_COOKIE } from "../lib/appearance.js";
+import { FONT_COOKIE, MODE_COOKIE, TEXT_SIZE_COOKIE } from "../lib/appearance.js";
 import { readFixtures } from "./support/fixtures.js";
 import { chooseAccident } from "./support/flow.js";
 import {
@@ -26,9 +26,9 @@ import {
 const ORIGIN = `http://localhost:${PORTAL_PORT}`;
 const CARRIER = "data-qcms-form-appearance";
 
-/** A registry face the harness deployment does not offer. */
-const UNOFFERED_FACE = "lexend";
-const UNOFFERED_CLASS = /\bfont-lexend\b/u;
+/** A registry face the harness deployment does not offer and that is not a legibility face. */
+const UNOFFERED_FACE = "roboto";
+const UNOFFERED_CLASS = /\bfont-roboto\b/u;
 
 /** The harness theme's own light primary, which a page without a form appearance keeps. */
 const HARNESS_LIGHT_PRIMARY = "#1f5eb8";
@@ -127,15 +127,18 @@ test("a form with its own appearance renders it on the whole page, in every mode
   await page.reload();
   await expectPalette(page, look.palettes["lightHighContrast"] ?? {}, "high contrast");
 
-  // The respondent's own choices still apply over the form's.
+  // The respondent's face and text size apply over the form's; a density cookie does not.
   await pin(page, {
     [MODE_COOKIE]: "light",
     [FONT_COOKIE]: "atkinson",
-    [DENSITY_COOKIE]: "compact",
+    [TEXT_SIZE_COOKIE]: "125",
+    "qcms-density": "compact",
   });
   await page.reload();
   await expect(root).toHaveClass(/\bfont-atkinson\b/u);
-  await expect(root).toHaveClass(/\bdensity-compact\b/u);
+  await expect(root).toHaveClass(/\btext-scale-125\b/u);
+  await expect(root).toHaveClass(/\bdensity-spacious\b/u);
+  await expect(root).not.toHaveClass(/\bdensity-compact\b/u);
   await expect(root).not.toHaveClass(/\bfont-merriweather\b/u);
   await expect(root).toHaveClass(/\bradius-sharp\b/u);
   await expectPalette(page, look.palettes["light"] ?? {}, "light after a respondent choice");
@@ -385,5 +388,14 @@ test.describe("without JavaScript", () => {
     await expect(root).toHaveClass(/\bdark\b/u);
     await expect(root).toHaveClass(UNOFFERED_CLASS);
     await expect(font).toHaveValue(UNOFFERED_FACE);
+
+    // Only the axis that changed is saved, so the form's face and density follow no
+    // respondent to another form.
+    const saved = (await page.context().cookies())
+      .filter((cookie) => cookie.name.startsWith("qcms-"))
+      .map((cookie) => cookie.name);
+    expect(saved).toEqual([MODE_COOKIE]);
+    await page.goto(`/f/${readFixtures().slug}`);
+    await expect(root).not.toHaveClass(UNOFFERED_CLASS);
   });
 });
