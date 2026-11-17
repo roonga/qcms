@@ -143,7 +143,20 @@ async function readEvents(res: Response): Promise<AssistEvent[]> {
 }
 
 /** A turn on the New form builder, which has no form id yet and names the screen's workspace. */
-async function newFormTurn(caller: Caller, word: string, workspaceId?: string) {
+async function newFormTurn(
+  caller: Caller,
+  word: string,
+  workspaceId?: string,
+): Promise<PlanEvent[]> {
+  const res = await newFormRequest(caller, word, workspaceId);
+  expect(res.status).toBe(200);
+  const events = await readEvents(res);
+  const plans = events.filter((event): event is PlanEvent => event.type === "plan");
+  expect(plans.length, JSON.stringify(events)).toBeGreaterThan(0);
+  return plans;
+}
+
+async function newFormRequest(caller: Caller, word: string, workspaceId?: string) {
   await deps.rateLimitStore.reset(`rl:agent-assist:${caller.userId}`);
   const res = await app.request("/admin/assist", {
     method: "POST",
@@ -157,8 +170,7 @@ async function newFormTurn(caller: Caller, word: string, workspaceId?: string) {
       conversationId: `cnv_${word}`,
     }),
   });
-  expect(res.status).toBe(200);
-  return (await readEvents(res)).filter((event): event is PlanEvent => event.type === "plan");
+  return res;
 }
 
 function formIdFor(slug: string): string {
@@ -198,7 +210,8 @@ async function draftsFor(formId: string): Promise<number> {
 
 async function rowsFor(formId: string): Promise<{ kind: string; detail: string | null }[]> {
   const res = await testDb.client.query<{ kind: string; detail: string | null }>(
-    `select kind, detail from control.agent_actions where form_id = $1 order by id`,
+    // A create's row names no form, since the plan named none when it was proposed.
+    `select kind, detail from control.agent_actions where form_id = $1 or detail = $1 order by id`,
     [formId],
   );
   return res.rows;
@@ -232,9 +245,9 @@ describe("creating a form from the builder (Q15)", () => {
   );
 
   it(
-    "offers a View forms holder no create card at all",
+    "refuses a View forms holder the New form builder's turn",
     async () => {
-      expect(await newFormTurn(viewer, "viewer")).toEqual([]);
+      expect((await newFormRequest(viewer, "viewer")).status).toBe(403);
       expect(await formsWithSlug("fake-new-viewer")).toBe(0);
     },
     CONTAINER_BOOT_TIMEOUT_MS,
@@ -330,7 +343,12 @@ describe("the docked assistant's accept (provenance)", () => {
       const created = await app.request("/admin/forms", {
         method: "POST",
         headers: headersFor(owner),
-        body: JSON.stringify({ formId, slug: "crt-accept", defaultLocale: "en" }),
+        body: JSON.stringify({
+          formId,
+          slug: "crt-accept",
+          defaultLocale: "en",
+          workspaceId: SEED_WORKSPACE_ID,
+        }),
       });
       expect(created.status).toBe(201);
       const accepted = await app.request(`/admin/forms/${formId}/draft/assist/accept`, {
@@ -376,7 +394,12 @@ describe("the docked assistant's accept (provenance)", () => {
       const created = await app.request("/admin/forms", {
         method: "POST",
         headers: headersFor(owner),
-        body: JSON.stringify({ formId, slug: "crt-forged", defaultLocale: "en" }),
+        body: JSON.stringify({
+          formId,
+          slug: "crt-forged",
+          defaultLocale: "en",
+          workspaceId: SEED_WORKSPACE_ID,
+        }),
       });
       expect(created.status).toBe(201);
       const forged = await app.request(`/admin/forms/${formId}/draft`, {
