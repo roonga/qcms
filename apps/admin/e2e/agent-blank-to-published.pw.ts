@@ -100,6 +100,7 @@ test("takes a blank form to a published one in test, through two cards", async (
   ).toContainText("None");
 
   expect(auditDelta(before, await auditTally())).toEqual({
+    "apply-draft": 1,
     "question.publish": QUESTION_COUNT,
     "form.publish": 1,
   });

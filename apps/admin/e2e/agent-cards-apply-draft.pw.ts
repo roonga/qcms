@@ -82,7 +82,7 @@ test("shows the diff and both lists, and accepting saves the draft as assisted",
   await waitForSaveAfter(page, previousSave);
   await expect(page.getByTestId("qcms-builder-provenance")).toBeVisible();
 
-  expect(auditDelta(before, await auditTally())).toEqual({});
+  expect(auditDelta(before, await auditTally())).toEqual({ "apply-draft": 1 });
 });
 
 test("confirms the draft inside a plan, with the builder's own settings behind it", async ({
@@ -114,7 +114,7 @@ test("confirms the draft inside a plan, with the builder's own settings behind i
   await expect(
     page.getByRole("checkbox", { name: "Require a challenge before answering" }),
   ).toBeChecked();
-  expect(auditDelta(before, await auditTally())).toEqual({ "form.settings": 1 });
+  expect(auditDelta(before, await auditTally())).toEqual({ "apply-draft": 1, "form.settings": 1 });
 });
 
 // A local step precedes the referenced step, so card positions differ from token positions.
@@ -142,6 +142,7 @@ test("confirms a plan whose later step references a publish behind the local ste
   await expectAxeClean(page, "done plan with a local step first");
 
   expect(auditDelta(before, await auditTally())).toEqual({
+    "apply-draft": 1,
     "form.publish": 1,
     "form.release": 1,
   });

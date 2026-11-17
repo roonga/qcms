@@ -61,8 +61,8 @@ test("abandoning the New form builder before Confirm leaves no form", async ({ p
     page.getByRole("link", { name: "Exit the agent builder" }).click(),
   ]);
 
-  const gone = await page.goto(`/forms/${formIdFor(word)}/build`);
-  expect(gone?.status()).toBe(404);
+  const gone = await page.request.get(`/forms/${formIdFor(word)}/build`);
+  expect(gone.status()).toBe(404);
 });
 
 test("creates through the card, edits with no card, undoes twice and reviews the diff", async ({
