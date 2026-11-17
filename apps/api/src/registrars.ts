@@ -2,6 +2,7 @@ import type { RouteGroups } from "./app.js";
 import { registerAccountClaim } from "./features/accounts/claim-route.js";
 import { registerAccounts } from "./features/accounts/route.js";
 import { registerAdminAuthProxy } from "./features/auth/route.js";
+import { registerStepUp } from "./features/auth/step-up.js";
 import { registerAgentProvenance } from "./features/agent/provenance-mount.js";
 import { registerAgentChanges, registerFormsAssist } from "./features/agent/route.js";
 import { registerForms } from "./features/forms/route.js";
@@ -20,6 +21,7 @@ import {
   registerSessionStatus,
 } from "./features/responses/start-session/route.js";
 import { registerSubmit } from "./features/responses/submit/route.js";
+import { registerSiteAdministrators } from "./features/site-admins/route.js";
 import { registerWebhooks } from "./features/webhooks/route.js";
 import { registerWorkspaces } from "./features/workspaces/route.js";
 import { registerThemeDerive } from "./features/workspaces/theme-derive.js";
@@ -68,6 +70,8 @@ export const appGroups: RouteGroups = {
     // The only grant write path.
     registerMembership,
     registerAccounts,
+    registerStepUp,
+    registerSiteAdministrators,
     registerLinks,
     registerWebhooks,
     // Operations discovery: what a response-only caller needs to find its own forms,

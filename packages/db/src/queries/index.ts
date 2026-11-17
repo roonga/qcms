@@ -209,7 +209,6 @@ export {
   disableAccount,
   findHoldSuspension,
   holdsAccountPassword,
-  issuedPendingResetLink,
   listAccountHoldings,
   listActiveAdministratorsFor,
   listWorkspacesHeldBy,
@@ -222,7 +221,39 @@ export {
   suspendResponseMemberships,
   unclaimAccount,
   wasSentResetOrReactivationLink,
+  hasOpenSuspension,
+  liftHoldMarkers,
+  liftMarkersOfDeletedGroup,
+  listActiveSiteAdministratorIds,
+  markHoldSuspended,
+  openHoldMarker,
+  openSuspensionRun,
+  setSiteAdministrator,
+  settleSuspensionRun,
+  suspensionPerformers,
+  tryLockSiteAdministrators,
 } from "./account-lifecycle.js";
+
+export {
+  type ApprovalRequestRow,
+  ApprovalPayloadInvalid,
+  decideApprovalRequest,
+  expireApprovalRequests,
+  getApprovalRequest,
+  insertApprovalRequest,
+  listApprovalRequests,
+  newApprovalRequestId,
+  refuseApprovalPayload,
+} from "./approval-requests.js";
+
+export {
+  acceptTotpStep,
+  claimStepUpAttempt,
+  dropStepUp,
+  hasFreshStepUp,
+  recordStepUp,
+  stepUpExpiresAt,
+} from "./step-ups.js";
 
 export {
   type AgentActionEntry,

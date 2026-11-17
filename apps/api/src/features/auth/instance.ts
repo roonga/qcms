@@ -28,6 +28,7 @@ import type { Logger } from "../../logger.js";
 import { constantTimeEqual } from "../../middleware/internal-token.js";
 import { accessControl, roles } from "../membership/policy.js";
 import { pluginWriteBackstop } from "./plugin-write-backstop.js";
+import { spendTotpCode, type SecretConfig } from "./totp.js";
 
 /** Add an absolute session cap because the vendor's idle window can be renewed indefinitely. */
 
@@ -54,6 +55,27 @@ export const CREDENTIAL_PROVIDER_ID = "credential";
  * never finished claiming. TOTP verification is the act that finishes a claim, so it passes.
  */
 export const BACKUP_CODE_VERIFY_PATH = "/two-factor/verify-backup-code";
+
+/** The second-factor sign-in, and the enrolment check that also mints a session. */
+export const TOTP_VERIFY_PATH = "/two-factor/verify-totp";
+
+/**
+ * The code a sign-in's second factor spends, when the request holds no session: one that does is
+ * judged before the vendor runs, by the auth proxy.
+ */
+function signInTotpCode(context: unknown): string | undefined {
+  const endpoint = context as
+    | {
+        readonly body?: { readonly code?: unknown };
+        readonly context?: { readonly session?: unknown };
+      }
+    | undefined;
+  if (endpoint?.context?.session !== null && endpoint?.context?.session !== undefined) {
+    return undefined;
+  }
+  const code = endpoint?.body?.code;
+  return typeof code === "string" ? code : undefined;
+}
 
 /** The password sign-in, which alone needs no session, challenge cookie or link. */
 export const PASSWORD_SIGN_IN_PATH = "/sign-in/email";
@@ -404,9 +426,21 @@ export function createAdminAuth(input: AdminAuthInput) {
                 !isClaimSignIn(context)
               );
             };
-            if (!(await refused())) return;
             // No reason in the body, as everywhere else this surface refuses.
-            throw new APIError("UNAUTHORIZED");
+            if (await refused()) throw new APIError("UNAUTHORIZED");
+            if (path !== TOTP_VERIFY_PATH) return;
+            const code = signInTotpCode(context);
+            if (code === undefined) return;
+            const { secretConfig } = (context as { context: { secretConfig: SecretConfig } })
+              .context;
+            const spent = await spendTotpCode(input.db, secretConfig, {
+              userId: session.userId,
+              code,
+              verifiedOnly: false,
+            });
+            if (!spent) {
+              throw new APIError("UNAUTHORIZED", { message: "Invalid code", code: "INVALID_CODE" });
+            }
           },
         },
       },

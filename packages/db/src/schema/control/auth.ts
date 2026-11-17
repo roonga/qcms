@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, integer, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, boolean, integer, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { controlSchema } from "../schemas.js";
 
@@ -97,6 +97,11 @@ export const authTwoFactor = controlSchema.table("twoFactor", {
   verified: boolean("verified").default(true),
   failedVerificationCount: integer("failedVerificationCount").default(0),
   lockedUntil: timestamp("lockedUntil"),
+  /**
+   * The newest TOTP time step this secret was accepted at; a code at or before it is refused. On
+   * the factor row because a step means nothing beyond the secret it was computed from.
+   */
+  lastTotpStep: bigint("lastTotpStep", { mode: "number" }),
 });
 
 /** The vendor checks column nullability and defaults, not the Postgres schema owning a table. */

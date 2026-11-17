@@ -5,12 +5,15 @@
  */
 
 import {
+  expireApprovalRequests,
   RELEASE_BATCH_RETENTION_MS,
   listEnvironmentRetention,
   purgeExpiredReleaseBatches,
   redactAgedOutboxPayloads,
   redactAgedResponseSnippets,
   sweepExpiredSessions,
+  writeAccessAuditRow,
+  writeSiteAuditRow,
 } from "@roonga/qcms-db";
 
 import type { Deps } from "../deps.js";
@@ -84,6 +87,40 @@ async function sweepControlPlane(deps: Deps, now: Date): Promise<void> {
   if (purged.purgedCount > 0) {
     deps.logger.info("release confirmation results purged", { purgedCount: purged.purgedCount });
   }
+  await expireDueApprovalRequests(deps, now);
+}
+
+/** The actor the expiry rows name: no person decided it. */
+export const APPROVAL_EXPIRY_ACTOR = "system";
+
+/** Expire each request past its 7 days, with its audit row, in one transaction. */
+export async function expireDueApprovalRequests(deps: Deps, now: Date): Promise<number> {
+  const expired = await deps.databases.control.transaction(async (tx) => {
+    const rows = await expireApprovalRequests(tx, now);
+    for (const row of rows) {
+      const detail = `act=expire kind=${row.kind} target=${row.target} requester=${row.requestedBy}`;
+      if (row.scope === "site") {
+        await writeSiteAuditRow(tx, {
+          actor: APPROVAL_EXPIRY_ACTOR,
+          subject: row.requestId,
+          kind: "approval",
+          detail,
+          occurredAt: now,
+        });
+      } else if (row.workspaceId !== null) {
+        await writeAccessAuditRow(tx, {
+          actor: APPROVAL_EXPIRY_ACTOR,
+          workspaceId: row.workspaceId,
+          kind: "approval",
+          detail: `request=${row.requestId} ${detail}`,
+          occurredAt: now,
+        });
+      }
+    }
+    return rows.length;
+  });
+  if (expired > 0) deps.logger.info("approval requests expired", { expiredCount: expired });
+  return expired;
 }
 
 async function sweepEnvironment(

@@ -158,6 +158,12 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       "/admin/accounts/{id}/disable",
       "/admin/accounts/{id}/reactivate",
       "/admin/accounts/{id}/reset",
+      "/admin/accounts/{id}/promote",
+      "/admin/accounts/{id}/demote",
+      "/admin/step-up",
+      "/admin/approval-requests",
+      "/admin/approval-requests/{id}/approve",
+      "/admin/approval-requests/{id}/reject",
     ]) {
       expect(
         adminPaths.some((path) => path.includes(slice)),

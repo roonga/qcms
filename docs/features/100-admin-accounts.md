@@ -13,6 +13,7 @@ The first Site configuration screens. This task adds the Site configuration mode
 - Create: email sent state, resend, refusal while mail is not configured.
 - Account page with holdings across workspaces.
 - Disable with the workspace list (step-up and approval for a Site administrator); reactivate; reset. No delete.
+- Any audit row these screens show renders the actor `system` (an approval request the sweep expired, task 092) as the system, never as an account or a missing one (Code Owner, 2026-11-17).
 
 ## Exit criteria
 

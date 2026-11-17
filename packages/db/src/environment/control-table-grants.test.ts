@@ -22,6 +22,14 @@ import {
 } from "../schema/control/sign-in-links.js";
 import { AGENT_ACTIONS_STEP_UNIQUE, AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
 import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
+import {
+  APPROVAL_KINDS,
+  APPROVAL_REQUEST_KIND_CHECK,
+  APPROVAL_REQUEST_SECOND_ACCOUNT_CHECK,
+  APPROVAL_REQUESTS_TABLE,
+} from "../schema/control/approval-requests.js";
+import { STEP_UPS_TABLE } from "../schema/control/step-ups.js";
+import { SUSPENSION_MARKERS_TABLE } from "../schema/control/suspension-markers.js";
 import { RELEASE_BATCHES_TABLE } from "../schema/control/release-batches.js";
 import {
   RELEASE_WORKFLOW_REVISIONS_TABLE,
@@ -49,6 +57,7 @@ import {
   grantAgentActionsStatements,
   grantAppearanceLogoTakedownStatements,
   grantAppearanceLogosStatements,
+  grantControlTableNoDeleteStatements,
   grantControlTableStatements,
   grantEnvironmentStatements,
   grantSiteAuditStatements,
@@ -92,6 +101,10 @@ const TAKEDOWN_MIGRATION = fileURLToPath(
 
 const SIGN_IN_LINKS_MIGRATION = fileURLToPath(
   new URL("../../migrations/0013_sign_in_links.sql", import.meta.url),
+);
+
+const SITE_ADMINS_MIGRATION = fileURLToPath(
+  new URL("../../migrations/0015_site_admins_and_approvals.sql", import.meta.url),
 );
 
 const LINK_KIND_MIGRATION = fileURLToPath(
@@ -497,6 +510,45 @@ describe("the sign-in links' grants (task 090)", () => {
     expect(sql).toContain('"expires_at" timestamp with time zone NOT NULL');
     expect(sql).toContain('"used_at" timestamp with time zone');
     expect(sql).toContain('"invalidated_at" timestamp with time zone');
+  });
+});
+
+describe("the approval request, step-up and suspension marker grants (task 092)", () => {
+  const sql = readFileSync(SITE_ADMINS_MIGRATION, "utf8");
+  const tables = [APPROVAL_REQUESTS_TABLE, STEP_UPS_TABLE, SUSPENSION_MARKERS_TABLE];
+
+  it("are exactly the statements the generator emits, verbatim, with no DELETE", () => {
+    for (const table of tables) {
+      const statements = grantControlTableNoDeleteStatements(table);
+      expect(statements).toHaveLength(2);
+      for (const statement of statements) expect(sql).toContain(statement);
+      expect(sql).not.toContain(`DELETE ON "control"."${table}"`);
+    }
+  });
+
+  it("give every environment role nothing at all", () => {
+    for (const table of tables) {
+      expect(CONTROL_READ_TABLES).not.toContain(table);
+      expect(CONTROL_READ_COLUMNS[table]).toBeUndefined();
+      expect(grantEnvironmentStatements("staging").join(" ")).not.toContain(table);
+    }
+  });
+
+  it("pins every kind, the 7-day window and the second account at the database", () => {
+    expect(sql).toContain(`CONSTRAINT "${APPROVAL_REQUEST_KIND_CHECK}"`);
+    expect(sql).toContain(`CONSTRAINT "${APPROVAL_REQUEST_SECOND_ACCOUNT_CHECK}"`);
+    // Hours, not days: a day interval follows the session's time zone across a DST change.
+    expect(sql).toContain("interval '168 hours'");
+    expect(sql).not.toMatch(/interval '\d+ days?'/);
+    for (const kind of APPROVAL_KINDS) expect(sql).toContain(`'${kind}'`);
+  });
+
+  it("keeps the newest accepted TOTP step on the factor row", () => {
+    expect(sql).toContain('ALTER TABLE "control"."twoFactor" ADD COLUMN "lastTotpStep" bigint;');
+  });
+
+  it("binds a step-up to its session, so it dies with the session", () => {
+    expect(sql).toContain('REFERENCES "control"."session"("id") ON DELETE cascade');
   });
 });
 
