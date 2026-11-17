@@ -93,8 +93,6 @@ export const AgentEditHeaders = z.object({
 export const DraftBody = z
   .strictObject({
     definition: OpaqueDefinition,
-    /** Sticky provenance for the human who publishes: an ordinary later save never clears it. */
-    agentAssisted: z.boolean().optional(),
     /**
      * Omitted keeps the appearance the form already carries, so a client that knows
      * nothing of appearance never clears one. A change is refused while the workspace's

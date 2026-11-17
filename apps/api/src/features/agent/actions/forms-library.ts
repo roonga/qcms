@@ -46,6 +46,12 @@ export const createForm: ActionKindDef = {
   cell: { resource: "form", action: "write" },
   environmentFrom: "switcher",
   ...create,
+  // The slug is permanent, so the card always names where the form lands: the screen's
+  // workspace when the model names none.
+  screenDefaults: (args, screen) =>
+    args["workspaceId"] === undefined && screen.workspaceId !== undefined
+      ? { ...args, workspaceId: screen.workspaceId }
+      : args,
   references: ["formId"],
   resultAllowlist: ["formId", "slug"],
   card: {

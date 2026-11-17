@@ -99,6 +99,14 @@ export interface ActionKindDef {
   readonly normaliseArgs?: (
     args: Readonly<Record<string, unknown>>,
   ) => Readonly<Record<string, unknown>>;
+  /**
+   * Fills a member the model left out from the screen the turn is on, before the arguments
+   * are checked, so the card shows the value the request will carry.
+   */
+  readonly screenDefaults?: (
+    args: Readonly<Record<string, unknown>>,
+    screen: { readonly workspaceId?: string | undefined },
+  ) => Readonly<Record<string, unknown>>;
   /** What the card displays, which is what the digest is taken over. */
   recomputeArgs(facts: ActionRequestFacts): unknown;
   /**

@@ -886,12 +886,11 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
           throw fail.appearanceLocked();
         }
       }
-      // The client's mark is a hint only: the wizard and the provenance read use the rows.
       const row = await storeDraftDefinition(
         tx,
         formId,
         definition,
-        site !== undefined || edit !== undefined || (body.agentAssisted ?? false),
+        site !== undefined || edit !== undefined,
         appearance,
       );
       await writeAgentStep(tx, site, formId, deps.clock.now());
