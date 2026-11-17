@@ -5,12 +5,9 @@ import type { ReactNode } from "react";
 import type { PreviewRailStep } from "@/lib/forms/preview-rail";
 import { t } from "@/lib/i18n/en";
 
-/*
- * The portal shell's header, step rail and step card (`apps/portal/components/portal-shell.tsx`
- * and `step-rail.tsx`), with the same utility classes. The portal's viewport breakpoints become
- * `qcms-cq-*` classes that read the device frame's container, and its links become buttons,
- * because the preview pages itself. `preview-portal-chrome.test.ts` pins the two together.
- */
+/* The portal shell's header, rail and card with its classes (pinned by the test beside this file);
+   `qcms-cq-*` classes read the frame's container for the portal's breakpoints, and buttons stand in
+   for its links because the preview pages itself. */
 
 export type PreviewProgressMode = "side-rail" | "top-indicator" | "none";
 
