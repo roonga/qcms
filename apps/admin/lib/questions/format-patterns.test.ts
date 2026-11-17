@@ -45,7 +45,7 @@ describe("the admin's restated format set", () => {
 describe("applying a named format", () => {
   it("writes the pattern, its length cap and its matching message together", () => {
     const patch = withFormatPattern(SHORT_TEXT, "email");
-    expect(patch.constraints?.pattern).toBe(String.raw`^[^@\s]+@[^@\s]+\.[^@\s]{2,}$`);
+    expect(patch.constraints?.pattern).toBe(String.raw`^[^@\s]+@[^@\s]+\.[^@\s.]{2,}$`);
     expect(patch.constraints?.maxLength).toBe(254);
     expect(patch.messages?.pattern).toEqual({
       en: "Enter an email address, like name@example.com.",

@@ -75,7 +75,7 @@ describe("the constraints panel's checked formats", { timeout: 30_000 }, () => {
 
     await user.click(screen.getByRole("button", { name: t("questions.constraint.formatApply") }));
 
-    expect(patternField().value).toBe(String.raw`^[^@\s]+@[^@\s]+\.[^@\s]{2,}$`);
+    expect(patternField().value).toBe(String.raw`^[^@\s]+@[^@\s]+\.[^@\s.]{2,}$`);
     expect(longestAnswerField().value).toBe("254");
     expect(
       screen.getByRole("textbox", { name: t("questions.message.label.pattern") }),

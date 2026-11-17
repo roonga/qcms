@@ -18,3 +18,6 @@ USPS DMM 602.1.8 for ZIP+4, Australia Post's data guide, NZ Post for the four-di
 postcode, Canada Post plus the PCCF reference guide for the excluded letters, and Royal Mail's
 Programmers' Guide table of outward-code shapes.
 `docs/DOMAIN_SCHEMA.md` §2.2 carries the sources and the looseness, entry by entry.
+
+The admin's constraints panel offers them now. The assistant's recipes still carry their own
+hand-written expressions; #1364 moves them onto this set.

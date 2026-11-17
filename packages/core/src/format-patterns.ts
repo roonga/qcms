@@ -30,8 +30,9 @@ export const FORMAT_PATTERNS: Readonly<Record<FormatPatternName, FormatPattern>>
   email: {
     name: "email",
     // WHATWG's own expression ends in `(?:...)*` over a group holding a quantifier, which the
-    // safe subset refuses, so this checks the structure a typo breaks instead.
-    pattern: String.raw`^[^@\s]+@[^@\s]+\.[^@\s]{2,}$`,
+    // safe subset refuses, so this checks the structure a typo breaks instead. The final label
+    // bars a dot, or it would swallow one and accept a one-character top label.
+    pattern: String.raw`^[^@\s]+@[^@\s]+\.[^@\s.]{2,}$`,
     maxLength: 254,
     example: "name@example.com",
     message: "Enter an email address, like name@example.com.",

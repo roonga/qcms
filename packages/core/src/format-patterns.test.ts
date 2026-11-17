@@ -39,6 +39,8 @@ const CORPUS: Readonly<Record<FormatPatternName, Corpus>> = {
       "name@@example.com",
       "name@example.c",
       "name@example.com\nsecond@example.com",
+      "a@example.co.c",
+      "a@b.co.",
     ],
   },
   phone: {

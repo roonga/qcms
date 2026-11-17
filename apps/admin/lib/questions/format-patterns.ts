@@ -26,7 +26,7 @@ export interface FormatPattern {
 export const FORMAT_PATTERNS: readonly FormatPattern[] = [
   {
     name: "email",
-    pattern: String.raw`^[^@\s]+@[^@\s]+\.[^@\s]{2,}$`,
+    pattern: String.raw`^[^@\s]+@[^@\s]+\.[^@\s.]{2,}$`,
     maxLength: 254,
     example: "name@example.com",
     message: "Enter an email address, like name@example.com.",

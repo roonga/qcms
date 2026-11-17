@@ -349,7 +349,6 @@ export const messages = {
     "A browser reads the pattern attribute more strictly than this and would ignore this expression. The same rule written as {suggestion} works everywhere.",
   "questions.constraint.patternVUnsafe":
     "A browser reads the pattern attribute more strictly than this and would ignore this expression. Answers are still checked by the engine, but the in-page hint is lost.",
-  /** The format names are the published set's own, so the assistant's recipes and this menu say the same thing. */
   "questions.constraint.format": "Checked format",
   "questions.constraint.formatHint":
     "Fills the pattern and the longest answer with tested values, and writes a matching message. All three stay editable afterwards.",
