@@ -2,7 +2,7 @@ import { fontByKey } from "@roonga/qcms-ui/fonts";
 import { z } from "zod";
 
 // Relative, not the `@/` alias: Vitest resolves no Next path aliases.
-import { DENSITY_LEVELS } from "../appearance";
+import { DEFAULT_TEXT_BASE, DENSITY_LEVELS, TEXT_BASE_MAX, TEXT_BASE_MIN } from "../appearance";
 
 import { PORTAL_CORNERS } from "./theme";
 
@@ -37,6 +37,7 @@ const FormAppearanceSchema = z.object({
   face: z.string().refine((key) => fontByKey(key) !== undefined),
   corners: z.enum(PORTAL_CORNERS),
   density: z.enum(DENSITY_LEVELS),
+  textSize: z.number().int().min(TEXT_BASE_MIN).max(TEXT_BASE_MAX),
 });
 
 export type FormAppearance = z.infer<typeof FormAppearanceSchema>;
@@ -63,14 +64,20 @@ const SELECTORS: Readonly<Record<PaletteKind, string>> = {
   darkHighContrast: `${SCOPE}.dark.hc`,
 };
 
-/** The form's four palettes as token blocks keyed to the root's mode classes. */
+/**
+ * The form's four palettes as token blocks keyed to the root's mode classes, and its base
+ * text size as a ratio of the browser default, which `theme.css` multiplies by the
+ * respondent's scale.
+ */
 export function formAppearanceCss(appearance: FormAppearance): string {
-  return PALETTE_KINDS.map((kind) => {
+  const palettes = PALETTE_KINDS.map((kind) => {
     const declarations = Object.entries(appearance.palettes[kind])
       .map(([token, value]) => `--color-${token}:${value};`)
       .join("");
     return `${SELECTORS[kind]}{${declarations}}`;
-  }).join("\n");
+  });
+  const base = appearance.textSize / DEFAULT_TEXT_BASE;
+  return [...palettes, `${SCOPE}{--text-base:${String(base)};}`].join("\n");
 }
 
 /** The form's logo through the portal's own logo route, so SEC-9's `img-src 'self'` holds. */
@@ -78,7 +85,7 @@ export function formLogoSrc(appearance: FormAppearance, basePath: string): strin
   return appearance.logo === null ? undefined : `${basePath}/logo/${appearance.logo}`;
 }
 
-const PACKED_VERSION = "1";
+const PACKED_VERSION = "2";
 const PACKED_SEPARATOR = "~";
 const FACE_KEY = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
@@ -102,6 +109,7 @@ export function packFormAppearance(appearance: FormAppearance): string | undefin
     appearance.face,
     appearance.corners,
     appearance.density,
+    String(appearance.textSize),
     names.join("."),
     ...rows,
   ].join(PACKED_SEPARATOR);
@@ -110,7 +118,8 @@ export function packFormAppearance(appearance: FormAppearance): string | undefin
 /** The inverse of {@link packFormAppearance}, validated as strictly as the API's own copy. */
 export function unpackFormAppearance(packed: string | undefined): FormAppearance | null {
   if (packed === undefined) return null;
-  const [version, logo, face, corners, density, joined, ...rows] = packed.split(PACKED_SEPARATOR);
+  const [version, logo, face, corners, density, textSize, joined, ...rows] =
+    packed.split(PACKED_SEPARATOR);
   if (version !== PACKED_VERSION || joined === undefined || rows.length !== PALETTE_KINDS.length) {
     return null;
   }
@@ -129,6 +138,7 @@ export function unpackFormAppearance(packed: string | undefined): FormAppearance
     face,
     corners,
     density,
+    textSize: /^\d{2}$/u.test(textSize ?? "") ? Number(textSize) : undefined,
   });
 }
 

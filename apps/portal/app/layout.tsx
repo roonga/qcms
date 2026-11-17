@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { AppearanceProvider, type AppearanceState } from "@/components/appearance-context";
 import { LocaleProvider } from "@/components/locale-context";
 import { currentBasePath } from "@/lib/server/environment";
-import { DENSITY_COOKIE, FONT_COOKIE, MODE_COOKIE } from "@/lib/appearance";
+import { FONT_COOKIE, MODE_COOKIE, TEXT_SIZE_COOKIE } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
 import { appLocale, secureCookies } from "@/lib/server/config";
 import {
@@ -54,7 +54,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
     {
       mode: cookieJar.get(MODE_COOKIE)?.value,
       font: cookieJar.get(FONT_COOKIE)?.value,
-      density: cookieJar.get(DENSITY_COOKIE)?.value,
+      textSize: cookieJar.get(TEXT_SIZE_COOKIE)?.value,
     },
     form,
   );
@@ -66,7 +66,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const state: AppearanceState = {
     mode: modeClass(appearance.mode),
     font: appearance.font,
-    density: appearance.density,
+    textScale: appearance.textScale,
     fonts: pageFontChoices(form).map((entry) => ({
       key: entry.key,
       label: entry.label,

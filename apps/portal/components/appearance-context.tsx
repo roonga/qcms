@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
-import type { AppearanceMode, Density } from "@/lib/appearance";
+import type { AppearanceMode, TextScale } from "@/lib/appearance";
 
 export interface FontChoice {
   readonly key: string;
@@ -18,7 +18,7 @@ export interface AppearanceState {
    */
   readonly mode: AppearanceMode;
   readonly font: string;
-  readonly density: Density;
+  readonly textScale: TextScale;
   readonly fonts: readonly FontChoice[];
   readonly brandName: string;
   readonly brandLogoSrc: string | undefined;

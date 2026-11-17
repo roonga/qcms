@@ -4,13 +4,18 @@ import {
   APPEARANCE_MAX_AGE_SECONDS,
   APPEARANCE_MODES,
   DEFAULT_DENSITY,
-  DENSITY_CLASSES,
   DENSITY_LEVELS,
+  TEXT_BASE_MAX,
+  TEXT_BASE_MIN,
+  TEXT_SCALE_CLASSES,
+  TEXT_SCALES,
+  TEXT_SIZE_CAP_PX,
   appearanceCookie,
   appearanceCookiesFor,
   densityClass,
-  parseDensity,
   parseMode,
+  parseTextScale,
+  textSizePx,
 } from "./appearance.js";
 
 describe("mode and density vocabularies", () => {
@@ -28,30 +33,62 @@ describe("mode and density vocabularies", () => {
     expect(densityClass("comfortable")).toBe("");
     expect(densityClass("compact")).toBe("density-compact");
     expect(densityClass("spacious")).toBe("density-spacious");
-    expect([...DENSITY_CLASSES]).toEqual(["density-compact", "density-spacious"]);
+  });
+});
+
+describe("text size (Q9)", () => {
+  const bases = Array.from(
+    { length: TEXT_BASE_MAX - TEXT_BASE_MIN + 1 },
+    (_, index) => TEXT_BASE_MIN + index,
+  );
+
+  it("offers the four respondent scales, each with its own root class", () => {
+    expect([...TEXT_SCALES]).toEqual(["100", "125", "150", "200"]);
+    expect([...TEXT_SCALE_CLASSES]).toEqual([
+      "text-scale-100",
+      "text-scale-125",
+      "text-scale-150",
+      "text-scale-200",
+    ]);
+  });
+
+  it.each(bases)("multiplies a %ipx base by every scale and caps the product at 32px", (base) => {
+    for (const scale of TEXT_SCALES) {
+      const product = (base * Number(scale)) / 100;
+      const rendered = textSizePx(base, scale);
+      expect(rendered, `${String(base)}px x ${scale}%`).toBe(Math.min(product, TEXT_SIZE_CAP_PX));
+      expect(rendered).toBeLessThanOrEqual(32);
+      expect(rendered).toBeGreaterThanOrEqual(base);
+    }
+  });
+
+  it("reaches the cap exactly at the default base and the largest scale", () => {
+    expect(textSizePx(16, "200")).toBe(32);
+    expect(textSizePx(24, "125")).toBe(30);
+    expect(textSizePx(24, "150")).toBe(32);
   });
 });
 
 describe("parsers distinguish `no choice` from `a choice`", () => {
   it("returns the value for a real choice", () => {
     for (const mode of APPEARANCE_MODES) expect(parseMode(mode)).toBe(mode);
-    for (const level of DENSITY_LEVELS) expect(parseDensity(level)).toBe(level);
+    for (const scale of TEXT_SCALES) expect(parseTextScale(scale)).toBe(scale);
   });
 
   it("returns undefined for absent, empty and nonsense values", () => {
     for (const raw of [undefined, "", "auto", "sepia", "Light", " dark"]) {
       expect(parseMode(raw), `mode ${String(raw)}`).toBeUndefined();
     }
-    for (const raw of [undefined, "", "cosy", "Compact"]) {
-      expect(parseDensity(raw), `density ${String(raw)}`).toBeUndefined();
+    for (const raw of [undefined, "", "175", "24", "100%"]) {
+      expect(parseTextScale(raw), `text scale ${String(raw)}`).toBeUndefined();
     }
   });
 });
 
 describe("the appearance cookie", () => {
   it("is a year-long, path-wide, SameSite=Lax preference", () => {
-    expect(appearanceCookie("qcms-density", "compact", false)).toBe(
-      `qcms-density=compact; Path=/; Max-Age=${APPEARANCE_MAX_AGE_SECONDS}; SameSite=Lax`,
+    expect(appearanceCookie("qcms-text-size", "150", false)).toBe(
+      `qcms-text-size=150; Path=/; Max-Age=${APPEARANCE_MAX_AGE_SECONDS}; SameSite=Lax`,
     );
     expect(APPEARANCE_MAX_AGE_SECONDS).toBe(60 * 60 * 24 * 365);
   });
@@ -75,11 +112,11 @@ describe("the appearance cookie", () => {
 describe("the cookies one submission writes", () => {
   it("writes exactly the axes that were chosen, in axis order", () => {
     expect(
-      appearanceCookiesFor({ mode: "hc", font: "atkinson", density: "compact" }, false),
+      appearanceCookiesFor({ mode: "hc", font: "atkinson", textSize: "200" }, false),
     ).toEqual([
       appearanceCookie("qcms-theme", "hc", false),
       appearanceCookie("qcms-font", "atkinson", false),
-      appearanceCookie("qcms-density", "compact", false),
+      appearanceCookie("qcms-text-size", "200", false),
     ]);
   });
 
@@ -92,7 +129,7 @@ describe("the cookies one submission writes", () => {
 
   it("carries Secure through to every cookie it writes", () => {
     const written = appearanceCookiesFor(
-      { mode: "dark", font: "system", density: "spacious" },
+      { mode: "dark", font: "system", textSize: "125" },
       true,
     );
     expect(written).toHaveLength(3);

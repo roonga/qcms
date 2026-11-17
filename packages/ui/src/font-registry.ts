@@ -343,6 +343,17 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
   }),
 ];
 
+/**
+ * The legibility faces a respondent can always choose over a form's or a deployment's
+ * face; curation cannot remove them.
+ */
+export const LEGIBILITY_FONT_KEYS: readonly string[] = [
+  SYSTEM_FONT_KEY,
+  "atkinson",
+  "opendyslexic",
+  "lexend",
+];
+
 export function fontByKey(key: string): FontEntry | undefined {
   return FONT_REGISTRY.find((entry) => entry.key === key);
 }
