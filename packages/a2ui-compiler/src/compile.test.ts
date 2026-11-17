@@ -384,8 +384,8 @@ describe("compileForm (kitchen-sink)", () => {
 });
 
 describe("questionToNode (longText length bounds)", () => {
-  const resolve: TextResolver = (text) => text["en"] ?? "";
-  const locale = parseLocaleCode("en");
+  const EN = localeOf("en");
+  const resolve: TextResolver = (text) => text[EN] ?? "";
 
   function longText(constraints: Record<string, number>): QuestionDefinition {
     const parsed = parseQuestionDefinition({
@@ -400,21 +400,15 @@ describe("questionToNode (longText length bounds)", () => {
     return parsed.value;
   }
 
-  if (!locale.ok) {
-    throw new Error("en did not parse as a locale");
-  }
-
   it("forwards a minimum beside the maximum, as the mapping doc specifies", () => {
-    expect(questionToNode(longText({ minLength: 40, maxLength: 1000 }), resolve, locale.value)).toEqual(
-      {
-        type: "TextArea",
-        props: { label: "What happened?", name: "q_what_happened", minLength: 40, maxLength: 1000 },
-      },
-    );
+    expect(questionToNode(longText({ minLength: 40, maxLength: 1000 }), resolve, EN)).toEqual({
+      type: "TextArea",
+      props: { label: "What happened?", name: "q_what_happened", minLength: 40, maxLength: 1000 },
+    });
   });
 
   it("omits the bound the author left unset rather than emitting a default", () => {
-    expect(questionToNode(longText({ minLength: 25 }), resolve, locale.value).props).toEqual({
+    expect(questionToNode(longText({ minLength: 25 }), resolve, EN).props).toEqual({
       label: "What happened?",
       name: "q_what_happened",
       minLength: 25,
