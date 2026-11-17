@@ -121,7 +121,7 @@ function referenceText(
 ): string {
   if (reference === undefined) return vocabularyText(name, raw) ?? scalarText(raw);
   if (resolved !== undefined) return vocabularyText(name, resolved) ?? scalarText(resolved);
-  return t("agent.card.usesStep", { field: reference.field, step: reference.fromStep + 1 });
+  return t("agent.card.usesStep", { step: reference.fromStep + 1 });
 }
 
 const VOCABULARY_ARGUMENTS: Readonly<Record<string, readonly string[]>> = {

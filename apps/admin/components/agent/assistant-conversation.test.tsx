@@ -5,9 +5,10 @@ import type { BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
 import type { AgentTurnRecord, ConversationHandle } from "@/lib/agent/conversation";
 import type { DraftForm } from "@/lib/forms/types";
 import type { ResolvedScreen } from "@/lib/agent/screens";
-import { t } from "@/lib/i18n/en";
+import { wasRetried } from "@/lib/forms/assist-turn";
+import { t, type MessageKey } from "@/lib/i18n/en";
 
-import { AssistantConversation } from "./assistant-conversation";
+import { AssistantConversation, collapsedSteps, viewerDay } from "./assistant-conversation";
 
 const SCREEN: ResolvedScreen = {
   screen: "/forms/[formId]",
@@ -133,6 +134,26 @@ describe("the assistant conversation's route", () => {
     mount(false);
     await send(fetchMock);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/assist");
+  });
+
+  it("posts the day on this browser's own clock, which is the day their screen writes", async () => {
+    const fetchMock = sent();
+    vi.useFakeTimers();
+    // A local instant whose UTC day is the one before, so a UTC date would be visibly wrong.
+    vi.setSystemTime(new Date(2026, 6, 21, 0, 30));
+    try {
+      mount(false);
+      await send(fetchMock);
+    } finally {
+      vi.useRealTimers();
+    }
+    const init = fetchMock.mock.calls[0]?.[1] as { body: string };
+    expect(JSON.parse(init.body)).toMatchObject({ viewerToday: "2026-07-21" });
+  });
+
+  it("pads a single-digit month and day, so the API's own shape check accepts it", () => {
+    expect(viewerDay(new Date(2026, 0, 9))).toBe("2026-01-09");
+    expect(viewerDay(new Date(2026, 11, 31))).toBe("2026-12-31");
   });
 
   it("posts a writer's turn to the form's own route, carrying the stored draft", async () => {
@@ -536,5 +557,87 @@ describe("a waiting card nobody answered", () => {
     await propose(fetchMock, "prp_second", "try again");
 
     expect(settlements()).toHaveLength(1);
+  });
+});
+
+describe("a run of identical progress rows", () => {
+  const row = (
+    label: string,
+    state: "running" | "done" | "failed" | "interrupted",
+    step: number,
+  ) => ({ label: label as MessageKey, state, step });
+
+  it("collapses consecutive rows that read the same way, keeping the first's index", () => {
+    const rows = collapsedSteps([
+      row("forms.assist.step.read_question", "done", 1),
+      row("forms.assist.step.read_question", "done", 2),
+      row("forms.assist.step.read_question", "done", 3),
+    ]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.count).toBe(3);
+    expect(rows[0]?.at).toBe(0);
+  });
+
+  it("leaves a row of its own wherever the label or the state changes", () => {
+    const rows = collapsedSteps([
+      row("forms.assist.step.read_question", "done", 1),
+      row("forms.assist.step.read_form", "done", 2),
+      row("forms.assist.step.read_question", "done", 3),
+      row("forms.assist.step.read_question", "running", 4),
+    ]);
+
+    expect(rows.map((entry) => entry.count)).toEqual([1, 1, 1, 1]);
+  });
+
+  /* Two runs of the same label separated by another are two runs, not one of four. */
+  it("does not reach across a row between two runs of the same label", () => {
+    const rows = collapsedSteps([
+      row("forms.assist.step.read_question", "done", 1),
+      row("forms.assist.step.read_question", "done", 2),
+      row("forms.assist.step.read_form", "done", 3),
+      row("forms.assist.step.read_question", "done", 4),
+      row("forms.assist.step.read_question", "done", 5),
+    ]);
+
+    expect(rows.map((entry) => entry.count)).toEqual([2, 1, 2]);
+  });
+
+  /* A failed call the assistant then got right is marked "Tried again" rather than failed, so
+     it is a different row from a failure that stayed failed. */
+  it("keeps a retried row apart from one that stayed failed", () => {
+    const rows = collapsedSteps([
+      row("forms.assist.step.read_form", "failed", 1),
+      row("forms.assist.step.read_form", "failed", 2),
+      row("forms.assist.step.read_form", "done", 3),
+    ]);
+
+    expect(rows.map((entry) => entry.count)).toEqual([2, 1]);
+    expect(
+      wasRetried(
+        [
+          row("forms.assist.step.read_form", "failed", 1),
+          row("forms.assist.step.read_form", "done", 2),
+        ],
+        0,
+      ),
+    ).toBe(true);
+  });
+
+  it("says how many times a collapsed row ran, in the catalogue's own words", () => {
+    render(
+      <AssistantConversation
+        screen={SCREEN}
+        environment="test"
+        conversation={CONVERSATION}
+        builder={snapshot(false)}
+        composerRef={{ current: null }}
+        onWorkingChange={() => undefined}
+        onAnnounce={() => undefined}
+      />,
+    );
+    expect(
+      t("forms.assist.stepTimes", { label: t("forms.assist.step.read_question"), count: 3 }),
+    ).toBe("Reading a question, 3 times");
   });
 });

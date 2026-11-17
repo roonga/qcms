@@ -709,7 +709,7 @@ function StepIcon({ state }: { readonly state: StepState }) {
 
 /**
  * A run of identical rows says nothing five rows the second four cannot, and none of them
- * names its subject. Consecutive rows reading the same way become one row with a count.
+ * names its subject.
  */
 export function collapsedSteps(
   steps: readonly TurnStep[],
