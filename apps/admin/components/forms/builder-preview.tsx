@@ -189,7 +189,7 @@ export interface BuilderPreviewSource {
   /** The deployment's respondent theme, which a draft with no appearance previews in. */
   readonly defaultTheme: PreviewTheme;
   readonly appearance: Appearance | null;
-  /** The deployment's portal brand; a draft with an appearance shows none of its logo, as the portal does. */
+  /** The deployment's portal brand. A draft with an appearance shows no deployment logo, as the portal does; its own logo is not available to the admin. */
   readonly brand: PreviewBrand;
 }
 
