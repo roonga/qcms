@@ -109,6 +109,7 @@ two joined in task 048, so they have no `v1/` document):
 | `deep-nesting-rules.a2ui.json` | `forms/valid/deep-nesting-rules.json`           | A depth-8 rule form; proves the compiled A2UI is a plain projection (rules apply at serve time, not in the document). |
 | `author-messages.a2ui.json`    | `../fixtures/corpus/forms/author-messages.json` | Author-supplied validation messages (ADR-32). Appended in task 048, so `v2/` onwards.                                 |
 | `boolean-labels.a2ui.json`     | `../fixtures/corpus/forms/boolean-labels.json`  | Boolean label overrides (ADR-36). Appended in task 048, so `v2/` onwards.                                             |
+| `long-text-minimum.a2ui.json`  | `../fixtures/corpus/forms/long-text-minimum.json` | `minLength` on a `longText`: one with both bounds, one with the minimum alone. Appended, so `v4/` onwards.          |
 
 **`kitchen-sink` here is the HEALTH-domain form** (`q_preexisting_conditions`,
 `q_medical_history`), and it is the one the `@roonga/qcms-core`, `@roonga/qcms-a2ui-compiler`

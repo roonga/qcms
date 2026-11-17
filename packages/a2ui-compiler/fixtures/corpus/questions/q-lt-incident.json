@@ -1,0 +1,13 @@
+{
+  "type": "longText",
+  "questionId": "q_lt_incident",
+  "label": { "en": "What happened?" },
+  "help": { "en": "A sentence or two is enough" },
+  "required": true,
+  "constraints": { "minLength": 40, "maxLength": 1000 },
+  "messages": {
+    "required": { "en": "Tell us what happened before we can go on" },
+    "minLength": { "en": "Give us a sentence or two, not a single word" },
+    "maxLength": { "en": "Keep this under 1000 characters" }
+  }
+}
