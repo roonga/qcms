@@ -8,7 +8,6 @@ import {
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { and, eq, isNull } from "drizzle-orm";
-import { generate } from "otplib";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
@@ -16,7 +15,7 @@ import type { Deps } from "../../deps.js";
 import { ADMIN_SESSION_HEADER } from "../../middleware/admin-auth.js";
 import { appGroups } from "../../registrars.js";
 import { BREACH_LOOKUP_FAILED_CODE, BREACH_LOOKUP_TIMEOUT_MS } from "../auth/instance.js";
-import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
+import { freshTotpCode, internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import type { Mailer, MailMessage } from "../email/mailer.js";
 import { SIGN_IN_LINK_TTL_HOURS } from "../email/templates.js";
 import { claimAfterFactorVerified } from "./claim.js";
@@ -247,7 +246,7 @@ async function finishClaim(
   const secret = new URL(totpURI).searchParams.get("secret") ?? "";
   const verified = await authPost(
     "/two-factor/verify-totp",
-    { code: await generate({ secret }) },
+    { code: await freshTotpCode(secret) },
     cookie,
   );
   expect(verified.status, await verified.clone().text()).toBe(200);
@@ -440,7 +439,7 @@ describe("claiming an account (criteria 52, 53, 54)", { timeout: CLAIM_TIMEOUT_M
     const secret = new URL(totpURI).searchParams.get("secret") ?? "";
     const verified = await authPost(
       "/two-factor/verify-totp",
-      { code: await generate({ secret }) },
+      { code: await freshTotpCode(secret) },
       cookieHeader(enabled) === "" ? cookie : cookieHeader(enabled),
     );
     expect(verified.status).toBe(200);
@@ -627,7 +626,7 @@ describe("claiming an account (criteria 52, 53, 54)", { timeout: CLAIM_TIMEOUT_M
     expect(signedIn.status).toBe(200);
     const verified = await authPost(
       "/two-factor/verify-totp",
-      { code: await generate({ secret }) },
+      { code: await freshTotpCode(secret) },
       cookieHeader(signedIn),
     );
     expect(verified.status, await verified.clone().text()).toBe(200);
@@ -681,7 +680,7 @@ describe("sessions minted before the factor", { timeout: CLAIM_TIMEOUT_MS }, () 
     const secret = new URL(totpURI).searchParams.get("secret") ?? "";
     const verified = await authPost(
       "/two-factor/verify-totp",
-      { code: await generate({ secret }) },
+      { code: await freshTotpCode(secret) },
       cookie,
     );
     expect(verified.status, await verified.clone().text()).toBe(200);
@@ -837,7 +836,7 @@ describe(
       const verified = await factorOptional.request("/api/auth/two-factor/verify-totp", {
         method: "POST",
         headers: authHeaders(`${targetCookie}; ${pendingCookie}`),
-        body: JSON.stringify({ code: await generate({ secret }) }),
+        body: JSON.stringify({ code: await freshTotpCode(secret) }),
       });
       expect(verified.status, await verified.clone().text()).toBe(200);
 
@@ -1019,7 +1018,7 @@ describe("resending the link", { timeout: CLAIM_TIMEOUT_MS }, () => {
       const secret = new URL(totpURI).searchParams.get("secret") ?? "";
       const verified = await authPost(
         "/two-factor/verify-totp",
-        { code: await generate({ secret }) },
+        { code: await freshTotpCode(secret) },
         cookie,
       );
       expect(verified.status).toBe(200);

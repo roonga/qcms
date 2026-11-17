@@ -1,5 +1,5 @@
 {
-  "id": "fde57798-e87c-4c62-98e2-50411c03eac1",
+  "id": "34d40a2c-18c7-48af-b2d7-9fbea3690fc4",
   "prevId": "2b0cb0ac-51d0-4dcf-95ab-f4ef526c6872",
   "version": "7",
   "dialect": "postgresql",
@@ -1399,6 +1399,12 @@
         "lockedUntil": {
           "name": "lockedUntil",
           "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lastTotpStep": {
+          "name": "lastTotpStep",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         }
@@ -2820,7 +2826,7 @@
         },
         "approval_requests_seven_days": {
           "name": "approval_requests_seven_days",
-          "value": "\"control\".\"approval_requests\".\"expires_at\" = \"control\".\"approval_requests\".\"requested_at\" + interval '7 days'"
+          "value": "\"control\".\"approval_requests\".\"expires_at\" = \"control\".\"approval_requests\".\"requested_at\" + interval '168 hours'"
         },
         "approval_requests_second_account": {
           "name": "approval_requests_second_account",

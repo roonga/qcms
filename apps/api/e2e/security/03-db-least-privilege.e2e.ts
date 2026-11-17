@@ -5,6 +5,7 @@ import {
   APPEARANCE_LOGOS_TABLE,
   APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
   APPEARANCE_LOGO_TOMBSTONES_TABLE,
+  APPROVAL_REQUESTS_TABLE,
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_COLUMNS,
   CONTROL_READ_TABLES,
@@ -12,6 +13,8 @@ import {
   ENDPOINT_PROPOSALS_TABLE,
   DATA_PLANE_TABLE_NAMES,
   SITE_AUDIT_TABLE,
+  STEP_UPS_TABLE,
+  SUSPENSION_MARKERS_TABLE,
   workspaceReportingRoleName,
   workspaceReportingStatements,
 } from "@roonga/qcms-db";
@@ -49,6 +52,13 @@ const APPEND_ONLY_TABLES: readonly string[] = [
   ...AUDIT_TABLES,
   SITE_AUDIT_TABLE,
   APPEARANCE_LOGOS_TABLE,
+];
+
+/** Rows only ever changed in place, so no application role may delete one. */
+const NO_DELETE_TABLES: readonly string[] = [
+  APPROVAL_REQUESTS_TABLE,
+  STEP_UPS_TABLE,
+  SUSPENSION_MARKERS_TABLE,
 ];
 
 // Each planner probe needs a session of its own: `pg_temp` is per session, and a notice
@@ -340,8 +350,11 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
       expect([...(held[table] ?? [])].sort(), table).toEqual(["INSERT", "SELECT"]);
     }
     expect([...(held[ENDPOINT_PROPOSALS_TABLE] ?? [])].sort()).toEqual([...DML].sort());
+    for (const table of NO_DELETE_TABLES) {
+      expect([...(held[table] ?? [])].sort(), table).toEqual(["INSERT", "SELECT", "UPDATE"]);
+    }
     for (const [table, privileges] of Object.entries(held)) {
-      if (APPEND_ONLY_TABLES.includes(table)) continue;
+      if (APPEND_ONLY_TABLES.includes(table) || NO_DELETE_TABLES.includes(table)) continue;
       expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
     }
     expect(Object.keys(held).length).toBeGreaterThan(10);
@@ -388,6 +401,15 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     expect(
       await hasFunctionExecute(CONTROL_ROLE, `${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}(text)`),
     ).toBe(true);
+  });
+
+  it("is refused a DELETE on the request, step-up and marker tables at the statement", async () => {
+    const client = clients.get(CONTROL_ROLE)!;
+    for (const table of NO_DELETE_TABLES) {
+      expect(await refusalFor(client, `delete from control.${table}`), table).toMatch(
+        /permission denied/i,
+      );
+    }
   });
 
   it("holds nothing on the takedown tombstones, which only the takedown function writes", async () => {

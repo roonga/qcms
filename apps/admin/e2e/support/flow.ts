@@ -33,8 +33,25 @@ export async function readSetupKey(page: Page): Promise<string> {
   return page.getByLabel(/Setup key/).inputValue();
 }
 
+const TOTP_PERIOD_MS = 30_000;
+const spentTotpSteps = new Map<string, number>();
+
+// The server accepts each time step once, so each call takes a step no earlier one used, waiting
+// for the clock when the steps it still accepts are spent.
+export async function freshTotpCode(secret: string): Promise<string> {
+  for (;;) {
+    const now = Math.floor(Date.now() / TOTP_PERIOD_MS);
+    const step = Math.max(now, (spentTotpSteps.get(secret) ?? now - 1) + 1);
+    if (step <= now + 1) {
+      spentTotpSteps.set(secret, step);
+      return generate({ secret, epoch: (step * TOTP_PERIOD_MS) / 1000 });
+    }
+    await new Promise((resolve) => setTimeout(resolve, (now + 1) * TOTP_PERIOD_MS - Date.now() + 50));
+  }
+}
+
 export async function submitTotp(page: Page, secret: string): Promise<void> {
-  await fillStable(page.getByLabel(/Six-digit code/), await generate({ secret }));
+  await fillStable(page.getByLabel(/Six-digit code/), await freshTotpCode(secret));
   await page.getByRole("button", { name: "Verify" }).click();
 }
 

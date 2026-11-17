@@ -1,6 +1,7 @@
 // Every secret here is synthetic and generated in-test: no real secret enters a fixture.
 
 import { and, eq } from "drizzle-orm";
+import { generate } from "otplib";
 
 import {
   SITE_ADMINISTRATOR_ROLE,
@@ -363,3 +364,22 @@ export function builderTurnContext(
 }
 
 export type { MountFlags };
+
+const TOTP_PERIOD_MS = 30_000;
+const spentTotpSteps = new Map<string, number>();
+
+/**
+ * A TOTP code for `secret` at a time step no earlier call here used, since the server accepts
+ * each step once. Waits for the clock when the steps the server still accepts are spent.
+ */
+export async function freshTotpCode(secret: string): Promise<string> {
+  for (;;) {
+    const now = Math.floor(Date.now() / TOTP_PERIOD_MS);
+    const step = Math.max(now, (spentTotpSteps.get(secret) ?? now - 1) + 1);
+    if (step <= now + 1) {
+      spentTotpSteps.set(secret, step);
+      return generate({ secret, epoch: (step * TOTP_PERIOD_MS) / 1000 });
+    }
+    await new Promise((resolve) => setTimeout(resolve, (now + 1) * TOTP_PERIOD_MS - Date.now() + 50));
+  }
+}

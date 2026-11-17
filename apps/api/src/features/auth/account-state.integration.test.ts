@@ -1,12 +1,11 @@
 import { authSession, authUser, clearMustChangePassword } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { eq } from "drizzle-orm";
-import { generate } from "otplib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
 import { appGroups } from "../../registrars.js";
-import { internalTokenFor, makeDeps, validEnv } from "../../test-support.js";
+import { freshTotpCode, internalTokenFor, makeDeps, validEnv } from "../../test-support.js";
 import { CLAIM_AUTH_ENDPOINTS, SESSION_CHECK_EXEMPT_ENDPOINTS } from "./account-state.js";
 import { createInitialAdmin } from "./bootstrap.js";
 import { createAdminAuth, type AdminAuth } from "./instance.js";
@@ -145,7 +144,7 @@ beforeAll(async () => {
   const secret = new URL(totpURI).searchParams.get("secret") ?? "";
   const verified = await authPost(
     "/two-factor/verify-totp",
-    { code: await generate({ secret }) },
+    { code: await freshTotpCode(secret) },
     cookieHeader(signedIn),
   );
   expect(verified.status).toBe(200);

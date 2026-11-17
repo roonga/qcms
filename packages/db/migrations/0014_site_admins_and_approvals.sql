@@ -15,7 +15,7 @@ CREATE TABLE "control"."approval_requests" (
 	CONSTRAINT "approval_requests_kind" CHECK (("control"."approval_requests"."scope" = 'site' and "control"."approval_requests"."kind" in ('promote', 'demote', 'disable', 'reset') and "control"."approval_requests"."workspace_id" is null) or ("control"."approval_requests"."scope" = 'workspace' and "control"."approval_requests"."kind" in ('self-grant', 'second-approval-off', 'draft-publish', 'move-form') and "control"."approval_requests"."workspace_id" is not null)),
 	CONSTRAINT "approval_requests_status" CHECK ("control"."approval_requests"."status" in ('pending', 'approved', 'rejected', 'expired')),
 	CONSTRAINT "approval_requests_payload_object" CHECK (jsonb_typeof("control"."approval_requests"."payload") = 'object'),
-	CONSTRAINT "approval_requests_seven_days" CHECK ("control"."approval_requests"."expires_at" = "control"."approval_requests"."requested_at" + interval '7 days'),
+	CONSTRAINT "approval_requests_seven_days" CHECK ("control"."approval_requests"."expires_at" = "control"."approval_requests"."requested_at" + interval '168 hours'),
 	CONSTRAINT "approval_requests_second_account" CHECK ("control"."approval_requests"."decided_by" is null or ("control"."approval_requests"."decided_by" <> "control"."approval_requests"."requested_by" and ("control"."approval_requests"."scope" <> 'site' or "control"."approval_requests"."decided_by" <> "control"."approval_requests"."target"))),
 	CONSTRAINT "approval_requests_decision" CHECK (("control"."approval_requests"."status" = 'pending') = ("control"."approval_requests"."decided_at" is null) and ("control"."approval_requests"."status" in ('approved', 'rejected')) = ("control"."approval_requests"."decided_by" is not null))
 );
@@ -37,6 +37,7 @@ CREATE TABLE "control"."suspension_markers" (
 	"lifted_by" text
 );
 --> statement-breakpoint
+ALTER TABLE "control"."twoFactor" ADD COLUMN "lastTotpStep" bigint;--> statement-breakpoint
 ALTER TABLE "control"."step_ups" ADD CONSTRAINT "step_ups_session_id_session_id_fk" FOREIGN KEY ("session_id") REFERENCES "control"."session"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "approval_requests_one_pending" ON "control"."approval_requests" USING btree ("kind","target","requested_by") WHERE status = 'pending';--> statement-breakpoint
 CREATE INDEX "approval_requests_status_idx" ON "control"."approval_requests" USING btree ("status","expires_at");--> statement-breakpoint
@@ -48,43 +49,109 @@ CREATE INDEX "suspension_markers_user_idx" ON "control"."suspension_markers" USI
 -- CONTROL-PLANE schema module. Everything below is HAND-AUTHORED, for the reason
 -- migration 0004 states at length: a grant belongs to the migration that creates
 -- its table, and this is the only place that runs as the table owner in the same
--- step. The statements are emitted by `grantControlTableStatements` in
+-- step. The statements are emitted by `grantControlTableNoDeleteStatements` in
 -- `src/environment/sql.ts` and asserted against this file by
 -- `src/environment/control-table-grants.test.ts`.
 --
--- Ordinary control-plane DML: a request and a step-up are updated in place and a
--- suspension marker is lifted in place; the history is the audit rows written
--- beside each change. No environment role is granted anything, and the grant that
--- would do it is absent rather than revoked.
+-- Control-plane DML without DELETE: a request and a step-up are updated in place,
+-- a suspension marker is lifted in place, and a step-up goes with its session by
+-- the cascade; the history is the audit rows written beside each change. No
+-- environment role is granted anything, and the grant that would do it is absent
+-- rather than revoked.
 --
--- A suspension held before this migration gets its marker here, so a removal and
--- re-add keeps it suspended from the first request this schema serves.
+-- A suspension run open before this migration gets its markers here, so the
+-- performer rule holds from the first request this schema serves: one per
+-- suspended hold, naming who suspended it, and one account-wide per issuer of the
+-- account's newest unbroken run of reset or reactivation links, the rule the
+-- previous release read from the link history. A run the new code would settle at
+-- once (claimed, active, no hold still suspended) gets none.
 -- ===========================================================================
 DO $$
 BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_control') THEN
-		EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON "control"."approval_requests" TO "qcms_app_control"';
+		EXECUTE 'GRANT SELECT, INSERT, UPDATE ON "control"."approval_requests" TO "qcms_app_control"';
 	END IF;
+END
+$$;
+--> statement-breakpoint
+DO $$
+DECLARE application_role text;
+BEGIN
+	FOR application_role IN
+		SELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms\_app%'
+	LOOP
+		EXECUTE format(
+			'REVOKE DELETE ON TABLE control.approval_requests FROM %I',
+			application_role);
+	END LOOP;
 END
 $$;
 --> statement-breakpoint
 DO $$
 BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_control') THEN
-		EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON "control"."step_ups" TO "qcms_app_control"';
+		EXECUTE 'GRANT SELECT, INSERT, UPDATE ON "control"."step_ups" TO "qcms_app_control"';
 	END IF;
+END
+$$;
+--> statement-breakpoint
+DO $$
+DECLARE application_role text;
+BEGIN
+	FOR application_role IN
+		SELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms\_app%'
+	LOOP
+		EXECUTE format(
+			'REVOKE DELETE ON TABLE control.step_ups FROM %I',
+			application_role);
+	END LOOP;
 END
 $$;
 --> statement-breakpoint
 DO $$
 BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_control') THEN
-		EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON "control"."suspension_markers" TO "qcms_app_control"';
+		EXECUTE 'GRANT SELECT, INSERT, UPDATE ON "control"."suspension_markers" TO "qcms_app_control"';
 	END IF;
+END
+$$;
+--> statement-breakpoint
+DO $$
+DECLARE application_role text;
+BEGIN
+	FOR application_role IN
+		SELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms\_app%'
+	LOOP
+		EXECUTE format(
+			'REVOKE DELETE ON TABLE control.suspension_markers FROM %I',
+			application_role);
+	END LOOP;
 END
 $$;
 --> statement-breakpoint
 INSERT INTO "control"."suspension_markers" ("user_id", "team_id", "performed_by", "created_at")
 SELECT "userId", "teamId", "suspendedBy", "suspendedAt" FROM "control"."teamMember"
 WHERE "suspendedAt" IS NOT NULL AND "suspendedBy" IS NOT NULL
+ON CONFLICT DO NOTHING;
+--> statement-breakpoint
+INSERT INTO "control"."suspension_markers" ("user_id", "team_id", "performed_by", "created_at")
+SELECT l."user_id", NULL, l."issued_by", min(l."created_at")
+FROM "control"."sign_in_links" l
+JOIN "control"."user" u ON u."id" = l."user_id"
+WHERE l."purpose" IN ('reset', 'reactivated')
+	AND NOT EXISTS (
+		SELECT 1 FROM "control"."sign_in_links" later
+		WHERE later."user_id" = l."user_id"
+			AND later."purpose" NOT IN ('reset', 'reactivated')
+			AND (later."created_at", later."id") > (l."created_at", l."id")
+	)
+	AND (
+		u."claimedAt" IS NULL
+		OR u."disabledAt" IS NOT NULL
+		OR EXISTS (
+			SELECT 1 FROM "control"."teamMember" m
+			WHERE m."userId" = l."user_id" AND m."suspendedAt" IS NOT NULL
+		)
+	)
+GROUP BY l."user_id", l."issued_by"
 ON CONFLICT DO NOTHING;

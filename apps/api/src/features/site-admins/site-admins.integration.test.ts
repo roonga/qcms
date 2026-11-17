@@ -1,7 +1,12 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import {
   approvalRequests,
   authSession,
+  authTwoFactor,
   authUser,
+  decideApprovalRequest,
   findHoldSuspension,
   getApprovalRequest,
   insertApprovalRequest,
@@ -12,7 +17,7 @@ import {
   suspensionMarkers,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, notInArray, sql } from "drizzle-orm";
 import { generate } from "otplib";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -32,6 +37,9 @@ const RELAY = {
   QCMS_SMTP_HOST: "smtp.example.test",
   QCMS_SMTP_FROM: "QCMS <no-reply@example.test>",
 };
+
+/** The sign-in replay cases sign one account in several times inside the throttle's window. */
+const UNTHROTTLED = { QCMS_ADMIN_SIGNIN_THROTTLE: "false" };
 
 const FLOW_TIMEOUT_MS = 120_000;
 
@@ -158,11 +166,44 @@ async function createUnclaimed(email: string, token: string): Promise<string> {
   return ((await created.json()) as { account: { userId: string } }).account.userId;
 }
 
+/** Forget the newest step the account spent, so a test needs no wait for the next code. */
+async function forgetSpentCodes(person: Person): Promise<void> {
+  await testDb.db
+    .update(authTwoFactor)
+    .set({ lastTotpStep: null })
+    .where(eq(authTwoFactor.userId, person.userId));
+}
+
+async function codeFor(person: Person): Promise<string> {
+  await forgetSpentCodes(person);
+  return generate({ secret: person.secret });
+}
+
+async function stepUpWith(
+  person: Person,
+  code: string,
+  session = person.session,
+): Promise<Response> {
+  return adminSend("POST", "/admin/step-up", session, { password: person.password, code });
+}
+
 async function stepUp(person: Person, session = person.session): Promise<Response> {
-  return adminSend("POST", "/admin/step-up", session, {
-    password: person.password,
-    code: await generate({ secret: person.secret }),
+  return stepUpWith(person, await codeFor(person), session);
+}
+
+/** A second session of the account, as a fresh sign-in would mint. */
+async function secondSession(person: Person): Promise<string> {
+  const token = `st_second_${crypto.randomUUID()}`;
+  const now = new Date();
+  await testDb.db.insert(authSession).values({
+    id: `ss_second_${crypto.randomUUID().slice(0, 8)}`,
+    token,
+    userId: person.userId,
+    createdAt: now,
+    updatedAt: now,
+    expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
   });
+  return token;
 }
 
 async function steppedUp(person: Person): Promise<void> {
@@ -215,6 +256,26 @@ async function approve(person: Person, requestId: string): Promise<Response> {
   return adminSend("POST", `/admin/approval-requests/${requestId}/approve`, person.session);
 }
 
+const A_EMAIL = "site.a@example.test";
+
+async function sessionIdOf(token: string): Promise<string | undefined> {
+  const [row] = await testDb.db
+    .select({ id: authSession.id })
+    .from(authSession)
+    .where(eq(authSession.token, token));
+  return row?.id;
+}
+
+async function hasStepUp(token: string): Promise<boolean> {
+  const id = await sessionIdOf(token);
+  if (id === undefined) return false;
+  const rows = await testDb.db
+    .select({ verifiedAt: stepUps.verifiedAt })
+    .from(stepUps)
+    .where(eq(stepUps.sessionId, id));
+  return rows.some((row) => row.verifiedAt !== null);
+}
+
 let a: Person;
 let b: Person;
 let c: Person;
@@ -222,7 +283,7 @@ let d: Person;
 
 beforeAll(async () => {
   testDb = await startTestDb();
-  const env = validEnv({ DATABASE_URL: testDb.connectionUri, ...RELAY });
+  const env = validEnv({ DATABASE_URL: testDb.connectionUri, ...RELAY, ...UNTHROTTLED });
   deps = makeDeps({
     db: testDb.db,
     env,
@@ -250,7 +311,7 @@ beforeAll(async () => {
   const { workspaces } = (await listed.json()) as { workspaces: { workspaceId: string }[] };
   workspaceId = workspaces[0]?.workspaceId ?? "";
 
-  a = await createAndClaim("site.a@example.test");
+  a = await createAndClaim(A_EMAIL);
   b = await createAndClaim("site.b@example.test");
   c = await createAndClaim("site.c@example.test");
   d = await createAndClaim("site.d@example.test");
@@ -299,10 +360,11 @@ describe("only a Site administrator reaches a site route (criterion 22)", () => 
 });
 
 describe("no assistant step reaches a Site administrator act", () => {
-  it("maps no agent kind to a step-up, promote, demote or approval route", () => {
+  it("maps no agent kind to a step-up, promote, demote, disable, reset or approval route", () => {
     const routes = Object.values(ACTION_KINDS).map((def) => def.route?.path ?? "");
     for (const path of routes) {
       expect(path).not.toMatch(/\/(step-up|promote|demote|approval-requests)(\/|$)/);
+      expect(path).not.toMatch(/\/accounts\/[^/]+\/(disable|reset)(\/|$)/);
     }
     expect(routes.length).toBeGreaterThan(0);
   });
@@ -316,13 +378,13 @@ describe("step-up (criterion 76)", () => {
   it("is refused on a wrong password or code, and binds to the session that made it", async () => {
     const wrongPassword = await adminSend("POST", "/admin/step-up", a.session, {
       password: freshPassword(),
-      code: await generate({ secret: a.secret }),
+      code: await codeFor(a),
     });
     expect(wrongPassword.status).toBe(403);
     expect(await errorCodeOf(wrongPassword)).toBe("STEP_UP_FAILED");
     const wrongCode = await adminSend("POST", "/admin/step-up", a.session, {
       password: a.password,
-      code: (await generate({ secret: a.secret })) === "000000" ? "111111" : "000000",
+      code: (await codeFor(a)) === "000000" ? "111111" : "000000",
     });
     expect(await errorCodeOf(wrongCode)).toBe("STEP_UP_FAILED");
 
@@ -379,6 +441,120 @@ describe("step-up (criterion 76)", () => {
     expect(locked.status).toBe(403);
     expect(await errorCodeOf(locked)).toBe("STEP_UP_LOCKED");
   });
+
+  it(
+    "verifies at most five of a parallel burst, and then refuses the right code",
+    async () => {
+      const rightCode = await codeFor(a);
+      const wrongCode = rightCode === "000000" ? "111111" : "000000";
+      const responses = await Promise.all(
+        Array.from({ length: 30 }, (_, i) =>
+          adminSend(
+            "POST",
+            "/admin/step-up",
+            a.session,
+            i % 2 === 0
+              ? { password: freshPassword(), code: rightCode }
+              : { password: a.password, code: wrongCode },
+          ),
+        ),
+      );
+      const codes = await Promise.all(responses.map(errorCodeOf));
+      expect(codes.filter((code) => code === "STEP_UP_FAILED")).toHaveLength(5);
+      expect(codes.filter((code) => code === "STEP_UP_LOCKED")).toHaveLength(25);
+      const [row] = await testDb.db
+        .select({ failedAttempts: stepUps.failedAttempts, verifiedAt: stepUps.verifiedAt })
+        .from(stepUps)
+        .where(eq(stepUps.sessionId, (await sessionIdOf(a.session)) ?? ""));
+      expect(row).toEqual({ failedAttempts: 5, verifiedAt: null });
+
+      const right = await stepUp(a);
+      expect(await errorCodeOf(right)).toBe("STEP_UP_LOCKED");
+    },
+    FLOW_TIMEOUT_MS,
+  );
+});
+
+describe("a TOTP code is spent once", () => {
+  beforeEach(async () => {
+    await siteAdministratorsAre(a);
+  });
+
+  it("refuses the same code for a second step-up", async () => {
+    const code = await codeFor(a);
+    const first = await stepUpWith(a, code);
+    expect(first.status, await first.clone().text()).toBe(200);
+    const again = await stepUpWith(a, code, await secondSession(a));
+    expect(again.status).toBe(403);
+    expect(await errorCodeOf(again)).toBe("STEP_UP_FAILED");
+    const replayedHere = await stepUpWith(a, code);
+    expect(await errorCodeOf(replayedHere)).toBe("STEP_UP_FAILED");
+  });
+
+  it(
+    "refuses a step-up with the code that signed the session in",
+    async () => {
+      const code = await codeFor(a);
+      const signIn = await authPost("/sign-in/email", { email: A_EMAIL, password: a.password });
+      expect(signIn.status, await signIn.clone().text()).toBe(200);
+      const verified = await authPost("/two-factor/verify-totp", { code }, cookieHeader(signIn));
+      expect(verified.status, await verified.clone().text()).toBe(200);
+      const session = sessionTokenOf(cookieHeader(verified));
+
+      const steppedWithIt = await stepUpWith(a, code, session);
+      expect(await errorCodeOf(steppedWithIt)).toBe("STEP_UP_FAILED");
+      expect(await hasStepUp(session)).toBe(false);
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
+  it(
+    "refuses a second sign-in with a code one already spent",
+    async () => {
+      const code = await codeFor(a);
+      const first = await authPost("/sign-in/email", { email: A_EMAIL, password: a.password });
+      const second = await authPost("/sign-in/email", { email: A_EMAIL, password: a.password });
+      const verified = await authPost("/two-factor/verify-totp", { code }, cookieHeader(first));
+      expect(verified.status, await verified.clone().text()).toBe(200);
+      const replayed = await authPost("/two-factor/verify-totp", { code }, cookieHeader(second));
+      expect(replayed.status).toBe(401);
+      expect(cookieHeader(replayed)).not.toMatch(/session_token=[^;]+/);
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
+  it(
+    "lets one of two sessions racing the same code step up",
+    async () => {
+      const code = await codeFor(a);
+      const sessions = [a.session, await secondSession(a)];
+      const responses = await Promise.all(
+        sessions.map((session) => stepUpWith(a, code, session)),
+      );
+      expect(responses.map((response) => response.status).sort()).toEqual([200, 403]);
+      const stepped = await Promise.all(sessions.map(hasStepUp));
+      expect(stepped.filter(Boolean)).toHaveLength(1);
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
+  it(
+    "lets one of two sign-ins racing the same code finish",
+    async () => {
+      const code = await codeFor(a);
+      const challenges = await Promise.all([
+        authPost("/sign-in/email", { email: A_EMAIL, password: a.password }),
+        authPost("/sign-in/email", { email: A_EMAIL, password: a.password }),
+      ]);
+      const responses = await Promise.all(
+        challenges.map((challenge) =>
+          authPost("/two-factor/verify-totp", { code }, cookieHeader(challenge)),
+        ),
+      );
+      expect(responses.map((response) => response.status).sort()).toEqual([200, 401]);
+    },
+    FLOW_TIMEOUT_MS,
+  );
 });
 
 describe("promotion (criteria 77, 80, 82)", () => {
@@ -826,7 +1002,7 @@ describe("the stored suspension marker", () => {
       const password = freshPassword();
       const claimed = await authPost("/claim", { token: tokenFromNewestMessage(), password });
       expect(claimed.status, await claimed.clone().text()).toBe(200);
-      const code = await generate({ secret: d.secret });
+      const code = await codeFor(d);
       const verified = await authPost("/two-factor/verify-totp", { code }, cookieHeader(claimed));
       expect(verified.status, await verified.clone().text()).toBe(200);
       d = { ...d, password, session: sessionTokenOf(cookieHeader(verified)) };
@@ -844,4 +1020,217 @@ describe("the stored suspension marker", () => {
     },
     FLOW_TIMEOUT_MS,
   );
+});
+
+const MIGRATION_0014 = fileURLToPath(
+  new URL(
+    "../../../../../packages/db/migrations/0014_site_admins_and_approvals.sql",
+    import.meta.url,
+  ),
+);
+
+/** The marker backfills of migration 0014, verbatim. */
+function markerBackfills(): string[] {
+  return readFileSync(MIGRATION_0014, "utf8")
+    .split("--> statement-breakpoint")
+    .map((statement) => statement.trim())
+    .filter((statement) => statement.startsWith('INSERT INTO "control"."suspension_markers"'));
+}
+
+/**
+ * Put these accounts back as an upgrade finds them, holding no marker, and run the migration's
+ * backfills; any marker they would write for another account is dropped again.
+ */
+async function replayUpgrade(ids: readonly string[]): Promise<void> {
+  const statements = markerBackfills();
+  expect(statements).toHaveLength(2);
+  await testDb.db.transaction(async (tx) => {
+    await tx.delete(suspensionMarkers).where(inArray(suspensionMarkers.userId, [...ids]));
+    const kept = await tx.select({ id: suspensionMarkers.id }).from(suspensionMarkers);
+    for (const statement of statements) await tx.execute(sql.raw(statement));
+    await tx.delete(suspensionMarkers).where(
+      and(
+        notInArray(
+          suspensionMarkers.id,
+          kept.map((row) => row.id),
+        ),
+        notInArray(suspensionMarkers.userId, [...ids]),
+      ),
+    );
+  });
+}
+
+async function openMarkers(
+  userId: string,
+): Promise<{ teamId: string | null; performedBy: string }[]> {
+  return testDb.db
+    .select({ teamId: suspensionMarkers.teamId, performedBy: suspensionMarkers.performedBy })
+    .from(suspensionMarkers)
+    .where(and(eq(suspensionMarkers.userId, userId), isNull(suspensionMarkers.liftedAt)));
+}
+
+async function responseGroup(label: string): Promise<{ teamId: string; holders: string }> {
+  const created = await adminSend(
+    "POST",
+    `/admin/workspaces/${workspaceId}/access-groups`,
+    seededAdminToken,
+    {
+      name: `${label} ${crypto.randomUUID().slice(0, 6)}`,
+      roles: ["responses.viewer"],
+      environments: ["prod"],
+    },
+  );
+  expect(created.status, await created.clone().text()).toBe(201);
+  const teamId = ((await created.json()) as { group: { teamId: string } }).group.teamId;
+  return { teamId, holders: `/admin/workspaces/${workspaceId}/access-groups/${teamId}/holders` };
+}
+
+async function resetBy(person: Person, userId: string): Promise<void> {
+  const reset = await adminSend("POST", `/admin/accounts/${userId}/reset`, person.session, {
+    password: true,
+    factor: false,
+  });
+  expect(reset.status, await reset.clone().text()).toBe(200);
+}
+
+describe("a suspension run open at the upgrade to migration 0014", () => {
+  beforeEach(async () => {
+    await siteAdministratorsAre(a, b, { userId: seededAdminId });
+  });
+
+  it(
+    "keeps the performer's next response grant suspended after another re-confirms the hold",
+    async () => {
+      const held = await responseGroup("Upgrade held");
+      const next = await responseGroup("Upgrade next");
+      const e = await createAndClaim(`upgrade.held.${crypto.randomUUID()}@example.test`);
+      expect(
+        (await adminSend("POST", held.holders, seededAdminToken, { userId: e.userId })).status,
+      ).toBe(201);
+      await resetBy(a, e.userId);
+      expect((await accountRow(e.userId)).claimedAt).toBeNull();
+
+      await replayUpgrade([e.userId]);
+      expect(await openMarkers(e.userId)).toEqual(
+        expect.arrayContaining([
+          { teamId: held.teamId, performedBy: a.userId },
+          { teamId: null, performedBy: a.userId },
+        ]),
+      );
+
+      const reconfirmed = await adminSend(
+        "POST",
+        `${held.holders}/${e.userId}/reconfirm`,
+        b.session,
+      );
+      expect(reconfirmed.status, await reconfirmed.clone().text()).toBe(200);
+
+      const granted = await adminSend("POST", next.holders, a.session, { userId: e.userId });
+      expect(granted.status, await granted.clone().text()).toBe(201);
+      expect((await findHoldSuspension(testDb.db, next.teamId, e.userId))?.suspendedAt).not.toBe(
+        null,
+      );
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
+  it(
+    "keeps the performer's grant suspended for a reset account that held nothing",
+    async () => {
+      const next = await responseGroup("Upgrade bare");
+      const f = await createAndClaim(`upgrade.bare.${crypto.randomUUID()}@example.test`);
+      await resetBy(a, f.userId);
+
+      await replayUpgrade([f.userId]);
+      expect(await openMarkers(f.userId)).toEqual([{ teamId: null, performedBy: a.userId }]);
+
+      const granted = await adminSend("POST", next.holders, a.session, { userId: f.userId });
+      expect(granted.status, await granted.clone().text()).toBe(201);
+      expect((await findHoldSuspension(testDb.db, next.teamId, f.userId))?.suspendedAt).not.toBe(
+        null,
+      );
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
+  it("writes no marker for an account whose newest link is not a reset or reactivation", async () => {
+    const fresh = await createUnclaimed(
+      `upgrade.fresh.${crypto.randomUUID()}@example.test`,
+      a.session,
+    );
+    await replayUpgrade([fresh]);
+    expect(await openMarkers(fresh)).toEqual([]);
+  });
+});
+
+describe("a group edit by a non-performer", () => {
+  it(
+    "leaves a hold that is already suspended suspended, answering to its performer",
+    async () => {
+      await siteAdministratorsAre(a, b, { userId: seededAdminId });
+      const group = await responseGroup("Edit held");
+      const e = await createAndClaim(`edit.held.${crypto.randomUUID()}@example.test`);
+      expect(
+        (await adminSend("POST", group.holders, seededAdminToken, { userId: e.userId })).status,
+      ).toBe(201);
+      await resetBy(a, e.userId);
+      expect((await findHoldSuspension(testDb.db, group.teamId, e.userId))?.suspendedBy).toBe(
+        a.userId,
+      );
+
+      const edited = await adminSend(
+        "PUT",
+        `/admin/workspaces/${workspaceId}/access-groups/${group.teamId}`,
+        b.session,
+        {
+          name: `Edit held ${crypto.randomUUID().slice(0, 6)}`,
+          roles: ["responses.viewer", "responses.eraser"],
+          environments: ["prod"],
+        },
+      );
+      expect(edited.status, await edited.clone().text()).toBe(200);
+      const hold = await findHoldSuspension(testDb.db, group.teamId, e.userId);
+      expect(hold?.suspendedAt).not.toBeNull();
+      expect(hold?.suspendedBy).toBe(a.userId);
+      expect(await openMarkers(e.userId)).toContainEqual({
+        teamId: group.teamId,
+        performedBy: a.userId,
+      });
+    },
+    FLOW_TIMEOUT_MS,
+  );
+});
+
+describe("the 7-day window", () => {
+  it("is 168 hours in any session time zone, across a daylight-saving change", async () => {
+    const requestedAt = new Date("2026-09-30T12:00:00.000Z");
+    const writtenInUtc = await insertApprovalRequest(testDb.db, {
+      kind: "promote",
+      target: `dst-utc-${crypto.randomUUID()}`,
+      payload: {},
+      requestedBy: a.userId,
+      requestedAt,
+    });
+    expect(writtenInUtc).toBeDefined();
+    await testDb.db.transaction(async (tx) => {
+      await tx.execute(sql`set local time zone 'Australia/Sydney'`);
+      const stored = await insertApprovalRequest(tx, {
+        kind: "promote",
+        target: `dst-sydney-${crypto.randomUUID()}`,
+        payload: {},
+        requestedBy: a.userId,
+        requestedAt,
+      });
+      expect(stored?.expiresAt.toISOString()).toBe("2026-10-07T12:00:00.000Z");
+      for (const row of [stored, writtenInUtc]) {
+        const decided = await decideApprovalRequest(tx, {
+          requestId: row?.requestId ?? "",
+          decision: "rejected",
+          decidedBy: b.userId,
+          decidedAt: new Date("2026-10-05T00:00:00.000Z"),
+        });
+        expect(decided?.status).toBe("rejected");
+      }
+    });
+  });
 });

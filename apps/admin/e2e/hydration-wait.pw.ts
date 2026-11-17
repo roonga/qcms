@@ -1,4 +1,3 @@
-import { generate } from "otplib";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 import { starveScripts } from "../../portal/e2e/support/script-starve.js";
@@ -9,6 +8,7 @@ import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import {
   accountTrigger,
   enrollNewAdmin,
+  freshTotpCode,
   openMenu,
   signInWithTotp,
   submitSignIn,
@@ -109,7 +109,7 @@ test("a value typed before hydration survives it, and the waited path completes"
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await expect(page.getByLabel(/Six-digit code/)).toBeFocused();
-  await page.keyboard.type(await generate({ secret: totpSecret }));
+  await page.keyboard.type(await freshTotpCode(totpSecret));
   await page.keyboard.press("Tab");
   await expect(page.getByRole("button", { name: "Verify" })).toBeFocused();
   await page.keyboard.press("Enter");

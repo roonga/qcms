@@ -10,7 +10,12 @@ Migration `0014` adds `control.approval_requests` (site and workspace scope, a p
 `payload`, a 7-day window and a decider who is never the requester), `control.step_ups` (a
 password and second-factor re-check bound to one session for five minutes) and
 `control.suspension_markers`, which replaces the sign-in link history as the record of who
-owes a re-confirmation after a reset or a reactivation. `insertApprovalRequest` refuses a
+owes a re-confirmation after a reset or a reactivation; a run open at upgrade gets its markers
+from the link history. It also adds `twoFactor.lastTotpStep`, the newest TOTP time step the
+account's factor accepted, so a code is spent once across sign-in and step-up
+(`acceptTotpStep`). `claimStepUpAttempt` counts an attempt before it is checked, and
+`dropStepUp` clears a step-up after a failure; `stepUpLocked` and `recordStepUpFailure` are
+removed. The three new tables grant the control role no `DELETE`. `insertApprovalRequest` refuses a
 payload that fails its kind's shape, `decideApprovalRequest` and `expireApprovalRequests` move
 a request on, and `setSiteAdministrator`, `tryLockSiteAdministrators` and
 `listActiveSiteAdministratorIds` back the promote and demote acts. `issuedPendingResetLink` is

@@ -53,6 +53,7 @@ import {
   grantAgentActionsStatements,
   grantAppearanceLogoTakedownStatements,
   grantAppearanceLogosStatements,
+  grantControlTableNoDeleteStatements,
   grantControlTableStatements,
   grantEnvironmentStatements,
   grantSiteAuditStatements,
@@ -505,11 +506,12 @@ describe("the approval request, step-up and suspension marker grants (task 092)"
   const sql = readFileSync(SITE_ADMINS_MIGRATION, "utf8");
   const tables = [APPROVAL_REQUESTS_TABLE, STEP_UPS_TABLE, SUSPENSION_MARKERS_TABLE];
 
-  it("are exactly the statements the generator emits, verbatim", () => {
+  it("are exactly the statements the generator emits, verbatim, with no DELETE", () => {
     for (const table of tables) {
-      const statements = grantControlTableStatements(table);
-      expect(statements).toHaveLength(1);
+      const statements = grantControlTableNoDeleteStatements(table);
+      expect(statements).toHaveLength(2);
       for (const statement of statements) expect(sql).toContain(statement);
+      expect(sql).not.toContain(`DELETE ON "control"."${table}"`);
     }
   });
 
@@ -524,8 +526,14 @@ describe("the approval request, step-up and suspension marker grants (task 092)"
   it("pins every kind, the 7-day window and the second account at the database", () => {
     expect(sql).toContain(`CONSTRAINT "${APPROVAL_REQUEST_KIND_CHECK}"`);
     expect(sql).toContain(`CONSTRAINT "${APPROVAL_REQUEST_SECOND_ACCOUNT_CHECK}"`);
-    expect(sql).toContain("interval '7 days'");
+    // Hours, not days: a day interval follows the session's time zone across a DST change.
+    expect(sql).toContain("interval '168 hours'");
+    expect(sql).not.toMatch(/interval '\d+ days?'/);
     for (const kind of APPROVAL_KINDS) expect(sql).toContain(`'${kind}'`);
+  });
+
+  it("keeps the newest accepted TOTP step on the factor row", () => {
+    expect(sql).toContain('ALTER TABLE "control"."twoFactor" ADD COLUMN "lastTotpStep" bigint;');
   });
 
   it("binds a step-up to its session, so it dies with the session", () => {

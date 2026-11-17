@@ -13,7 +13,6 @@ import {
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { and, eq, inArray, isNull, like } from "drizzle-orm";
-import { generate } from "otplib";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -22,7 +21,7 @@ import type { Deps } from "../../deps.js";
 import { ADMIN_SESSION_HEADER } from "../../middleware/admin-auth.js";
 import { REQUEST_ENVIRONMENT_HEADER } from "../../middleware/request-environment.js";
 import { appGroups } from "../../registrars.js";
-import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
+import { freshTotpCode, internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import { argumentsDigest, signProposalToken } from "../agent/proposal-token.js";
 import { PROPOSAL_HEADER, PROPOSAL_STEP_HEADER } from "../agent/provenance.js";
 import { ROUTE_POLICIES } from "../membership/route-policy.js";
@@ -138,16 +137,6 @@ function tokenFromNewestMessage(): string {
   return decodeURIComponent(match[1]);
 }
 
-/** A TOTP code for the window after `previous`, so a replay guard never sees one twice. */
-async function freshCode(secret: string, previous?: string): Promise<string> {
-  for (let attempt = 0; attempt < 70; attempt += 1) {
-    const code = await generate({ secret });
-    if (code !== previous) return code;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  throw new Error("no fresh TOTP window");
-}
-
 interface Person {
   readonly userId: string;
   readonly email: string;
@@ -167,7 +156,7 @@ async function enrolFactor(
   const { totpURI } = (await enabled.json()) as { totpURI: string };
   const issued = cookieHeader(enabled) === "" ? cookie : cookieHeader(enabled);
   const secret = new URL(totpURI).searchParams.get("secret") ?? "";
-  const code = await generate({ secret });
+  const code = await freshTotpCode(secret);
   const verified = await authPost("/two-factor/verify-totp", { code }, issued);
   expect(verified.status, await verified.clone().text()).toBe(200);
   return {
@@ -366,7 +355,7 @@ async function signInThroughLink(
   expect(twoFactorRedirect).toBe(options.factorKept);
   person.password = password;
   if (options.factorKept) {
-    const code = await freshCode(person.secret, person.lastCode);
+    const code = await freshTotpCode(person.secret);
     const verified = await authPost("/two-factor/verify-totp", { code }, cookieHeader(claimed));
     expect(verified.status, await verified.clone().text()).toBe(200);
     person.lastCode = code;
@@ -860,7 +849,7 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
         password: freshPassword(),
       });
       expect(claimed.status, await claimed.clone().text()).toBe(200);
-      const code = await freshCode(person.secret, person.lastCode);
+      const code = await freshTotpCode(person.secret);
       const finished = await authPost("/two-factor/verify-totp", { code }, cookieHeader(begun));
       expect(finished.status).toBe(401);
       expect((await accountRow(person.userId)).claimedAt).toBeNull();
@@ -876,7 +865,7 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
         email: person.email,
         password: person.password,
       });
-      const code = await freshCode(person.secret, person.lastCode);
+      const code = await freshTotpCode(person.secret);
       const trusted = await authPost(
         "/two-factor/verify-totp",
         { code, trustDevice: true },
@@ -1008,7 +997,7 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
       expect(reset.status, await reset.clone().text()).toBe(200);
       expect(await pendingChallenges(person.userId)).toEqual([]);
 
-      const code = await freshCode(person.secret, person.lastCode);
+      const code = await freshTotpCode(person.secret);
       const late = await authPost("/two-factor/verify-totp", { code }, challenge);
       expect(late.ok, await late.clone().text()).toBe(false);
 
