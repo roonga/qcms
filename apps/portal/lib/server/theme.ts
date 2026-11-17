@@ -1,4 +1,10 @@
-import { fontChoices, fontClass, SYSTEM_FONT_KEY, type FontEntry } from "@roonga/qcms-ui/fonts";
+import {
+  fontByKey,
+  fontChoices,
+  fontClass,
+  SYSTEM_FONT_KEY,
+  type FontEntry,
+} from "@roonga/qcms-ui/fonts";
 
 // Relative, not the `@/` alias: Vitest resolves no Next path aliases.
 import { t } from "../i18n/en";
@@ -135,24 +141,51 @@ export interface AppearanceCookies {
   readonly density: string | undefined;
 }
 
+/** The axes a form's own appearance sets on the page, between a respondent's choice and config. */
+export interface FormLayer {
+  readonly face: string;
+  readonly density: Density;
+  readonly corners: PortalCorners;
+}
+
 /**
- * Precedence per axis is the respondent's cookie, then config. A nonsense cookie is no
- * choice at all, which is why a font cookie is checked against the offered list rather
- * than the whole registry: a face a deployment stopped offering must not keep being
- * served, since the control could no longer switch back.
+ * The deployment's faces plus the form's own when the deployment does not offer it: the
+ * form's face applies regardless, and the menu has to be able to show and keep it.
  */
-export function resolveAppearance(cookies: AppearanceCookies): ResolvedAppearance {
-  const chosenMode = parseMode(cookies.mode);
+export function pageFontChoices(form?: FormLayer | null): readonly FontEntry[] {
   const offered = portalFontChoices();
-  const chosenFont = offered.some((entry) => entry.key === cookies.font)
-    ? (cookies.font as string)
-    : undefined;
+  if (form === undefined || form === null) return offered;
+  if (offered.some((entry) => entry.key === form.face)) return offered;
+  const entry = fontByKey(form.face);
+  return entry === undefined ? offered : [...offered, entry];
+}
+
+/**
+ * Precedence per axis is the respondent's cookie, then the form, then config. A cookie
+ * face is checked against this page's menu, not the registry: a face no longer offered
+ * must not keep being served, since the control could not switch back.
+ */
+export function resolveAppearance(
+  cookies: AppearanceCookies,
+  form?: FormLayer | null,
+): ResolvedAppearance {
+  const chosenMode = parseMode(cookies.mode);
+  const offered = pageFontChoices(form);
+  const isOffered = (key: string | undefined): key is string =>
+    offered.some((entry) => entry.key === key);
+  const face = form?.face;
+  const formFace = isOffered(face) ? face : undefined;
   return {
     mode: chosenMode ?? portalMode(),
     modeChosen: chosenMode !== undefined,
-    font: chosenFont ?? portalFont(),
-    density: parseDensity(cookies.density) ?? portalDensity(),
+    font: (isOffered(cookies.font) ? cookies.font : undefined) ?? formFace ?? portalFont(),
+    density: parseDensity(cookies.density) ?? form?.density ?? portalDensity(),
   };
+}
+
+/** The form's corners when it carries an appearance, else the deployment's. */
+export function resolveCorners(form?: FormLayer | null): PortalCorners {
+  return form?.corners ?? portalCorners();
 }
 
 /** Subtle is the base anchor block, so it needs no class at all. */

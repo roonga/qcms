@@ -8,7 +8,7 @@ per-deployment selection, the brand mark, the declarative self-hosted font regis
 with its curation config, the shared font fallback tails (issue #27), and the
 respondent mode / font / density controls with their persistence.
 **Does not own:** the Phase 4 admin theme editor (task 049), the admin font-curation UI,
-per-form theming, and self-hosted **multi-script** coverage (the open half of
+the authoring of per-form appearance (only its rendering, task 118), and self-hosted **multi-script** coverage (the open half of
 issue #27: which non-Latin scripts QCMS ships faces for is undecided).
 **Documented here but not part of this feature:** the automatic contrast
 baseline - `prefers-contrast: more` and `forced-colors` / Windows High Contrast
@@ -733,6 +733,42 @@ Before this, the header was `<span>QCMS</span>` and the title was the same liter
 (issue #25): an adopter could only rebrand by editing source, and a respondent
 opening a registration link was shown the engine's name rather than the name of
 whoever sent them the link.
+
+## Per-form appearance (task 118)
+
+A form version can carry its own appearance (ADR-30 as amended, Q4), and a session
+renders the appearance of the version it is pinned to, so a later publish or a
+workspace theme changed or deleted after publish never reaches a respondent
+mid-session (ADR-07). A version with no appearance renders the deployment
+configuration above, which stays the default.
+
+- **Carrier.** The root layout reads the appearance from the session's status
+  (`GET /sessions/{id}`), never from a step serve, so rendering the layout evaluates no
+  flow and mints no roster. The appearance is on `<html>` in the first byte and covers
+  the whole page, without JavaScript too. The proxy names the environment-stripped path
+  on the request (`x-qcms-path`) so the layout knows which session a page belongs to.
+- **Completion page.** Submit clears the session cookie, so the submit route packs the
+  appearance into a short-lived httpOnly cookie beside the receipt, and `/done` renders
+  from that. A form with no appearance clears an earlier form's copy.
+- **Palettes.** `app/layout.tsx` adds `data-qcms-form-appearance` to `<html>` and a
+  nonced `<style>` holding the four palettes as `--color-*` blocks keyed to the mode
+  classes (`.dark`, `.hc`, `.dark.hc`). Each selector is one class more specific than
+  the theme's own blocks, so a form outranks every deployment theme whatever the
+  stylesheet order. `lib/server/form-appearance.ts` admits only bare token names and
+  6-digit hex values into that text; anything else falls back to the deployment.
+- **Face, density, corners.** The same root classes as configuration. Precedence per
+  axis is the respondent's cookie, then the form, then configuration
+  (`resolveAppearance`). The form's face applies even when `QCMS_PORTAL_FONTS` does not
+  offer it, and that page's font menu gains the face so the control shows it and a
+  no-JS post keeps it. Mode has no form value: the respondent and configuration decide
+  it, and the form supplies the palette for each mode.
+- **Logo.** The form's logo is served through the portal's own `/logo/:key` route, so
+  SEC-9's `img-src 'self'` holds unwidened. A form with an appearance and no logo shows
+  no logo, and a logo taken down since publish is hidden: the session status reports it
+  as null. The brand name stays the deployment's.
+- **Forced colours** replace the palette with the user's, as for any theme.
+
+Text size and the progress mode ride the same appearance and belong to tasks 120 and 119.
 
 ## Respondent runtime controls (mode, font, density)
 

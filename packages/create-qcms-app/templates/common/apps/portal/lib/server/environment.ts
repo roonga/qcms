@@ -4,6 +4,9 @@ export const PROD_ENVIRONMENT = "prod";
 
 export const ENVIRONMENT_HEADER = "x-qcms-environment";
 
+/** The request path with any environment prefix removed, set by the proxy for the root layout. */
+export const PATH_HEADER = "x-qcms-path";
+
 /** Absent means none, which is the fail-closed direction: an unlisted environment's addresses are a 404 rather than a surface nobody meant to expose. */
 export function nonProdEnvironments(): readonly string[] {
   const raw = process.env.QCMS_PORTAL_ENVIRONMENTS;

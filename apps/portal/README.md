@@ -69,6 +69,10 @@ Every theme is authored in Light and Dark and shares ONE High-contrast mode
 layer. `?mode=light|dark|hc` and the `qcms-theme` cookie override the configured
 default; the respondent-facing switcher is task 053.
 
+A form version may carry its own appearance. A step page and the completion page
+render the appearance of the version the session is pinned to, over these defaults and
+under the respondent's own choices; see "Per-form appearance" in `docs/theming.md`.
+
 The font registry (task 052) lives in `@roonga/qcms-ui` and is **entirely self-hosted**:
 the `woff2` binaries are committed in the package, so no font selection causes an
 external request and there is nothing for the CSP to allow. `QCMS_PORTAL_FONTS`
