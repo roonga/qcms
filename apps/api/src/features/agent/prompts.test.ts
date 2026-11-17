@@ -126,7 +126,7 @@ describe("the assistant's prompt sources", () => {
         covered.push(name);
       }
     }
-    expect(covered.sort()).toEqual([...FORMAT_PATTERN_NAMES].sort());
+    expect([...covered].sort()).toEqual([...FORMAT_PATTERN_NAMES].sort());
   });
 
   it("describes every action kind, and no kind outside the registry", () => {
