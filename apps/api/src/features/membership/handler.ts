@@ -7,6 +7,7 @@ import {
   createAccessGroup,
   deleteAccessGroup,
   ensureWorkspaceMember,
+  findHoldSuspension,
   findUserByEmail,
   findUsersByIds,
   getAccessGroup,
@@ -14,10 +15,12 @@ import {
   holdsAccessGroup,
   isAccessGroupNameTaken,
   isResponsesRole,
+  issuedPendingResetLink,
   listAccessAudit,
   listAccessGroupHolders,
   listAccessGroups,
   listAccessGroupsHeldIn,
+  listActiveAdministratorsFor,
   listActiveSiteAdministrators,
   listAgentActions,
   listEnvironmentNames,
@@ -27,7 +30,9 @@ import {
   listWorkspaceAdministrators,
   listWorkspaceMembers,
   lockWorkspaceMembership,
+  newestSignInLinkPurpose,
   normaliseEnvironmentSet,
+  reconfirmHold,
   refuseAccessGroupName,
   refuseAccessGroupRoles,
   refuseEnvironmentSet,
@@ -36,6 +41,8 @@ import {
   resolveMembership,
   setMemberRole,
   setRequireSecondApprover,
+  suspendHold,
+  tryLockAccount,
   updateAccessGroup,
   writeAccessAuditRow,
   writeSiteAuditRow,
@@ -62,6 +69,7 @@ import type {
   listAccessGroupsRoute,
   listMembersRoute,
   myAccessRoute,
+  reconfirmHolderRoute,
   removeHolderRoute,
   removeMemberRoute,
   setMemberRoleRoute,
@@ -131,6 +139,32 @@ const fail = {
         "is a grant on personal data.",
     ),
   noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
+  accountBusy: (): ApiError =>
+    new ApiError(
+      "ACCOUNT_BUSY",
+      409,
+      "Another change to this account is in progress. Try again in a moment.",
+    ),
+  notSuspended: (): ApiError =>
+    new ApiError(
+      "NOT_SUSPENDED",
+      409,
+      "That membership is not suspended, so there is nothing to re-confirm",
+    ),
+  reconfirmOwn: (): ApiError =>
+    new ApiError(
+      "RECONFIRM_OWN_REFUSED",
+      409,
+      "Nobody re-confirms their own suspended membership. Another Workspace administrator " +
+        "of this workspace, or a Site administrator, has to.",
+    ),
+  reconfirmByPerformer: (): ApiError =>
+    new ApiError(
+      "RECONFIRM_BY_PERFORMER_REFUSED",
+      409,
+      "You reset or reactivated this account, so another active administrator of this " +
+        "workspace, or a Site administrator, re-confirms its memberships.",
+    ),
 } as const;
 
 function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
@@ -265,6 +299,26 @@ async function validateGroup(
   return { roles: input.roles, environments: normaliseEnvironmentSet(input.environments, live) };
 }
 
+async function resetPending(tx: Executor, userId: string): Promise<boolean> {
+  const purpose = await newestSignInLinkPurpose(tx, userId);
+  return purpose === "reset" || purpose === "reactivated";
+}
+
+// The account's newest links being reset or reactivation links stands in for a stored
+// suspension, and the subject is held to it as the performer is.
+async function grantStaysSuspended(
+  tx: Executor,
+  userId: string,
+  grantorId: string,
+): Promise<boolean> {
+  if (grantorId === userId) return resetPending(tx, userId);
+  return issuedPendingResetLink(tx, userId, grantorId);
+}
+
+function gainsResponseRole(before: readonly string[], after: readonly string[]): boolean {
+  return after.some((role) => isResponsesRole(role) && !before.includes(role));
+}
+
 /** Whether the second-approver rule refuses this change as a self-grant. */
 function refuseSelfGrant(input: {
   readonly actorHolds: boolean;
@@ -273,10 +327,7 @@ function refuseSelfGrant(input: {
   readonly after: { readonly roles: readonly string[]; readonly environments: readonly string[] };
 }): boolean {
   if (!input.actorHolds || !input.requireSecondApprover) return false;
-  const gainedResponseRole = input.after.roles.some(
-    (role) => isResponsesRole(role) && !input.before.roles.includes(role),
-  );
-  if (gainedResponseRole) return true;
+  if (gainsResponseRole(input.before.roles, input.after.roles)) return true;
   if (!carriesResponsesRole(input.after.roles)) return false;
   return input.after.environments.some((name) => !input.before.environments.includes(name));
 }
@@ -652,6 +703,26 @@ export function makeUpdateAccessGroupHandler(
         updatedAt: deps.clock.now(),
       });
       if (row === undefined) throw fail.groupNotFound();
+      if (gainsResponseRole(existing.roles, row.roles)) {
+        for (const holder of await listAccessGroupHolders(tx, teamId)) {
+          const outcome = await keepSuspensionOnGain(tx, {
+            group: row,
+            userId: holder.userId,
+            actorId: actor.userId,
+            at: deps.clock.now(),
+          });
+          if (outcome === "reconfirmed") {
+            await writeReconfirmAudit(tx, deps, {
+              actorId: actor.userId,
+              workspaceId,
+              group: row,
+              userId: holder.userId,
+              via: "edit",
+              byPerformer: false,
+            });
+          }
+        }
+      }
 
       await writeAccessAuditRow(tx, {
         actor: actor.userId,
@@ -763,14 +834,19 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
       }
 
       if (await holdsAccessGroup(tx, teamId, subject.userId)) throw fail.alreadyHolds();
-      await ensureWorkspaceMember(tx, workspaceId, subject.userId);
-      await addAccessGroupHolder(tx, teamId, subject.userId);
+      const suspended = await writeHold(tx, {
+        group: held,
+        userId: subject.userId,
+        actorId: actor.userId,
+        at: deps.clock.now(),
+      });
+      const grant = `subject=${subject.userId} group=${held.name}`;
       await writeAccessAuditRow(tx, {
         actor: actor.userId,
         workspaceId,
         kind: "grant",
         ...scopeColumns(held),
-        detail: scopeDetail(held, `subject=${subject.userId} group=${held.name}`),
+        detail: scopeDetail(held, suspended ? `${grant} suspended=1` : grant),
         occurredAt: deps.clock.now(),
       });
       // A grant made while the account is still unclaimed is a site act too, so it is
@@ -791,6 +867,87 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
 
     return c.json({ group: await groupView(exec, group) }, 201);
   };
+}
+
+// Suspended where the grantor reset or reactivated the account or is the account, so a
+// remove and re-add never lifts it. The account's lock is tried after the workspace's, as
+// the re-confirmation takes them; a reset holds only the account's.
+async function writeHold(
+  tx: Executor,
+  input: {
+    readonly group: AccessGroupRow;
+    readonly userId: string;
+    readonly actorId: string;
+    readonly at: Date;
+  },
+): Promise<boolean> {
+  const { group, userId } = input;
+  const responses = carriesResponsesRole(group.roles);
+  if (responses && !(await tryLockAccount(tx, userId))) throw fail.accountBusy();
+  await ensureWorkspaceMember(tx, group.workspaceId, userId);
+  await addAccessGroupHolder(tx, group.teamId, userId);
+  if (!responses || !(await grantStaysSuspended(tx, userId, input.actorId))) return false;
+  await suspendHold(tx, { teamId: group.teamId, userId, by: input.actorId, at: input.at });
+  return true;
+}
+
+// A group edit that gives a hold a response role grants it as an add does, so the same rule
+// suspends it; a hold already suspended keeps the performer it answers to. An edit by an
+// administrator who took no part in a pending reset is their re-confirmation of the hold.
+async function keepSuspensionOnGain(
+  tx: Executor,
+  input: {
+    readonly group: AccessGroupRow;
+    readonly userId: string;
+    readonly actorId: string;
+    readonly at: Date;
+  },
+): Promise<"suspended" | "reconfirmed" | undefined> {
+  const { group, userId } = input;
+  if (!(await tryLockAccount(tx, userId))) throw fail.accountBusy();
+  const hold = await findHoldSuspension(tx, group.teamId, userId);
+  if (hold === undefined || hold.suspendedAt !== null) return undefined;
+  if (await grantStaysSuspended(tx, userId, input.actorId)) {
+    await suspendHold(tx, { teamId: group.teamId, userId, by: input.actorId, at: input.at });
+    return "suspended";
+  }
+  return (await resetPending(tx, userId)) ? "reconfirmed" : undefined;
+}
+
+async function writeReconfirmAudit(
+  tx: Executor,
+  deps: Deps,
+  input: {
+    readonly actorId: string;
+    readonly workspaceId: string;
+    readonly group: AccessGroupRow;
+    readonly userId: string;
+    readonly via: "reconfirm" | "edit";
+    readonly byPerformer: boolean;
+  },
+): Promise<void> {
+  const { group, userId } = input;
+  const via = input.via === "edit" ? " via=edit" : "";
+  const extra = `subject=${userId} group=${group.name} act=reconfirm${via}`;
+  await writeAccessAuditRow(tx, {
+    actor: input.actorId,
+    workspaceId: input.workspaceId,
+    kind: "grant",
+    ...scopeColumns(group),
+    detail: scopeDetail(group, input.byPerformer ? `${extra} byPerformer=1` : extra),
+    occurredAt: deps.clock.now(),
+  });
+  const [subject] = await findUsersByIds(tx, [userId]);
+  if (subject?.claimedAt === null) {
+    await writeSiteAuditRow(tx, {
+      actor: input.actorId,
+      subject: userId,
+      workspaceId: input.workspaceId,
+      kind: "account",
+      detail: `act=grant-while-unclaimed group=${group.name} reconfirm=1${via}`,
+      occurredAt: deps.clock.now(),
+    });
+  }
 }
 
 export function makeRemoveHolderHandler(
@@ -820,6 +977,59 @@ export function makeRemoveHolderHandler(
     });
 
     return c.body(null, 204);
+  };
+}
+
+/**
+ * The rows are read inside {@link lockWorkspaceMembership}, so the administrators counted
+ * are the ones standing when the suspension is lifted.
+ */
+export function makeReconfirmHolderHandler(
+  deps: Deps,
+): RouteHandler<typeof reconfirmHolderRoute, ApiEnv> {
+  return async (c) => {
+    const { id: workspaceId, teamId, userId } = c.req.valid("param");
+    const actor = principalOf(c);
+    if (userId === actor.userId) throw fail.reconfirmOwn();
+
+    const exec = deps.databases.control;
+    const site = agentStepSite(c);
+    const group = await exec.transaction(async (tx) => {
+      await lockWorkspaceMembership(tx, workspaceId);
+      await openWorkspaceOf(tx, workspaceId);
+      const held = await getAccessGroup(tx, teamId);
+      if (held === undefined || held.workspaceId !== workspaceId) throw fail.groupNotFound();
+      // Taken after the workspace lock, as the grant takes it, and tried, so a reset in
+      // flight never has its suspension lifted from a read made before it committed.
+      if (!(await tryLockAccount(tx, userId))) throw fail.accountBusy();
+      const hold = await findHoldSuspension(tx, teamId, userId);
+      if (hold === undefined) throw fail.notAHolder();
+      if (hold.suspendedAt === null) throw fail.notSuspended();
+
+      const byPerformer =
+        hold.suspendedBy === actor.userId ||
+        (await issuedPendingResetLink(tx, userId, actor.userId));
+      if (byPerformer) {
+        const others = (await listActiveAdministratorsFor(tx, workspaceId)).filter(
+          (administrator) => administrator !== actor.userId && administrator !== userId,
+        );
+        if (others.length > 0) throw fail.reconfirmByPerformer();
+      }
+
+      await reconfirmHold(tx, teamId, userId);
+      await writeReconfirmAudit(tx, deps, {
+        actorId: actor.userId,
+        workspaceId,
+        group: held,
+        userId,
+        via: "reconfirm",
+        byPerformer,
+      });
+      await writeAgentStep(tx, site, teamId, deps.clock.now());
+      return held;
+    });
+
+    return c.json({ group: await groupView(exec, group) }, 200);
   };
 }
 

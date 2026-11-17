@@ -16,6 +16,7 @@ The approval-request table both scopes use, step-up authentication, and the Site
 - Promote and demote a Site administrator, and disable an account that is one (replacing 091's interim refusal), with the guards and defaults of spec section 8.
 - Only active, claimed Site administrators count or approve; an unclaimed account cannot be promoted; the target of a demotion or disable never approves; with exactly two, step-up alone suffices and is audited.
 - Every state change in the site audit.
+- A stored suspension marker that survives removal replaces 091's link-history rule for suspended response holds, in this task's migration.
 - No agent kind for any act here (plan default: step-up cannot run in a card).
 
 ## Exit criteria

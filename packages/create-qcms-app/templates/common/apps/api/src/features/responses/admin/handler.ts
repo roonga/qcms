@@ -23,7 +23,7 @@ import {
   getResponse,
   getSessionInForm,
   getSubmission,
-  isAccountActive,
+  isAccountDisabled,
   listResponses,
   listTombstones,
   type ReportingResponseRow,
@@ -395,6 +395,7 @@ type RequestDatabase = ReturnType<Databases["forRequest"]>;
 /**
  * A stream outlives the request that authorised it, so the exporting account's state is read
  * again before every page: a disable stops the bytes rather than taking effect next time.
+ * Only the disabled flag is read: a credential reset or a suspended membership does not stop it.
  */
 type ExportGuard = () => Promise<void>;
 
@@ -405,8 +406,8 @@ function exportGuard(deps: Deps, actorId: string | undefined): ExportGuard {
     return (): Promise<void> => Promise.reject(new Error("the export names no acting account"));
   }
   return async (): Promise<void> => {
-    if (await isAccountActive(deps.databases.control, actorId)) return;
-    throw new Error("the exporting account is no longer active");
+    if (!(await isAccountDisabled(deps.databases.control, actorId))) return;
+    throw new Error("the exporting account is disabled");
   };
 }
 

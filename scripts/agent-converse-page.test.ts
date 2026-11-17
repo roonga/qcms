@@ -41,4 +41,11 @@ describe("the panel a transcript reads", () => {
       "2. Go",
     ]);
   });
+
+  it("records an assistant reply without the panel's speaker heading", () => {
+    document.body.innerHTML =
+      '<ol data-testid="qcms-assistant-turns"><li data-role="assistant"><div class="qcms-assistant__segments"><p class="qcms-assistant__speaker">ASSISTANT</p><p>The form is on test.</p></div></li></ol>';
+    const panel = readPanel() as { turns: { text: string }[] };
+    expect(panel.turns[0]?.text).toBe("The form is on test.");
+  });
 });

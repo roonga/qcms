@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Decides how much work a required job does, never whether it runs: a required context that never
- * reports blocks a pull request forever, so every uncertain case resolves to `false`. The workflow
- * runs the copy at the BASE ref, so this file never classifies its own diff and cannot be renamed until the rename reaches `main`.
+ * Decides how much work a required job does, never whether it runs: a required context that never reports blocks a pull
+ * request or queue entry forever, so every uncertain case resolves to `false`. The workflow runs the copy at the BASE ref,
+ * so this file never classifies its own diff and cannot be renamed until the rename reaches `main`.
  */
 
 import { execFileSync } from "node:child_process";
@@ -121,15 +121,16 @@ export function parsePaths(raw) {
 
 /**
  * Three-dot: HEAD is the merge commit and the base branch may have moved, so two-dot
- * would report the base branch's own newer commits as changes.
+ * would report the base branch's own newer commits as changes. `baseSha` replaces
+ * `origin/<baseRef>` for a merge queue entry, whose base is a commit rather than a branch.
  *
  * @param {string} baseRef
- * @param {{ cwd?: string }} [options]
+ * @param {{ cwd?: string; baseSha?: string }} [options]
  * @returns {string[] | null}
  */
 export function changedFiles(baseRef, options = {}) {
   const cwd = options.cwd;
-  const base = `origin/${baseRef}`;
+  const base = options.baseSha ?? `origin/${baseRef}`;
   try {
     git(["rev-parse", "--verify", "--quiet", `${base}^{commit}`], cwd);
   } catch {
@@ -162,34 +163,51 @@ function reportAllFalse(why) {
   report("admin_only", false, why);
 }
 
-function main() {
-  const eventName = env["GITHUB_EVENT_NAME"];
-  const baseRef = env["BASE_REF"] ?? env["GITHUB_BASE_REF"] ?? "";
-
+/**
+ * A merge queue entry carries every PR queued ahead of it, so its diff runs from the queue's base
+ * commit; a pull request diffs against its base branch.
+ *
+ * @param {Record<string, string | undefined>} environment
+ * @returns {{ base: string; options: { baseSha?: string }; baseRef: string } | { skip: string }}
+ */
+export function diffBase(environment) {
+  const eventName = environment["GITHUB_EVENT_NAME"];
+  if (eventName === "merge_group") {
+    const baseSha = environment["MERGE_GROUP_BASE_SHA"] ?? "";
+    if (!/^[0-9a-f]{40}$/.test(baseSha)) return { skip: "merge_group without a base SHA" };
+    return { base: baseSha, options: { baseSha }, baseRef: "" };
+  }
   if (eventName !== undefined && eventName !== "pull_request") {
-    reportAllFalse(`event is ${eventName}, not pull_request`);
+    return { skip: `event is ${eventName}, not pull_request or merge_group` };
+  }
+  const baseRef = environment["BASE_REF"] ?? environment["GITHUB_BASE_REF"] ?? "";
+  if (baseRef === "") return { skip: "no base ref available" };
+  return { base: `origin/${baseRef}`, options: {}, baseRef };
+}
+
+function main() {
+  const resolved = diffBase(env);
+  if ("skip" in resolved) {
+    reportAllFalse(resolved.skip);
     return;
   }
-  if (baseRef === "") {
-    reportAllFalse("no base ref available");
-    return;
-  }
+  const { base, options, baseRef } = resolved;
 
   let files;
   try {
-    files = changedFiles(baseRef);
+    files = changedFiles(baseRef, options);
   } catch (error) {
     stdout.write(`::warning::ci-plan-only: diff failed (${String(error)})\n`);
     reportAllFalse("diff failed");
     return;
   }
   if (files === null) {
-    stdout.write(`::warning::ci-plan-only: cannot resolve origin/${baseRef}\n`);
-    reportAllFalse(`origin/${baseRef} not resolvable`);
+    stdout.write(`::warning::ci-plan-only: cannot resolve ${base}\n`);
+    reportAllFalse(`${base} not resolvable`);
     return;
   }
 
-  stdout.write(`Changed vs origin/${baseRef} (${files.length} path(s)):\n`);
+  stdout.write(`Changed vs ${base} (${files.length} path(s)):\n`);
   for (const path of files.slice(0, LOG_LIMIT)) stdout.write(`  ${JSON.stringify(path)}\n`);
   if (files.length > LOG_LIMIT) stdout.write(`  ... and ${files.length - LOG_LIMIT} more\n`);
 
