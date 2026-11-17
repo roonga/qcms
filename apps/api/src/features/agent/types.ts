@@ -2,6 +2,7 @@ import type { FormDefinition, QuestionDefinition, QuestionId } from "@roonga/qcm
 
 import type { PendingQuestionVersion, PublishIssue, PublishWarning } from "../forms/handler.js";
 import type { OfferedActionKind } from "./grant-filter.js";
+import type { BuilderEditOp } from "./tools/edit.js";
 import type { Proposal, ProposedStep, ProposeOutcome } from "./tools/propose.js";
 
 export interface AssistTextTurn {
@@ -38,7 +39,19 @@ export interface WaitingProposalTurn {
   readonly steps: readonly { readonly kind: string }[];
 }
 
-export type AssistTurn = AssistTextTurn | ActionResultTurn | WaitingProposalTurn;
+/**
+ * What became of a builder turn's edits, which only the browser knows: it applied them, and
+ * the person may have undone some since. The admin writes it from the save responses.
+ */
+export interface EditResultTurn {
+  readonly role: "edit-result";
+  readonly edits: readonly {
+    readonly op: BuilderEditOp;
+    readonly outcome: "applied" | "undone" | "failed" | "not-run";
+  }[];
+}
+
+export type AssistTurn = AssistTextTurn | ActionResultTurn | WaitingProposalTurn | EditResultTurn;
 
 /** Definition only: no response counts, no respondent data, no answer values. */
 export interface LibraryEntry {
@@ -569,11 +582,43 @@ export interface AgentContext {
   readonly listErasures?: ListErasuresPort;
   /** Absent for a caller who holds no action kind at all, which leaves the propose tool unoffered. */
   readonly propose?: ProposePort;
+  /** The agent builder's edit and wizard ports; absent on every other screen. */
+  readonly builder?: BuilderPort;
   /**
    * What the grant filter offered this caller, which is what narrows the propose tool's
    * advertised schema. Empty means this user changes nothing anywhere.
    */
   readonly offeredActionKinds?: readonly OfferedActionKind[];
+}
+
+/**
+ * The agent builder's own half of a turn, present only on its screen and its form's own route.
+ * Each member is present only for a caller the screen's evaluator allows it to.
+ */
+export interface BuilderPort {
+  readonly formId: string;
+  /** The open draft the turn starts from, which the edit tools change a copy of. */
+  readonly draft: FormDefinition;
+  /**
+   * Present for an Edit forms holder of the form's workspace. Called once, when the turn ends,
+   * with each edit's op and the definition it produces.
+   */
+  readonly mintEdits?: (
+    edits: readonly { readonly op: BuilderEditOp; readonly definition: FormDefinition }[],
+  ) => Promise<{
+    readonly turnId: string;
+    readonly tokens: readonly string[];
+  }>;
+  /** Present for a Publish forms holder: where the wizard returns once the person leaves it. */
+  readonly wizardReturnTo?: string;
+}
+
+/** One draft-scoped edit as the browser applies it, with the token its save carries. */
+export interface BuilderEditEvent {
+  readonly index: number;
+  readonly op: BuilderEditOp;
+  readonly token: string;
+  readonly definition: FormDefinition;
 }
 
 /** A runtime array rather than a bare union so both halves of the contract stay enumerable in tests. */
@@ -611,6 +656,18 @@ export type AssistEvent =
    * arguments are the admin's to display; the token is what Confirm carries. Nothing has run.
    */
   | { readonly type: "plan"; readonly proposal: Proposal }
+  /**
+   * The builder's draft-scoped edits, in order, each with its own token: the browser applies
+   * them through the draft save with no card. One per turn, at its end.
+   */
+  | {
+      readonly type: "edits";
+      readonly formId: string;
+      readonly turnId: string;
+      readonly edits: readonly BuilderEditEvent[];
+    }
+  /** The agent asked the browser to open the publish wizard, which publishes nothing itself. */
+  | { readonly type: "open-wizard"; readonly formId: string; readonly returnTo: string }
   | { readonly type: "error"; readonly code: AssistErrorCode; readonly message: string }
   /** Counts only, never content. */
   | {

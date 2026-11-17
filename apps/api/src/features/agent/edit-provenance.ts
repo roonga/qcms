@@ -38,6 +38,7 @@ const STATUS: Readonly<Record<EditRefusalCode, 400 | 403 | 409 | 422>> = {
   AGENT_EDIT_REPLAYED: 403,
   AGENT_EDIT_REVISION: 409,
   AGENT_EDIT_OP: 422,
+  AGENT_EDIT_MISMATCH: 422,
   AGENT_UNDO_SUPERSEDED: 409,
   AGENT_UNDO_MISMATCH: 422,
 };
@@ -56,6 +57,8 @@ function message(code: EditRefusalCode): string {
       return "An Undo must restore the draft exactly as it stood before that edit.";
     case "AGENT_EDIT_OP":
       return "That save changes more than the edit it carries a token for.";
+    case "AGENT_EDIT_MISMATCH":
+      return "That save is not the draft the assistant's edit produced.";
     default:
       return "That edit token does not authorise this request.";
   }

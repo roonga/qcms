@@ -4599,5 +4599,1667 @@
         }
       }
     }
+  },
+  {
+    "name": "edit_question",
+    "description": "Place, move or remove one library question on the open draft of the form this builder is about. pin adds a published library question to a step; repin changes the version a question is pinned at; move puts a question on another step or at another position; unpin takes it off the form. It applies to the draft as this turn's earlier edits left it and returns what would still stop a publish. Nothing is saved until the turn ends, when the person's browser saves each edit with an Undo. It never creates or changes a library question: that is a propose_plan card.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "pin",
+            "repin",
+            "move",
+            "unpin"
+          ],
+          "description": "pin adds a published library question to a step; repin changes the version it pins; move puts it on another step or position; unpin removes it from the form."
+        },
+        "questionId": {
+          "type": "string",
+          "pattern": "^q_[a-z0-9_]+$"
+        },
+        "version": {
+          "description": "The library version to pin. Required by pin and repin.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "stepId": {
+          "description": "The step to place it on. Required by pin and move.",
+          "type": "string",
+          "pattern": "^stp_[a-z0-9_]+$"
+        },
+        "position": {
+          "description": "Zero-based index to place it at. The end when absent.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        }
+      },
+      "required": [
+        "action",
+        "questionId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "edit_step",
+    "description": "Add, replace, move or remove one step of the open draft of the form this builder is about. replace carries the whole step, its title and items, repeating groups included. It applies to the draft as this turn's earlier edits left it and returns what would still stop a publish. Nothing is saved until the turn ends, when the person's browser saves each edit with an Undo.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "add",
+            "replace",
+            "move",
+            "remove"
+          ],
+          "description": "add inserts a new step; replace swaps one step for the step given, title and items included; move changes its position; remove deletes it."
+        },
+        "stepId": {
+          "type": "string",
+          "pattern": "^stp_[a-z0-9_]+$"
+        },
+        "step": {
+          "description": "The whole step, whose stepId must equal stepId. Required by add and replace.",
+          "type": "object",
+          "properties": {
+            "stepId": {
+              "type": "string",
+              "pattern": "^stp_[a-z0-9_]+$"
+            },
+            "title": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "items": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "questionId": {
+                        "type": "string",
+                        "pattern": "^q_[a-z0-9_]+$"
+                      },
+                      "version": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "groupId": {
+                        "not": {}
+                      }
+                    },
+                    "required": [
+                      "questionId",
+                      "version"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "groupId": {
+                        "type": "string",
+                        "pattern": "^grp_[a-z0-9_]+$"
+                      },
+                      "label": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "instanceLabel": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "items": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "questionId": {
+                              "type": "string",
+                              "pattern": "^q_[a-z0-9_]+$"
+                            },
+                            "version": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "questionId",
+                            "version"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "count": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "type": "string",
+                                "const": "fixed"
+                              },
+                              "count": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "count"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "type": "string",
+                                "const": "fromAnswer"
+                              },
+                              "questionId": {
+                                "type": "string",
+                                "pattern": "^q_[a-z0-9_]+$"
+                              },
+                              "min": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "max": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "questionId",
+                              "min"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "type": "string",
+                                "const": "open"
+                              },
+                              "min": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "max": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "min"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "presentation": {
+                        "default": "stacked",
+                        "type": "string",
+                        "enum": [
+                          "stacked",
+                          "perInstanceStep",
+                          "table"
+                        ]
+                      },
+                      "questionId": {
+                        "not": {}
+                      },
+                      "version": {
+                        "not": {}
+                      }
+                    },
+                    "required": [
+                      "groupId",
+                      "label",
+                      "instanceLabel",
+                      "items",
+                      "count"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "stepId",
+            "title",
+            "items"
+          ],
+          "additionalProperties": false
+        },
+        "position": {
+          "description": "Zero-based index to place it at. The end when absent.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        }
+      },
+      "required": [
+        "action",
+        "stepId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "edit_rule",
+    "description": "Add or replace one visibility rule of the open draft by its ruleId, or remove one. It applies to the draft as this turn's earlier edits left it and returns what would still stop a publish. Nothing is saved until the turn ends, when the person's browser saves each edit with an Undo.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "set",
+            "remove"
+          ],
+          "description": "set adds the rule or replaces the one with this ruleId; remove deletes it."
+        },
+        "ruleId": {
+          "type": "string",
+          "pattern": "^rul_[a-z0-9_]+$"
+        },
+        "rule": {
+          "description": "The whole rule, whose ruleId must equal ruleId. Required by set.",
+          "type": "object",
+          "properties": {
+            "ruleId": {
+              "type": "string",
+              "pattern": "^rul_[a-z0-9_]+$"
+            },
+            "when": {
+              "$ref": "#/$defs/__schema0_d3"
+            },
+            "show": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^q_[a-z0-9_]+$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^stp_[a-z0-9_]+$"
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "ruleId",
+            "when",
+            "show"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "action",
+        "ruleId"
+      ],
+      "additionalProperties": false,
+      "$defs": {
+        "__schema0_d1": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "equals"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^opt_[a-z0-9_]+$"
+                      }
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "notEquals"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^opt_[a-z0-9_]+$"
+                      }
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "in"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "values": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^opt_[a-z0-9_]+$"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "values"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "gt"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "gte"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "lt"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "lte"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "answered"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                }
+              },
+              "required": [
+                "op",
+                "questionId"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "contains"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "type": "string",
+                  "pattern": "^opt_[a-z0-9_]+$"
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "containsAny"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "values": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^opt_[a-z0-9_]+$"
+                  }
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "values"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "instanceCount"
+                },
+                "groupId": {
+                  "type": "string",
+                  "pattern": "^grp_[a-z0-9_]+$"
+                },
+                "compare": {
+                  "type": "string",
+                  "enum": [
+                    "equals",
+                    "gt",
+                    "gte",
+                    "lt",
+                    "lte"
+                  ]
+                },
+                "value": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "op",
+                "groupId",
+                "compare",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "__schema0_d2": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "equals"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^opt_[a-z0-9_]+$"
+                      }
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "notEquals"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^opt_[a-z0-9_]+$"
+                      }
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "in"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "values": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^opt_[a-z0-9_]+$"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "values"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "gt"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "gte"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "lt"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "lte"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "answered"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                }
+              },
+              "required": [
+                "op",
+                "questionId"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "contains"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "type": "string",
+                  "pattern": "^opt_[a-z0-9_]+$"
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "containsAny"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "values": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^opt_[a-z0-9_]+$"
+                  }
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "values"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "and"
+                },
+                "conditions": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0_d1"
+                  }
+                }
+              },
+              "required": [
+                "op",
+                "conditions"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "or"
+                },
+                "conditions": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0_d1"
+                  }
+                }
+              },
+              "required": [
+                "op",
+                "conditions"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "not"
+                },
+                "condition": {
+                  "$ref": "#/$defs/__schema0_d1"
+                }
+              },
+              "required": [
+                "op",
+                "condition"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "anyInstance"
+                },
+                "groupId": {
+                  "type": "string",
+                  "pattern": "^grp_[a-z0-9_]+$"
+                },
+                "condition": {
+                  "$ref": "#/$defs/__schema0_d1"
+                }
+              },
+              "required": [
+                "op",
+                "groupId",
+                "condition"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "everyInstance"
+                },
+                "groupId": {
+                  "type": "string",
+                  "pattern": "^grp_[a-z0-9_]+$"
+                },
+                "condition": {
+                  "$ref": "#/$defs/__schema0_d1"
+                }
+              },
+              "required": [
+                "op",
+                "groupId",
+                "condition"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "instanceCount"
+                },
+                "groupId": {
+                  "type": "string",
+                  "pattern": "^grp_[a-z0-9_]+$"
+                },
+                "compare": {
+                  "type": "string",
+                  "enum": [
+                    "equals",
+                    "gt",
+                    "gte",
+                    "lt",
+                    "lte"
+                  ]
+                },
+                "value": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "op",
+                "groupId",
+                "compare",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "__schema0_d3": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "equals"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^opt_[a-z0-9_]+$"
+                      }
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "notEquals"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^opt_[a-z0-9_]+$"
+                      }
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "in"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "values": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^opt_[a-z0-9_]+$"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "values"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "gt"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "gte"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "lt"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "lte"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "answered"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                }
+              },
+              "required": [
+                "op",
+                "questionId"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "contains"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "value": {
+                  "type": "string",
+                  "pattern": "^opt_[a-z0-9_]+$"
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "containsAny"
+                },
+                "questionId": {
+                  "type": "string",
+                  "pattern": "^q_[a-z0-9_]+$"
+                },
+                "values": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^opt_[a-z0-9_]+$"
+                  }
+                }
+              },
+              "required": [
+                "op",
+                "questionId",
+                "values"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "and"
+                },
+                "conditions": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0_d2"
+                  }
+                }
+              },
+              "required": [
+                "op",
+                "conditions"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "or"
+                },
+                "conditions": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0_d2"
+                  }
+                }
+              },
+              "required": [
+                "op",
+                "conditions"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "not"
+                },
+                "condition": {
+                  "$ref": "#/$defs/__schema0_d2"
+                }
+              },
+              "required": [
+                "op",
+                "condition"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "anyInstance"
+                },
+                "groupId": {
+                  "type": "string",
+                  "pattern": "^grp_[a-z0-9_]+$"
+                },
+                "condition": {
+                  "$ref": "#/$defs/__schema0_d2"
+                }
+              },
+              "required": [
+                "op",
+                "groupId",
+                "condition"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "everyInstance"
+                },
+                "groupId": {
+                  "type": "string",
+                  "pattern": "^grp_[a-z0-9_]+$"
+                },
+                "condition": {
+                  "$ref": "#/$defs/__schema0_d2"
+                }
+              },
+              "required": [
+                "op",
+                "groupId",
+                "condition"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "instanceCount"
+                },
+                "groupId": {
+                  "type": "string",
+                  "pattern": "^grp_[a-z0-9_]+$"
+                },
+                "compare": {
+                  "type": "string",
+                  "enum": [
+                    "equals",
+                    "gt",
+                    "gte",
+                    "lt",
+                    "lte"
+                  ]
+                },
+                "value": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "op",
+                "groupId",
+                "compare",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "edit_copy",
+    "description": "Change the wording of the open draft: the form's title, a step's title, or a repeating group's label or instance label. Wording only. It applies to the draft as this turn's earlier edits left it. Nothing is saved until the turn ends, when the person's browser saves each edit with an Undo.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "enum": [
+            "form-title",
+            "step-title",
+            "group-label",
+            "group-instance-label"
+          ],
+          "description": "Which wording to change."
+        },
+        "stepId": {
+          "description": "The step whose title changes. Required by step-title.",
+          "type": "string",
+          "pattern": "^stp_[a-z0-9_]+$"
+        },
+        "groupId": {
+          "description": "The repeating group whose wording changes. Required by the two group targets.",
+          "type": "string",
+          "pattern": "^grp_[a-z0-9_]+$"
+        },
+        "text": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "The new wording, per locale."
+        }
+      },
+      "required": [
+        "target",
+        "text"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "open_publish_wizard",
+    "description": "Open the publish screen for the form this builder is about, where the person reviews every change since the last publish and publishes it themselves. It publishes nothing, takes no arguments and is offered only to someone who may publish forms.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
   }
 ]

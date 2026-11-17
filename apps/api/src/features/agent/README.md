@@ -40,6 +40,7 @@ flag-gated, and streams rather than returning a modelled JSON body.
 | `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.                                                                                                                             |
 | `contexts/reads.ts`                     | One read port per admin GET route, each taking the subject ids the call names and re-making that screen's own read check against the subject it resolved. A port that spans workspaces narrows to the ones the caller holds its cell in. |
 | `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the list this caller's grants reach.                                                                                                            |
+| `tools/edit.ts`                         | The agent builder's four edit tools: each changes the turn's copy of the open draft and records one draft-scoped edit. Nothing is saved here.                                                                                            |
 | `prompts/`                              | Every word the model is sent, as Markdown: the system prompt's sections, one file per tool description and one per action kind. `prompts.generated.ts` is built from them by `pnpm prompts:generate`.                                    |
 | `system-prompt.ts`                      | The versioned system prompt: the generated sections joined, with the kernel's own contracts filled in. Reviewed like code.                                                                                                               |
 | `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                                                                                                                                          |
@@ -184,7 +185,6 @@ version as opaque author content, because a draft save replaces the draft
 wholesale: a model rebuilding one from a summary would silently drop a rule, a
 repeating group, a step title or a count source. The system prompt says to start
 every `form.saveDraft` from that definition.
-name and email are staff data and may flow (Q11).
 
 `assist.integration.test.ts` proves the last one against a real database: a
 submitted answer and a webhook payload both carry a sentinel while a turn runs on
@@ -339,8 +339,10 @@ puts that kind alone up for review: `propose-form-settings`,
 `propose-form-publish`, `propose-webhook-reactivate`,
 `propose-webhook-deactivate`, `propose-webhook-redeliver`,
 `propose-access-group-create`, `propose-access-group-remove`,
-`propose-access-grant`, `propose-access-revoke`, `propose-member-role` and
-`propose-workspace-settings`.
+`propose-access-grant`, `propose-access-revoke`, `propose-member-role`,
+`propose-workspace-settings`, and the agent builder's `builder-edits`,
+`builder-undo`, `builder-open-wizard`, `builder-library-question`,
+`builder-injection` and `builder-edit-cap`.
 The `rogue-*` scripts
 exist because a hostile model is the threat the allowlist is for, and the only
 honest way to test a refusal is to have something actually attempt the forbidden
@@ -528,12 +530,14 @@ have kept.
 Draft edits from the agent builder take no Confirm (Q14), so the save carries
 what a card carried. The turn mints one token per op with `mintTurnEditTokens`,
 each bound to the user, the form, the turn, its index under the 25-a-turn cap,
-the op, the revision it applies to and the newest published version. The
+the op, the revision it applies to, the newest published version and the digest
+of the draft state it produces (the same digest an Undo token binds). The
 browser applies each through the one draft save path with the token in
 `x-qcms-agent-edit`. The save locks the draft row when one exists, and otherwise
 checks that the row it wrote landed at the bound revision plus one; it rereads
 the newest published version after the write, refuses a replay, a moved
-revision or version, or an op that changes what it does not cover, and writes
+revision or version, an op that changes what it does not cover, or a body that
+is not the draft the edit produced (`AGENT_EDIT_MISMATCH`), and writes
 one `draft.<op>` row in its own transaction. The response
 carries an Undo token bound to the draft states on either side of the edit, so
 an Undo applies only while nothing has changed since and restores exactly the
@@ -541,3 +545,39 @@ state before; Undos therefore run latest first. A library write is never an
 edit (Q22): the token is refused on every route but the draft save. The
 wizard's read takes provenance from these rows alone, never from the draft's
 `agentAssisted` mark.
+
+## The agent builder's tools
+
+The builder's turn is `POST /admin/forms/:id/draft/assist` with the screen
+`/forms/[formId]/build`. Only that route builds the builder's port, because only it
+reads the draft revision and the newest published version an edit token binds. The
+same screen on `POST /admin/assist` builds no port: an Edit forms holder there is
+offered the builder's read tools and `propose_plan` with the library kinds, every
+act a Confirm card, and no edit tool or wizard.
+
+- **Who is offered what.** The four edit tools (`edit_question`, `edit_step`,
+  `edit_rule`, `edit_copy`) are offered to an Edit forms holder of the form's
+  workspace, and `open_publish_wizard` to a Publish forms holder there in any
+  environment, each decided by the evaluator the route middleware uses. A View
+  forms holder is refused the route by its policy row.
+- **What the screen narrows.** Its read tools are the form, its versions and the
+  library (`BUILDER_READ_TOOLS`), so no response, link, webhook or erasure read
+  and no release change is offered. Its action kinds are the library writes alone
+  (`BUILDER_ACTION_KINDS`): a new or changed library question is a Confirm card with
+  its own token and audit row, never an edit (Q22). A key-set test pins both and
+  fails on a publish, release, link or webhook kind by name or by route.
+- **One mint per turn.** Each edit applies to the turn's working copy of the draft,
+  must still parse, and must change something; the 26th is refused. When the turn
+  ends cleanly the tokens are minted once, through `mintTurnEditTokens`, and one
+  `edits` event carries every edit in order with its token and the whole draft it
+  leaves. The browser applies them through `PUT /admin/forms/{id}/draft`, the one
+  save path, which writes their audit rows and refuses a body other than the one
+  the edit produced. A refused, failed or cut-off turn yields no edit and opens no
+  wizard; one cut off at its step limit or its output room says so with
+  `STEP_LIMIT` or `LENGTH`.
+- **The wizard is opened, never run.** `open_publish_wizard` takes no argument and
+  returns only that it opened; the turn emits one `open-wizard` event with the
+  form and its build route as `returnTo`, which the admin validates (113).
+- **Undo is the browser's.** The admin reports what became of the last turn's
+  edits as an `edit-result` turn of ops and outcomes, which the model reads as a
+  structured line per edit and never as content.
