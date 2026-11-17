@@ -16,6 +16,11 @@ const KEY = "edit-token-test-key-edit-token-test";
 const AT = new Date("2026-07-20T00:00:00.000Z");
 
 const POST = "A".repeat(43);
+const LAST = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+function postFor(n: number): string {
+  return `${POST.slice(1)}${LAST.charAt(n)}`;
+}
 
 async function minted(ops: readonly EditOp[], startRevision = 4) {
   return mintTurnEditTokens(KEY, {
@@ -23,7 +28,7 @@ async function minted(ops: readonly EditOp[], startRevision = 4) {
     formId: "frm_a",
     baseVersion: 2,
     startRevision,
-    edits: ops.map((op, n) => ({ op, post: `${POST.slice(1)}${String(n)}` })),
+    edits: ops.map((op, n) => ({ op, post: postFor(n) })),
     issuedAt: AT,
   });
 }
@@ -47,9 +52,9 @@ describe("the agent edit token", () => {
           : undefined,
       ),
     ).toEqual([
-      [0, "question", 2, 4, `${POST.slice(1)}0`, turnId],
-      [1, "rule", 2, 5, `${POST.slice(1)}1`, turnId],
-      [2, "appearance", 2, 6, `${POST.slice(1)}2`, turnId],
+      [0, "question", 2, 4, postFor(0), turnId],
+      [1, "rule", 2, 5, postFor(1), turnId],
+      [2, "appearance", 2, 6, postFor(2), turnId],
     ]);
   });
 
