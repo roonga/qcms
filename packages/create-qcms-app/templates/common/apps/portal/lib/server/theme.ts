@@ -1,9 +1,7 @@
 import {
-  FONT_REGISTRY,
   fontByKey,
   fontChoices,
   fontClass,
-  LEGIBILITY_FONT_KEYS,
   SYSTEM_FONT_KEY,
   type FontEntry,
 } from "@roonga/qcms-ui/fonts";
@@ -75,15 +73,12 @@ export function portalDensity(): Density {
 }
 
 /**
- * The operator's curation of the font registry plus the legibility faces, in registry
- * order. Unset means the whole registry, never an empty list; unknown keys are dropped
- * rather than fatal.
+ * The operator's curation of the font registry. Unset means the whole registry, never an
+ * empty list; unknown keys are dropped rather than fatal, and System is always present.
  */
 export function portalFontChoices(): readonly FontEntry[] {
   const raw = process.env.QCMS_PORTAL_FONTS ?? "";
-  const curated = fontChoices(raw.split(/[\s,]+/u).filter((key) => key !== ""));
-  const wanted = new Set([...curated.map((entry) => entry.key), ...LEGIBILITY_FONT_KEYS]);
-  return FONT_REGISTRY.filter((entry) => wanted.has(entry.key));
+  return fontChoices(raw.split(/[\s,]+/u).filter((key) => key !== ""));
 }
 
 /**

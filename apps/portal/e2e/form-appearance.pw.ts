@@ -127,7 +127,7 @@ test("a form with its own appearance renders it on the whole page, in every mode
   await page.reload();
   await expectPalette(page, look.palettes["lightHighContrast"] ?? {}, "high contrast");
 
-  // The respondent's own choices still apply over the form's; a density cookie no longer does.
+  // The respondent's face and text size apply over the form's; a density cookie does not.
   await pin(page, {
     [MODE_COOKIE]: "light",
     [FONT_COOKIE]: "atkinson",

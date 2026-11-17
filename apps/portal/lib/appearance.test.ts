@@ -9,7 +9,6 @@ import {
   TEXT_BASE_MIN,
   TEXT_SCALE_CLASSES,
   TEXT_SCALES,
-  TEXT_SIZE_CAP_PX,
   appearanceCookie,
   appearanceCookiesFor,
   densityClass,
@@ -37,10 +36,18 @@ describe("mode and density vocabularies", () => {
 });
 
 describe("text size (Q9)", () => {
-  const bases = Array.from(
-    { length: TEXT_BASE_MAX - TEXT_BASE_MIN + 1 },
-    (_, index) => TEXT_BASE_MIN + index,
-  );
+  /** Rendered px per base at 100, 125, 150 and 200 percent. */
+  const EXPECTED: [number, number[]][] = [
+    [16, [16, 20, 24, 32]],
+    [17, [17, 21.25, 25.5, 32]],
+    [18, [18, 22.5, 27, 32]],
+    [19, [19, 23.75, 28.5, 32]],
+    [20, [20, 25, 30, 32]],
+    [21, [21, 26.25, 31.5, 32]],
+    [22, [22, 27.5, 32, 32]],
+    [23, [23, 28.75, 32, 32]],
+    [24, [24, 30, 32, 32]],
+  ];
 
   it("offers the four respondent scales, each with its own root class", () => {
     expect([...TEXT_SCALES]).toEqual(["100", "125", "150", "200"]);
@@ -52,20 +59,14 @@ describe("text size (Q9)", () => {
     ]);
   });
 
-  it.each(bases)("multiplies a %ipx base by every scale and caps the product at 32px", (base) => {
-    for (const scale of TEXT_SCALES) {
-      const product = (base * Number(scale)) / 100;
-      const rendered = textSizePx(base, scale);
-      expect(rendered, `${String(base)}px x ${scale}%`).toBe(Math.min(product, TEXT_SIZE_CAP_PX));
-      expect(rendered).toBeLessThanOrEqual(32);
-      expect(rendered).toBeGreaterThanOrEqual(base);
-    }
+  it("covers every admin base", () => {
+    expect(EXPECTED.map(([base]) => base)).toEqual(
+      Array.from({ length: TEXT_BASE_MAX - TEXT_BASE_MIN + 1 }, (_, index) => TEXT_BASE_MIN + index),
+    );
   });
 
-  it("reaches the cap exactly at the default base and the largest scale", () => {
-    expect(textSizePx(16, "200")).toBe(32);
-    expect(textSizePx(24, "125")).toBe(30);
-    expect(textSizePx(24, "150")).toBe(32);
+  it.each(EXPECTED)("multiplies a %ipx base by every scale and caps the product at 32px", (base, px) => {
+    expect(TEXT_SCALES.map((scale) => textSizePx(base, scale))).toEqual(px);
   });
 });
 

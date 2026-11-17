@@ -26,8 +26,8 @@ runtime choices** are mode, face and text size, and they sit on top of the theme
 than replacing it. Density is not a respondent choice (Q6). A theme is **mutable operator config, not form-grade immutable
 content** - it is chrome, not answer data, so none of the immutability, determinism
 or auditability guarantees touch it. Config supplies the DEFAULT for mode and face,
-including which fonts a deployment offers beyond the legibility faces (curation); the
-respondent's own choice, when they make one, wins.
+including which fonts a deployment offers at all (curation); the respondent's own
+choice, when they make one, wins.
 
 ## The four token groups
 
@@ -710,8 +710,7 @@ High-contrast as its default.
 Mode and font are **defaults, not settings**: they are what a first-time visitor
 gets, and the respondent's own choice overrides them from then on (below). Theme,
 corners and density have no respondent control, so for those the config value (or the
-form's appearance) is the whole story. `QCMS_PORTAL_FONTS` cannot curate away System
-and the three legibility faces: the respondent menu always offers them.
+form's appearance) is the whole story.
 
 ### The brand mark
 
@@ -793,10 +792,10 @@ Escape closes it and returns focus to its summary.
 | Font      | native `<select>` with an `<optgroup>` per registry group | `qcms-font` cookie + `font-<key>` root class     |
 | Text size | radio group, chips: Default / Large / Larger / Largest    | `qcms-text-size` cookie + `text-scale-<n>` class |
 
-The font menu is the deployment's curated faces plus the legibility faces (System,
-Atkinson Hyperlegible, OpenDyslexic, Lexend, `LEGIBILITY_FONT_KEYS` in the font
-registry), which curation cannot remove, plus the form's own face when the deployment
-does not list it. A saved face applies on every page whose menu offers it. Text size is
+The font menu is the deployment's curated faces plus the form's own face when the
+deployment does not list it. The legibility faces (System, Atkinson Hyperlegible,
+OpenDyslexic, Lexend, `LEGIBILITY_FONT_KEYS` in the font registry) are offered when the
+curation includes them; System always is, and the other three curate away like any face. A saved face applies on every page whose menu offers it. Text size is
 100, 125, 150 or 200 percent of the form's base, or of 16 px off a form. Density is not
 in the menu, and a `qcms-density` cookie left by an earlier release is ignored.
 

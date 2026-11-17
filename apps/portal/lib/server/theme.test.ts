@@ -40,9 +40,6 @@ const KEYS = [
 /** No cookies at all: the shape `resolveAppearance` sees for a first-time visitor. */
 const NO_COOKIES = { mode: undefined, font: undefined, textSize: undefined } as const;
 
-/** System and the three legibility faces, in registry order: curation never removes them. */
-const LEGIBILITY = [SYSTEM_FONT_KEY, "atkinson", "lexend", "opendyslexic"] as const;
-
 afterEach(() => {
   for (const key of KEYS) delete process.env[key];
 });
@@ -133,7 +130,7 @@ describe("default font selection", () => {
 
   it("falls back to System for a real key the deployment has curated away", () => {
     process.env.QCMS_PORTAL_FONTS = "inter, merriweather";
-    process.env.QCMS_PORTAL_FONT = "roboto";
+    process.env.QCMS_PORTAL_FONT = "lexend";
     expect(portalFont()).toBe(SYSTEM_FONT_KEY);
     process.env.QCMS_PORTAL_FONT = "inter";
     expect(portalFont()).toBe("inter");
@@ -153,26 +150,27 @@ describe("font curation config", () => {
       expect(
         portalFontChoices().map((entry) => entry.key),
         raw,
-      ).toEqual([...LEGIBILITY, "inter", "merriweather"]);
+      ).toEqual([SYSTEM_FONT_KEY, "inter", "merriweather"]);
     }
   });
 
-  it("keeps System and the legibility faces whatever the operator lists", () => {
+  it("keeps System even when the operator does not list it, and cannot be emptied", () => {
     process.env.QCMS_PORTAL_FONTS = "inter";
-    expect(portalFontChoices().map((entry) => entry.key)).toEqual([...LEGIBILITY, "inter"]);
+    expect(portalFontChoices().map((entry) => entry.key)).toEqual([SYSTEM_FONT_KEY, "inter"]);
     process.env.QCMS_PORTAL_FONTS = "papyrus, wingdings";
     expect(portalFontChoices()).toEqual(FONT_REGISTRY);
   });
 
   it("drops an unknown key rather than failing the deployment", () => {
     process.env.QCMS_PORTAL_FONTS = "inter, papyrus";
-    expect(portalFontChoices().map((entry) => entry.key)).toEqual([...LEGIBILITY, "inter"]);
+    expect(portalFontChoices().map((entry) => entry.key)).toEqual([SYSTEM_FONT_KEY, "inter"]);
   });
 
   it("returns entries in registry order, not the order the operator typed", () => {
-    process.env.QCMS_PORTAL_FONTS = "jetbrainsmono, opendyslexic, inter";
+    process.env.QCMS_PORTAL_FONTS = "jetbrainsmono, atkinson, inter";
     expect(portalFontChoices().map((entry) => entry.key)).toEqual([
-      ...LEGIBILITY,
+      SYSTEM_FONT_KEY,
+      "atkinson",
       "inter",
       "jetbrainsmono",
     ]);
@@ -284,14 +282,15 @@ describe("respondent choices resolve over config (task 053)", () => {
   it("ignores a font cookie naming a face this deployment no longer offers", () => {
     process.env.QCMS_PORTAL_FONTS = "inter";
     process.env.QCMS_PORTAL_FONT = "inter";
-    expect(resolveAppearance({ ...NO_COOKIES, font: "roboto" }).font).toBe("inter");
+    expect(resolveAppearance({ ...NO_COOKIES, font: "lexend" }).font).toBe("inter");
     expect(resolveAppearance({ ...NO_COOKIES, font: SYSTEM_FONT_KEY }).font).toBe(SYSTEM_FONT_KEY);
   });
 
-  it("keeps a legibility face the operator did not list", () => {
-    process.env.QCMS_PORTAL_FONTS = "inter";
+  it("ignores a legibility face the operator curated away, like any other face", () => {
+    process.env.QCMS_PORTAL_FONTS = "inter, atkinson";
     process.env.QCMS_PORTAL_FONT = "inter";
-    expect(resolveAppearance({ ...NO_COOKIES, font: "opendyslexic" }).font).toBe("opendyslexic");
+    expect(resolveAppearance({ ...NO_COOKIES, font: "opendyslexic" }).font).toBe("inter");
+    expect(resolveAppearance({ ...NO_COOKIES, font: "atkinson" }).font).toBe("atkinson");
   });
 });
 
@@ -341,11 +340,7 @@ describe("a form's appearance sits between the respondent's choice and config", 
     process.env.QCMS_PORTAL_FONTS = "inter";
     process.env.QCMS_PORTAL_FONT = "inter";
     expect(resolveAppearance(NO_COOKIES, FORM).font).toBe("roboto");
-    expect(pageFontChoices(FORM).map((entry) => entry.key)).toEqual([
-      ...LEGIBILITY,
-      "inter",
-      "roboto",
-    ]);
+    expect(pageFontChoices(FORM).map((entry) => entry.key)).toEqual(["system", "inter", "roboto"]);
   });
 
   it("keeps a saved choice of the form's face on that form's page only", () => {

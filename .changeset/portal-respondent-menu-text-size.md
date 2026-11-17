@@ -10,7 +10,7 @@ Portal respondent menu and text size (task 120).
   `LEGIBILITY_FONT_KEYS`.
 - The portal's Appearance menu offers mode, face and text size (100, 125, 150, 200
   percent of the form's base). Density leaves the menu, and a density cookie is ignored.
-- The face menu always offers System and the three legibility faces, whatever
-  `QCMS_PORTAL_FONTS` curates.
+- The face menu offers the legibility faces that `QCMS_PORTAL_FONTS` includes; System is
+  always offered.
 - The no-JS Appearance form saves only the axes the respondent changed.
 - The completion page keeps the form's text size.

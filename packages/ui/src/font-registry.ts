@@ -344,8 +344,8 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
 ];
 
 /**
- * The legibility faces a respondent can always choose over a form's or a deployment's
- * face; curation cannot remove them.
+ * The legibility faces of the respondent's face override, offered when the deployment's
+ * font curation includes them.
  */
 export const LEGIBILITY_FONT_KEYS: readonly string[] = [
   SYSTEM_FONT_KEY,

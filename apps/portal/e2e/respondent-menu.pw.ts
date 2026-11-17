@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
-import { LEGIBILITY_FONT_KEYS, fontByKey } from "@roonga/qcms-ui/fonts";
+import { LEGIBILITY_FONT_KEYS, SYSTEM_FONT_KEY, fontByKey } from "@roonga/qcms-ui/fonts";
 
 import {
   FONT_COOKIE,
@@ -88,10 +88,17 @@ async function expectNoAxeViolations(page: Page, label: string): Promise<void> {
   expect(results.passes.length, `axe ran no rules at "${label}"`).toBeGreaterThan(0);
 }
 
-test("the menu offers the legibility faces and the form's face, and each one applies", async ({
+test("the menu offers the curated legibility faces and the form's face, and each one applies", async ({
   page,
 }) => {
-  for (const key of [FORM_FACE, "lexend", "opendyslexic"]) expect(HARNESS_FONTS).not.toContain(key);
+  const curated = HARNESS_FONTS.split(/[\s,]+/u);
+  const legible = LEGIBILITY_FONT_KEYS.filter(
+    (key) => key === SYSTEM_FONT_KEY || curated.includes(key),
+  );
+  const curatedAway = LEGIBILITY_FONT_KEYS.filter((key) => !legible.includes(key));
+  expect(legible).toEqual([SYSTEM_FONT_KEY, "atkinson"]);
+  expect(curatedAway).toEqual(["opendyslexic", "lexend"]);
+  expect(curated).not.toContain(FORM_FACE);
   const { formAppearance: fixtures } = readFixtures();
   const { formId, slug } = fixtures.forms.face;
   await publishAppearance(fixtures, formId, appearanceOf(fixtures.looks.teal, { face: FORM_FACE }));
@@ -104,9 +111,10 @@ test("the menu offers the legibility faces and the form's face, and each one app
   const offered = await select
     .locator("option")
     .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
-  expect(offered).toEqual(expect.arrayContaining([...LEGIBILITY_FONT_KEYS, FORM_FACE]));
+  expect(offered).toEqual(expect.arrayContaining([...legible, FORM_FACE]));
+  for (const key of curatedAway) expect(offered).not.toContain(key);
 
-  for (const key of [...LEGIBILITY_FONT_KEYS, FORM_FACE]) {
+  for (const key of [...legible, FORM_FACE]) {
     await select.selectOption(key);
     await expect(page.locator("html")).toHaveClass(new RegExp(`\\bfont-${key}\\b`, "u"));
     const family = fontByKey(key)?.family ?? "ui-sans-serif";
