@@ -30,9 +30,7 @@ function flatten(raw: string): string {
     .trim();
 }
 
-export type PlanTitleOutcome =
-  | { readonly title: string | undefined }
-  | { readonly reason: string };
+export type PlanTitleOutcome = { readonly title: string | undefined } | { readonly reason: string };
 
 /** The title a card may show, or the reason the plan is refused rather than shown with it. */
 export function readPlanTitle(raw: unknown): PlanTitleOutcome {
