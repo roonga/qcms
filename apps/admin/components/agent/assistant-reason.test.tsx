@@ -62,7 +62,7 @@ function handle(): ConversationHandle {
   };
 }
 
-async function say(message: string): Promise<void> {
+function say(message: string): void {
   const composer = screen.getByTestId("qcms-assistant-composer");
   fireEvent.change(composer, { target: { value: message } });
   fireEvent.keyDown(composer, { key: "Enter" });
@@ -102,7 +102,7 @@ describe("the reason a card quotes", () => {
 
   it("quotes the sentence the turn that proposed it wrote", async () => {
     mount([frame("text", { delta: WHY }) + frame("plan", { proposal: PLAN })]);
-    await say("give me a link");
+    say("give me a link");
     await vi.waitFor(() => {
       expect(quoted()).toBe(WHY);
     });
@@ -113,12 +113,12 @@ describe("the reason a card quotes", () => {
       frame("text", { delta: WHY }) + frame("plan", { proposal: PLAN }),
       frame("text", { delta: LATER }),
     ]);
-    await say("give me a link");
+    say("give me a link");
     await vi.waitFor(() => {
       expect(quoted()).toBe(WHY);
     });
 
-    await say("did that go through?");
+    say("did that go through?");
     await vi.waitFor(() => {
       expect(screen.getByTestId("qcms-assistant-turns").textContent).toContain(LATER);
     });
@@ -134,12 +134,12 @@ describe("the reason a card quotes", () => {
       frame("text", { delta: WHY }) + frame("plan", { proposal: PLAN }),
       frame("text", { delta: LATER }) + frame("plan", { proposal: second }),
     ]);
-    await say("give me a link");
+    say("give me a link");
     await vi.waitFor(() => {
       expect(quoted()).toBe(WHY);
     });
 
-    await say("make it two");
+    say("make it two");
     await vi.waitFor(() => {
       expect(quoted()).toBe(LATER);
     });
