@@ -1,5 +1,6 @@
 ---
 "@roonga/qcms-core": minor
+"create-qcms-app": minor
 ---
 
 Publish `FORMAT_PATTERNS`, a vetted set of `shortText` pattern constraints for email, phone and
