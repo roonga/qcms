@@ -17,10 +17,7 @@ function submission(fields: Record<string, string>): FormData {
 describe("the posted values are the enumerated ones or nothing", () => {
   it("accepts one submission of the three axes the form carries", () => {
     expect(
-      parseAppearanceChoice(
-        submission({ mode: "hc", font: "atkinson", textSize: "150" }),
-        OFFERED,
-      ),
+      parseAppearanceChoice(submission({ mode: "hc", font: "atkinson", textSize: "150" }), OFFERED),
     ).toEqual({ mode: "hc", font: "atkinson", textSize: "150" });
   });
 
@@ -111,7 +108,10 @@ describe("a posted baseline limits the write to the axes that changed", () => {
 
   it("writes an axis whose baseline is absent", () => {
     expect(
-      parseAppearanceChoice(submission({ "was-mode": "light", mode: "light", font: "lexend" }), OFFERED),
+      parseAppearanceChoice(
+        submission({ "was-mode": "light", mode: "light", font: "lexend" }),
+        OFFERED,
+      ),
     ).toEqual({ font: "lexend" });
   });
 });

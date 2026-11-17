@@ -1,7 +1,9 @@
 import {
+  FONT_REGISTRY,
   fontByKey,
   fontChoices,
   fontClass,
+  LEGIBILITY_FONT_KEYS,
   SYSTEM_FONT_KEY,
   type FontEntry,
 } from "@roonga/qcms-ui/fonts";
@@ -12,11 +14,14 @@ import { t } from "../i18n/en";
 import {
   DEFAULT_DENSITY,
   DENSITY_LEVELS,
+  DEFAULT_TEXT_SCALE,
   densityClass,
-  parseDensity,
   parseMode,
+  parseTextScale,
+  textScaleClass,
   type AppearanceMode,
   type Density,
+  type TextScale,
 } from "../appearance";
 
 export const PORTAL_THEMES = ["slate", "harbor", "sand", "plum"] as const;
@@ -70,12 +75,15 @@ export function portalDensity(): Density {
 }
 
 /**
- * The operator's curation of the font registry. Unset means the whole registry, never an
- * empty list; unknown keys are dropped rather than fatal, and System is always present.
+ * The operator's curation of the font registry plus the legibility faces, in registry
+ * order. Unset means the whole registry, never an empty list; unknown keys are dropped
+ * rather than fatal.
  */
 export function portalFontChoices(): readonly FontEntry[] {
   const raw = process.env.QCMS_PORTAL_FONTS ?? "";
-  return fontChoices(raw.split(/[\s,]+/u).filter((key) => key !== ""));
+  const curated = fontChoices(raw.split(/[\s,]+/u).filter((key) => key !== ""));
+  const wanted = new Set([...curated.map((entry) => entry.key), ...LEGIBILITY_FONT_KEYS]);
+  return FONT_REGISTRY.filter((entry) => wanted.has(entry.key));
 }
 
 /**
@@ -132,13 +140,15 @@ export interface ResolvedAppearance {
   /** True when `mode` came from the respondent's cookie rather than from config. */
   readonly modeChosen: boolean;
   readonly font: string;
+  /** The form's or config's alone: density is not a respondent control. */
   readonly density: Density;
+  readonly textScale: TextScale;
 }
 
 export interface AppearanceCookies {
   readonly mode: string | undefined;
   readonly font: string | undefined;
-  readonly density: string | undefined;
+  readonly textSize: string | undefined;
 }
 
 /** The axes a form's own appearance sets on the page, between a respondent's choice and config. */
@@ -161,7 +171,8 @@ export function pageFontChoices(form?: FormLayer | null): readonly FontEntry[] {
 }
 
 /**
- * Precedence per axis is the respondent's cookie, then the form, then config. A cookie
+ * Precedence per axis is the respondent's cookie, then the form, then config; density has
+ * no cookie. A cookie
  * face is checked against this page's menu, not the registry: a face no longer offered
  * must not keep being served, since the control could not switch back.
  */
@@ -179,7 +190,8 @@ export function resolveAppearance(
     mode: chosenMode ?? portalMode(),
     modeChosen: chosenMode !== undefined,
     font: (isOffered(cookies.font) ? cookies.font : undefined) ?? formFace ?? portalFont(),
-    density: parseDensity(cookies.density) ?? form?.density ?? portalDensity(),
+    density: form?.density ?? portalDensity(),
+    textScale: parseTextScale(cookies.textSize) ?? DEFAULT_TEXT_SCALE,
   };
 }
 
@@ -214,6 +226,7 @@ export function rootClassName(appearance: ResolvedAppearance, corners: PortalCor
     cornersClass(corners),
     fontClass(appearance.font),
     densityClass(appearance.density),
+    textScaleClass(appearance.textScale),
   ]
     .filter(Boolean)
     .join(" ");

@@ -787,11 +787,11 @@ be most of the viewport above the first question, and a respondent who needs
 High-contrast, a legibility face or larger text opens it once: the choice persists.
 Escape closes it and returns focus to its summary.
 
-| Control   | Shape                                                     | Writes                                            |
-| --------- | --------------------------------------------------------- | ------------------------------------------------- |
-| Mode      | radio group, chips: Light / Dark / High contrast          | `qcms-theme` cookie + mode root class             |
-| Font      | native `<select>` with an `<optgroup>` per registry group | `qcms-font` cookie + `font-<key>` root class      |
-| Text size | radio group, chips: Default / Large / Larger / Largest    | `qcms-text-size` cookie + `text-scale-<n>` class  |
+| Control   | Shape                                                     | Writes                                           |
+| --------- | --------------------------------------------------------- | ------------------------------------------------ |
+| Mode      | radio group, chips: Light / Dark / High contrast          | `qcms-theme` cookie + mode root class            |
+| Font      | native `<select>` with an `<optgroup>` per registry group | `qcms-font` cookie + `font-<key>` root class     |
+| Text size | radio group, chips: Default / Large / Larger / Largest    | `qcms-text-size` cookie + `text-scale-<n>` class |
 
 The font menu is the deployment's curated faces plus the legibility faces (System,
 Atkinson Hyperlegible, OpenDyslexic, Lexend, `LEGIBILITY_FONT_KEYS` in the font

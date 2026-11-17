@@ -142,7 +142,12 @@
   --text-scale: 2;
 }
 
-:is(:root, [data-qcms-theme-scope]):is(.text-scale-100, .text-scale-125, .text-scale-150, .text-scale-200) {
+:is(:root, [data-qcms-theme-scope]):is(
+  .text-scale-100,
+  .text-scale-125,
+  .text-scale-150,
+  .text-scale-200
+) {
   font-size: min(calc(100% * var(--text-base) * var(--text-scale)), max(32px, 100%));
 }
 

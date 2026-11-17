@@ -496,7 +496,9 @@ test("the appearance panel is axe-clean in every mode x text size", async ({ pag
     await pickChip(page, "mode", mode);
     for (const scale of TEXT_SCALES) {
       await pickChip(page, "textSize", scale);
-      await expect(page.locator("html")).toHaveClass(new RegExp(`\\b${textScaleClass(scale)}\\b`, "u"));
+      await expect(page.locator("html")).toHaveClass(
+        new RegExp(`\\b${textScaleClass(scale)}\\b`, "u"),
+      );
       await expect(page.getByTestId("appearance-mode")).toBeVisible();
       await expectNoAxeViolations(page, `${mode} / ${scale}% (appearance panel open)`);
     }

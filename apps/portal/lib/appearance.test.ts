@@ -111,9 +111,7 @@ describe("the appearance cookie", () => {
 
 describe("the cookies one submission writes", () => {
   it("writes exactly the axes that were chosen, in axis order", () => {
-    expect(
-      appearanceCookiesFor({ mode: "hc", font: "atkinson", textSize: "200" }, false),
-    ).toEqual([
+    expect(appearanceCookiesFor({ mode: "hc", font: "atkinson", textSize: "200" }, false)).toEqual([
       appearanceCookie("qcms-theme", "hc", false),
       appearanceCookie("qcms-font", "atkinson", false),
       appearanceCookie("qcms-text-size", "200", false),
@@ -128,10 +126,7 @@ describe("the cookies one submission writes", () => {
   });
 
   it("carries Secure through to every cookie it writes", () => {
-    const written = appearanceCookiesFor(
-      { mode: "dark", font: "system", textSize: "125" },
-      true,
-    );
+    const written = appearanceCookiesFor({ mode: "dark", font: "system", textSize: "125" }, true);
     expect(written).toHaveLength(3);
     for (const cookie of written) expect(cookie).toMatch(/; Secure$/u);
   });
