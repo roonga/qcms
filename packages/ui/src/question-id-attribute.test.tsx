@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
+import { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 import { instanceIdOfField, qualifiedFieldName, questionIdOfField } from "./repeat/repeat-node.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
@@ -18,7 +18,7 @@ function goldenStep(version: string, form: string, stepId: string) {
   if (golden === undefined) throw new Error(`no ${version} golden for ${form}`);
   const document = golden.compiled.documents.find((doc) => doc.stepId === stepId);
   if (document === undefined) throw new Error(`no step ${stepId} in ${form}`);
-  return { document: document as A2UIStepDocument, spec: golden.compiled.a2uiSpecVersion };
+  return { document, spec: golden.compiled.a2uiSpecVersion };
 }
 
 function vendoredFiles(directory: string): string[] {
