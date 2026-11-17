@@ -4,9 +4,11 @@ import {
   compileDraft,
   parseFormDefinition,
   parseLocaleCode,
+  parseQuestionDefinition,
   parseQuestionVersionRecord,
   type FrozenSnapshot,
   type LocaleCode,
+  type QuestionDefinition,
   type QuestionId,
   type QuestionVersionRecord,
 } from "@roonga/qcms-core";
@@ -14,6 +16,7 @@ import { parseNode } from "@a2ra/core";
 import { describe, expect, it } from "vitest";
 
 import { compileForm, compileFormWith } from "./compile.js";
+import { questionToNode, type TextResolver } from "./mapping.js";
 import type { StepResolver } from "./step-resolver.js";
 import type { A2UINode } from "./types.js";
 
@@ -43,7 +46,7 @@ function buildKitchenSinkSnapshot(): FrozenSnapshot {
         questionId: "q_bio",
         label: en("Short bio"),
         required: false,
-        constraints: { minLength: 20, maxLength: 500 },
+        constraints: { maxLength: 500 },
       },
     },
     {
@@ -276,10 +279,7 @@ describe("compileForm (kitchen-sink)", () => {
       type: "TextField",
       props: { label: "Full name", description: "As it appears on your ID.", isRequired: true },
     });
-    expect(byName("q_bio")).toMatchObject({
-      type: "TextArea",
-      props: { minLength: 20, maxLength: 500 },
-    });
+    expect(byName("q_bio")).toMatchObject({ type: "TextArea", props: { maxLength: 500 } });
     expect(byName("q_age")).toMatchObject({
       type: "NumberField",
       props: { minValue: 0, maxValue: 120, step: 1, isRequired: true },
@@ -380,6 +380,45 @@ describe("compileForm (kitchen-sink)", () => {
     await expect(`${JSON.stringify(compiled, null, 2)}\n`).toMatchFileSnapshot(
       fileURLToPath(new URL("../fixtures/kitchen-sink.a2ui.json", import.meta.url)),
     );
+  });
+});
+
+describe("questionToNode (longText length bounds)", () => {
+  const resolve: TextResolver = (text) => text["en"] ?? "";
+  const locale = parseLocaleCode("en");
+
+  function longText(constraints: Record<string, number>): QuestionDefinition {
+    const parsed = parseQuestionDefinition({
+      type: "longText",
+      questionId: "q_what_happened",
+      label: { en: "What happened?" },
+      constraints,
+    });
+    if (!parsed.ok) {
+      throw new Error(`definition did not parse: ${JSON.stringify(parsed.error)}`);
+    }
+    return parsed.value;
+  }
+
+  if (!locale.ok) {
+    throw new Error("en did not parse as a locale");
+  }
+
+  it("forwards a minimum beside the maximum, as the mapping doc specifies", () => {
+    expect(questionToNode(longText({ minLength: 40, maxLength: 1000 }), resolve, locale.value)).toEqual(
+      {
+        type: "TextArea",
+        props: { label: "What happened?", name: "q_what_happened", minLength: 40, maxLength: 1000 },
+      },
+    );
+  });
+
+  it("omits the bound the author left unset rather than emitting a default", () => {
+    expect(questionToNode(longText({ minLength: 25 }), resolve, locale.value).props).toEqual({
+      label: "What happened?",
+      name: "q_what_happened",
+      minLength: 25,
+    });
   });
 });
 

@@ -92,7 +92,7 @@ The types the issue's own list did not name, and which the corpus made visible, 
 
 ### The closed set of types
 
-Seven, and adding one is a versioned core change: `packages/core/src/question-definition.ts:237-245` (the union) and `:250-262` (`QUESTION_TYPES`). `shortText`, `longText`, `number`, `date`, `boolean`, `singleChoice`, `multiChoice`. `docs/DOMAIN_SCHEMA.md:90-151` restates them.
+Seven, and adding one is a versioned core change: `packages/core/src/question-definition.ts:245-253` (the union) and `:258-270` (`QUESTION_TYPES`). `shortText`, `longText`, `number`, `date`, `boolean`, `singleChoice`, `multiChoice`. `docs/DOMAIN_SCHEMA.md:90-153` restates them.
 
 ### Every constraint there is
 
@@ -100,19 +100,19 @@ Seven, and adding one is a versioned core change: `packages/core/src/question-de
 | -------------- | --------------------------------------------------- | -------------------------------------------------- |
 | `shortText`    | `minLength`, `maxLength`, `pattern`                 | `packages/core/src/question-definition.ts:112-130` |
 | `longText`     | `minLength`, `maxLength`                            | `packages/core/src/question-definition.ts:132-143` |
-| `number`       | `min`, `max`, `integer`                             | `packages/core/src/question-definition.ts:137-155` |
-| `date`         | `min`, `max`, each a literal `YYYY-MM-DD`           | `packages/core/src/question-definition.ts:157-174` |
-| `boolean`      | none; `yesLabel` and `noLabel` are presentation     | `packages/core/src/question-definition.ts:176-184` |
-| `singleChoice` | none; one or more options                           | `packages/core/src/question-definition.ts:186-191` |
-| `multiChoice`  | `minSelected`, `maxSelected`                        | `packages/core/src/question-definition.ts:193-231` |
+| `number`       | `min`, `max`, `integer`                             | `packages/core/src/question-definition.ts:145-163` |
+| `date`         | `min`, `max`, each a literal `YYYY-MM-DD`           | `packages/core/src/question-definition.ts:165-182` |
+| `boolean`      | none; `yesLabel` and `noLabel` are presentation     | `packages/core/src/question-definition.ts:184-192` |
+| `singleChoice` | none; one or more options                           | `packages/core/src/question-definition.ts:194-199` |
+| `multiChoice`  | `minSelected`, `maxSelected`                        | `packages/core/src/question-definition.ts:201-239` |
 | every type     | `required`, defaulting to false                     | `packages/core/src/question-definition.ts:66`      |
 | every type     | `messages`, one authored message per constraint set | `packages/core/src/question-definition.ts:71`      |
 
-Cross-field refinements report every violation at parse: `minLength` not above `maxLength`, `min` not above `max` for both number and date, `minSelected` not above `maxSelected` and neither above the option count, unique option ids, non-empty option labels (`:96-110`, `:121-130`, `:146-155`, `:165-174`, `:202-231`).
+Cross-field refinements report every violation at parse: `minLength` not above `maxLength`, `min` not above `max` for both number and date, `minSelected` not above `maxSelected` and neither above the option count, unique option ids, non-empty option labels (`:52-58`, `:121-130`, `:140-143`, `:154-163`, `:173-182`, `:197-199`, `:210-239`).
 
 ### Validation messages
 
-The nine keys an author may decorate are `required`, `minLength`, `maxLength`, `pattern`, `min`, `max`, `integer`, `minSelected`, `maxSelected`: `packages/core/src/validation-message.ts:10-20`, ordered canonically at `:28-29`. `authoredMessageKeys` (`packages/core/src/question-definition.ts:327-338`) narrows that to the constraints the question actually carries, and publish reports a key for a constraint that is absent (`ORPHAN_MESSAGE_KEY`, `packages/core/src/publish-error.ts:29`). A `boolean` and a `singleChoice` carry no decorable constraint beyond `required`: `packages/core/src/question-definition.ts:307-311`.
+The nine keys an author may decorate are `required`, `minLength`, `maxLength`, `pattern`, `min`, `max`, `integer`, `minSelected`, `maxSelected`: `packages/core/src/validation-message.ts:10-20`, ordered canonically at `:28-29`. `authoredMessageKeys` (`packages/core/src/question-definition.ts:337-348`) narrows that to the constraints the question actually carries, and publish reports a key for a constraint that is absent (`ORPHAN_MESSAGE_KEY`, `packages/core/src/publish-error.ts:29`). A `boolean` and a `singleChoice` carry no decorable constraint beyond `required`: `packages/core/src/question-definition.ts:317-321`.
 
 Enforcement is every constraint, never only the first, and `required` is not among them: `packages/core/src/validate-answer.ts:179-183`. The failure codes and the constraint names are at `:20-31` and `:38-55`.
 
@@ -131,35 +131,35 @@ Facts that bear on the recipes:
 
 ### Dates: min and max
 
-`date` takes `min` and `max`, each a literal canonical date, parsed as a real calendar date and compared lexicographically, which over that encoding is calendar order: `packages/core/src/question-definition.ts:157-174`, `packages/core/src/answer-value.ts:42-46`, `packages/core/src/validate-answer.ts:163-177` and `:212-220`.
+`date` takes `min` and `max`, each a literal canonical date, parsed as a real calendar date and compared lexicographically, which over that encoding is calendar order: `packages/core/src/question-definition.ts:165-182`, `packages/core/src/answer-value.ts:42-46`, `packages/core/src/validate-answer.ts:163-177` and `:212-220`.
 
 **There are no relative dates.** Nothing in the kernel names today, an offset from today, or an age in years; `grep -ri "relative date\|today" packages/core/src` returns nothing. A bound is a fixed date, authored once, and it is stale the following day. This is gap G1 and it is the direct cause of the date of birth defect in the issue.
 
 ### Required-true for consent
 
-**There is none.** `required` is a boolean on `QuestionBase` meaning the question must hold a non-blank answer (`packages/core/src/question-definition.ts:66`, swept at `packages/core/src/prepare-submission.ts:169-190`). A `boolean` carries no constraint at all (`:176-184`) and `validateAnswer` checks nothing beyond the encoding for one (`packages/core/src/validate-answer.ts:221-224`). A required consent question answered No submits.
+**There is none.** `required` is a boolean on `QuestionBase` meaning the question must hold a non-blank answer (`packages/core/src/question-definition.ts:66`, swept at `packages/core/src/prepare-submission.ts:169-190`). A `boolean` carries no constraint at all (`:184-192`) and `validateAnswer` checks nothing beyond the encoding for one (`packages/core/src/validate-answer.ts:221-224`). A required consent question answered No submits.
 
-What does work, and is what the recipe proposes: a `singleChoice` with exactly one option and `required: true`. One option is legal (`options: z.array(ChoiceOption).min(1)`, `:188`) and no other value validates (`packages/core/src/validate-answer.ts:225-240`), so the submission sweep blocks until that option is chosen. It renders as a one-member radio group (`packages/a2ui-compiler/src/mapping.ts:160-166`), which a chosen radio cannot be cleared from with scripting on, and whose no-script placeholder option can be returned to (`docs/COMPONENT_GUIDELINES.md:32`). This is gap G3.
+What does work, and is what the recipe proposes: a `singleChoice` with exactly one option and `required: true`. One option is legal (`options: z.array(ChoiceOption).min(1)`, `:196`) and no other value validates (`packages/core/src/validate-answer.ts:225-240`), so the submission sweep blocks until that option is chosen. It renders as a one-member radio group (`packages/a2ui-compiler/src/mapping.ts:164-170`), which a chosen radio cannot be cleared from with scripting on, and whose no-script placeholder option can be returned to (`docs/COMPONENT_GUIDELINES.md:32`). This is gap G3.
 
 ### Exclusive options
 
-**There are none.** `ChoiceOption` is an option id and a label and nothing else (`packages/core/src/question-definition.ts:47-60`). `multiChoice` carries `minSelected` and `maxSelected` over the count alone (`:193-231`, enforced at `packages/core/src/validate-answer.ts:261-279`), and no constraint names a pair of options. `maxSelected: 1` forbids every second answer, not the one combination the author means. `grep -ri exclusive packages/core apps/api/src/features/agent` finds nothing of the kind. This is gap G2.
+**There are none.** `ChoiceOption` is an option id and a label and nothing else (`packages/core/src/question-definition.ts:47-60`). `multiChoice` carries `minSelected` and `maxSelected` over the count alone (`:201-239`, enforced at `packages/core/src/validate-answer.ts:261-279`), and no constraint names a pair of options. `maxSelected: 1` forbids every second answer, not the one combination the author means. `grep -ri exclusive packages/core apps/api/src/features/agent` finds nothing of the kind. This is gap G2.
 
 `docs/COMPONENT_GUIDELINES.md:32` records the design position this rests on: "none of these" is sayable only as an authored option, which is exactly why the option exists and the rule about it does not.
 
 ### Format checks
 
-A `shortText` `pattern` is the only format check there is: `packages/core/src/question-definition.ts:114-130`, applied under the `u` flag at `packages/core/src/validate-answer.ts:144-160`.
+A `shortText` `pattern` is the only format check there is: `packages/core/src/question-definition.ts:112-130`, applied under the `u` flag at `packages/core/src/validate-answer.ts:144-160`.
 
 - The accepted subset is deliberately conservative, and every accepted pattern is linear-time-safe: `packages/core/src/safe-pattern.ts`. Backreferences and lookaround are refused (`:114-118`, `:150-155`), a pattern is capped at 256 characters (`:6`), a finite quantifier bound at 1000 (`:8`), and repetition of a group carrying `|` or a quantifier at 32 (`:10`).
 - A pattern must also compile under the `v` flag, because a browser compiles the HTML attribute that way: `compilesUnderV` and `toVSafePattern` at `packages/core/src/safe-pattern.ts:235-242` and `:318-322`, refused by the authoring API as `PATTERN_NOT_BROWSER_SAFE` (`docs/DOMAIN_SCHEMA.md:162-167`). Every pattern in the recipes was checked against both.
 - `&&` or `--` unescaped inside a character class is a publish warning, not a refusal: `packages/core/src/publish-warning.ts:13`.
 
-**There is no email, phone, postcode or URL check**, named or built in. The compiled control is a plain text field carrying `minLength`, `maxLength` and `pattern`, with no input type and no input mode: `packages/a2ui-compiler/src/mapping.ts:102-111`. Everything an author wants is hand-written as a pattern, once per question, with no shared source. This is gap G8.
+**There is no email, phone, postcode or URL check**, named or built in. The compiled control is a plain text field carrying `minLength`, `maxLength` and `pattern`, with no input type and no input mode: `packages/a2ui-compiler/src/mapping.ts:102-111`, and the longer box carries the two lengths at `:112-120`. Everything an author wants is hand-written as a pattern, once per question, with no shared source. This is gap G8.
 
 ### Length limits
 
-`minLength` and `maxLength` on both `shortText` and `longText`: `packages/core/src/question-definition.ts:112-143`. They count UTF-16 code units of the canonical string, the unit the typed box itself counts in: `packages/core/src/validate-answer.ts:116-150`. Both reach the control as `minLength` and `maxLength`: `packages/a2ui-compiler/src/mapping.ts:102-121`.
+`minLength` and `maxLength` on both `shortText` and `longText`: `packages/core/src/question-definition.ts:112-143`. They count UTF-16 code units of the canonical string, the unit the typed box itself counts in: `packages/core/src/validate-answer.ts:116-150`. Both reach the control as `minLength` and `maxLength`: `packages/a2ui-compiler/src/mapping.ts:102-120`.
 
 There is no word count, no paragraph count and no line count. A minimum is a character count, which is not how an author counts a sentence.
 

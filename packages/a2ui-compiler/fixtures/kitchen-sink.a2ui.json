@@ -47,7 +47,6 @@
                 "props": {
                   "label": "Short bio",
                   "name": "q_bio",
-                  "minLength": 20,
                   "maxLength": 500
                 }
               },
