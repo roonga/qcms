@@ -6,7 +6,7 @@ the scope carrier added by task 060 (ADR-38).
 presets, each theme's high-contrast palettes, the three density levels,
 per-deployment selection, the brand mark, the declarative self-hosted font registry
 with its curation config, the shared font fallback tails (issue #27), and the
-respondent mode / font / density controls with their persistence.
+respondent mode, face and text-size controls with their persistence (task 120).
 **Does not own:** the Phase 4 admin theme editor (task 049), the admin font-curation UI,
 the authoring of per-form appearance (only its rendering, task 118), and self-hosted **multi-script** coverage (the open half of
 issue #27: which non-Latin scripts QCMS ships faces for is undecided).
@@ -21,13 +21,13 @@ question. Note the one part that IS this feature: defaulting the mode from
 ## Ownership in one paragraph
 
 Portal presentation splits into two layers. A **theme** is operator-set: a
-palette, a default font, a corner preset and the brand mark. **Respondent runtime
-choices** are mode, font and density, and they sit on top of the theme rather than
-replacing it. A theme is **mutable operator config, not form-grade immutable
+palette, a default font, a corner preset, a density and the brand mark. **Respondent
+runtime choices** are mode, face and text size, and they sit on top of the theme rather
+than replacing it. Density is not a respondent choice (Q6). A theme is **mutable operator config, not form-grade immutable
 content** - it is chrome, not answer data, so none of the immutability, determinism
-or auditability guarantees touch it. Config supplies the DEFAULT for each of the
-three respondent axes, including which fonts a deployment offers at all
-(curation); the respondent's own choice, when they make one, wins.
+or auditability guarantees touch it. Config supplies the DEFAULT for mode and face,
+including which fonts a deployment offers beyond the legibility faces (curation); the
+respondent's own choice, when they make one, wins.
 
 ## The four token groups
 
@@ -205,8 +205,8 @@ of issue #27.
 
 ### Group 3: the three density levels
 
-Density is the respondent's control over the spacing group, and it is the only axis
-that moves these five values. Comfortable is the base anchor block, so it carries
+Density is set by the deployment (`QCMS_PORTAL_DENSITY`) or by a form's appearance,
+never by the respondent (Q6), and it is the only axis that moves these five values. Comfortable is the base anchor block, so it carries
 no class.
 
 | Token                   | Compact           | Comfortable (default) | Spacious       | Applies to                                              |
@@ -707,10 +707,11 @@ presentation config must not take a deployment down, and the fallback is always
 the safe brand-neutral default. `QCMS_PORTAL_MODE=hc` is how a deployment ships
 High-contrast as its default.
 
-Mode, font and density are **defaults, not settings**: they are what a first-time
-visitor gets, and the respondent's own choice overrides them from then on (below).
-Theme and corners have no respondent control, so for those two the config value is
-the whole story.
+Mode and font are **defaults, not settings**: they are what a first-time visitor
+gets, and the respondent's own choice overrides them from then on (below). Theme,
+corners and density have no respondent control, so for those the config value (or the
+form's appearance) is the whole story. `QCMS_PORTAL_FONTS` cannot curate away System
+and the three legibility faces: the respondent menu always offers them.
 
 ### The brand mark
 
@@ -756,9 +757,9 @@ configuration above, which stays the default.
   the theme's own blocks, so a form outranks every deployment theme whatever the
   stylesheet order. `lib/server/form-appearance.ts` admits only bare token names and
   6-digit hex values into that text; anything else falls back to the deployment.
-- **Face, density, corners.** The same root classes as configuration. Precedence per
-  axis is the respondent's cookie, then the form, then configuration
-  (`resolveAppearance`). The form's face applies even when `QCMS_PORTAL_FONTS` does not
+- **Face, density, corners.** The same root classes as configuration. The face's
+  precedence is the respondent's cookie, then the form, then configuration
+  (`resolveAppearance`); density and corners come from the form, then configuration. The form's face applies even when `QCMS_PORTAL_FONTS` does not
   offer it, and that page's font menu gains the face so the control shows it and a
   no-JS post keeps it. Mode has no form value: the respondent and configuration decide
   it, and the form supplies the palette for each mode.
@@ -768,20 +769,36 @@ configuration above, which stays the default.
   as null. The brand name stays the deployment's.
 - **Forced colours** replace the palette with the user's, as for any theme.
 
-Text size and the progress mode ride the same appearance and belong to tasks 120 and 119.
+- **Text size (Q9).** The form's base (16 to 24 px) rides the nonced `<style>` as
+  `--text-base`, its ratio to 16 px. The respondent's scale is a root class,
+  `text-scale-100` to `text-scale-200`, and `theme.css` sets the root size to the
+  product, capped at 32 px: `min(100% * base * scale, max(32px, 100%))`. Percent rather
+  than px keeps the browser's own default size in force, and the `max()` keeps the cap
+  from ever shrinking text below that default. Every type token is in `rem`, so the
+  whole page follows. `textSizePx` in `lib/appearance.ts` is the same rule in numbers.
 
-## Respondent runtime controls (mode, font, density)
+The progress mode rides the same appearance and belongs to task 119.
 
-The header carries an **Appearance** disclosure with three controls. It is
-collapsed by default because at a phone width three chip groups plus a font select
-would be most of the viewport above the first question, and a respondent who needs
-High-contrast or a legibility face opens it once: the choice persists.
+## Respondent runtime controls (mode, face, text size)
 
-| Control | Shape                                                                    | Writes                                       |
-| ------- | ------------------------------------------------------------------------ | -------------------------------------------- |
-| Mode    | radio group, chips: Light / Dark / High contrast                         | `qcms-theme` cookie + mode root class        |
-| Font    | native `<select>` with an `<optgroup>` per registry group                | `qcms-font` cookie + `font-<key>` root class |
-| Density | radio group, chips with a density icon: Compact / Comfortable / Spacious | `qcms-density` cookie + density root class   |
+The header carries an **Appearance** disclosure, the respondent menu (task 120). It is
+collapsed by default because at a phone width two chip groups plus a font select would
+be most of the viewport above the first question, and a respondent who needs
+High-contrast, a legibility face or larger text opens it once: the choice persists.
+Escape closes it and returns focus to its summary.
+
+| Control   | Shape                                                     | Writes                                            |
+| --------- | --------------------------------------------------------- | ------------------------------------------------- |
+| Mode      | radio group, chips: Light / Dark / High contrast          | `qcms-theme` cookie + mode root class             |
+| Font      | native `<select>` with an `<optgroup>` per registry group | `qcms-font` cookie + `font-<key>` root class      |
+| Text size | radio group, chips: Default / Large / Larger / Largest    | `qcms-text-size` cookie + `text-scale-<n>` class  |
+
+The font menu is the deployment's curated faces plus the legibility faces (System,
+Atkinson Hyperlegible, OpenDyslexic, Lexend, `LEGIBILITY_FONT_KEYS` in the font
+registry), which curation cannot remove, plus the form's own face when the deployment
+does not list it. A saved face applies on every page whose menu offers it. Text size is
+100, 125, 150 or 200 percent of the form's base, or of 16 px off a form. Density is not
+in the menu, and a `qcms-density` cookie left by an earlier release is ignored.
 
 Each control swaps the root class immediately (that is what the respondent sees)
 and writes the cookie (that is what makes the next server render already correct).
@@ -793,7 +810,7 @@ The choice has to be readable **on the server**, because the root class must be
 right in the first byte of HTML or the respondent sees a flash. `localStorage` is
 unreachable during SSR, so a localStorage-backed control can only correct the page
 after it loads - which IS the flash. With cookies, `app/layout.tsx` reads all three
-and stamps the classes during SSR, so **font and density need no pre-paint script
+and stamps the classes during SSR, so **font and text size need no pre-paint script
 at all**.
 
 Mode keeps one, for one reason: it has a fourth input the server cannot see. Only
@@ -854,7 +871,7 @@ so selecting a chip moves no text.
 
 ### Keyboard behaviour is the platform's
 
-Mode and density are native radio groups in a `fieldset`/`legend`, drawn as chips
+Mode and text size are native radio groups in a `fieldset`/`legend`, drawn as chips
 through a radio input that is `opacity: 0` and **stretched over the whole chip**.
 Stretched rather than clipped to a pixel because WCAG 2.5.8 measures the size of
 the target, which is that input: a 1px-clipped input would be a 1px target with a
@@ -874,9 +891,12 @@ likely to need. Issue #195 closed that.
 
 The same markup is now a real `<form method="post">` posting to `/appearance`
 (`apps/portal/app/appearance/route.ts`), which validates the three values against the
-same enumerations this page documents, writes the same three cookies through the same
-writer the browser controls use (`appearanceCookie` in `apps/portal/lib/appearance.ts`),
-and answers `303` back to the page the form came from. The next render is a server
+same enumerations this page documents, writes the same cookies through the same writer
+the browser controls use (`appearanceCookie` in `apps/portal/lib/appearance.ts`), and
+answers `303` back to the page the form came from. The form also posts each axis's
+rendered value in a hidden `was-<axis>` field, and the route writes only the axes whose
+value differs. Without that, a mode change on a themed form would save the form's face
+as the respondent's choice and carry it to every other form. The next render is a server
 render, so the choice is correct in the first byte.
 
 The progressive-enhancement seam is one element wide: the **Apply** button. It is in
@@ -923,7 +943,8 @@ is visible only in the `origin.belt.refused` line (`beltOutcome: "redirect-to-ro
 ### Measured: target sizes per density
 
 `appearance.pw.ts` measures every rendered control target at all three levels
-against WCAG 2.5.8's 24px minimum. At **Compact**, the tightest level: chips and
+(stamped by the test, since density is not a respondent control) against WCAG 2.5.8's
+24px minimum. At **Compact**, the tightest level: chips and
 the disclosure 36px tall, the radio input itself 34px (inset by its border), the
 font select 36px, a form option row 36px, the primary action 44px - every one at
 least 77px wide. The smallest dimension anywhere in the sweep is 34px, against a
