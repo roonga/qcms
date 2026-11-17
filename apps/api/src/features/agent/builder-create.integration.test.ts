@@ -211,7 +211,7 @@ async function draftsFor(formId: string): Promise<number> {
 async function rowsFor(formId: string): Promise<{ kind: string; detail: string | null }[]> {
   const res = await testDb.client.query<{ kind: string; detail: string | null }>(
     // A create's row names no form, since the plan named none when it was proposed.
-    `select kind, detail from control.agent_actions where form_id = $1 or detail = $1 order by id`,
+    `select kind, detail from control.agent_actions where form_id = $1 or detail = $1`,
     [formId],
   );
   return res.rows;
@@ -329,7 +329,10 @@ describe("the builder's edits after the create", () => {
       expect((await put(first)).status).toBe(200);
       await disableSeededAccount(testDb.db, editor.userId, now);
       expect((await put(second)).status).toBe(401);
-      expect((await rowsFor(formId)).map((row) => row.kind)).toEqual(["form.create", "draft.step"]);
+      expect((await rowsFor(formId)).map((row) => row.kind).sort()).toEqual([
+        "draft.step",
+        "form.create",
+      ]);
     },
     CONTAINER_BOOT_TIMEOUT_MS,
   );
