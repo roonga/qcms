@@ -5,7 +5,13 @@ import type { Locator, Page } from "@playwright/test";
 import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
 import { FONT_REGISTRY, fontClass } from "@roonga/qcms-ui/fonts";
 
-import { DENSITY_LEVELS, densityClass } from "../lib/appearance.js";
+import {
+  DENSITY_LEVELS,
+  TEXT_SCALES,
+  densityClass,
+  textScaleClass,
+  textSizePx,
+} from "../lib/appearance.js";
 import { readFixtures } from "./support/fixtures.js";
 import { startAnonymousFlow } from "./support/flow.js";
 import { expect, test } from "./support/gates.js";
@@ -56,12 +62,30 @@ async function openAppearance(page: Page): Promise<void> {
 }
 
 /** Addressed by value rather than position. */
-function chip(page: Page, group: "mode" | "density", value: string): Locator {
+type ChipGroup = "mode" | "textSize";
+
+function chip(page: Page, group: ChipGroup, value: string): Locator {
   return page.locator(`[data-testid="appearance-${group}"] label[data-value="${value}"]`);
 }
 
-async function pickChip(page: Page, group: "mode" | "density", value: string): Promise<void> {
+async function pickChip(page: Page, group: ChipGroup, value: string): Promise<void> {
   await chip(page, group, value).click();
+  await settleTransitions(page);
+}
+
+/** Density is the form's or the deployment's, never the respondent's, so tests stamp it directly. */
+async function setDensity(page: Page, level: (typeof DENSITY_LEVELS)[number]): Promise<void> {
+  await page.evaluate(
+    ({ next, all }) => {
+      const root = document.documentElement;
+      for (const className of all) root.classList.remove(className);
+      if (next !== "") root.classList.add(next);
+    },
+    {
+      next: densityClass(level),
+      all: DENSITY_LEVELS.map((candidate) => densityClass(candidate)).filter(Boolean),
+    },
+  );
   await settleTransitions(page);
 }
 
@@ -122,26 +146,27 @@ test("each control switches its axis and the choice survives a reload", async ({
   await expect(root).toHaveClass(new RegExp(`\\b${fontClass("atkinson")}\\b`, "u"));
   expect(await computed(page.locator("body"), "font-family")).toContain("Atkinson Hyperlegible");
 
-  expect(await px(input, "min-height")).toBeCloseTo(44, 0);
-  await pickChip(page, "density", "compact");
-  await expect(root).toHaveClass(/\bdensity-compact\b/u);
-  expect(await px(input, "min-height")).toBeCloseTo(36, 0);
+  expect(await px(root, "font-size")).toBe(16);
+  await pickChip(page, "textSize", "150");
+  await expect(root).toHaveClass(/\btext-scale-150\b/u);
+  expect(await px(root, "font-size")).toBe(textSizePx(16, "150"));
+  expect(await px(input, "font-size")).toBe(24);
 
   expect(await appearanceCookies(page)).toEqual({
     "qcms-theme": "hc",
     "qcms-font": "atkinson",
-    "qcms-density": "compact",
+    "qcms-text-size": "150",
   });
 
   const served = await page.reload();
   const html = (await served?.text()) ?? "";
   expect(html).toMatch(/<html[^>]*\bclass="[^"]*\bhc\b/u);
   expect(html).toMatch(/<html[^>]*\bclass="[^"]*\bfont-atkinson\b/u);
-  expect(html).toMatch(/<html[^>]*\bclass="[^"]*\bdensity-compact\b/u);
+  expect(html).toMatch(/<html[^>]*\bclass="[^"]*\btext-scale-150\b/u);
 
   await openAppearance(page);
   await expect(chip(page, "mode", "hc")).toHaveAttribute("data-selected", "true");
-  await expect(chip(page, "density", "compact")).toHaveAttribute("data-selected", "true");
+  await expect(chip(page, "textSize", "150")).toHaveAttribute("data-selected", "true");
   await expect(page.getByTestId("appearance-font")).toHaveValue("atkinson");
 });
 
@@ -261,13 +286,17 @@ test("the controls are operable from the keyboard alone", async ({ page }) => {
   await expect(root).toHaveClass(/\bdark\b/u);
   await expect(chip(page, "mode", "dark")).toHaveAttribute("data-selected", "true");
 
-  const comfortable = page.locator('[data-testid="appearance-density"] input[value="comfortable"]');
-  await comfortable.press("ArrowRight");
+  const defaultSize = page.locator('[data-testid="appearance-textSize"] input[value="100"]');
+  await defaultSize.press("ArrowRight");
   await settleTransitions(page);
-  await expect(root).toHaveClass(/\bdensity-spacious\b/u);
+  await expect(root).toHaveClass(/\btext-scale-125\b/u);
 
   await page.getByTestId("appearance-font").selectOption("merriweather");
   await expect(root).toHaveClass(new RegExp(`\\b${fontClass("merriweather")}\\b`, "u"));
+
+  await page.getByTestId("appearance-font").press("Escape");
+  await expect(page.getByTestId("appearance")).toHaveJSProperty("open", false);
+  await expect(summary).toBeFocused();
 });
 
 test("the selected chip is distinguishable without colour, including in High-contrast", async ({
@@ -281,7 +310,7 @@ test("the selected chip is distinguishable without colour, including in High-con
     await pickChip(page, "mode", mode);
     await settleTransitions(page);
 
-    for (const group of ["mode", "density"] as const) {
+    for (const group of ["mode", "textSize"] as const) {
       const chips = page.locator(`[data-testid="appearance-${group}"] label[data-value]`);
       const flags = await chips.evaluateAll((labels) =>
         labels.map((label) => label.getAttribute("data-selected")),
@@ -318,8 +347,8 @@ async function measureTargets(page: Page): Promise<{ name: string; w: number; h:
   for (const mode of MODES) {
     targets.push({ name: `mode chip ${mode}`, locator: chip(page, "mode", mode) });
   }
-  for (const level of DENSITY_LEVELS) {
-    targets.push({ name: `density chip ${level}`, locator: chip(page, "density", level) });
+  for (const scale of TEXT_SCALES) {
+    targets.push({ name: `text size chip ${scale}`, locator: chip(page, "textSize", scale) });
   }
   targets.push({
     name: "mode radio input",
@@ -348,7 +377,7 @@ test("every control target clears the WCAG 2.5.8 minimum at Compact", async ({
 
   const table: string[] = [];
   for (const level of DENSITY_LEVELS) {
-    await pickChip(page, "density", level);
+    await setDensity(page, level);
     for (const target of await measureTargets(page)) {
       table.push(
         `${level.padEnd(12)} ${target.name.padEnd(22)} ${target.w.toFixed(1)} x ${target.h.toFixed(1)} px`,
@@ -458,17 +487,18 @@ test("the WCAG 1.4.12 floors hold at every font AND every density", async ({ pag
   expect(table).toHaveLength(DENSITY_LEVELS.length * fontKeys.length);
 });
 
-test("the appearance panel is axe-clean in every mode x density", async ({ page }) => {
+test("the appearance panel is axe-clean in every mode x text size", async ({ page }) => {
   const { slug } = readFixtures();
   await page.goto(`/f/${slug}`);
   await openAppearance(page);
 
   for (const mode of MODES) {
     await pickChip(page, "mode", mode);
-    for (const level of DENSITY_LEVELS) {
-      await pickChip(page, "density", level);
+    for (const scale of TEXT_SCALES) {
+      await pickChip(page, "textSize", scale);
+      await expect(page.locator("html")).toHaveClass(new RegExp(`\\b${textScaleClass(scale)}\\b`, "u"));
       await expect(page.getByTestId("appearance-mode")).toBeVisible();
-      await expectNoAxeViolations(page, `${mode} / ${level} (appearance panel open)`);
+      await expectNoAxeViolations(page, `${mode} / ${scale}% (appearance panel open)`);
     }
   }
 });

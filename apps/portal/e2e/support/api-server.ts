@@ -77,6 +77,9 @@ const APPEARANCE_FORMS = [
   "faceNoJs",
   "done",
   "takedown",
+  "menu",
+  "textSize",
+  "textSizeNoJs",
 ] as const;
 type AppearanceFormName = (typeof APPEARANCE_FORMS)[number];
 
