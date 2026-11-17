@@ -9,7 +9,11 @@ import {
 } from "./context.ts";
 import {
   AUTHORING_PATH,
+  builderPath,
+  builderSubject,
   declaredMode,
+  focusedModeForPath,
+  isBuilderPath,
   exitMode,
   focusedMode,
   isPersonalRoute,
@@ -283,5 +287,34 @@ describe("what a mode remembers", () => {
     expect(shellModeCookie("operations", true)).toContain("Secure");
     expect(shellModeCookie("operations", false)).not.toContain("Secure");
     expect(shellModeCookie("operations", false)).not.toContain("HttpOnly");
+  });
+});
+
+describe("the agent builder mode", () => {
+  it("is the two build routes and nothing else", () => {
+    expect(builderSubject("/forms/frm_a/build")).toBe("frm_a");
+    expect(builderSubject("/forms/new/build")).toBeNull();
+    expect(builderSubject("/forms/frm_a")).toBeUndefined();
+    expect(builderSubject("/forms/frm_a/build/x")).toBeUndefined();
+    expect(builderSubject("/forms/build")).toBeUndefined();
+    expect(builderSubject("/operations/forms/frm_a/build")).toBeUndefined();
+    expect(isBuilderPath("/forms/frm_a/rules")).toBe(false);
+  });
+
+  it("round-trips an id that needs escaping", () => {
+    expect(builderSubject(builderPath("frm a/b"))).toBe("frm a/b");
+    expect(builderSubject("/forms/%E0%A4%A/build")).toBeUndefined();
+  });
+
+  it("is focused, ahead of the authoring area it sits in", () => {
+    expect(focusedModeForPath("/forms/frm_a/build", undefined)).toBe("builder");
+    expect(focusedModeForPath("/forms/new/build", "operations")).toBe("builder");
+    expect(focusedModeForPath("/forms/frm_a", undefined)).toBeUndefined();
+    expect(focusedModeForPath(OPERATIONS_PATH, undefined)).toBe("operations");
+  });
+
+  it("is remembered as authoring, so a personal route opened from it keeps the application navigation", () => {
+    expect(declaredMode("/forms/frm_a/build")).toBe("normal");
+    expect(rememberableMode("/forms/new/build", EVERYTHING)).toBe("normal");
   });
 });

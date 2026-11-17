@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { AdminNav } from "@/components/admin-nav";
 import { LeaveOperationsGuard } from "@/components/shell/leave-operations-guard";
+import {
+  BUILDER_RETURN_KEY,
+  builderExitHref,
+  rememberedBuilderReturn,
+} from "@/lib/forms/build-return";
 import { t } from "@/lib/i18n/en";
 import { shellModeCookie, shellWorkspaceCookie } from "@/lib/shell/context";
 import {
@@ -15,10 +20,15 @@ import {
   rememberedReturn,
 } from "@/lib/shell/leave-operations";
 import {
+  builderSubjectName,
+  serverBuilderSubjectName,
+  subscribeBuilderSubject,
+} from "@/lib/shell/builder-subject";
+import {
+  builderSubject,
   exitMode,
-  focusedMode,
+  focusedModeForPath,
   landingPathForMode,
-  modeForPath,
   OPERATIONS_PATH,
   rememberableMode,
   type ShellCapabilities,
@@ -26,8 +36,9 @@ import {
 } from "@/lib/shell/modes";
 
 /**
- * The top bar after the wordmark: the application navigation, where Operations becomes one group
- * of title, environment and Exit, then the trailing tools.
+ * The top bar after the wordmark: the workspace switcher, the application navigation, where
+ * Operations becomes one group of title, environment and Exit, then the trailing tools. The agent
+ * builder shows its own group alone.
  */
 export function ShellChrome({
   capabilities,
@@ -36,6 +47,7 @@ export function ShellChrome({
   environment,
   environmentName,
   trailing,
+  workspace,
   multipleWorkspaces,
 }: {
   readonly capabilities: ShellCapabilities;
@@ -45,14 +57,17 @@ export function ShellChrome({
   /** The selected environment's name, empty when it is unknown. */
   readonly environmentName: string;
   readonly trailing: ReactNode;
+  readonly workspace?: ReactNode;
   /** Whether this caller may open more than one workspace, which decides the area's name. */
   readonly multipleWorkspaces: boolean;
 }) {
   const pathname = usePathname();
   const search = useSearchParams().toString();
-  const focused = focusedMode(modeForPath(pathname, rememberedMode));
+  const focused = focusedModeForPath(pathname, rememberedMode);
   const inOperations = focused === "operations";
+  const inBuilder = focused === "builder";
   const cameFrom = useOperationsReturn(pathname, search, inOperations);
+  const builderCameFrom = useBuilderReturn(pathname, search, inBuilder);
 
   const remember = rememberableMode(pathname, capabilities);
   useEffect(() => {
@@ -69,43 +84,48 @@ export function ShellChrome({
 
   return (
     <>
+      {!inBuilder && workspace}
       <div className="qcms-topbar__nav">
-        <AdminNav
-          capabilities={capabilities}
-          multipleWorkspaces={multipleWorkspaces}
-          operationsGroup={
-            inOperations ? (
-              <div
-                className="qcms-opsbar"
-                role="group"
-                aria-label={t("nav.operations")}
-                data-testid="qcms-mode-header"
-                data-mode="operations"
-              >
-                <Link href={OPERATIONS_PATH} aria-current="page" className="qcms-opsbar__title">
-                  {t("nav.operations")}
-                </Link>
-                {environment}
-                {exit !== undefined && (
-                  <>
-                    <span className="qcms-opsbar__divider" aria-hidden="true" />
-                    <Link
-                      href={exit}
-                      className="qcms-opsbar__exit"
-                      aria-label={t("shell.mode.operations.exit")}
-                      data-testid="qcms-mode-exit"
-                      {...{ [LEAVE_EXEMPT_ATTRIBUTE]: "" }}
-                    >
-                      {t("shell.mode.operations.exitText")}
-                    </Link>
-                  </>
-                )}
-              </div>
-            ) : undefined
-          }
-        />
+        {inBuilder ? (
+          <BuilderGroup pathname={pathname} cameFrom={builderCameFrom} />
+        ) : (
+          <AdminNav
+            capabilities={capabilities}
+            multipleWorkspaces={multipleWorkspaces}
+            operationsGroup={
+              inOperations ? (
+                <div
+                  className="qcms-opsbar"
+                  role="group"
+                  aria-label={t("nav.operations")}
+                  data-testid="qcms-mode-header"
+                  data-mode="operations"
+                >
+                  <Link href={OPERATIONS_PATH} aria-current="page" className="qcms-opsbar__title">
+                    {t("nav.operations")}
+                  </Link>
+                  {environment}
+                  {exit !== undefined && (
+                    <>
+                      <span className="qcms-opsbar__divider" aria-hidden="true" />
+                      <Link
+                        href={exit}
+                        className="qcms-opsbar__exit"
+                        aria-label={t("shell.mode.operations.exit")}
+                        data-testid="qcms-mode-exit"
+                        {...{ [LEAVE_EXEMPT_ATTRIBUTE]: "" }}
+                      >
+                        {t("shell.mode.operations.exitText")}
+                      </Link>
+                    </>
+                  )}
+                </div>
+              ) : undefined
+            }
+          />
+        )}
       </div>
-      <div className="qcms-topbar__tools">{trailing}</div>
+      {!inBuilder && <div className="qcms-topbar__tools">{trailing}</div>}
       {inOperations && (
         <LeaveOperationsGuard
           environment={environmentName}
@@ -116,6 +136,45 @@ export function ShellChrome({
         {focused === undefined ? "" : t(`shell.mode.${focused}.announce`)}
       </span>
     </>
+  );
+}
+
+function BuilderGroup({
+  pathname,
+  cameFrom,
+}: {
+  readonly pathname: string;
+  readonly cameFrom: string | null;
+}) {
+  const formId = builderSubject(pathname) ?? null;
+  const named = useSyncExternalStore(
+    subscribeBuilderSubject,
+    builderSubjectName,
+    serverBuilderSubjectName,
+  );
+  const name = formId === null ? t("builder.newForm") : named;
+  return (
+    <div
+      className="qcms-opsbar qcms-builderbar"
+      role="group"
+      aria-label={t("shell.mode.builder.name")}
+      data-testid="qcms-mode-header"
+      data-mode="builder"
+    >
+      <span className="qcms-opsbar__title">{t("shell.mode.builder.name")}</span>
+      <span className="qcms-builderbar__subject" data-testid="qcms-builder-subject">
+        {name}
+      </span>
+      <span className="qcms-opsbar__divider" aria-hidden="true" />
+      <Link
+        href={builderExitHref(formId, cameFrom)}
+        className="qcms-opsbar__exit"
+        aria-label={t("shell.mode.builder.exit")}
+        data-testid="qcms-mode-exit"
+      >
+        {t("shell.mode.builder.exitText")}
+      </Link>
+    </div>
   );
 }
 
@@ -132,12 +191,31 @@ export function RememberWorkspace({
   return null;
 }
 
-function readReturn(): string | null {
+function readReturn(key: string): string | null {
   try {
-    return window.sessionStorage.getItem(OPERATIONS_RETURN_KEY);
+    return window.sessionStorage.getItem(key);
   } catch {
     return null;
   }
+}
+
+/** Records each address outside the builder, and inside it reads back the last one for Exit. */
+function useBuilderReturn(pathname: string, search: string, inBuilder: boolean): string | null {
+  const [cameFrom, setCameFrom] = useState<string | null>(null);
+  useEffect(() => {
+    if (inBuilder) {
+      setCameFrom(readReturn(BUILDER_RETURN_KEY));
+      return;
+    }
+    const here = rememberedBuilderReturn(pathname, search === "" ? "" : `?${search}`);
+    if (here === undefined) return;
+    try {
+      window.sessionStorage.setItem(BUILDER_RETURN_KEY, here);
+    } catch {
+      // Without storage Exit falls back to the form page.
+    }
+  }, [pathname, search, inBuilder]);
+  return cameFrom;
 }
 
 /** Records each address outside Operations, query included, and inside it reads back the last one. */
@@ -149,7 +227,7 @@ function useOperationsReturn(
   const [cameFrom, setCameFrom] = useState<string | null>(null);
   useEffect(() => {
     if (inOperations) {
-      setCameFrom(readReturn());
+      setCameFrom(readReturn(OPERATIONS_RETURN_KEY));
       return;
     }
     const here = rememberedReturn(pathname, search === "" ? "" : `?${search}`);

@@ -38,6 +38,7 @@ import {
   type AssistantMode,
 } from "@/lib/agent/panel-context";
 import { screenForPath } from "@/lib/agent/screens";
+import { isBuilderPath } from "@/lib/shell/modes";
 import { ProposalSeamProvider } from "@/lib/agent/waiting";
 import { t, type MessageKey } from "@/lib/i18n/en";
 
@@ -174,8 +175,10 @@ export function AssistantProvider({
     [announcement, environment, expanded, open, pathname, remember, search, sheet, width, working],
   );
 
+  const inBuilder = isBuilderPath(pathname);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (inBuilder) return;
       if (!event.altKey || !event.shiftKey || event.key.toLowerCase() !== "a") return;
       const active = document.activeElement;
       const typing =
@@ -192,7 +195,7 @@ export function AssistantProvider({
     return () => {
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [control, open]);
+  }, [control, open, inBuilder]);
 
   return (
     <AssistantContext.Provider value={control}>
@@ -205,9 +208,11 @@ export function AssistantProvider({
   );
 }
 
+/** The dock is not part of the agent builder, which carries its own assistant pane. */
 export function AssistantButtonSlot() {
   const control = useAssistant();
-  if (control === undefined) return null;
+  const pathname = usePathname();
+  if (control === undefined || isBuilderPath(pathname)) return null;
   return (
     <AssistantButton
       open={control.open}
@@ -222,7 +227,8 @@ export function AssistantPanelSlot() {
   const conversation = useConversation();
   const builder = useBuilderAssist();
   const [helpOpen, setHelpOpen] = useState(false);
-  const modal = control?.open === true && control.mode !== "dock";
+  const inBuilder = isBuilderPath(usePathname());
+  const modal = control?.open === true && control.mode !== "dock" && !inBuilder;
 
   // Apply inert to every sibling along the panel's path to body so modal behavior covers all underlying
   // content.
@@ -243,7 +249,7 @@ export function AssistantPanelSlot() {
     };
   }, [modal]);
 
-  if (control === undefined) return null;
+  if (control === undefined || inBuilder) return null;
   const { mode, width } = control;
   // Keep the closed panel mounted and hidden so in-progress turns survive closing it.
   const closed = !control.open;

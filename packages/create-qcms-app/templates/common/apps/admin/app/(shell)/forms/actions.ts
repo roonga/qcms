@@ -15,9 +15,10 @@ import type {
   RevokeLinkState,
   SaveDraftState,
   SettingsState,
+  StartDraftState,
   ValidateDraftState,
 } from "@/lib/forms/builder-state";
-import { formIdFromSlug } from "@/lib/forms/draft";
+import { blankDraft, formIdFromSlug } from "@/lib/forms/draft";
 import { linkExpiryInstant } from "@/lib/forms/links";
 import { t } from "@/lib/i18n/en";
 import { messageForFormCode } from "@/lib/forms/errors";
@@ -30,6 +31,7 @@ import type {
 import type { DraftForm, FormIssue, FormVersionSnapshot } from "@/lib/forms/types";
 import {
   createForm,
+  getForm,
   getFormVersion,
   previewCondition,
   previewDraft,
@@ -212,6 +214,20 @@ export async function saveDraftAction(
     agentAssisted: result.data.agentAssisted,
     updatedAt: result.data.updatedAt,
   };
+}
+
+/** Store the newest version's seeded copy as the open draft the agent builder edits. */
+export async function startBuildDraftAction(formId: string): Promise<StartDraftState> {
+  const session = await requireAdminSession();
+  const detail = await getForm(session, formId);
+  if (!detail.ok) return { status: "error", message: detail.message };
+  const form = detail.data;
+  if (form.draftSource === "open") return { status: "started" };
+  const draft = form.draft ?? blankDraft(form.formId, form.defaultLocale);
+  const saved = await saveDraft(session, form.formId, draft);
+  if (!saved.ok) return { status: "error", message: saved.message };
+  revalidatePath(`/forms/${formId}`, "layout");
+  return { status: "started" };
 }
 
 export async function validateDraftAction(

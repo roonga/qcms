@@ -120,14 +120,22 @@ function sourceOf(
   return { kind: "version", version };
 }
 
+/** Where the wizard hands back to, already validated by the page that read `returnTo`. */
+export interface PublishReturn {
+  readonly href: string;
+  readonly toBuilder: boolean;
+}
+
 function PublishResult({
   formId,
   state,
   secureCookies,
+  returnTo,
 }: {
   readonly formId: string;
   readonly state: PublishBatchState;
   readonly secureCookies: boolean;
+  readonly returnTo: PublishReturn | undefined;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -185,7 +193,16 @@ function PublishResult({
           ))}
         </ul>
       )}
-      <div>
+      <div className="flex flex-wrap gap-4">
+        {returnTo !== undefined && (
+          <Link className="qcms-text-link" href={returnTo.href} data-testid="qcms-publish-return">
+            {t(
+              returnTo.toBuilder
+                ? "forms.publish.result.backToBuilder"
+                : "forms.publish.result.backToForm",
+            )}
+          </Link>
+        )}
         <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/versions`}>
           {t("forms.publish.result.versions")}
         </Link>
@@ -317,6 +334,7 @@ export function PublishWizard({
   confirm,
   lookup,
   secureCookies,
+  returnTo,
 }: {
   readonly formId: string;
   readonly versions: readonly number[];
@@ -335,6 +353,7 @@ export function PublishWizard({
   }) => Promise<PublishBatchState>;
   readonly lookup: (idempotencyKey: string) => Promise<PublishBatchState>;
   readonly secureCookies: boolean;
+  readonly returnTo?: PublishReturn | undefined;
 }) {
   const [step, setStep] = useState<Step>("source");
   const [sourceKind, setSourceKind] = useState<"draft" | "version">(
@@ -443,7 +462,14 @@ export function PublishWizard({
   }, [key, lookup]);
 
   if (state.status === "done") {
-    return <PublishResult formId={formId} state={state} secureCookies={secureCookies} />;
+    return (
+      <PublishResult
+        formId={formId}
+        state={state}
+        secureCookies={secureCookies}
+        returnTo={returnTo}
+      />
+    );
   }
 
   return (
@@ -557,7 +583,11 @@ export function PublishWizard({
             >
               {isPending ? t("forms.publish.reviewing") : t("forms.publish.next")}
             </Button>
-            <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/versions`}>
+            <Link
+              className="qcms-text-link"
+              href={returnTo?.href ?? `/forms/${encodeURIComponent(formId)}/versions`}
+              data-testid="qcms-publish-cancel"
+            >
               {t("forms.publish.wizardCancel")}
             </Link>
           </div>

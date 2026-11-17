@@ -8,6 +8,8 @@ export const MEASURE_CLASS = {
   list: "max-w-measure-list",
   log: "max-w-measure-log",
   wide: "max-w-measure-wide",
+  /** The agent builder's two columns fill the viewport edge to edge, with no rail beside them. */
+  full: "max-w-none",
 } as const;
 
 export type Measure = keyof typeof MEASURE_CLASS;
@@ -18,6 +20,8 @@ export const MEASURE_BY_ROUTE = {
   "/forms/new": "prose",
 
   "/forms/[formId]": "wide",
+  "/forms/[formId]/build": "full",
+  "/forms/new/build": "full",
   /** rules-screen-poc.html .main is 1600 with no narrower inner content. */
   "/forms/[formId]/rules": "wide",
 
@@ -94,5 +98,7 @@ export function measureClassFor(pathname: string): string {
 
 /** Keep content start-aligned with the topbar; emitting mx-auto would separate their leading edges. */
 export function mainClassFor(pathname: string): string {
-  return `w-full ${MEASURE_CLASS[measureFor(pathname)]} flex-1 p-(--admin-section-pad)`;
+  const measure = measureFor(pathname);
+  if (measure === "full") return `w-full ${MEASURE_CLASS.full} flex flex-1 flex-col`;
+  return `w-full ${MEASURE_CLASS[measure]} flex-1 p-(--admin-section-pad)`;
 }
