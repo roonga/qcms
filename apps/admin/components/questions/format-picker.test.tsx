@@ -43,14 +43,14 @@ async function choose(user: ReturnType<typeof userEvent.setup>, label: string): 
 }
 
 function patternField(): HTMLInputElement {
-  return screen.getByRole("textbox", {
+  return screen.getByRole<HTMLInputElement>("textbox", {
     name: t("questions.constraint.pattern"),
-  }) as HTMLInputElement;
+  });
 }
 
 function definitionPayload(): QuestionDefinitionView {
-  const field = document.querySelector('input[name="definition"]');
-  return JSON.parse((field as HTMLInputElement).value) as QuestionDefinitionView;
+  const field = document.querySelector<HTMLInputElement>('input[name="definition"]');
+  return JSON.parse(field?.value ?? "{}") as QuestionDefinitionView;
 }
 
 beforeEach(() => {
