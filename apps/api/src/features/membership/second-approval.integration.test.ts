@@ -154,6 +154,19 @@ async function requestIdOf(res: Response): Promise<string> {
   return ((await res.clone().json()) as { request: { requestId: string } }).request.requestId;
 }
 
+async function requestRow(
+  actor: Actor,
+  workspaceId: string,
+  requestId: string,
+): Promise<{ readonly status: string; readonly decidedBy: string | null }> {
+  const listed = await as(actor, "GET", `/workspaces/${workspaceId}/approval-requests`);
+  const body = (await listed.json()) as {
+    requests: { requestId: string; status: string; decidedBy: string | null }[];
+  };
+  const found = body.requests.find((row) => row.requestId === requestId);
+  return { status: found?.status ?? "absent", decidedBy: found?.decidedBy ?? null };
+}
+
 async function approvalActs(workspaceId: string): Promise<string[]> {
   const { rows } = await listAccessAudit(testDb.db, workspaceId, { kind: "approval", limit: 200 });
   return rows.map((row) => /act=(\w+)/u.exec(row.detail ?? "")?.[1] ?? "").sort();
@@ -499,6 +512,10 @@ describe("a self-grant with second approval on (criteria 32 to 35, 49)", () => {
     expect(await listAccessGroupHolders(testDb.db, teamId)).toEqual([]);
     // Ended rather than left pending, and not as a rejection by the approver who tried.
     expect(await approvalActs(workspaceId)).toEqual(["lapsed", "request"]);
+    expect(await requestRow(b, workspaceId, requestId)).toEqual({
+      status: "lapsed",
+      decidedBy: b.userId,
+    });
     expect(await codeOf(await decide(b, workspaceId, requestId, "approve"))).toBe(
       "REQUEST_NOT_PENDING",
     );
@@ -570,9 +587,83 @@ describe("a self-grant with second approval on (criteria 32 to 35, 49)", () => {
       "ACCESS_GROUP_CHANGED",
     );
     expect(await approvalActs(workspaceId)).toEqual(["lapsed", "request"]);
+    expect(await requestRow(b, workspaceId, requestId)).toEqual({
+      status: "lapsed",
+      decidedBy: b.userId,
+    });
     expect(await codeOf(await decide(b, workspaceId, requestId, "approve"))).toBe(
       "REQUEST_NOT_PENDING",
     );
+  });
+
+  it("ends a held edit whose requested name was taken since the request", async () => {
+    const { workspaceId, a, b } = await ruledWorkspace();
+    const group = await createAccessGroup(testDb.db, {
+      workspaceId,
+      name: "Free when asked",
+      roles: ["forms.editor"],
+      environments: [],
+    });
+    expect(
+      (
+        await as(a, "POST", `/workspaces/${workspaceId}/access-groups/${group.teamId}/holders`, {
+          userId: a.userId,
+        })
+      ).status,
+    ).toBe(201);
+    const held = await as(a, "PUT", `/workspaces/${workspaceId}/access-groups/${group.teamId}`, {
+      name: "Taken by then",
+      roles: ["forms.editor", "responses.viewer"],
+      environments: ["prod"],
+    });
+    expect(held.status, await held.clone().text()).toBe(202);
+    const requestId = await requestIdOf(held);
+    await createAccessGroup(testDb.db, {
+      workspaceId,
+      name: "Taken by then",
+      roles: ["forms.viewer"],
+      environments: [],
+    });
+
+    expect(await codeOf(await decide(b, workspaceId, requestId, "approve"))).toBe(
+      "ACCESS_GROUP_NAME_TAKEN",
+    );
+    expect(await approvalActs(workspaceId)).toEqual(["lapsed", "request"]);
+    expect(await requestRow(b, workspaceId, requestId)).toEqual({
+      status: "lapsed",
+      decidedBy: b.userId,
+    });
+    const again = await as(a, "PUT", `/workspaces/${workspaceId}/access-groups/${group.teamId}`, {
+      name: "Free instead",
+      roles: ["forms.editor", "responses.viewer"],
+      environments: ["prod"],
+    });
+    expect(again.status, await again.clone().text()).toBe(202);
+  });
+
+  it("leaves the request pending for a caller who may not approve it", async () => {
+    const { workspaceId, a, b } = await ruledWorkspace();
+    const teamId = await responseGroup(workspaceId);
+    const requestId = await requestIdOf(
+      await as(a, "POST", `/workspaces/${workspaceId}/access-groups/${teamId}/holders`, {
+        userId: a.userId,
+      }),
+    );
+    const widened = await as(b, "PUT", `/workspaces/${workspaceId}/access-groups/${teamId}`, {
+      name: "Widened past the request",
+      roles: ["responses.viewer", "responses.eraser"],
+      environments: ["prod"],
+    });
+    expect(widened.status, await widened.clone().text()).toBe(200);
+
+    const outsider = await publisher(workspaceId);
+    expect((await decide(outsider, workspaceId, requestId, "approve")).status).toBe(403);
+    expect(await codeOf(await decide(a, workspaceId, requestId, "approve"))).toBe("OWN_REQUEST");
+    expect(await approvalActs(workspaceId)).toEqual(["request"]);
+    expect(await requestRow(b, workspaceId, requestId)).toEqual({
+      status: "pending",
+      decidedBy: null,
+    });
   });
 
   it("applies the name the held edit asked for, with its roles and environments", async () => {

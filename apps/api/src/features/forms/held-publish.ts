@@ -213,8 +213,8 @@ async function rejectWithin(
 /**
  * Freeze the draft as it was requested and make it live in `prod`, in one transaction under
  * the form's lock, the requester recorded as having frozen the version. A draft saved since
- * the request freezes nothing and ends the request with a `lapsed` act naming the approver
- * who tried, so the requester can ask again.
+ * the request freezes nothing and ends the request as `lapsed`, naming the approver who
+ * tried, so the requester can ask again.
  */
 export async function approveDraftPublish(
   deps: Deps,
@@ -225,35 +225,32 @@ export async function approveDraftPublish(
   refuseHeldDecision(request, input.approverId, deps.clock.now());
   const workspaceId = request.workspaceId as string;
 
-  if (!(await draftMatches(exec, input.formId, request))) {
-    await exec.transaction(async (tx) => {
-      await lockForm(tx, input.formId);
-      const current = await heldRequestOf(tx, input.formId, input.requestId);
-      const at = deps.clock.now();
-      refuseHeldDecision(current, input.approverId, at);
-      if (!(await draftMatches(tx, input.formId, current, { lock: true }))) {
-        await lapseHeldRequest(tx, {
-          request: current,
-          actor: input.approverId,
-          at,
-          environment: PRODUCTION_ENVIRONMENT,
-          formId: input.formId,
-        });
-      }
-    });
-    throw heldPublishFailures.draftChanged();
-  }
+  // Compiling a draft an unlocked read already says the request no longer binds would be
+  // wasted; the locked read inside the transaction is what decides, so a save landing in
+  // between ends the request rather than leaving it pending for a second attempt.
+  const frozen = (await draftMatches(exec, input.formId, request))
+    ? await freezeDraft(deps, input.formId)
+    : undefined;
 
-  const frozen = await freezeDraft(deps, input.formId);
-  return exec.transaction(async (tx) => {
+  const applied = await exec.transaction(async (tx) => {
     await lockForm(tx, input.formId);
     const current = await heldRequestOf(tx, input.formId, input.requestId);
     const at = deps.clock.now();
     refuseHeldDecision(current, input.approverId, at);
-    if (!(await draftMatches(tx, input.formId, current, { lock: true }))) {
-      throw heldPublishFailures.draftChanged();
+    if (
+      frozen === undefined ||
+      frozen.draftRevision !== current.payload.revision ||
+      !(await draftMatches(tx, input.formId, current, { lock: true }))
+    ) {
+      await lapseHeldRequest(tx, {
+        request: current,
+        actor: input.approverId,
+        at,
+        environment: PRODUCTION_ENVIRONMENT,
+        formId: input.formId,
+      });
+      return undefined;
     }
-    if (frozen.draftRevision !== current.payload.revision) throw heldPublishFailures.draftChanged();
     if (!(await requesterCanPublish(tx, { userId: current.requestedBy, workspaceId }))) {
       throw heldPublishFailures.requesterCannotPublish();
     }
@@ -287,6 +284,8 @@ export async function approveDraftPublish(
     });
     return decided;
   });
+  if (applied === undefined) throw heldPublishFailures.draftChanged();
+  return applied;
 }
 
 export async function rejectDraftPublish(
@@ -345,7 +344,9 @@ export const listHeldPublishesRoute = createRoute({
     "On a site whose only environment is prod, with second approval on, a draft publish to " +
     "prod is held here until a different holder of Publish forms for prod approves it. " +
     "Newest first. `draft` is the draft as it now stands, given while a pending request " +
-    "still binds it, so the approver sees exactly what would be published.",
+    "still binds it, so the approver sees exactly what would be published. A request an " +
+    "approver could not apply carries status `lapsed`, not `rejected`, with that approver " +
+    "as `decidedBy`.",
   tags,
   request: { params: HeldPublishParams.pick({ id: true }) },
   responses: {
@@ -366,8 +367,8 @@ export const approveHeldPublishRoute = createRoute({
     "By a holder of Publish forms for prod who is not the requester, under " +
     "`environment=prod`. Freezes the draft as the next version and makes it live in prod in " +
     "one act, the requester recorded as the account that froze it. Refused, and nothing " +
-    "frozen, when the draft changed since the request, which also ends the request with a " +
-    "`lapsed` act so the requester can ask again; when the requester no longer holds Edit " +
+    "frozen, when the draft changed since the request, which also ends the request as " +
+    "`lapsed` so the requester can ask again; when the requester no longer holds Edit " +
     "forms and Publish forms for prod; after 7 days.",
   tags,
   request: { params: HeldPublishParams, query: ProdQuery },

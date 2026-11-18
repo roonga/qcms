@@ -1227,7 +1227,8 @@
               "pending",
               "approved",
               "rejected",
-              "expired"
+              "expired",
+              "lapsed"
             ]
           },
           "decidedBy": {
@@ -7674,7 +7675,7 @@
     "/admin/forms/{id}/publish-requests": {
       "get": {
         "summary": "Held publishes of this form's draft to prod (admin)",
-        "description": "On a site whose only environment is prod, with second approval on, a draft publish to prod is held here until a different holder of Publish forms for prod approves it. Newest first. `draft` is the draft as it now stands, given while a pending request still binds it, so the approver sees exactly what would be published.",
+        "description": "On a site whose only environment is prod, with second approval on, a draft publish to prod is held here until a different holder of Publish forms for prod approves it. Newest first. `draft` is the draft as it now stands, given while a pending request still binds it, so the approver sees exactly what would be published. A request an approver could not apply carries status `lapsed`, not `rejected`, with that approver as `decidedBy`.",
         "tags": [
           "forms"
         ],
@@ -7753,7 +7754,7 @@
     "/admin/forms/{id}/publish-requests/{requestId}/approve": {
       "post": {
         "summary": "Approve a held draft publish to prod (admin)",
-        "description": "By a holder of Publish forms for prod who is not the requester, under `environment=prod`. Freezes the draft as the next version and makes it live in prod in one act, the requester recorded as the account that froze it. Refused, and nothing frozen, when the draft changed since the request, which also ends the request with a `lapsed` act so the requester can ask again; when the requester no longer holds Edit forms and Publish forms for prod; after 7 days.",
+        "description": "By a holder of Publish forms for prod who is not the requester, under `environment=prod`. Freezes the draft as the next version and makes it live in prod in one act, the requester recorded as the account that froze it. Refused, and nothing frozen, when the draft changed since the request, which also ends the request as `lapsed` so the requester can ask again; when the requester no longer holds Edit forms and Publish forms for prod; after 7 days.",
         "tags": [
           "forms"
         ],
@@ -12002,7 +12003,7 @@
     "/admin/workspaces/{id}/approval-requests": {
       "get": {
         "summary": "The workspace's approval requests (admin)",
-        "description": "The Requests row: turning second approval off and self-grants held for an approver, newest first, fifty to a page. A held publish to prod is approved on its form and is not listed here.",
+        "description": "The Requests row: turning second approval off and self-grants held for an approver, newest first, fifty to a page. A held publish to prod is approved on its form and is not listed here. A request an approver could not apply carries status `lapsed`, not `rejected`, with that approver as `decidedBy`.",
         "tags": [
           "membership"
         ],
@@ -12030,7 +12031,8 @@
                 "pending",
                 "approved",
                 "rejected",
-                "expired"
+                "expired",
+                "lapsed"
               ]
             },
             "required": false,
@@ -12104,7 +12106,7 @@
     "/admin/workspaces/{id}/approval-requests/{requestId}/approve": {
       "post": {
         "summary": "Approve and apply a workspace request (admin)",
-        "description": "By a Workspace administrator of the workspace, or a Site administrator, who is not the requester. Refused after 7 days and once decided. Re-checked as it is applied: the requester must still be a Workspace administrator of the workspace or a Site administrator, and a self-grant applies only the roles, environments and name it bound. A self-grant whose group has moved since the request applies nothing and ends the request, so the requester can ask again.",
+        "description": "By a Workspace administrator of the workspace, or a Site administrator, who is not the requester. Refused after 7 days and once decided. Re-checked as it is applied: the requester must still be a Workspace administrator of the workspace or a Site administrator, and a self-grant applies only the roles, environments and name it bound. A self-grant whose group has moved since the request, or whose requested name has been taken since, applies nothing and ends the request as `lapsed`, so the requester can ask again.",
         "tags": [
           "membership"
         ],
@@ -13506,7 +13508,8 @@
                 "pending",
                 "approved",
                 "rejected",
-                "expired"
+                "expired",
+                "lapsed"
               ]
             },
             "required": false,

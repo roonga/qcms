@@ -1606,7 +1606,10 @@ describe("a held draft publish on a site whose only environment is prod (criteri
         undefined,
         prodOnlyApp,
       );
-      expect((listed.body.requests as { status: string }[])[0]?.status).toBe("rejected");
+      expect((listed.body.requests as Record<string, unknown>[])[0]).toMatchObject({
+        status: "lapsed",
+        decidedBy: prodPublisher.userId,
+      });
       expect(listed.body.draft).toBeNull();
 
       // The approver who tried did not reject it, so the ending act is `lapsed`.
@@ -1626,6 +1629,45 @@ describe("a held draft publish on a site whose only environment is prod (criteri
         (await getDraft(control, formId))!.revision,
       );
       expect(renewed.status, JSON.stringify(renewed.body)).toBe(202);
+    });
+  });
+
+  it("leaves the request pending for a caller who may not approve it", async () => {
+    await withRuleOn(async () => {
+      const formId = await seedForm(0);
+      const held = await requestPublish(
+        prodOnlyAuthor.token,
+        formId,
+        await saveDraft(prodOnlyAuthor.token, formId),
+      );
+      expect(held.status, JSON.stringify(held.body)).toBe(202);
+      const requestId = requestIdOf(held.body);
+      await saveDraft(prodOnlyAuthor.token, formId);
+
+      expect(
+        (await decide(testPublisherOnly.token, formId, requestId, "approve")).status,
+      ).toBe(403);
+      const own = await decide(prodOnlyAuthor.token, formId, requestId, "approve");
+      expect(own.status).toBe(409);
+      expect(codeOf(own.body)).toBe("OWN_REQUEST");
+
+      const listed = await call(
+        prodPublisher.token,
+        "GET",
+        `/forms/${formId}/publish-requests`,
+        undefined,
+        prodOnlyApp,
+      );
+      expect((listed.body.requests as Record<string, unknown>[])[0]).toMatchObject({
+        status: "pending",
+        decidedBy: null,
+      });
+      const acts = (
+        await listAccessAudit(control, SEED_WORKSPACE_ID, { kind: "approval", limit: 500 })
+      ).rows
+        .filter((row) => row.formId === formId)
+        .map((row) => /act=(\w+)/u.exec(row.detail ?? "")?.[1]);
+      expect(acts).toEqual(["request"]);
     });
   });
 

@@ -234,12 +234,13 @@ export async function listApprovalRequests(
 /**
  * Decide a pending, unexpired request, or `undefined` when it was not one. Never the
  * requester, and never the target of a site request; the CHECK refuses both as well.
+ * `lapsed` ends a request its approver could not apply, and records that approver.
  */
 export async function decideApprovalRequest(
   exec: Executor,
   input: {
     readonly requestId: string;
-    readonly decision: "approved" | "rejected";
+    readonly decision: "approved" | "rejected" | "lapsed";
     readonly decidedBy: string;
     readonly decidedAt: Date;
   },

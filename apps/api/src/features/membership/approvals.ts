@@ -83,6 +83,14 @@ export const workspaceRequestFailures = {
         "would grant something nobody approved. Nothing is applied, and this request has " +
         "ended; ask again.",
     ),
+  nameTakenSince: (name: string): ApiError =>
+    new ApiError(
+      "ACCESS_GROUP_NAME_TAKEN",
+      409,
+      `Another access group in this workspace is now called "${name}", the name this edit ` +
+        `asked for. Nothing is applied, and this request has ended; ask again with another ` +
+        `name.`,
+    ),
 } as const;
 
 function sameSet(left: readonly string[], right: readonly string[]): boolean {
@@ -112,22 +120,34 @@ async function groupOf(tx: Executor, workspaceId: string, teamId: string): Promi
 }
 
 /**
- * Whether the group has moved past what the request bound: a join whose group gained a role
- * or an environment, or an edit whose group no longer carries the sets the edit replaces.
- * Such a request can never be applied, so its approver ends it instead.
+ * The refusal a self-grant can no longer avoid, or `undefined` when it still applies: a join
+ * whose group gained a role or an environment, an edit whose group no longer carries the
+ * sets it replaces, or an edit whose requested name has been taken since. Such a request can
+ * never be applied as it was made, so its approver ends it instead.
  */
-async function selfGrantLapsed(tx: Executor, request: ApprovalRequestRow): Promise<boolean> {
-  const group = await groupOf(tx, request.workspaceId as string, request.target);
-  if ("previousRoles" in request.payload) {
-    return !(
-      sameSet(group.roles, stringList(request.payload.previousRoles)) &&
-      sameSet(group.environments, stringList(request.payload.previousEnvironments))
-    );
+async function selfGrantLapse(
+  tx: Executor,
+  request: ApprovalRequestRow,
+): Promise<ApiError | undefined> {
+  const workspaceId = request.workspaceId as string;
+  const group = await groupOf(tx, workspaceId, request.target);
+  if (!("previousRoles" in request.payload)) {
+    return !within(group.roles, stringList(request.payload.roles)) ||
+      !within(group.environments, stringList(request.payload.environments))
+      ? workspaceRequestFailures.groupChanged()
+      : undefined;
   }
-  return (
-    !within(group.roles, stringList(request.payload.roles)) ||
-    !within(group.environments, stringList(request.payload.environments))
-  );
+  if (
+    !sameSet(group.roles, stringList(request.payload.previousRoles)) ||
+    !sameSet(group.environments, stringList(request.payload.previousEnvironments))
+  ) {
+    return workspaceRequestFailures.groupChanged();
+  }
+  const name = stringOf(request.payload.name) ?? group.name;
+  if (name !== group.name && (await isAccessGroupNameTaken(tx, workspaceId, name, group.teamId))) {
+    return workspaceRequestFailures.nameTakenSince(name);
+  }
+  return undefined;
 }
 
 // A join grants the group as it is at approval. An edit applies the sets and the name it
@@ -145,13 +165,9 @@ async function applySelfGrant(
   const requester = request.requestedBy;
 
   if ("previousRoles" in request.payload) {
+    // The name was checked against this group under the same membership lock, by the lapse
+    // test that ran before this request was decided.
     const name = stringOf(request.payload.name) ?? group.name;
-    if (
-      name !== group.name &&
-      (await isAccessGroupNameTaken(tx, workspaceId, name, group.teamId))
-    ) {
-      throw membershipFail.nameTaken(name);
-    }
     const checked = await validateGroup(tx, { name, roles, environments });
     await applyGroupEdit(tx, deps, {
       workspaceId,
@@ -194,7 +210,8 @@ async function workspaceRequestOf(
  * Approve and apply a held switch-off or self-grant in one transaction under the workspace's
  * membership lock, re-checked as it is applied: the approver and the requester must both
  * still be active Workspace administrators of the workspace or Site administrators. A
- * self-grant whose group has moved since the request ends instead, applying nothing.
+ * self-grant this workspace has moved past ends as `lapsed` instead, applying nothing, and
+ * its refusal is thrown once the ending has committed.
  */
 export async function approveWorkspaceRequest(
   deps: Deps,
@@ -218,9 +235,12 @@ export async function approveWorkspaceRequest(
     }
     const workspace = await requireOpenWorkspace(tx, input.workspaceId);
 
-    if (request.kind === "self-grant" && (await selfGrantLapsed(tx, request))) {
-      await lapseHeldRequest(tx, { request, actor: input.approverId, at });
-      return undefined;
+    if (request.kind === "self-grant") {
+      const lapse = await selfGrantLapse(tx, request);
+      if (lapse !== undefined) {
+        await lapseHeldRequest(tx, { request, actor: input.approverId, at });
+        return lapse;
+      }
     }
 
     const decided = await decideApprovalRequest(tx, {
@@ -252,7 +272,7 @@ export async function approveWorkspaceRequest(
     });
     return decided;
   });
-  if (applied === undefined) throw workspaceRequestFailures.groupChanged();
+  if (applied instanceof ApiError) throw applied;
   return applied;
 }
 
@@ -322,7 +342,8 @@ export const listWorkspaceRequestsRoute = createRoute({
   description:
     "The Requests row: turning second approval off and self-grants held for an approver, " +
     "newest first, fifty to a page. A held publish to prod is approved on its form and is " +
-    "not listed here.",
+    "not listed here. A request an approver could not apply carries status `lapsed`, not " +
+    "`rejected`, with that approver as `decidedBy`.",
   tags,
   request: { params: WorkspaceIdParam, query: WorkspaceRequestQuery },
   responses: {
@@ -344,8 +365,9 @@ export const approveWorkspaceRequestRoute = createRoute({
     "requester. Refused after 7 days and once decided. Re-checked as it is applied: the " +
     "requester must still be a Workspace administrator of the workspace or a Site " +
     "administrator, and a self-grant applies only the roles, environments and name it " +
-    "bound. A self-grant whose group has moved since the request applies nothing and ends " +
-    "the request, so the requester can ask again.",
+    "bound. A self-grant whose group has moved since the request, or whose requested name " +
+    "has been taken since, applies nothing and ends the request as `lapsed`, so the " +
+    "requester can ask again.",
   tags,
   request: { params: RequestParams },
   responses: {

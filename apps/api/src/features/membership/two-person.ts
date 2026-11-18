@@ -110,7 +110,8 @@ export async function writeHeldRequestAudit(
 
 /**
  * End a request whose approver found that what it bound had moved, so the requester can ask
- * again. The act is `lapsed` rather than `reject`, because the approver did not refuse it.
+ * again. The row and the audit act are both `lapsed` rather than a rejection, because the
+ * approver did not refuse it; the approver who tried is recorded as the decider.
  */
 export async function lapseHeldRequest(
   tx: Executor,
@@ -124,7 +125,7 @@ export async function lapseHeldRequest(
 ): Promise<ApprovalRequestRow> {
   const decided = await decideApprovalRequest(tx, {
     requestId: input.request.requestId,
-    decision: "rejected",
+    decision: "lapsed",
     decidedBy: input.actor,
     decidedAt: input.at,
   });
