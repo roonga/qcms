@@ -11,7 +11,7 @@ import {
   TEST_PASSWORD,
   uniqueAdminEmail,
 } from "./support/admin-account.js";
-import { enrollNewAdmin, freshTotpCode } from "./support/flow.js";
+import { enrollNewAdmin, freshTotpCode, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 
 // The harness API has no outbound email, so every act that sends a sign-in link is refused
@@ -46,6 +46,10 @@ async function userIdOf(email: string): Promise<string> {
 
 function main(page: Page): Locator {
   return page.locator("main#main-content");
+}
+
+async function signInAsViewer(page: Page): Promise<void> {
+  await signInWithTotp(page, VIEWER, viewerSecret);
 }
 
 async function openAccount(page: Page, email: string): Promise<void> {
@@ -115,6 +119,7 @@ test("the directory lists, searches and filters accounts for a Site administrato
 });
 
 test("creating an account is refused while outbound email is not configured", async ({ page }) => {
+  await signInAsViewer(page);
   await page.goto("/site/accounts/new");
   await waitForHydration(page);
   await expect(page.getByRole("heading", { level: 1, name: "New account" })).toBeVisible();
@@ -131,6 +136,7 @@ test("creating an account is refused while outbound email is not configured", as
 test("an unclaimed account offers Resend link and Disable, and the resend is refused without email", async ({
   page,
 }) => {
+  await signInAsViewer(page);
   await openAccount(page, UNCLAIMED);
   await expect(page.getByRole("heading", { level: 1, name: "Unclaimed Person" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Reset sign-in" })).toHaveCount(0);
@@ -149,6 +155,7 @@ test("an unclaimed account offers Resend link and Disable, and the resend is ref
 test("disabling an account shows what it holds, ends it at once, and offers Reactivate", async ({
   page,
 }) => {
+  await signInAsViewer(page);
   await openAccount(page, MEMBER);
   const holdings = page.getByTestId("qcms-account-holdings");
   await expect(holdings).toBeVisible();
@@ -182,6 +189,7 @@ test("disabling an account shows what it holds, ends it at once, and offers Reac
 test("disabling a Site administrator takes a step-up, and a failed one sends nothing", async ({
   page,
 }) => {
+  await signInAsViewer(page);
   await openAccount(page, SITE_TARGET);
   await page.getByRole("button", { name: "Disable account" }).click();
   const dialog = page.getByRole("dialog", { name: "Disable Site Target?" });
@@ -217,6 +225,7 @@ test("disabling a Site administrator takes a step-up, and a failed one sends not
 test("the last active Site administrator's Disable is disabled with the reason, and the route still refuses it", async ({
   page,
 }) => {
+  await signInAsViewer(page);
   const viewerId = await userIdOf(VIEWER);
   const others = await query<{ id: string }>(
     `update "user" set role = null
