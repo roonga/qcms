@@ -182,6 +182,19 @@ async function createWorkspace(name: string, slug: string): Promise<string> {
   return ((await res.json()) as { workspace: { workspaceId: string } }).workspace.workspaceId;
 }
 
+/** Another administrator and two prod publishers, so second approval can be turned on. */
+async function makeApprovable(workspaceId: string): Promise<void> {
+  await seedGrants(testDb.db, { userId: secondOwnerId, workspaceId, grants: [] });
+  for (let i = 0; i < 2; i += 1) {
+    await seedAdminSession(testDb.db, {
+      label: "approvable",
+      owner: false,
+      workspaceId,
+      grants: ["forms.publisher"],
+    });
+  }
+}
+
 async function auditRowsOfKind(
   workspaceId: string,
   kind: string,
@@ -617,6 +630,7 @@ describe("the workspace settings body is the one switch (criterion 22)", () => {
     const workspace = await send("POST", "/workspaces", { name: "Seed on", slug: "seed-on" });
     const workspaceId = ((await workspace.json()) as { workspace: { workspaceId: string } })
       .workspace.workspaceId;
+    await makeApprovable(workspaceId);
 
     const turnedOn = await send("PUT", `/workspaces/${workspaceId}/settings`, {
       requireSecondApprover: true,
@@ -796,10 +810,11 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     expect((await auditCounts()).grant ?? 0).toBe(before + 1);
   });
 
-  it("refuses a self-grant of a responses role while the switch is on, and takes a second owner", async () => {
+  it("holds a self-grant of a responses role while the switch is on, and takes a second owner", async () => {
     const workspace = await send("POST", "/workspaces", { name: "Two person", slug: "two-person" });
     const workspaceId = ((await workspace.json()) as { workspace: { workspaceId: string } })
       .workspace.workspaceId;
+    await makeApprovable(workspaceId);
     expect(
       (await send("PUT", `/workspaces/${workspaceId}/settings`, { requireSecondApprover: true }))
         .status,
@@ -812,17 +827,16 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     });
     const teamId = ((await group.json()) as GroupBody).group.teamId;
 
-    const refused = await send(
-      "POST",
-      `/workspaces/${workspaceId}/access-groups/${teamId}/holders`,
-      { userId: ownerId },
-    );
-    expect(refused.status).toBe(409);
-    expect((await refused.json()) as ErrorBody).toMatchObject({
-      error: { code: "SELF_GRANT_REFUSED" },
+    const held = await send("POST", `/workspaces/${workspaceId}/access-groups/${teamId}/holders`, {
+      userId: ownerId,
     });
+    expect(held.status).toBe(202);
+    expect(await held.json()).toMatchObject({
+      group: { teamId, holders: [] },
+      request: { kind: "self-grant", status: "pending", requestedBy: ownerId },
+    });
+    expect(await listAccessGroupHolders(testDb.db, teamId)).toEqual([]);
 
-    await seedGrants(testDb.db, { userId: secondOwnerId, workspaceId, grants: [] });
     const confirmed = await as(
       secondOwnerToken,
       "POST",
@@ -852,7 +866,7 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     expect(res.status, await res.clone().text()).toBe(201);
   });
 
-  it("refuses the group edit that adds a response role to a group the actor is in", async () => {
+  it("holds the group edit that adds a response role to a group the actor is in", async () => {
     const workspace = await send("POST", "/workspaces", {
       name: "Self edit role",
       slug: "self-edit-role",
@@ -874,14 +888,15 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     ).toBe(201);
     await setRequireSecondApprover(testDb.db, workspaceId, true);
 
-    const refused = await send("PUT", `/workspaces/${workspaceId}/access-groups/${teamId}`, {
+    const held = await send("PUT", `/workspaces/${workspaceId}/access-groups/${teamId}`, {
       name: "Builders",
       roles: ["forms.editor", "responses.viewer"],
       environments: ["prod"],
     });
-    expect(refused.status).toBe(409);
-    expect((await refused.json()) as ErrorBody).toMatchObject({
-      error: { code: "SELF_GRANT_REFUSED" },
+    expect(held.status).toBe(202);
+    expect(await held.json()).toMatchObject({
+      group: { roles: ["forms.editor"] },
+      request: { kind: "self-grant", payload: { previousRoles: ["forms.editor"] } },
     });
 
     // The same edit by an administrator who does not hold the group applies at once.
@@ -895,7 +910,7 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     expect(applied.status, await applied.clone().text()).toBe(200);
   });
 
-  it("refuses the group edit that adds `prod` to a response group the actor is in", async () => {
+  it("holds the group edit that adds `prod` to a response group the actor is in", async () => {
     const workspace = await send("POST", "/workspaces", {
       name: "Self edit environment",
       slug: "self-edit-environment",
@@ -917,14 +932,15 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     ).toBe(201);
     await setRequireSecondApprover(testDb.db, workspaceId, true);
 
-    const refused = await send("PUT", `/workspaces/${workspaceId}/access-groups/${teamId}`, {
+    const held = await send("PUT", `/workspaces/${workspaceId}/access-groups/${teamId}`, {
       name: "Readers",
       roles: ["responses.viewer"],
       environments: ["test", "prod"],
     });
-    expect(refused.status).toBe(409);
-    expect((await refused.json()) as ErrorBody).toMatchObject({
-      error: { code: "SELF_GRANT_REFUSED" },
+    expect(held.status).toBe(202);
+    expect(await held.json()).toMatchObject({
+      group: { environments: ["test"] },
+      request: { kind: "self-grant", payload: { environments: ["test", "prod"] } },
     });
 
     // A rename that widens nothing is not a self-grant.
@@ -936,13 +952,13 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     expect(renamed.status, await renamed.clone().text()).toBe(200);
   });
 
-  it("refuses one of a concurrent join and a response-role edit of the same group", async () => {
+  it("holds one of a concurrent join and a response-role edit of the same group", async () => {
     const workspaceId = await createWorkspace("Self race", "self-race");
     await setRequireSecondApprover(testDb.db, workspaceId, true);
 
     // Joining a group that carries no response role is allowed, and so is widening a
     // group the actor does not hold. Together they would hand the actor the response
-    // role either refuses on its own, so one of the two has to lose.
+    // role either holds on its own, so one of the two has to be held.
     for (let attempt = 1; attempt <= 10; attempt += 1) {
       const name = `Builders ${attempt}`;
       const created = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
@@ -964,16 +980,13 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
         }),
       ]);
 
-      const refusedCount = [joined, widened].filter((res) => res.status === 409).length;
-      expect(
-        [joined.status, widened.status],
-        `attempt ${attempt}, refused ${refusedCount}`,
-      ).toContain(409);
-      expect(refusedCount, `attempt ${attempt}`).toBe(1);
-      const refused = joined.status === 409 ? joined : widened;
-      expect((await refused.json()) as ErrorBody).toMatchObject({
-        error: { code: "SELF_GRANT_REFUSED" },
-      });
+      const heldCount = [joined, widened].filter((res) => res.status === 202).length;
+      expect([joined.status, widened.status], `attempt ${attempt}, held ${heldCount}`).toContain(
+        202,
+      );
+      expect(heldCount, `attempt ${attempt}`).toBe(1);
+      const held = joined.status === 202 ? joined : widened;
+      expect(await held.json()).toMatchObject({ request: { kind: "self-grant" } });
 
       // Whichever won, the actor never ends up holding a group that carries the role.
       const stored = (await listAccessGroups(testDb.db, workspaceId)).find(
