@@ -392,6 +392,43 @@ describe("FormBuilder and the apply-draft card", () => {
     expect(reloaded.steps[0]?.title["en"]).toBe("Accepted on the server");
   });
 
+  it("keeps the draft on screen when the reload after a replay cannot be read", async () => {
+    const actions = builderActions();
+    actions.saveDraft
+      .mockResolvedValueOnce({
+        status: "error" as const,
+        issues: [],
+        warnings: [],
+        code: "AGENT_ACCEPT_REPLAYED",
+        message: "That proposal was already applied.",
+      })
+      .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] });
+    const readStoredDraft = vi.fn().mockRejectedValue(new Error("unreachable"));
+    render(
+      <FormBuilder
+        detail={DETAIL}
+        {...CHROME}
+        {...actions}
+        readStoredDraft={readStoredDraft}
+        assist={{ endpoint: "/forms/frm_quote/assist" }}
+      />,
+    );
+    await confirmApplyDraft(applyDraftStep({ definition: renamedDraft("Already applied") }));
+    await waitFor(() => expect(readStoredDraft).toHaveBeenCalled(), { timeout: 3000 });
+
+    fireEvent.change(screen.getByLabelText(t("forms.builder.formTitle")), {
+      target: { value: "Still editable" },
+    });
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    const [kept, accept] = actions.saveDraft.mock.calls[1] as [
+      { title: Record<string, string>; steps: readonly { title: Record<string, string> }[] },
+      unknown,
+    ];
+    expect(accept).toBeUndefined();
+    expect(kept.title["en"]).toBe("Still editable");
+    expect(kept.steps[0]?.title["en"]).toBe("Already applied");
+  });
+
   it("returns to the form when the applied draft deletes the step on screen", async () => {
     render(
       <>
