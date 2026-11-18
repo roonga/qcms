@@ -445,6 +445,16 @@ function ScreenConversation({
     if (event.type === "error") setFailure({ kind: event.code, message: event.message });
   };
 
+  // Every save settles before the wizard opens, so it reviews the draft the edits left.
+  const settleBuilderTurn = async (builderTurn: BuilderTurnEvents): Promise<void> => {
+    const edits = builderTurn.edits;
+    if (edits !== undefined && turnHooks !== undefined) {
+      setShown((current) => capped([...current, { role: "edits", turnId: edits.turnId }]));
+      await turnHooks.applyEdits(edits);
+    }
+    if (builderTurn.wizard !== undefined) turnHooks?.openWizard(builderTurn.wizard);
+  };
+
   const runTurn = async (
     message: string | undefined,
     savedDraft: string | undefined,
@@ -492,13 +502,7 @@ function ScreenConversation({
       if (cardsRef.current.open?.proposal.proposalId !== cardBefore) {
         setReason(lastTextSegment(ended).trim().slice(0, REASON_SOURCE_CHARS));
       }
-      // Every save settles before the wizard opens, so it reviews the draft the edits left.
-      const edits = builderTurn.edits;
-      if (edits !== undefined && turnHooks !== undefined) {
-        setShown((current) => capped([...current, { role: "edits", turnId: edits.turnId }]));
-        await turnHooks.applyEdits(edits);
-      }
-      if (builderTurn.wizard !== undefined) turnHooks?.openWizard(builderTurn.wizard);
+      await settleBuilderTurn(builderTurn);
       onAnnounce(stoppedRef.current ? t("agent.announce.stopped") : t("agent.announce.done"));
     } catch {
       if (!stoppedRef.current) {
