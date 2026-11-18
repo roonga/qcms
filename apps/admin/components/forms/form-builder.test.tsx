@@ -141,7 +141,7 @@ type SaveCall = [
 ];
 
 function titleField(): HTMLInputElement {
-  return screen.getByLabelText(t("forms.builder.formTitle")) as HTMLInputElement;
+  return screen.getByLabelText<HTMLInputElement>(t("forms.builder.formTitle"));
 }
 
 function choice(): HTMLElement | null {
@@ -372,11 +372,9 @@ describe("FormBuilder and the apply-draft card", () => {
     await waitFor(
       () =>
         expect(
-          (
-            screen.getByRole("button", {
-              name: t("forms.builder.assistantChangeUndo"),
-            }) as HTMLButtonElement
-          ).disabled,
+          screen.getByRole<HTMLButtonElement>("button", {
+            name: t("forms.builder.assistantChangeUndo"),
+          }).disabled,
         ).toBe(false),
       { timeout: 3000 },
     );

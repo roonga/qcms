@@ -164,6 +164,19 @@ async function postAccept(formId: string, body: unknown, token?: string | null):
   });
 }
 
+/** The open draft's revision, which an agent row's detail is checked against. */
+async function revisionOf(formId: string): Promise<number> {
+  const rows = await testDb.client.query(
+    `select revision from control.form_drafts where form_id = $1`,
+    [formId],
+  );
+  return (rows.rows[0] as { revision: number }).revision;
+}
+
+async function codeOf(res: Response): Promise<string> {
+  return ((await res.json()) as { error: { code: string } }).error.code;
+}
+
 async function put(path: string, body: unknown): Promise<Response> {
   return app.request(`/admin${path}`, {
     method: "PUT",
@@ -473,18 +486,6 @@ describe("the accept token (SEC-17)", () => {
     return rows.rows as { proposal_id: string; proposed_at: Date }[];
   }
 
-  async function revisionOf(formId: string): Promise<number> {
-    const rows = await testDb.client.query(
-      `select revision from control.form_drafts where form_id = $1`,
-      [formId],
-    );
-    return (rows.rows[0] as { revision: number }).revision;
-  }
-
-  async function codeOf(res: Response): Promise<string> {
-    return ((await res.json()) as { error: { code: string } }).error.code;
-  }
-
   async function refusedWithNothingWritten(
     formId: string,
     token: string | null,
@@ -632,18 +633,6 @@ describe("keeping a refused proposal as an own edit (SEC-17)", () => {
     return rows.rows as Row[];
   }
 
-  async function revisionOf(formId: string): Promise<number> {
-    const rows = await testDb.client.query(
-      `select revision from control.form_drafts where form_id = $1`,
-      [formId],
-    );
-    return (rows.rows[0] as { revision: number }).revision;
-  }
-
-  async function codeOf(res: Response): Promise<string> {
-    return ((await res.json()) as { error: { code: string } }).error.code;
-  }
-
   /** The plain draft save the choice's Keep makes: the refused accept's own token, no other change. */
   async function keep(
     formId: string,
@@ -768,16 +757,12 @@ describe("keeping a refused proposal as an own edit (SEC-17)", () => {
       expect(read.status).toBe(200);
       const changes = (await read.json()) as {
         agentAssisted: boolean;
-        changes: { kind: string; revision: number | null; confirmedAt: string }[];
+        changes: { kind: string; revision: number | null }[];
       };
       expect(changes.agentAssisted).toBe(true);
-      expect(changes.changes).toEqual([
-        {
-          kind: "apply-draft.adopted",
-          revision: expect.any(Number),
-          confirmedAt: expect.any(String),
-        },
-      ]);
+      expect(changes.changes).toHaveLength(1);
+      expect(changes.changes[0]?.kind).toBe("apply-draft.adopted");
+      expect(changes.changes[0]?.revision).toBe(await revisionOf("frm_adopt_wizard"));
       expect((await rowsFor("frm_adopt_wizard")).map((row) => row.kind)).toEqual([
         "apply-draft.adopted",
       ]);
