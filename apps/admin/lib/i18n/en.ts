@@ -2644,6 +2644,130 @@ export const messages = {
   "access.results.none": "No results",
   "access.results.previous": "Previous",
   "access.results.next": "Next",
+
+  "site.title": "Site configuration",
+  /** A level-2 rail row's visible text; its accessible name is the full label. */
+  "site.rail.new": "New",
+  "site.accounts.title": "Accounts",
+  "site.accounts.new": "New account",
+  "site.accounts.account": "Account",
+  "site.accounts.intro":
+    "Every account on this site. Site administrators only. A name opens the account page. Accounts are never deleted, only disabled, so the audit keeps their names.",
+  "site.accounts.loadFailed": "The accounts could not be read: {message}",
+  "site.accounts.empty": "No accounts yet.",
+  "site.accounts.emptyFiltered": "No account matches these filters.",
+  "site.accounts.table": "Accounts",
+  "site.accounts.column.name": "Name",
+  "site.accounts.column.email": "Email",
+  "site.accounts.column.status": "Status",
+  "site.accounts.column.siteAdministrator": "Site administrator",
+  "site.accounts.yes": "Yes",
+  "site.accounts.no": "No",
+  "site.accounts.status.unclaimed": "Unclaimed: link sent",
+  "site.accounts.siteAdministrator": "Site administrator",
+  "site.accounts.filter.siteAdministrators": "Site administrators only",
+  "site.accounts.back": "Back to Accounts",
+  "site.accounts.holds.heading": "Holds",
+  "site.accounts.holds.loadFailed": "What this account holds could not be read: {message}",
+  "site.accounts.holds.none": "Holds nothing in any workspace.",
+  "site.accounts.holds.administrator": "Workspace administrator",
+  "site.accounts.holds.lastAdministrator": "(the last one)",
+  "site.accounts.holds.groupIn": "{group} ({environments})",
+  "site.accounts.holds.line": "{workspace}: {holds}",
+  "site.accounts.holds.suspendedName": "Suspended, needs re-confirmation",
+  "site.accounts.create.email": "Email",
+  "site.accounts.create.name": "Name",
+  "site.accounts.create.nameHint":
+    "Shown in member lists and the audit. Left empty, the address is used.",
+  "site.accounts.create.note":
+    "QCMS emails a single-use sign-in link that lasts 72 hours. You never see it. At first sign-in the person sets a password and enrols a second factor. The account starts with no access.",
+  "site.accounts.create.act": "Create account",
+  "site.accounts.create.working": "Creating",
+  "site.accounts.create.sent":
+    "Sign-in link sent to {email}. It lasts 72 hours; you can resend it from the account page.",
+  "site.accounts.create.undeliverable":
+    "QCMS could not deliver the sign-in link to {email}. The account was created. Resend the link.",
+  "site.accounts.create.mailNotConfigured":
+    "Accounts cannot be created until email is set up for this site. The first account, made at install, is the only exception.",
+  "site.accounts.create.open": "Open the account page for {name}",
+  "site.accounts.resend.act": "Resend link",
+  "site.accounts.resend.working": "Sending",
+  "site.accounts.resend.title": "Resend the sign-in link to {name}?",
+  "site.accounts.resend.body": "The earlier link stops working.",
+  "site.accounts.resend.done": "Sign-in link sent. The earlier link no longer works.",
+  "site.accounts.reset.open": "Reset sign-in",
+  "site.accounts.reset.title": "Reset sign-in for {name}?",
+  "site.accounts.reset.choice": "What to reset",
+  "site.accounts.reset.password": "Password",
+  "site.accounts.reset.passwordHint":
+    "Emails a single-use link, valid 72 hours. A new password is set at sign-in.",
+  "site.accounts.reset.factor": "Second factor",
+  "site.accounts.reset.factorHint":
+    "Emails a single-use link, valid 72 hours. A new second factor is enrolled at sign-in. The password stays.",
+  "site.accounts.reset.effect":
+    "Ends all of this account's sessions now. Its places in groups with a response role are suspended until a Workspace administrator of each workspace, or a Site administrator other than you, re-confirms them. If there is no other administrator, you can re-confirm and the audit records it.",
+  "site.accounts.reset.actPassword": "Reset password",
+  "site.accounts.reset.actFactor": "Reset second factor",
+  "site.accounts.reset.donePassword":
+    "Password reset. Every session has ended and a sign-in link was emailed.",
+  "site.accounts.reset.doneFactor":
+    "Second factor reset. Every session has ended and a sign-in link was emailed.",
+  "site.accounts.reactivate.act": "Reactivate account",
+  "site.accounts.reactivate.title": "Reactivate {name}?",
+  "site.accounts.reactivate.body":
+    "A new sign-in link, valid 72 hours, is emailed to set a password and enrol a second factor. The account is not a Site administrator, even if it was one.",
+  "site.accounts.reactivate.suspended":
+    "Places in groups with a response role stay suspended until a Workspace administrator of each workspace, or a Site administrator, re-confirms them.",
+  "site.accounts.reactivate.done": "Account reactivated. A sign-in link was emailed.",
+  "site.accounts.disable.act": "Disable account",
+  "site.accounts.disable.title": "Disable {name}?",
+  "site.accounts.disable.body":
+    "Ends every session now. Groups are kept. Disabling removes Site administrator, and reactivating does not restore it.",
+  "site.accounts.disable.lastAdministrator":
+    "This account is the last Workspace administrator of {workspaces}. Appoint another there.",
+  "site.accounts.disable.done": "Account disabled. Every session has ended.",
+  "site.accounts.act.held":
+    "Request sent. Waiting for another Site administrator. The request lasts 7 days.",
+  "site.accounts.act.undeliverable":
+    "Done, but QCMS could not deliver the sign-in link. Resend the link from this page.",
+  "site.accounts.act.working": "Working",
+  "site.accounts.blocked.lastDisable":
+    "{person} is the last active Site administrator, who cannot be disabled.",
+  "site.accounts.blocked.lastReset":
+    "{person} is the last active Site administrator, whose sign-in cannot be reset here.",
+  "site.accounts.blocked.own":
+    "This is your own account. Change your password and second factor from My account.",
+  "site.accounts.error.mailNotConfigured":
+    "Email is not set up for this site, so no sign-in link can be sent.",
+  "site.accounts.error.exists": "An account already uses that address.",
+  "site.accounts.error.notFound": "No such account.",
+  "site.accounts.error.busy":
+    "Another change to this account is in progress. Try again in a moment.",
+  "site.accounts.error.ownAccount": "You cannot do this to your own account.",
+  "site.accounts.error.disabled": "That account is disabled. Reactivate it instead.",
+  "site.accounts.error.notDisabled": "That account is not disabled.",
+  "site.accounts.error.unclaimed":
+    "That account has not been claimed yet, so there is nothing to reset. Resend the link instead.",
+  "site.accounts.error.claimed": "That account is already claimed, so there is no link to resend.",
+  "site.accounts.error.lastSiteAdministrator":
+    "This is the last active Site administrator, and a site needs one.",
+  "site.accounts.error.stepUpRequired": "Confirm your password and second factor first.",
+  "site.accounts.error.stepUpFailed": "That password and code did not confirm you.",
+  "site.accounts.error.stepUpLocked": "Too many attempts. Sign in again to try once more.",
+  "site.accounts.error.requestPending":
+    "A request for this is already waiting for another Site administrator.",
+  "site.accounts.error.siteAdministratorsChanged":
+    "The Site administrators changed while this was in progress. Try again.",
+  "site.accounts.error.invalid": "Check the address and name, then try again.",
+  "site.accounts.error.forbidden": "Only a Site administrator can do this.",
+  "site.accounts.error.other": "That did not work. Try again.",
+  "site.stepUp.intro": "Your password and a code from your second factor confirm that it is you.",
+  "site.stepUp.needsApprover":
+    "Needs another Site administrator's approval. The request lasts 7 days.",
+  "site.stepUp.alone": "Your password and second factor are enough. The audit records it.",
+  "site.stepUp.password": "Password",
+  "site.stepUp.code": "Second factor code",
+  "site.stepUp.codeHint": "6 digits",
 } as const;
 
 export type MessageKey = keyof typeof messages;

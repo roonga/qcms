@@ -119,6 +119,14 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     installationOnly: true,
   },
   {
+    method: "GET",
+    path: "/admin/accounts/{id}",
+    resource: "membership",
+    action: "read",
+    workspace: "installation",
+    installationOnly: true,
+  },
+  {
     method: "POST",
     path: "/admin/accounts/{id}/demote",
     resource: "workspace",
