@@ -1550,7 +1550,8 @@ describe("a held draft publish on a site whose only environment is prod (criteri
       ).rows
         .filter((row) => row.formId === formId)
         .map((row) => /act=(\w+)/u.exec(row.detail ?? "")?.[1]);
-      expect(kinds.sort()).toEqual(["approve", "approve", "request", "request"]);
+      kinds.sort();
+      expect(kinds).toEqual(["approve", "approve", "request", "request"]);
     });
   });
 

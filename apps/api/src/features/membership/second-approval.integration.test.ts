@@ -41,6 +41,7 @@ let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let site: Actor;
 let workspaces = 0;
+let groups = 0;
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -151,9 +152,10 @@ async function approvalActs(workspaceId: string): Promise<string[]> {
 }
 
 async function responseGroup(workspaceId: string, roles = ["responses.viewer"]): Promise<string> {
+  groups += 1;
   const group = await createAccessGroup(testDb.db, {
     workspaceId,
-    name: `Readers ${String(Math.random()).slice(2, 8)}`,
+    name: `Readers ${String(groups)}`,
     roles,
     environments: ["prod"],
   });
