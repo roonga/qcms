@@ -735,6 +735,36 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
     expect(stored?.approvedBy).toBe(adminUserId);
   });
 
+  it("refuses a disabled or unclaimed holder of Publish forms for prod as the approver (criterion 40)", async () => {
+    await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
+    const before = await getReleasedVersion(control, RULE_FORM, "prod");
+    const disabled = await seedAdminSession(control, {
+      label: "disabled-approver",
+      disabledAt: new Date(),
+    });
+    const unclaimed = await seedAdminSession(control, {
+      label: "unclaimed-approver",
+      claimed: false,
+    });
+    for (const approver of [disabled, unclaimed]) {
+      const res = await post(
+        `/forms/${RULE_FORM}/releases`,
+        { environment: "prod", version: 1 },
+        { [ADMIN_SESSION_HEADER]: approver.token },
+      );
+      expect([401, 403]).toContain(res.status);
+    }
+    expect((await getReleasedVersion(control, RULE_FORM, "prod"))?.version).toBe(before?.version);
+  });
+
+  it("does not gate opening or closing in prod with the switch on (criterion 29)", async () => {
+    await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
+    const closed = await post(`/forms/${RULE_FORM}/close`, { environment: "prod" });
+    expect(closed.status, await closed.clone().text()).toBe(200);
+    const reopened = await post(`/forms/${RULE_FORM}/reopen`, { environment: "prod" });
+    expect(reopened.status, await reopened.clone().text()).toBe(200);
+  });
+
   it("leaves a non-prod release alone with the switch on (criterion 4)", async () => {
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
     const res = await post(`/forms/${RULE_FORM}/releases`, { environment: "test", version: 1 });
