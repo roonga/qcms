@@ -120,10 +120,9 @@ async function groupOf(tx: Executor, workspaceId: string, teamId: string): Promi
 }
 
 /**
- * The refusal a self-grant can no longer avoid, or `undefined` when it still applies: a join
- * whose group gained a role or an environment, an edit whose group no longer carries the
- * sets it replaces, or an edit whose requested name has been taken since. Such a request can
- * never be applied as it was made, so its approver ends it instead.
+ * The refusal a self-grant can no longer avoid, or `undefined` when it still applies: a group
+ * that gained or no longer carries what the request bound, or a requested name taken since.
+ * Such a request can never be applied as it was made, so its approver ends it instead.
  */
 async function selfGrantLapse(
   tx: Executor,
@@ -165,8 +164,8 @@ async function applySelfGrant(
   const requester = request.requestedBy;
 
   if ("previousRoles" in request.payload) {
-    // The name was checked against this group under the same membership lock, by the lapse
-    // test that ran before this request was decided.
+    // `selfGrantLapse` refused a taken name under this same membership lock, so no rename
+    // can have raced in since.
     const name = stringOf(request.payload.name) ?? group.name;
     const checked = await validateGroup(tx, { name, roles, environments });
     await applyGroupEdit(tx, deps, {
@@ -210,8 +209,7 @@ async function workspaceRequestOf(
  * Approve and apply a held switch-off or self-grant in one transaction under the workspace's
  * membership lock, re-checked as it is applied: the approver and the requester must both
  * still be active Workspace administrators of the workspace or Site administrators. A
- * self-grant this workspace has moved past ends as `lapsed` instead, applying nothing, and
- * its refusal is thrown once the ending has committed.
+ * self-grant this workspace has moved past ends as `lapsed` instead, applying nothing.
  */
 export async function approveWorkspaceRequest(
   deps: Deps,
