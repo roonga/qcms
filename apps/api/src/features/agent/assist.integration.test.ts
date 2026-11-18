@@ -523,11 +523,44 @@ describe("the accept token (SEC-17)", () => {
   );
 
   it(
+    "lets one of two concurrent accepts on one token through and refuses the other with nothing part-written",
+    async () => {
+      await seedPublishedQuestion("q_tok_race", "Race");
+      await seedForm("frm_tok_race", ["q_tok_race"]);
+      const loggedBefore = logLines.length;
+      const before = await revisionOf("frm_tok_race");
+      const token = await acceptTokenFor("frm_tok_race");
+      const body = { definition: draftFor("frm_tok_race", ["q_tok_race"]) };
+
+      const [first, second] = await Promise.all([
+        postAccept("frm_tok_race", body, token),
+        postAccept("frm_tok_race", body, token),
+      ]);
+
+      const statuses = [first.status, second.status].sort((a, b) => a - b);
+      expect(statuses).toEqual([200, 403]);
+      const refused = first.status === 403 ? first : second;
+      expect(await codeOf(refused)).toBe("AGENT_ACCEPT_REPLAYED");
+      expect(
+        logLines
+          .slice(loggedBefore)
+          .filter((line) => line["msg"] === "agent accept refused")
+          .map((line) => line["code"]),
+      ).toEqual(["AGENT_ACCEPT_REPLAYED"]);
+
+      expect(await rowsFor("frm_tok_race")).toHaveLength(1);
+      expect(await revisionOf("frm_tok_race")).toBe(before + 1);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
     "refuses an accept with no token, a forged one, an expired one, another form's and another user's",
     async () => {
       await seedPublishedQuestion("q_tok_any", "Any");
       await seedForm("frm_tok_refused", ["q_tok_any"]);
       await seedForm("frm_tok_other", ["q_tok_any"]);
+      const loggedBefore = logLines.length;
 
       await refusedWithNothingWritten("frm_tok_refused", null, "AGENT_ACCEPT_MISSING");
 
@@ -556,7 +589,9 @@ describe("the accept token (SEC-17)", () => {
         "AGENT_ACCEPT_SUBJECT",
       );
 
-      const refusals = logLines.filter((line) => line["msg"] === "agent accept refused");
+      const refusals = logLines
+        .slice(loggedBefore)
+        .filter((line) => line["msg"] === "agent accept refused");
       expect(refusals.map((line) => line["code"])).toEqual([
         "AGENT_ACCEPT_MISSING",
         "AGENT_ACCEPT_SIGNATURE",

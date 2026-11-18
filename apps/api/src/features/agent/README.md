@@ -16,7 +16,7 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 | Method & path                               | Scope (SEC-5)                    | Notes                                                                                                                                                 |
 | ------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState?, screen?, params?, conversationId?, visitId?, viewerToday? }`. Answers `text/event-stream`.        |
-| `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.                                                             |
+| `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Requires the step's accept token in `x-qcms-agent-accept`. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.  |
 | `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId, visitId?, viewerToday? }`. Answers `text/event-stream`. |
 | `GET /admin/forms/:id/draft/agent-changes`  | `forms:read`                     | The wizard's read: the newest published version, the open draft and the agent draft changes recorded since. Mounted whatever the flag.                |
 
@@ -417,14 +417,19 @@ old; a missing, forged, foreign or expired one is refused with `403` and nothing
 written. The accept writes one `apply-draft` row in `control.agent_actions` in its
 own transaction, keyed `(<proposal id>.accept, 0)`, so the unique key makes the
 token single-use and a replay is refused with `AGENT_ACCEPT_REPLAYED`; its
-`proposedAt` is the token's issue time. The wizard's read counts that row as the
+`proposedAt` is the token's issue time. Every refusal, the replay included, logs
+`agent accept refused` with its code and nothing else. The wizard's read counts that row as the
 assistant's. The draft save body takes no `agentAssisted` mark: the row is the
 record. The accept also sets the draft row's sticky flag, which the builder header
 shows; an ordinary later save never clears it, and discarding the draft does.
 
 The builder holds an accepted draft's token until a save succeeds, so a failed
-accept is retried under it rather than landing as a plain save; a refused token
-withdraws the proposal and restores the draft as it stood before. The card's
+accept is retried under it rather than landing as a plain save. A token the route
+refuses is dropped at once, since it can never verify again: the next autosave is
+a plain save of what the user has in front of them, so no later edit is lost and
+no pre-accept draft is ever written over the server's. `AGENT_ACCEPT_REPLAYED` is
+the one refusal that means the accept committed and only its response was lost, so
+the builder reloads the stored draft instead. The card's
 `apply-draft` step settles only when that save has landed or failed, so a plan's
 later step, a publish above all, never runs against the draft as it stood before
 the accept.

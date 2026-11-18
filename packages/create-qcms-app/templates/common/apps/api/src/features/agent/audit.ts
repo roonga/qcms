@@ -15,6 +15,7 @@ import {
 } from "@roonga/qcms-db";
 import type { Context } from "hono";
 
+import type { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import {
   ACCEPT_KIND,
@@ -273,6 +274,13 @@ export interface AgentAcceptSite {
   readonly accept: AcceptTokenPayload;
   readonly actor: string;
   readonly workspaceId: string;
+  /** Writes the refusal line a replay shares with the token checks, by code alone. */
+  readonly log: (code: AcceptRefusalCode) => void;
+}
+
+function refuseReplay(site: AgentAcceptSite): ApiError {
+  site.log("AGENT_ACCEPT_REPLAYED");
+  return acceptRefusal("AGENT_ACCEPT_REPLAYED");
 }
 
 /**
@@ -305,7 +313,7 @@ export async function verifyAgentAccept(
 export async function admitAgentAccept(exec: Executor, site: AgentAcceptSite): Promise<void> {
   const key = acceptRowKey(site.accept.pid);
   if (await agentStepRecorded(exec, key.proposalId, key.stepIndex)) {
-    throw acceptRefusal("AGENT_ACCEPT_REPLAYED");
+    throw refuseReplay(site);
   }
 }
 
@@ -330,7 +338,7 @@ export async function recordAgentAccept(
       detail: String(saved.revision),
     });
   } catch (error) {
-    if (isUniqueViolation(error)) throw acceptRefusal("AGENT_ACCEPT_REPLAYED");
+    if (isUniqueViolation(error)) throw refuseReplay(site);
     throw error;
   }
 }

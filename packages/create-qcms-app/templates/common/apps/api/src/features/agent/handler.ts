@@ -31,7 +31,7 @@ import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../f
 import { decideAccess, type Resource } from "../membership/policy.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, type ResolvedMembership } from "../membership/resolver.js";
-import { ACCEPT_HEADER, ACCEPT_KIND } from "./accept-token.js";
+import { ACCEPT_HEADER, ACCEPT_KIND, type AcceptRefusalCode } from "./accept-token.js";
 import { admitAgentAccept, recordAgentAccept, verifyAgentAccept } from "./audit.js";
 import { savedDraftPins } from "./draft-pins.js";
 import { mergeOffers, offeredActionKinds, offersNoAction } from "./grant-filter.js";
@@ -797,14 +797,15 @@ export function makeAcceptProposalHandler(
     const formId: FormId = parsedId.value;
 
     const actor = callerOf(c).userId;
+    const logAcceptRefused = (code: AcceptRefusalCode) => {
+      deps.logger.warn("agent accept refused", { code });
+    };
     const accept = await verifyAgentAccept(c.req.header(ACCEPT_HEADER), {
       appKey: deps.config.keys.app,
       now: deps.clock.now(),
       actor,
       formId,
-      log: (code) => {
-        deps.logger.warn("agent accept refused", { code });
-      },
+      log: logAcceptRefused,
     });
 
     const body = c.req.valid("json");
@@ -838,7 +839,7 @@ export function makeAcceptProposalHandler(
     // without the publish rule refusing them (ADR-41).
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
-    const site = { accept, actor, workspaceId: form.workspaceId };
+    const site = { accept, actor, workspaceId: form.workspaceId, log: logAcceptRefused };
 
     const stored = await deps.databases.control.transaction(async (tx) => {
       await admitAgentAccept(tx, site);

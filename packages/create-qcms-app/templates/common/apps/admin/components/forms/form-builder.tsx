@@ -10,7 +10,12 @@ import {
   type AcceptOutcome,
 } from "@/lib/agent/builder-assist-bridge";
 import { AUTOSAVE_DEBOUNCE_MS, useDraftAutosave } from "@/lib/forms/autosave";
-import type { SaveDraftState, SettingsState, ValidateDraftState } from "@/lib/forms/builder-state";
+import type {
+  SaveDraftState,
+  SettingsState,
+  StoredDraftState,
+  ValidateDraftState,
+} from "@/lib/forms/builder-state";
 import {
   addGroup,
   addPinAt,
@@ -60,13 +65,16 @@ import type { AgentAccept } from "@/lib/server/forms";
 
 interface PendingAccept {
   readonly accept: AgentAccept;
-  /* The draft before the first unsaved accept, which a refused token restores. */
-  readonly before: DraftForm;
   readonly settle: (outcome: AcceptOutcome) => void;
 }
 
 function isAcceptRefusal(code: string | undefined): boolean {
   return code?.startsWith("AGENT_ACCEPT_") === true;
+}
+
+function storedAsDraft(definition: unknown, formId: string): DraftForm | undefined {
+  if (definition === null || typeof definition !== "object") return undefined;
+  return { ...(definition as Record<string, unknown>), formId } as unknown as DraftForm;
 }
 
 /* The builder owns settings and draft state because changing panels unmounts their controls mid-debounce. */
@@ -80,6 +88,7 @@ export function FormBuilder({
   saveDraft,
   validateDraft,
   updateSettings,
+  readStoredDraft,
   assist,
 }: {
   readonly detail: FormDetail;
@@ -95,6 +104,8 @@ export function FormBuilder({
     challengeRequired?: boolean;
     minSubmitMs?: number | null;
   }) => Promise<SettingsState>;
+  /** Reads the draft the server holds, which an accept the builder cannot repeat is reloaded from. */
+  readonly readStoredDraft?: () => Promise<StoredDraftState>;
   readonly assist?: { readonly endpoint: string; readonly canPropose?: boolean };
 }) {
   const [draft, setDraft] = useState<DraftForm>(
@@ -111,8 +122,12 @@ export function FormBuilder({
   );
 
   // Held until its save succeeds: a failed accept retries with its token and its questions, never as a plain
-  // save that would land the assistant's draft with no audit row.
+  // save that would land the assistant's draft with no audit row. A token the route refuses is dropped at
+  // once, since it can never verify again.
   const pendingAccept = useRef<PendingAccept | undefined>(undefined);
+
+  const storedDraftReader = useRef(readStoredDraft);
+  storedDraftReader.current = readStoredDraft;
 
   // No validation result is undefined, not an empty issue list; an initial value must not fabricate an
   // all-clear.
@@ -130,9 +145,12 @@ export function FormBuilder({
       if (saved.status === "saved") {
         pendingAccept.current = undefined;
       } else if (isAcceptRefusal(saved.code)) {
-        // A refused token never succeeds, so the proposal is withdrawn rather than saved without its row.
+        // A refused token can never verify again: drop it so the next autosave is a plain save of what the
+        // user has in front of them, rather than a retry that would later overwrite the server's draft.
         pendingAccept.current = undefined;
-        setDraft(held.before);
+        // A replay means the accept committed and only its response was lost, so the server's draft is the
+        // accepted one and the client's copy is behind it.
+        if (saved.code === "AGENT_ACCEPT_REPLAYED") void reloadStoredDraft();
       }
       return saved;
     },
@@ -295,6 +313,15 @@ export function FormBuilder({
         },
   );
 
+  async function reloadStoredDraft(): Promise<void> {
+    const read = storedDraftReader.current;
+    if (read === undefined) return;
+    const stored = await read().catch(() => undefined);
+    if (stored?.status !== "read") return;
+    const next = storedAsDraft(stored.definition, detail.formId);
+    if (next !== undefined) setDraft(next);
+  }
+
   function acceptAssistProposal(
     proposedDraft: DraftForm,
     accept: AgentAccept,
@@ -310,7 +337,7 @@ export function FormBuilder({
         resolve(value);
       };
     });
-    pendingAccept.current = { accept, before: superseded?.before ?? draft, settle };
+    pendingAccept.current = { accept, settle };
     if (
       selection.kind === "step" &&
       !proposedDraft.steps.some((step) => step.stepId === selection.stepId)
