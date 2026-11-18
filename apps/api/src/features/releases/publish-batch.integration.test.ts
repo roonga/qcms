@@ -1401,11 +1401,59 @@ describe("a site whose only environment is prod", () => {
     expect(refused.status).toBe(403);
     expect(await listFormVersions(control, formId)).toEqual([]);
   });
+});
 
-  it("refuses a draft publish to prod outright while second approval is on, freezing nothing", async () => {
+describe("a held draft publish on a site whose only environment is prod (criteria 31, 116)", () => {
+  async function requestPublish(
+    token: string,
+    formId: FormId,
+    revision: number,
+  ): Promise<{ status: number; body: Record<string, unknown> }> {
+    return call(
+      token,
+      "POST",
+      `/forms/${formId}/publish-batch`,
+      {
+        idempotencyKey: KEYS(),
+        expectedWorkflowRevision: null,
+        source: { kind: "draft", draftRevision: revision },
+        targets: [{ environment: "prod", expectedSequence: null }],
+      },
+      prodOnlyApp,
+    );
+  }
+
+  function requestIdOf(body: Record<string, unknown>): string {
+    return (body as { request: { requestId: string } }).request.requestId;
+  }
+
+  async function decide(
+    token: string,
+    formId: FormId,
+    requestId: string,
+    act: "approve" | "reject",
+  ): Promise<{ status: number; body: Record<string, unknown> }> {
+    return call(
+      token,
+      "POST",
+      `/forms/${formId}/publish-requests/${requestId}/${act}?environment=prod`,
+      undefined,
+      prodOnlyApp,
+    );
+  }
+
+  async function withRuleOn(run: () => Promise<void>): Promise<void> {
     await clearWorkflow();
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
     try {
+      await run();
+    } finally {
+      await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
+    }
+  }
+
+  it("freezes nothing until another Publish forms holder for prod approves, then records both", async () => {
+    await withRuleOn(async () => {
       const formId = await seedForm(0);
       const revision = await saveDraft(prodOnlyAuthor.token, formId);
       const review = await call(
@@ -1415,36 +1463,257 @@ describe("a site whose only environment is prod", () => {
         { source: { kind: "draft" } },
         prodOnlyApp,
       );
-      const prod = (review.body.targets as { blockers: { code: string }[] }[])[0];
-      expect(prod?.blockers.map((blocker) => blocker.code)).toEqual(["APPROVER_IS_AUTHOR"]);
-      const attempts = [
-        {
-          path: "publish-batch",
-          body: {
-            idempotencyKey: KEYS(),
-            expectedWorkflowRevision: null,
-            source: { kind: "draft", draftRevision: revision },
-            targets: [{ environment: "prod", expectedSequence: null }],
-          },
-        },
-        { path: "publish-and-release", body: { environment: "prod" } },
-      ];
-      for (const { path, body } of attempts) {
-        const refused = await call(
-          prodOnlyAuthor.token,
-          "POST",
-          `/forms/${formId}/${path}`,
-          body,
-          prodOnlyApp,
-        );
-        expect(refused.status, path).toBe(403);
-        expect(codeOf(refused.body), path).toBe("APPROVER_IS_AUTHOR");
-      }
+      const target = (
+        review.body.targets as {
+          blockers: { code: string }[];
+          twoPerson: { heldForApproval: boolean };
+        }[]
+      )[0];
+      expect(target?.blockers).toEqual([]);
+      expect(target?.twoPerson.heldForApproval).toBe(true);
+
+      const held = await requestPublish(prodOnlyAuthor.token, formId, revision);
+      expect(held.status, JSON.stringify(held.body)).toBe(202);
+      expect(held.body.request).toMatchObject({
+        kind: "draft-publish",
+        scope: "workspace",
+        target: formId,
+        status: "pending",
+        requestedBy: prodOnlyAuthor.userId,
+        payload: { revision },
+      });
       expect(await listFormVersions(control, formId)).toEqual([]);
+      expect(await releasedEvents("prod", formId)).toBe(0);
       expect(await getDraft(control, formId)).toBeDefined();
-    } finally {
-      await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
-    }
+      const requestId = requestIdOf(held.body);
+
+      // The approver is shown the draft the request bound.
+      const listed = await call(
+        prodPublisher.token,
+        "GET",
+        `/forms/${formId}/publish-requests`,
+        undefined,
+        prodOnlyApp,
+      );
+      expect(listed.status, JSON.stringify(listed.body)).toBe(200);
+      expect(listed.body.draft).toMatchObject({ revision, definition: { formId } });
+      expect((listed.body.requests as { draftUnchanged: boolean }[])[0]?.draftUnchanged).toBe(true);
+
+      const own = await decide(prodOnlyAuthor.token, formId, requestId, "approve");
+      expect(own.status).toBe(409);
+      expect(codeOf(own.body)).toBe("OWN_REQUEST");
+      const nonHolder = await decide(testPublisherOnly.token, formId, requestId, "approve");
+      expect(nonHolder.status).toBe(403);
+      expect(await listFormVersions(control, formId)).toEqual([]);
+
+      const approved = await decide(prodPublisher.token, formId, requestId, "approve");
+      expect(approved.status, JSON.stringify(approved.body)).toBe(200);
+      expect(approved.body.request).toMatchObject({
+        status: "approved",
+        decidedBy: prodPublisher.userId,
+      });
+      const versions = await listFormVersions(control, formId);
+      expect(versions.map((row) => [row.version, row.publishedBy])).toEqual([
+        [1, prodOnlyAuthor.userId],
+      ]);
+      const [release] = await listFormReleases(control, formId, "prod");
+      expect(release).toMatchObject({ version: 1, approvedBy: prodPublisher.userId });
+      expect(await releasedEvents("prod", formId)).toBe(1);
+      expect(await getDraft(control, formId)).toBeUndefined();
+
+      const again = await decide(secondProdPublisher.token, formId, requestId, "approve");
+      expect(codeOf(again.body)).toBe("REQUEST_NOT_PENDING");
+
+      // The requester froze version 1, so the rule refuses them publishing it to prod again.
+      const second = await requestPublish(
+        prodOnlyAuthor.token,
+        formId,
+        await saveDraft(prodOnlyAuthor.token, formId),
+      );
+      expect(second.status, JSON.stringify(second.body)).toBe(202);
+      expect(
+        (await decide(secondProdPublisher.token, formId, requestIdOf(second.body), "approve"))
+          .status,
+      ).toBe(200);
+      const rollback = await call(
+        prodOnlyAuthor.token,
+        "POST",
+        `/forms/${formId}/releases`,
+        { environment: "prod", version: 1 },
+        prodOnlyApp,
+      );
+      expect(rollback.status).toBe(403);
+      expect(codeOf(rollback.body)).toBe("APPROVER_IS_AUTHOR");
+
+      const kinds = (
+        await listAccessAudit(control, SEED_WORKSPACE_ID, { kind: "approval", limit: 500 })
+      ).rows
+        .filter((row) => row.formId === formId)
+        .map((row) => /act=(\w+)/u.exec(row.detail ?? "")?.[1]);
+      expect(kinds.sort()).toEqual(["approve", "approve", "request", "request"]);
+    });
+  });
+
+  it("holds the combined publish-and-release route the same way", async () => {
+    await withRuleOn(async () => {
+      const formId = await seedForm(0);
+      await saveDraft(prodOnlyAuthor.token, formId);
+      const held = await call(
+        prodOnlyAuthor.token,
+        "POST",
+        `/forms/${formId}/publish-and-release`,
+        { environment: "prod" },
+        prodOnlyApp,
+      );
+      expect(held.status, JSON.stringify(held.body)).toBe(202);
+      expect(held.body.request).toMatchObject({ kind: "draft-publish", status: "pending" });
+      expect(await listFormVersions(control, formId)).toEqual([]);
+    });
+  });
+
+  it("refuses the approval after a question change, ends the request, and takes a new one", async () => {
+    await withRuleOn(async () => {
+      const formId = await seedForm(0);
+      const held = await requestPublish(
+        prodOnlyAuthor.token,
+        formId,
+        await saveDraft(prodOnlyAuthor.token, formId),
+      );
+      expect(held.status).toBe(202);
+      await saveDraft(prodOnlyAuthor.token, formId);
+
+      const refused = await decide(prodPublisher.token, formId, requestIdOf(held.body), "approve");
+      expect(refused.status).toBe(409);
+      expect(codeOf(refused.body)).toBe("DRAFT_CHANGED_SINCE_REQUEST");
+      expect((refused.body as { error: { message: string } }).error.message).toBe(
+        "This draft has changed since publishing was requested. Request publishing again.",
+      );
+      expect(await listFormVersions(control, formId)).toEqual([]);
+
+      const listed = await call(
+        prodPublisher.token,
+        "GET",
+        `/forms/${formId}/publish-requests`,
+        undefined,
+        prodOnlyApp,
+      );
+      expect((listed.body.requests as { status: string }[])[0]?.status).toBe("rejected");
+      expect(listed.body.draft).toBeNull();
+
+      const renewed = await requestPublish(
+        prodOnlyAuthor.token,
+        formId,
+        (await getDraft(control, formId))!.revision,
+      );
+      expect(renewed.status, JSON.stringify(renewed.body)).toBe(202);
+    });
+  });
+
+  it("binds the whole draft row, so a change to appearance alone refuses the approval", async () => {
+    await withRuleOn(async () => {
+      const formId = await seedForm(0);
+      const held = await requestPublish(
+        prodOnlyAuthor.token,
+        formId,
+        await saveDraft(prodOnlyAuthor.token, formId),
+      );
+      expect(held.status).toBe(202);
+      // Written below the save path, revision untouched, so only the content hash can catch it.
+      await testDb.client.query(
+        `update control.form_drafts set appearance = '{"corners":"square"}'::jsonb where form_id = $1`,
+        [formId],
+      );
+      const refused = await decide(prodPublisher.token, formId, requestIdOf(held.body), "approve");
+      expect(codeOf(refused.body)).toBe("DRAFT_CHANGED_SINCE_REQUEST");
+      expect(await listFormVersions(control, formId)).toEqual([]);
+    });
+  });
+
+  it("refuses the approval once the requester lost Publish forms for prod", async () => {
+    await withRuleOn(async () => {
+      const losing = await persona("bLosing", [
+        { roles: ["forms.editor"], environments: [] },
+        { roles: ["forms.publisher"], environments: ["prod"] },
+      ]);
+      const formId = await seedForm(0);
+      const held = await requestPublish(
+        losing.token,
+        formId,
+        await saveDraft(losing.token, formId),
+      );
+      expect(held.status, JSON.stringify(held.body)).toBe(202);
+      await deleteAccessGroup(control, losing.groupIds[1]!);
+
+      const refused = await decide(prodPublisher.token, formId, requestIdOf(held.body), "approve");
+      expect(refused.status).toBe(409);
+      expect(codeOf(refused.body)).toBe("REQUESTER_CANNOT_PUBLISH");
+      expect(await listFormVersions(control, formId)).toEqual([]);
+    });
+  });
+
+  it("refuses a disabled holder's approval, and rejects with nothing frozen", async () => {
+    await withRuleOn(async () => {
+      const disabled = await persona("bDisabledApprover", [
+        { roles: ["forms.publisher"], environments: ["prod"] },
+      ]);
+      const formId = await seedForm(0);
+      const held = await requestPublish(
+        prodOnlyAuthor.token,
+        formId,
+        await saveDraft(prodOnlyAuthor.token, formId),
+      );
+      const requestId = requestIdOf(held.body);
+      await testDb.client.query(`update control."user" set "disabledAt" = now() where id = $1`, [
+        disabled.userId,
+      ]);
+      const refused = await decide(disabled.token, formId, requestId, "approve");
+      expect([401, 403]).toContain(refused.status);
+
+      const rejected = await decide(prodPublisher.token, formId, requestId, "reject");
+      expect(rejected.status, JSON.stringify(rejected.body)).toBe(200);
+      expect(rejected.body.request).toMatchObject({ status: "rejected" });
+      expect(await listFormVersions(control, formId)).toEqual([]);
+      expect(codeOf((await decide(prodPublisher.token, formId, requestId, "approve")).body)).toBe(
+        "REQUEST_NOT_PENDING",
+      );
+    });
+  });
+
+  it("refuses an approval after 7 days", async () => {
+    await withRuleOn(async () => {
+      const formId = await seedForm(0);
+      const held = await requestPublish(
+        prodOnlyAuthor.token,
+        formId,
+        await saveDraft(prodOnlyAuthor.token, formId),
+      );
+      const requestId = requestIdOf(held.body);
+      await testDb.client.query(
+        `update control.approval_requests
+            set requested_at = requested_at - interval '8 days',
+                expires_at = expires_at - interval '8 days'
+          where request_id = $1`,
+        [requestId],
+      );
+      const refused = await decide(prodPublisher.token, formId, requestId, "approve");
+      expect(codeOf(refused.body)).toBe("REQUEST_EXPIRED");
+      expect(await listFormVersions(control, formId)).toEqual([]);
+    });
+  });
+
+  it("does not hold a draft publish on a site with a non-prod environment", async () => {
+    await withRuleOn(async () => {
+      const formId = await seedForm(0);
+      const revision = await saveDraft(prodAuthor.token, formId);
+      const refused = await call(prodAuthor.token, "POST", `/forms/${formId}/publish-batch`, {
+        idempotencyKey: KEYS(),
+        expectedWorkflowRevision: null,
+        source: { kind: "draft", draftRevision: revision },
+        targets: [{ environment: "prod", expectedSequence: null }],
+      });
+      expect(refused.status).not.toBe(202);
+      expect(await listFormVersions(control, formId)).toEqual([]);
+    });
   });
 });
 
