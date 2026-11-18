@@ -77,10 +77,10 @@ describe("Access groups", () => {
     renderPanel(STARTERS);
     const table = screen.getByRole("table", { name: /access groups/iu });
     const reviewers = within(table).getByRole("row", { name: /Reviewers/u });
-    expect(reviewers).toHaveTextContent("View forms");
-    expect(reviewers).toHaveTextContent("every environment");
-    expect(reviewers).toHaveTextContent("Nobody");
-    expect(within(table).getByRole("row", { name: /Response viewers/u })).toHaveTextContent(
+    expect(reviewers.textContent).toContain("View forms");
+    expect(reviewers.textContent).toContain("every environment");
+    expect(reviewers.textContent).toContain("Nobody");
+    expect(within(table).getByRole("row", { name: /Response viewers/u }).textContent).toContain(
       "Suspended, needs re-confirmation",
     );
   });
@@ -90,7 +90,7 @@ describe("Access groups", () => {
       workspaceId: "ws_1",
       groups: STARTERS.groups.filter((entry) => entry.teamId !== "tm_e"),
     });
-    expect(screen.getByTestId("qcms-uncovered-notice")).toHaveTextContent(
+    expect(screen.getByTestId("qcms-uncovered-notice").textContent).toContain(
       "Erase responses: no group grants it yet.",
     );
   });
@@ -100,7 +100,7 @@ describe("Access groups", () => {
     const acts = renderPanel(STARTERS, { initialGroup: "tm_e" });
     await user.click(screen.getByRole("button", { name: "Delete group" }));
     const dialog = screen.getByRole("dialog", { name: "Delete Response erasers?" });
-    expect(within(dialog).getByTestId("qcms-group-delete-preview")).toHaveTextContent(
+    expect(within(dialog).getByTestId("qcms-group-delete-preview").textContent).toContain(
       "Nobody will hold Erase responses through any group",
     );
     await user.click(within(dialog).getByRole("button", { name: "Delete Response erasers" }));
@@ -114,13 +114,15 @@ describe("changing a group", () => {
     const acts = renderPanel(STARTERS, { initialGroup: "tm_r" });
     await user.click(screen.getByRole("button", { name: "Change" }));
     const form = screen.getByTestId("qcms-group-form");
-    expect(within(form).getByTestId("qcms-group-no-environments")).toBeInTheDocument();
+    expect(within(form).getByTestId("qcms-group-no-environments")).toBeTruthy();
     expect(within(form).queryByRole("checkbox", { name: "prod" })).toBeNull();
 
     await user.click(within(form).getByRole("checkbox", { name: "View responses" }));
-    expect(within(form).getByRole("checkbox", { name: "prod" })).not.toBeChecked();
+    expect((within(form).getByRole("checkbox", { name: "prod" }) as HTMLInputElement).checked).toBe(
+      false,
+    );
     await user.click(within(form).getByRole("button", { name: "Save group" }));
-    expect(within(form).getByRole("alert")).toHaveTextContent(
+    expect(within(form).getByRole("alert").textContent).toContain(
       "Choose at least one environment for Publish forms, View responses or Erase responses.",
     );
     expect(acts.update).not.toHaveBeenCalled();
@@ -159,10 +161,10 @@ describe("changing a group", () => {
     });
     await user.click(screen.getByRole("button", { name: "Change" }));
     await user.click(screen.getByRole("checkbox", { name: "prod" }));
-    expect(screen.getByTestId("qcms-access-approval")).toHaveTextContent("Needs an Approver");
+    expect(screen.getByTestId("qcms-access-approval").textContent).toContain("Needs an Approver");
     await user.click(screen.getByRole("button", { name: "Request approval" }));
     expect(acts.update).toHaveBeenCalledOnce();
-    expect(await screen.findByText("Request sent.")).toBeInTheDocument();
+    expect(await screen.findByText("Request sent.")).toBeTruthy();
     expect(screen.queryByText("Saved.")).toBeNull();
   });
 
@@ -172,7 +174,7 @@ describe("changing a group", () => {
     await user.click(screen.getByRole("button", { name: "Change" }));
     await user.click(screen.getByRole("checkbox", { name: "View responses" }));
     expect(screen.queryByTestId("qcms-access-approval")).toBeNull();
-    expect(screen.getByRole("button", { name: "Save group" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save group" })).toBeTruthy();
   });
 });
 
@@ -184,7 +186,7 @@ describe("re-confirming in a group", () => {
     expect(
       within(sheet).queryByRole("button", { name: "Re-confirm Me in Response viewers" }),
     ).toBeNull();
-    expect(within(sheet).getByText(/cannot re-confirm your own membership/u)).toBeInTheDocument();
+    expect(within(sheet).getByText(/cannot re-confirm your own membership/u)).toBeTruthy();
 
     await user.click(
       within(sheet).getByRole("button", { name: "Re-confirm Aiko Tanaka in Response viewers" }),

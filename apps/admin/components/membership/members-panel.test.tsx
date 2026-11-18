@@ -77,9 +77,9 @@ describe("Members", () => {
     renderPanel();
     const table = screen.getByRole("table", { name: /members/iu });
     const aiko = within(table).getByRole("row", { name: /Aiko Tanaka/u });
-    expect(aiko).toHaveTextContent("Response viewers");
-    expect(aiko).toHaveTextContent("Suspended, needs re-confirmation");
-    expect(aiko).toHaveTextContent("No");
+    expect(aiko.textContent).toContain("Response viewers");
+    expect(aiko.textContent).toContain("Suspended, needs re-confirmation");
+    expect(aiko.textContent).toContain("No");
   });
 
   it("explains a person's access from live holds and offers Re-confirm for theirs", async () => {
@@ -88,7 +88,7 @@ describe("Members", () => {
     await user.click(screen.getByRole("button", { name: "Open Aiko Tanaka" }));
     const sheet = screen.getByTestId("qcms-person-sheet");
     const explanation = within(sheet).getByTestId("qcms-access-explanation");
-    expect(within(explanation).getByRole("row", { name: /View responses/u })).toHaveTextContent(
+    expect(within(explanation).getByRole("row", { name: /View responses/u }).textContent).toContain(
       "No group grants this",
     );
     await user.click(
@@ -104,7 +104,7 @@ describe("Members", () => {
     await user.click(screen.getByRole("button", { name: "Open Me" }));
     const sheet = screen.getByTestId("qcms-person-sheet");
     expect(within(sheet).queryByRole("button", { name: /^Re-confirm/u })).toBeNull();
-    expect(within(sheet).getByText(/cannot re-confirm your own membership/u)).toBeInTheDocument();
+    expect(within(sheet).getByText(/cannot re-confirm your own membership/u)).toBeTruthy();
   });
 
   it("keeps the last Workspace administrator's removal off, with the reason", async () => {
@@ -113,9 +113,9 @@ describe("Members", () => {
     await user.click(screen.getByRole("button", { name: "Open Me" }));
     const sheet = screen.getByTestId("qcms-person-sheet");
     const remove = within(sheet).getByRole("button", { name: "Remove Workspace administrator, Me" });
-    expect(remove).toBeDisabled();
-    expect(sheet).toHaveTextContent("Me is the last Workspace administrator of Clinical.");
-    expect(within(sheet).getByRole("button", { name: "Remove from workspace" })).toBeDisabled();
+    expect(remove.hasAttribute("disabled")).toBe(true);
+    expect(sheet.textContent).toContain("Me is the last Workspace administrator of Clinical.");
+    expect(within(sheet).getByRole("button", { name: "Remove from workspace" }).hasAttribute("disabled")).toBe(true);
   });
 
   it("appoints a Workspace administrator through a named confirmation", async () => {
@@ -161,7 +161,7 @@ describe("Grant", () => {
     await user.type(email, "priya.shah@");
     await user.click(screen.getByRole("button", { name: "Grant" }));
     expect(grant).not.toHaveBeenCalled();
-    expect(screen.getByText("Enter an email address.")).toBeInTheDocument();
+    expect(screen.getByText("Enter an email address.")).toBeTruthy();
   });
 
   it("asks for an Approver for a self-grant with Second approval on, and shows it pending", async () => {
@@ -170,10 +170,10 @@ describe("Grant", () => {
       Promise.resolve<MembershipActionState>({ status: "held", message: "Request sent." }),
     );
     renderGrant(grant, true);
-    expect(screen.getByTestId("qcms-access-approval")).toHaveTextContent("Needs an Approver");
+    expect(screen.getByTestId("qcms-access-approval").textContent).toContain("Needs an Approver");
     await user.click(screen.getByRole("button", { name: "Request approval" }));
     expect(grant).toHaveBeenCalledWith("ws_1", "tm_v", "me@qcms.test");
-    expect(await screen.findByText("Request sent.")).toBeInTheDocument();
+    expect(await screen.findByText("Request sent.")).toBeTruthy();
     expect(screen.queryByText("Done.")).toBeNull();
   });
 });
