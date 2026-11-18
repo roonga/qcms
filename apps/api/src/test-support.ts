@@ -186,17 +186,18 @@ export async function seedAdminSession(
     /** `true` seeds a Site administrator; the default has no site role, as every new account. */
     readonly siteAdministrator?: boolean;
   } = {},
-): Promise<{ token: string; userId: string }> {
+): Promise<{ token: string; userId: string; email: string }> {
   // Derived from `fixedClock` rather than a second copy of the literal, so changing the
   // clock's default moves this with it.
   const at = options.at ?? fixedClock().now();
   const label = options.label ?? "editor";
   const userId = `au_${label}_${synthSecret().slice(0, 12)}`;
   const token = `st_${synthSecret()}`;
+  const email = `${label}.${userId}@admin.test`;
   await exec.insert(authUser).values({
     id: userId,
     name: `Test ${label}`,
-    email: `${label}.${userId}@admin.test`,
+    email,
     emailVerified: true,
     createdAt: at,
     updatedAt: at,
@@ -223,7 +224,7 @@ export async function seedAdminSession(
       ...(options.owner === undefined ? {} : { owner: options.owner }),
     });
   }
-  return { token, userId };
+  return { token, userId, email };
 }
 
 /** Set the disabled flag directly, which is how criteria 66 and 67 are proven. */

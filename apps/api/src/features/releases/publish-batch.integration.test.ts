@@ -40,6 +40,9 @@ import type { Databases } from "../../environments.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import { registerRequestEnvironment } from "../../middleware/request-environment.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
+import { argumentsDigest, signProposalToken } from "../agent/proposal-token.js";
+import { registerAgentProvenance } from "../agent/provenance-mount.js";
+import { PROPOSAL_HEADER, PROPOSAL_STEP_HEADER } from "../agent/provenance.js";
 import { registerGrantCheck } from "../membership/middleware.js";
 import { registerForms } from "../forms/route.js";
 import { registerReleases } from "./route.js";
@@ -74,6 +77,7 @@ let oneGroupAuthor: Persona;
 let testPublisherOnly: Persona;
 let prodOnlyAuthor: Persona;
 let prodOnlyApp: ReturnType<typeof createApp>;
+let batchDeps: Deps;
 
 function databases(names: readonly string[] = LIVE_SET): Databases {
   return {
@@ -323,17 +327,21 @@ beforeAll(async () => {
       registerAdminAuth,
       registerRequestEnvironment,
       registerGrantCheck,
+      registerAgentProvenance,
       registerForms,
       registerReleases,
     ],
   };
-  const deps: Deps = makeDeps({ databases: databases(), env: validEnv() });
-  internalToken = internalTokenFor(deps.config);
-  app = createApp(deps, MOUNTED, { groups });
+  batchDeps = makeDeps({
+    databases: databases(),
+    env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }),
+  });
+  internalToken = internalTokenFor(batchDeps.config);
+  app = createApp(batchDeps, MOUNTED, { groups });
   // A site whose only environment is prod: the same database, with this process serving
   // prod alone, which is what the floor reads.
   prodOnlyApp = createApp(
-    makeDeps({ databases: databases(["prod"]), config: deps.config }),
+    makeDeps({ databases: databases(["prod"]), config: batchDeps.config }),
     MOUNTED,
     { groups },
   );
@@ -1601,6 +1609,17 @@ describe("a held draft publish on a site whose only environment is prod (criteri
       expect((listed.body.requests as { status: string }[])[0]?.status).toBe("rejected");
       expect(listed.body.draft).toBeNull();
 
+      // The approver who tried did not reject it, so the ending act is `lapsed`.
+      const ending = (
+        await listAccessAudit(control, SEED_WORKSPACE_ID, { kind: "approval", limit: 500 })
+      ).rows.filter((row) => row.formId === formId);
+      const acts = ending.map((row) => /act=(\w+)/u.exec(row.detail ?? "")?.[1]);
+      expect(acts).toContain("lapsed");
+      expect(acts).not.toContain("reject");
+      expect(ending.find((row) => row.detail?.includes("act=lapsed") === true)?.actor).toBe(
+        prodPublisher.userId,
+      );
+
       const renewed = await requestPublish(
         prodOnlyAuthor.token,
         formId,
@@ -1648,6 +1667,71 @@ describe("a held draft publish on a site whose only environment is prod (criteri
       const refused = await decide(prodPublisher.token, formId, requestIdOf(held.body), "approve");
       expect(refused.status).toBe(409);
       expect(codeOf(refused.body)).toBe("REQUESTER_CANNOT_PUBLISH");
+      expect(await listFormVersions(control, formId)).toEqual([]);
+    });
+  });
+
+  it("refuses the approval once the requester lost Edit forms", async () => {
+    await withRuleOn(async () => {
+      const losing = await persona("bLosingEditor", [
+        { roles: ["forms.editor"], environments: [] },
+        { roles: ["forms.publisher"], environments: ["prod"] },
+      ]);
+      const formId = await seedForm(0);
+      const held = await requestPublish(
+        losing.token,
+        formId,
+        await saveDraft(losing.token, formId),
+      );
+      expect(held.status, JSON.stringify(held.body)).toBe(202);
+      await deleteAccessGroup(control, losing.groupIds[0]!);
+
+      const refused = await decide(prodPublisher.token, formId, requestIdOf(held.body), "approve");
+      expect(refused.status).toBe(409);
+      expect(codeOf(refused.body)).toBe("REQUESTER_CANNOT_PUBLISH");
+      expect(await listFormVersions(control, formId)).toEqual([]);
+    });
+  });
+
+  it("records the assistant step that confirmed the hold", async () => {
+    await withRuleOn(async () => {
+      const formId = await seedForm(0);
+      const revision = await saveDraft(prodOnlyAuthor.token, formId);
+      const proposalId = "prp_batch_held";
+      const token = await signProposalToken(batchDeps.config.keys.app, {
+        sub: prodOnlyAuthor.userId,
+        pid: proposalId,
+        steps: [
+          {
+            kind: "form.publish",
+            argsDigest: await argumentsDigest({ formId, environment: "prod" }),
+            environment: "prod",
+          },
+        ],
+        formId,
+        issuedAt: batchDeps.clock.now(),
+      });
+      const held = await prodOnlyApp.request(`/admin/forms/${formId}/publish-batch`, {
+        method: "POST",
+        headers: {
+          ...headers(prodOnlyAuthor.token),
+          [PROPOSAL_HEADER]: token,
+          [PROPOSAL_STEP_HEADER]: "0",
+        },
+        body: JSON.stringify({
+          idempotencyKey: KEYS(),
+          expectedWorkflowRevision: null,
+          source: { kind: "draft", draftRevision: revision },
+          targets: [{ environment: "prod", expectedSequence: null }],
+        }),
+      });
+      const body = (await held.json()) as Record<string, unknown>;
+      expect(held.status, JSON.stringify(body)).toBe(202);
+      const rows = await testDb.client.query<{ kind: string; detail: string | null }>(
+        `select kind, detail from control.agent_actions where proposal_id = $1`,
+        [proposalId],
+      );
+      expect(rows.rows).toEqual([{ kind: "form.publish", detail: requestIdOf(body) }]);
       expect(await listFormVersions(control, formId)).toEqual([]);
     });
   });

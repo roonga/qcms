@@ -1758,6 +1758,7 @@ export function makePublishBatchHandler(
         workspaceId,
         requester: principal.userId,
         expectedRevision: body.source.draftRevision,
+        agent: agentStepSite(c),
       });
       return c.json({ request: requestView(held) }, 202);
     }

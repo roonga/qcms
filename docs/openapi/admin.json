@@ -7753,7 +7753,7 @@
     "/admin/forms/{id}/publish-requests/{requestId}/approve": {
       "post": {
         "summary": "Approve a held draft publish to prod (admin)",
-        "description": "By a holder of Publish forms for prod who is not the requester, under `environment=prod`. Freezes the draft as the next version and makes it live in prod in one act, the requester recorded as the account that froze it. Refused, and nothing frozen, when the draft changed since the request, which also ends the request; when the requester no longer holds Edit forms and Publish forms for prod; after 7 days.",
+        "description": "By a holder of Publish forms for prod who is not the requester, under `environment=prod`. Freezes the draft as the next version and makes it live in prod in one act, the requester recorded as the account that froze it. Refused, and nothing frozen, when the draft changed since the request, which also ends the request with a `lapsed` act so the requester can ask again; when the requester no longer holds Edit forms and Publish forms for prod; after 7 days.",
         "tags": [
           "forms"
         ],
@@ -11344,7 +11344,7 @@
     "/admin/workspaces/{id}/access-groups/{teamId}": {
       "put": {
         "summary": "Rename an access group, or change its roles and environments (admin)",
-        "description": "One `group` audit row naming what the group now carries and what it carried before. With second approval on, a change that would give the person making it, who is in the group, a response role or a new environment for one is held as a self-grant request, answered 202, binding the roles and environments it asked for. A change that adds a response role leaves a holder's hold suspended until a different administrator re-confirms it, where the holder's newest sign-in links are reset or reactivation links and the person making the change performed that reset or reactivation or is the holder; made by anybody else, it re-confirms the hold, audited as a re-confirmation. It answers `409 ACCOUNT_BUSY` while an act on any holder's account is in flight.",
+        "description": "One `group` audit row naming what the group now carries and what it carried before. With second approval on, a change that would give the person making it, who is in the group, a response role or a new environment for one is held as a self-grant request, answered 202, binding the name, roles and environments it asked for. A change that adds a response role leaves a holder's hold suspended until a different administrator re-confirms it, where the holder's newest sign-in links are reset or reactivation links and the person making the change performed that reset or reactivation or is the holder; made by anybody else, it re-confirms the hold, audited as a re-confirmation. It answers `409 ACCOUNT_BUSY` while an act on any holder's account is in flight.",
         "tags": [
           "membership"
         ],
@@ -11397,7 +11397,7 @@
             }
           },
           "202": {
-            "description": "Held as a self-grant request, because second approval is on and the edit gives the caller, who is in the group, a response role or a new environment for one. Nothing, the name included, changes until it is approved.",
+            "description": "Held as a self-grant request, because second approval is on and the edit gives the caller, who is in the group, a response role or a new environment for one. Nothing changes until it is approved, and an approval applies the name the edit asked for along with the roles and environments.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12104,7 +12104,7 @@
     "/admin/workspaces/{id}/approval-requests/{requestId}/approve": {
       "post": {
         "summary": "Approve and apply a workspace request (admin)",
-        "description": "By a Workspace administrator of the workspace, or a Site administrator, who is not the requester. Refused after 7 days and once decided. Re-checked as it is applied: the requester must still be a Workspace administrator of the workspace or a Site administrator, and a self-grant applies only the roles and environments it bound.",
+        "description": "By a Workspace administrator of the workspace, or a Site administrator, who is not the requester. Refused after 7 days and once decided. Re-checked as it is applied: the requester must still be a Workspace administrator of the workspace or a Site administrator, and a self-grant applies only the roles, environments and name it bound. A self-grant whose group has moved since the request applies nothing and ends the request, so the requester can ask again.",
         "tags": [
           "membership"
         ],

@@ -12,7 +12,7 @@ import type { ActionKindDef } from "./types.js";
 
 /**
  * D8's workspace administration. The self-grant rule and the two-person rule are the
- * route's own, so a grant to the proposing account is refused there exactly as it is for a
+ * route's own, so a grant to the proposing account is held there exactly as it is for a
  * press on the screen; nothing here softens either.
  */
 

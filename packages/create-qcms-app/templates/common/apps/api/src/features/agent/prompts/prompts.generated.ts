@@ -129,7 +129,7 @@ export const TOOL_DESCRIPTIONS = {
 /** One per action kind, keyed by the kind a proposed step names. */
 export const ACTION_DESCRIPTIONS = {
   "access.grant":
-    "Grant an access group to one person, by address. A self-grant of a response role is refused while the workspace has second approval on.",
+    "Grant an access group to one person, by address. A self-grant of a response role is held for another administrator to approve while the workspace has second approval on.",
   "access.groupCreate":
     "Create an access group in a workspace. The group grants nobody anything until somebody holds it, so creating one changes no access by itself.",
   "access.groupRemove":

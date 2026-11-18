@@ -1,5 +1,5 @@
 import {
-  getDraft,
+  getDraftForUpdate,
   getFormEnvironmentState,
   getLatestPublishedVersion,
   getReleaseBatch,
@@ -209,8 +209,10 @@ export async function commitReleaseBatch(deps: Deps, input: CommitInput): Promis
         throw fail.staleReview("workflowRevision");
       }
 
+      // Locked, not merely read: the freeze below deletes the draft, so a save committing
+      // between this check and that delete would be published nowhere.
       if (input.source.kind === "draft") {
-        const draft = await getDraft(tx, input.formId);
+        const draft = await getDraftForUpdate(tx, input.formId);
         if (draft?.revision !== input.source.draftRevision) {
           throw fail.staleReview("draftRevision");
         }

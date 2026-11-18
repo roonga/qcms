@@ -334,7 +334,6 @@ export function gainsResponseRole(before: readonly string[], after: readonly str
   return after.some((role) => isResponsesRole(role) && !before.includes(role));
 }
 
-/** Whether second approval holds this change as a self-grant. */
 function holdsAsSelfGrant(input: {
   readonly actorHolds: boolean;
   readonly requireSecondApprover: boolean;
@@ -732,7 +731,8 @@ export async function applyGroupEdit(
 }
 
 // Editing a group you are in is one way to give yourself response access, so with second
-// approval on such an edit is held, and nothing, the name included, changes until approved.
+// approval on such an edit is held: nothing changes until it is approved, and the request
+// carries the name as well as the sets, so an approval applies the rename too.
 export function makeUpdateAccessGroupHandler(
   deps: Deps,
 ): RouteHandler<typeof updateAccessGroupRoute, ApiEnv> {
@@ -768,6 +768,7 @@ export function makeUpdateAccessGroupHandler(
           target: teamId,
           requester: actor.userId,
           payload: {
+            name: body.name,
             roles: [...checked.roles],
             environments: [...checked.environments],
             previousRoles: [...existing.roles],
@@ -901,6 +902,7 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
             requester: actor.userId,
             payload: { roles: [...held.roles], environments: [...held.environments] },
           });
+          await writeAgentStep(tx, site, teamId, deps.clock.now());
           return { group: held, request };
         }
 
@@ -1185,6 +1187,7 @@ export function makeWorkspaceSettingsHandler(
           requester: actor.userId,
           payload: {},
         });
+        await writeAgentStep(tx, site, workspaceId, deps.clock.now());
         return { value: true, held };
       }
 

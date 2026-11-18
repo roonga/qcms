@@ -84,16 +84,24 @@ const PAYLOAD_CHECKS: Readonly<Record<ApprovalKind, PayloadCheck>> = {
     }
     return value.password || value.factor ? undefined : "resets at least one credential";
   },
-  // A join binds the group's sets; a group edit also binds the sets it replaces.
+  // A join binds the group's sets; a group edit also binds the name it asked for and the
+  // sets it replaces.
   "self-grant": (value) => {
     const edit = exactKeys(value, [
+      "name",
       "roles",
       "environments",
       "previousRoles",
       "previousEnvironments",
     ]);
     if (!edit && !exactKeys(value, ["roles", "environments"])) {
-      return "takes roles and environments, and previousRoles and previousEnvironments for an edit";
+      return (
+        "takes roles and environments, and name, previousRoles and previousEnvironments " +
+        "for an edit"
+      );
+    }
+    if (edit && (typeof value.name !== "string" || value.name === "")) {
+      return "name is the name the edit asked for";
     }
     const lists = edit
       ? [value.roles, value.environments, value.previousRoles, value.previousEnvironments]

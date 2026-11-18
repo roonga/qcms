@@ -3,6 +3,7 @@
 // Read on the control pool: `control.organization` is outside every environment role.
 
 import {
+  decideApprovalRequest,
   getWorkspace,
   insertApprovalRequest,
   listActiveAdministratorsFor,
@@ -81,12 +82,11 @@ export function refuseHeldDecision(
   if (request.requestedBy === deciderId) throw heldRequestFailures.ownRequest();
 }
 
-/** The workspace audit row for one state of a held request. */
 export async function writeHeldRequestAudit(
   tx: Executor,
   input: {
     readonly request: ApprovalRequestRow;
-    readonly act: "request" | "approve" | "reject";
+    readonly act: "request" | "approve" | "reject" | "lapsed";
     readonly actor: string;
     readonly at: Date;
     readonly environment?: string;
@@ -106,6 +106,38 @@ export async function writeHeldRequestAudit(
       `target=${request.target} requester=${request.requestedBy}`,
     occurredAt: input.at,
   });
+}
+
+/**
+ * End a request whose approver found that what it bound had moved, so the requester can ask
+ * again. The act is `lapsed` rather than `reject`, because the approver did not refuse it.
+ */
+export async function lapseHeldRequest(
+  tx: Executor,
+  input: {
+    readonly request: ApprovalRequestRow;
+    readonly actor: string;
+    readonly at: Date;
+    readonly environment?: string;
+    readonly formId?: string;
+  },
+): Promise<ApprovalRequestRow> {
+  const decided = await decideApprovalRequest(tx, {
+    requestId: input.request.requestId,
+    decision: "rejected",
+    decidedBy: input.actor,
+    decidedAt: input.at,
+  });
+  if (decided === undefined) throw heldRequestFailures.notPending();
+  await writeHeldRequestAudit(tx, {
+    request: decided,
+    act: "lapsed",
+    actor: input.actor,
+    at: input.at,
+    ...(input.environment === undefined ? {} : { environment: input.environment }),
+    ...(input.formId === undefined ? {} : { formId: input.formId }),
+  });
+  return decided;
 }
 
 /** Store a held workspace act as a pending request, with its `approval` audit row. */
@@ -166,7 +198,6 @@ export async function secondApprovalShortfall(
   };
 }
 
-/** Whether the shortfall leaves nobody else to approve. */
 export function nobodyElseCouldApprove(shortfall: SecondApprovalShortfall): boolean {
   return shortfall.administrator || shortfall.publisher;
 }

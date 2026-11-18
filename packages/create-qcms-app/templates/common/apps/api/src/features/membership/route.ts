@@ -202,7 +202,7 @@ export const updateAccessGroupRoute = createRoute({
     "One `group` audit row naming what the group now carries and what it carried " +
     "before. With second approval on, a change that would give the person making it, who " +
     "is in the group, a response role or a new environment for one is held as a self-grant " +
-    "request, answered 202, binding the roles and environments it asked for. " +
+    "request, answered 202, binding the name, roles and environments it asked for. " +
     "A change that adds a response role leaves a holder's hold suspended until a different " +
     "administrator re-confirms it, where the holder's newest sign-in links are reset or " +
     "reactivation links and the person making the change performed that reset or " +
@@ -219,8 +219,9 @@ export const updateAccessGroupRoute = createRoute({
     202: {
       description:
         "Held as a self-grant request, because second approval is on and the edit gives the " +
-        "caller, who is in the group, a response role or a new environment for one. Nothing, " +
-        "the name included, changes until it is approved.",
+        "caller, who is in the group, a response role or a new environment for one. Nothing " +
+        "changes until it is approved, and an approval applies the name the edit asked for " +
+        "along with the roles and environments.",
       content: { "application/json": { schema: AccessGroupHeldResponse } },
     },
     ...errorResponses(400, 401, 403, 404, 409),

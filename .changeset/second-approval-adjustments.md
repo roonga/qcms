@@ -13,4 +13,4 @@ Bring second approval in line with the workspace access spec (task 093).
   Publish forms holder's approval.
 - `listActiveRoleHolders` and the `target`, `kinds` and `excludeKinds` filters on
   `listApprovalRequests` are new in `@roonga/qcms-db`; a self-grant request payload may also bind
-  the sets a group edit replaces.
+  the name and the sets a group edit replaces.

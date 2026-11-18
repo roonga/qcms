@@ -14,7 +14,10 @@ import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcm
 import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
-import { registerRequestEnvironment } from "../../middleware/request-environment.js";
+import {
+  REQUEST_ENVIRONMENT_HEADER,
+  registerRequestEnvironment,
+} from "../../middleware/request-environment.js";
 import { expireDueApprovalRequests } from "../../schedulers/retention-sweep.js";
 import {
   disableSeededAccount,
@@ -23,6 +26,9 @@ import {
   seedAdminSession,
   validEnv,
 } from "../../test-support.js";
+import { argumentsDigest, signProposalToken } from "../agent/proposal-token.js";
+import { registerAgentProvenance } from "../agent/provenance-mount.js";
+import { PROPOSAL_HEADER, PROPOSAL_STEP_HEADER } from "../agent/provenance.js";
 import { registerSiteAdministrators } from "../site-admins/route.js";
 import { registerWorkspaces } from "../workspaces/route.js";
 import { registerGrantCheck } from "./middleware.js";
@@ -33,6 +39,7 @@ const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 interface Actor {
   readonly token: string;
   readonly userId: string;
+  readonly email: string;
 }
 
 let testDb: TestDb;
@@ -45,13 +52,14 @@ let groups = 0;
 
 beforeAll(async () => {
   testDb = await startTestDb();
-  deps = makeDeps({ db: testDb.db, env: validEnv() });
+  deps = makeDeps({ db: testDb.db, env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }) });
   app = createApp(deps, ADMIN_ONLY, {
     groups: {
       admin: [
         registerAdminAuth,
         registerRequestEnvironment,
         registerGrantCheck,
+        registerAgentProvenance,
         registerMembership,
         registerWorkspaces,
         registerSiteAdministrators,
@@ -149,6 +157,54 @@ async function requestIdOf(res: Response): Promise<string> {
 async function approvalActs(workspaceId: string): Promise<string[]> {
   const { rows } = await listAccessAudit(testDb.db, workspaceId, { kind: "approval", limit: 200 });
   return rows.map((row) => /act=(\w+)/u.exec(row.detail ?? "")?.[1] ?? "").sort();
+}
+
+let proposals = 0;
+
+/**
+ * One confirmed assistant step on an admin route: the token binds the arguments the card
+ * showed, so the step row is written only where the route accepted exactly that request.
+ */
+async function asStep(
+  actor: Actor,
+  method: string,
+  path: string,
+  step: { readonly kind: string; readonly args: Readonly<Record<string, unknown>> },
+  body?: unknown,
+): Promise<{ readonly res: Response; readonly proposalId: string }> {
+  proposals += 1;
+  const proposalId = `prp_sa_${String(proposals).padStart(4, "0")}`;
+  const token = await signProposalToken(deps.config.keys.app, {
+    sub: actor.userId,
+    pid: proposalId,
+    steps: [
+      { kind: step.kind, argsDigest: await argumentsDigest(step.args), environment: "prod" },
+    ],
+    issuedAt: deps.clock.now(),
+  });
+  const res = await app.request(`/admin${path}`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      "x-qcms-internal-token": internalToken,
+      [ADMIN_SESSION_HEADER]: actor.token,
+      [REQUEST_ENVIRONMENT_HEADER]: "prod",
+      [PROPOSAL_HEADER]: token,
+      [PROPOSAL_STEP_HEADER]: "0",
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  return { res, proposalId };
+}
+
+async function stepRows(
+  proposalId: string,
+): Promise<{ kind: string; detail: string | null }[]> {
+  const rows = await testDb.client.query<{ kind: string; detail: string | null }>(
+    `select kind, detail from control.agent_actions where proposal_id = $1`,
+    [proposalId],
+  );
+  return rows.rows;
 }
 
 async function responseGroup(workspaceId: string, roles = ["responses.viewer"]): Promise<string> {
@@ -445,6 +501,18 @@ describe("a self-grant with second approval on (criteria 32 to 35, 49)", () => {
       "ACCESS_GROUP_CHANGED",
     );
     expect(await listAccessGroupHolders(testDb.db, teamId)).toEqual([]);
+    // Ended rather than left pending, and not as a rejection by the approver who tried.
+    expect(await approvalActs(workspaceId)).toEqual(["lapsed", "request"]);
+    expect(await codeOf(await decide(b, workspaceId, requestId, "approve"))).toBe(
+      "REQUEST_NOT_PENDING",
+    );
+    const again = await as(
+      a,
+      "POST",
+      `/workspaces/${workspaceId}/access-groups/${teamId}/holders`,
+      { userId: a.userId },
+    );
+    expect(again.status, await again.clone().text()).toBe(202);
   });
 
   it("holds the edit that gives a group the requester is in a response role, then applies it", async () => {
@@ -505,6 +573,48 @@ describe("a self-grant with second approval on (criteria 32 to 35, 49)", () => {
     expect(await codeOf(await decide(b, workspaceId, requestId, "approve"))).toBe(
       "ACCESS_GROUP_CHANGED",
     );
+    expect(await approvalActs(workspaceId)).toEqual(["lapsed", "request"]);
+    expect(await codeOf(await decide(b, workspaceId, requestId, "approve"))).toBe(
+      "REQUEST_NOT_PENDING",
+    );
+  });
+
+  it("applies the name the held edit asked for, with its roles and environments", async () => {
+    const { workspaceId, a, b } = await ruledWorkspace();
+    const group = await createAccessGroup(testDb.db, {
+      workspaceId,
+      name: "Before the edit",
+      roles: ["forms.editor"],
+      environments: [],
+    });
+    expect(
+      (
+        await as(a, "POST", `/workspaces/${workspaceId}/access-groups/${group.teamId}/holders`, {
+          userId: a.userId,
+        })
+      ).status,
+    ).toBe(201);
+
+    const held = await as(a, "PUT", `/workspaces/${workspaceId}/access-groups/${group.teamId}`, {
+      name: "After the edit",
+      roles: ["forms.editor", "responses.viewer"],
+      environments: ["prod"],
+    });
+    expect(held.status, await held.clone().text()).toBe(202);
+    expect(await held.clone().json()).toMatchObject({
+      group: { name: "Before the edit" },
+      request: { payload: { name: "After the edit" } },
+    });
+
+    expect((await decide(b, workspaceId, await requestIdOf(held), "approve")).status).toBe(200);
+    const listed = await as(b, "GET", `/workspaces/${workspaceId}/access-groups`);
+    const stored = (
+      (await listed.json()) as { groups: { teamId: string; name: string; roles: string[] }[] }
+    ).groups.find((row) => row.teamId === group.teamId);
+    expect(stored).toMatchObject({
+      name: "After the edit",
+      roles: ["forms.editor", "responses.viewer"],
+    });
   });
 
   it("applies the same edit by an administrator who is not in the group at once", async () => {
@@ -548,6 +658,42 @@ describe("a self-grant with second approval on (criteria 32 to 35, 49)", () => {
     expect(res.status).toBe(201);
     const { rows } = await listAccessAudit(testDb.db, workspaceId, { kind: "grant" });
     expect(rows.map((row) => row.detail).join(" | ")).toContain(`subject=${a.userId}`);
+  });
+});
+
+describe("an assistant step that confirms a held act", () => {
+  it("records the step for a held self-grant", async () => {
+    const { workspaceId, a } = await ruledWorkspace();
+    const teamId = await responseGroup(workspaceId);
+    const { res, proposalId } = await asStep(
+      a,
+      "POST",
+      `/workspaces/${workspaceId}/access-groups/${teamId}/holders`,
+      { kind: "access.grant", args: { workspaceId, teamId, email: a.email } },
+      { email: a.email },
+    );
+    expect(res.status, await res.clone().text()).toBe(202);
+    expect(await listAccessGroupHolders(testDb.db, teamId)).toEqual([]);
+    expect(await stepRows(proposalId)).toEqual([{ kind: "access.grant", detail: teamId }]);
+  });
+
+  it("records the step for a held switch-off", async () => {
+    const { workspaceId, a } = await ruledWorkspace();
+    const { res, proposalId } = await asStep(
+      a,
+      "PUT",
+      `/workspaces/${workspaceId}/settings`,
+      {
+        kind: "workspace.settings",
+        args: { workspaceId, requireSecondApprover: false },
+      },
+      { requireSecondApprover: false },
+    );
+    expect(res.status, await res.clone().text()).toBe(202);
+    expect(await switchOf(workspaceId)).toBe(true);
+    expect(await stepRows(proposalId)).toEqual([
+      { kind: "workspace.settings", detail: workspaceId },
+    ]);
   });
 });
 

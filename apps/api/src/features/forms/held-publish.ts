@@ -4,6 +4,7 @@ import {
   decideApprovalRequest,
   getApprovalRequest,
   getDraft,
+  getDraftForUpdate,
   getFormEnvironmentState,
   listApprovalRequests,
   lockForm,
@@ -15,11 +16,13 @@ import {
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { errorResponses, withScopes, type ApiEnv } from "../../openapi.js";
+import { writeAgentStep, type AgentStepSite } from "../agent/audit.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { decideInWorkspace } from "../membership/resolver.js";
 import {
   heldRequestFailures,
   holdWorkspaceRequest,
+  lapseHeldRequest,
   refuseHeldDecision,
   twoPersonRuleApplies,
   writeHeldRequestAudit,
@@ -102,6 +105,8 @@ export async function holdDraftPublish(
     readonly workspaceId: string;
     readonly requester: string;
     readonly expectedRevision?: number;
+    /** Set for a confirmed assistant step, whose row shares the hold's transaction. */
+    readonly agent?: AgentStepSite | undefined;
   },
 ): Promise<ApprovalRequestRow> {
   requireDraftEligible(
@@ -114,10 +119,10 @@ export async function holdDraftPublish(
   }
   return deps.databases.control.transaction(async (tx) => {
     await lockForm(tx, input.formId);
-    const draft = await getDraft(tx, input.formId);
+    const draft = await getDraftForUpdate(tx, input.formId);
     if (draft === undefined) throw heldPublishFailures.noDraft();
     if (draft.revision !== frozen.draftRevision) throw heldPublishFailures.draftMoved();
-    return holdWorkspaceRequest(tx, deps.clock.now(), {
+    const held = await holdWorkspaceRequest(tx, deps.clock.now(), {
       kind: "draft-publish",
       workspaceId: input.workspaceId,
       target: input.formId,
@@ -126,15 +131,24 @@ export async function holdDraftPublish(
       environment: PRODUCTION_ENVIRONMENT,
       formId: input.formId,
     });
+    await writeAgentStep(tx, input.agent, held.requestId, deps.clock.now());
+    return held;
   });
 }
 
+/**
+ * Whether the draft is still the one the request bound. `lock` holds the draft row for the
+ * rest of the transaction, so a save cannot commit between this check and the publish that
+ * deletes the draft.
+ */
 async function draftMatches(
   exec: Executor,
   formId: FormId,
   request: ApprovalRequestRow,
+  options: { readonly lock?: boolean } = {},
 ): Promise<boolean> {
-  const draft = await getDraft(exec, formId);
+  const draft =
+    options.lock === true ? await getDraftForUpdate(exec, formId) : await getDraft(exec, formId);
   if (draft === undefined) return false;
   return (
     draft.revision === request.payload.revision &&
@@ -142,7 +156,6 @@ async function draftMatches(
   );
 }
 
-/** Whether the requester still holds every cell a draft publish to `prod` needs. */
 async function requesterCanPublish(
   exec: Executor,
   input: { readonly userId: string; readonly workspaceId: string },
@@ -200,8 +213,9 @@ async function rejectWithin(
 /**
  * Freeze the draft as it was requested and make it live in `prod`, in one transaction under
  * the form's lock: the requester is recorded as the account that froze the version and the
- * approver as its approver. A draft saved since the request ends the request as rejected,
- * so the requester can ask again, and nothing is frozen.
+ * approver as its approver. A draft saved since the request ends the request with a
+ * `lapsed` act naming the approver who tried, so the requester can ask again, and nothing
+ * is frozen.
  */
 export async function approveDraftPublish(
   deps: Deps,
@@ -216,9 +230,16 @@ export async function approveDraftPublish(
     await exec.transaction(async (tx) => {
       await lockForm(tx, input.formId);
       const current = await heldRequestOf(tx, input.formId, input.requestId);
-      refuseHeldDecision(current, input.approverId, deps.clock.now());
-      if (!(await draftMatches(tx, input.formId, current))) {
-        await rejectWithin(tx, deps, current, input.approverId, input.formId);
+      const at = deps.clock.now();
+      refuseHeldDecision(current, input.approverId, at);
+      if (!(await draftMatches(tx, input.formId, current, { lock: true }))) {
+        await lapseHeldRequest(tx, {
+          request: current,
+          actor: input.approverId,
+          at,
+          environment: PRODUCTION_ENVIRONMENT,
+          formId: input.formId,
+        });
       }
     });
     throw heldPublishFailures.draftChanged();
@@ -230,7 +251,9 @@ export async function approveDraftPublish(
     const current = await heldRequestOf(tx, input.formId, input.requestId);
     const at = deps.clock.now();
     refuseHeldDecision(current, input.approverId, at);
-    if (!(await draftMatches(tx, input.formId, current))) throw heldPublishFailures.draftChanged();
+    if (!(await draftMatches(tx, input.formId, current, { lock: true }))) {
+      throw heldPublishFailures.draftChanged();
+    }
     if (frozen.draftRevision !== current.payload.revision) throw heldPublishFailures.draftChanged();
     if (!(await requesterCanPublish(tx, { userId: current.requestedBy, workspaceId }))) {
       throw heldPublishFailures.requesterCannotPublish();
@@ -267,7 +290,6 @@ export async function approveDraftPublish(
   });
 }
 
-/** Reject a held draft publish; nothing is frozen. */
 export async function rejectDraftPublish(
   deps: Deps,
   input: { readonly formId: FormId; readonly requestId: string; readonly deciderId: string },
@@ -345,8 +367,9 @@ export const approveHeldPublishRoute = createRoute({
     "By a holder of Publish forms for prod who is not the requester, under " +
     "`environment=prod`. Freezes the draft as the next version and makes it live in prod in " +
     "one act, the requester recorded as the account that froze it. Refused, and nothing " +
-    "frozen, when the draft changed since the request, which also ends the request; when " +
-    "the requester no longer holds Edit forms and Publish forms for prod; after 7 days.",
+    "frozen, when the draft changed since the request, which also ends the request with a " +
+    "`lapsed` act so the requester can ask again; when the requester no longer holds Edit " +
+    "forms and Publish forms for prod; after 7 days.",
   tags,
   request: { params: HeldPublishParams, query: ProdQuery },
   responses: {

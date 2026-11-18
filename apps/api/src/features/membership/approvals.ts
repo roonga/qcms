@@ -6,6 +6,7 @@ import {
   getAccessGroup,
   getApprovalRequest,
   holdsAccessGroup,
+  isAccessGroupNameTaken,
   listActiveAdministratorsFor,
   listApprovalRequests,
   lockWorkspaceMembership,
@@ -27,7 +28,12 @@ import {
   validateGroup,
 } from "./handler.js";
 import { WorkspaceIdParam } from "./schema.js";
-import { heldRequestFailures, refuseHeldDecision, writeHeldRequestAudit } from "./two-person.js";
+import {
+  heldRequestFailures,
+  lapseHeldRequest,
+  refuseHeldDecision,
+  writeHeldRequestAudit,
+} from "./two-person.js";
 
 const tags = ["membership"];
 
@@ -74,7 +80,8 @@ export const workspaceRequestFailures = {
       "ACCESS_GROUP_CHANGED",
       409,
       "The access group's roles or environments changed after this was requested, so it " +
-        "would grant something nobody approved. Nothing is applied; ask again.",
+        "would grant something nobody approved. Nothing is applied, and this request has " +
+        "ended; ask again.",
     ),
 } as const;
 
@@ -84,6 +91,10 @@ function sameSet(left: readonly string[], right: readonly string[]): boolean {
 
 function within(held: readonly string[], bound: readonly string[]): boolean {
   return held.every((item) => bound.includes(item));
+}
+
+function stringOf(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
 function stringList(value: unknown): readonly string[] {
@@ -100,8 +111,26 @@ async function groupOf(tx: Executor, workspaceId: string, teamId: string): Promi
   return group;
 }
 
-// A join grants the group as it is at approval, so a group that gained a role or an
-// environment since the request is refused rather than granted. An edit applies the sets it
+/**
+ * Whether the group has moved past what the request bound: a join whose group gained a role
+ * or an environment, or an edit whose group no longer carries the sets the edit replaces.
+ * Such a request can never be applied, so its approver ends it instead.
+ */
+async function selfGrantLapsed(tx: Executor, request: ApprovalRequestRow): Promise<boolean> {
+  const group = await groupOf(tx, request.workspaceId as string, request.target);
+  if ("previousRoles" in request.payload) {
+    return !(
+      sameSet(group.roles, stringList(request.payload.previousRoles)) &&
+      sameSet(group.environments, stringList(request.payload.previousEnvironments))
+    );
+  }
+  return (
+    !within(group.roles, stringList(request.payload.roles)) ||
+    !within(group.environments, stringList(request.payload.environments))
+  );
+}
+
+// A join grants the group as it is at approval. An edit applies the sets and the name it
 // bound, and only onto the group it was made against.
 async function applySelfGrant(
   tx: Executor,
@@ -116,15 +145,18 @@ async function applySelfGrant(
   const requester = request.requestedBy;
 
   if ("previousRoles" in request.payload) {
-    const unchanged =
-      sameSet(group.roles, stringList(request.payload.previousRoles)) &&
-      sameSet(group.environments, stringList(request.payload.previousEnvironments));
-    if (!unchanged) throw workspaceRequestFailures.groupChanged();
-    const checked = await validateGroup(tx, { name: group.name, roles, environments });
+    const name = stringOf(request.payload.name) ?? group.name;
+    if (
+      name !== group.name &&
+      (await isAccessGroupNameTaken(tx, workspaceId, name, group.teamId))
+    ) {
+      throw membershipFail.nameTaken(name);
+    }
+    const checked = await validateGroup(tx, { name, roles, environments });
     await applyGroupEdit(tx, deps, {
       workspaceId,
       existing: group,
-      name: group.name,
+      name,
       roles: checked.roles,
       environments: checked.environments,
       actorId: requester,
@@ -133,9 +165,6 @@ async function applySelfGrant(
     return;
   }
 
-  if (!within(group.roles, roles) || !within(group.environments, environments)) {
-    throw workspaceRequestFailures.groupChanged();
-  }
   if (await holdsAccessGroup(tx, group.teamId, requester)) throw membershipFail.alreadyHolds();
   const [subject] = await findUsersByIds(tx, [requester]);
   if (subject === undefined) throw workspaceRequestFailures.requesterNotAdministrator();
@@ -164,13 +193,14 @@ async function workspaceRequestOf(
 /**
  * Approve and apply a held switch-off or self-grant in one transaction under the workspace's
  * membership lock, re-checked as it is applied: the approver and the requester must both
- * still be active Workspace administrators of the workspace or Site administrators.
+ * still be active Workspace administrators of the workspace or Site administrators. A
+ * self-grant whose group has moved since the request ends instead, applying nothing.
  */
 export async function approveWorkspaceRequest(
   deps: Deps,
   input: { readonly workspaceId: string; readonly requestId: string; readonly approverId: string },
 ): Promise<ApprovalRequestRow> {
-  return deps.databases.control.transaction(async (tx) => {
+  const applied = await deps.databases.control.transaction(async (tx) => {
     await lockWorkspaceMembership(tx, input.workspaceId);
     const request = await workspaceRequestOf(tx, input.workspaceId, input.requestId);
     if (request.kind !== "self-grant" && request.kind !== "second-approval-off") {
@@ -187,6 +217,11 @@ export async function approveWorkspaceRequest(
       throw workspaceRequestFailures.requesterNotAdministrator();
     }
     const workspace = await requireOpenWorkspace(tx, input.workspaceId);
+
+    if (request.kind === "self-grant" && (await selfGrantLapsed(tx, request))) {
+      await lapseHeldRequest(tx, { request, actor: input.approverId, at });
+      return undefined;
+    }
 
     const decided = await decideApprovalRequest(tx, {
       requestId: request.requestId,
@@ -217,9 +252,10 @@ export async function approveWorkspaceRequest(
     });
     return decided;
   });
+  if (applied === undefined) throw workspaceRequestFailures.groupChanged();
+  return applied;
 }
 
-/** Reject a held workspace request; nothing is applied. */
 export async function rejectWorkspaceRequest(
   deps: Deps,
   input: { readonly workspaceId: string; readonly requestId: string; readonly deciderId: string },
@@ -307,7 +343,9 @@ export const approveWorkspaceRequestRoute = createRoute({
     "By a Workspace administrator of the workspace, or a Site administrator, who is not the " +
     "requester. Refused after 7 days and once decided. Re-checked as it is applied: the " +
     "requester must still be a Workspace administrator of the workspace or a Site " +
-    "administrator, and a self-grant applies only the roles and environments it bound.",
+    "administrator, and a self-grant applies only the roles, environments and name it " +
+    "bound. A self-grant whose group has moved since the request applies nothing and ends " +
+    "the request, so the requester can ask again.",
   tags,
   request: { params: RequestParams },
   responses: {
