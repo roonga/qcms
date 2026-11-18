@@ -1,5 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 
+import { FORMAT_PATTERN_NAMES, FORMAT_PATTERNS } from "@roonga/qcms-core";
+import type { FormatPatternName } from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
 import { ACTION_KIND_NAMES, ACTION_KINDS } from "./actions/registry.js";
@@ -44,6 +46,13 @@ function guidanceSources(): { name: string; text: string }[] {
 }
 
 const PROMPT_DIRS = ["system", "tools", "actions", "recipes"];
+
+/** Which recipe hands the model which vetted format, so a kernel edit cannot leave one behind. */
+const RECIPE_FORMATS: Readonly<Record<string, readonly FormatPatternName[]>> = {
+  "email-address": ["email"],
+  "phone-number": ["phone"],
+  postcode: ["postcode-au", "postcode-ca", "postcode-gb", "postcode-nz", "postcode-us"],
+};
 
 /** The first segment of every tool name, which is what a mention is recognised by. */
 function toolHeads(): Set<string> {
@@ -97,6 +106,27 @@ describe("the assistant's prompt sources", () => {
     for (const type of QUESTION_RECIPE_TYPES) {
       expect(QUESTION_RECIPES[type].length, type).toBeGreaterThan(200);
     }
+  });
+
+  it("quotes every published format pattern in a recipe, verbatim", () => {
+    const recipes = new Map(
+      sources("recipes").map((source) => [source.name.replace(/\.md$/u, ""), source.text]),
+    );
+    const covered: FormatPatternName[] = [];
+    for (const [stem, names] of Object.entries(RECIPE_FORMATS)) {
+      const text = recipes.get(stem);
+      expect(text, `no recipe ${stem}.md`).toBeDefined();
+      for (const name of names) {
+        const entry = FORMAT_PATTERNS[name];
+        expect(text, `${stem}.md does not quote the ${name} pattern`).toContain(entry.pattern);
+        expect(text, `${stem}.md does not quote the ${name} cap`).toContain(
+          `maxLength: ${entry.maxLength}`,
+        );
+        expect(text, `${stem}.md does not quote the ${name} message`).toContain(entry.message);
+        covered.push(name);
+      }
+    }
+    expect([...covered].sort()).toEqual([...FORMAT_PATTERN_NAMES].sort());
   });
 
   it("describes every action kind, and no kind outside the registry", () => {

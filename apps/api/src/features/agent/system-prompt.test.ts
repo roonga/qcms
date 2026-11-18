@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   type Condition,
+  FORMAT_PATTERNS,
   parseCondition,
   QUESTION_TYPES,
   VALIDATION_MESSAGE_KEYS,
@@ -228,10 +229,9 @@ describe("the draft assistant system prompt", () => {
   // The hyphen is not what 'v' rejects: an unescaped bracket is, so the example has to be
   // one that actually compiles.
   it("gives a pattern example that compiles under the v flag", () => {
-    const prompt = buildSystemPrompt();
-    const example = /\^\\\+\?\[0-9 \\\(\\\)\\-\]\{7,20\}\$/.exec(prompt)?.[0];
-    expect(example).toBeDefined();
-    expect(() => new RegExp(example as string, "v")).not.toThrow();
+    const example = FORMAT_PATTERNS.phone.pattern;
+    expect(buildSystemPrompt()).toContain(example);
+    expect(() => new RegExp(example, "v")).not.toThrow();
   });
 
   it("asks for complete question definitions, naming every field a type supports", () => {
