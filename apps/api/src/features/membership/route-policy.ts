@@ -697,6 +697,33 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     environmentFrom: "targets",
   },
   {
+    // A held publish to prod on a prod-only site: read by whoever reads the history, and
+    // decided under `environment=prod` by a Publish forms holder there.
+    method: "GET",
+    path: "/admin/forms/{id}/publish-requests",
+    resource: "release",
+    action: "read",
+    workspace: "form",
+  },
+  {
+    method: "POST",
+    path: "/admin/forms/{id}/publish-requests/{requestId}/approve",
+    resource: "release",
+    action: "create",
+    workspace: "form",
+    namesEnvironment: true,
+    environmentFrom: "query",
+  },
+  {
+    method: "POST",
+    path: "/admin/forms/{id}/publish-requests/{requestId}/reject",
+    resource: "release",
+    action: "create",
+    workspace: "form",
+    namesEnvironment: true,
+    environmentFrom: "query",
+  },
+  {
     method: "GET",
     path: "/admin/forms/{id}/releases",
     resource: "release",

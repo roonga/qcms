@@ -83,6 +83,8 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { workspaceFilterNarrowedTo } from "../membership/context.js";
 import { approvalForRelease } from "../membership/two-person.js";
+import { requestView } from "../site-admins/schema.js";
+import { draftPublishIsHeld, holdDraftPublish } from "./held-publish.js";
 import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "../releases/release.js";
 import { commitReleaseBatch, intentHashOf, storedResult } from "../releases/batch.js";
@@ -253,7 +255,7 @@ function requireEnvironment(deps: Deps, name: string): string {
   return name;
 }
 
-function requireFormId(id: string): FormId {
+export function requireFormId(id: string): FormId {
   const parsed = parseFormId(id);
   if (!parsed.ok) throw fail.invalidId();
   return parsed.value;
@@ -1551,7 +1553,7 @@ export function makeUpdateFormSettingsHandler(
  * one transaction. Nothing here persists, so every refusal it raises costs no database
  * work and lands before a transaction is open.
  */
-async function freezeDraft(
+export async function freezeDraft(
   deps: Deps,
   formId: FormId,
 ): Promise<{
@@ -1588,7 +1590,7 @@ async function freezeDraft(
  * because `form_versions` is append-only and no later write can fill it in. The appearance
  * `freezeDraft` read is written with the version, so a later draft edit cannot reach it.
  */
-async function writeVersion(
+export async function writeVersion(
   tx: Executor,
   formId: FormId,
   frozen: { snapshot: FrozenSnapshot; compiled: CompiledForm; appearance: Appearance | null },
@@ -1655,8 +1657,17 @@ export function makePublishAndReleaseFormHandler(
     // compiled, so the refusal costs no database work.
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
+    const workspaceId = c.get("grantContext")?.workspaceId ?? form.workspaceId;
+    if (await draftPublishIsHeld(deps, { workspaceId, environments: [environment] })) {
+      const held = await holdDraftPublish(deps, {
+        formId,
+        workspaceId,
+        requester: principal.userId,
+      });
+      return c.json({ request: requestView(held) }, 202);
+    }
     const approvedBy = await approvalForRelease(deps.databases.control, {
-      workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
+      workspaceId,
       environment,
       // The version this act is about to assign, not the previous one: it is read back
       // only in a refusal message, which would otherwise name a version the operator may
@@ -1739,13 +1750,25 @@ export function makePublishBatchHandler(
     });
     if (replayed !== undefined) return c.json(replayed, 200);
 
+    const workspaceId = c.get("grantContext")?.workspaceId ?? form.workspaceId;
+    const environments = body.targets.map((target) => target.environment);
+    if (await draftPublishIsHeld(deps, { workspaceId, environments })) {
+      const held = await holdDraftPublish(deps, {
+        formId,
+        workspaceId,
+        requester: principal.userId,
+        expectedRevision: body.source.draftRevision,
+      });
+      return c.json({ request: requestView(held) }, 202);
+    }
+
     const now = deps.clock.now();
     const frozen = await freezeDraft(deps, formId);
     if (frozen.draftRevision !== body.source.draftRevision) throw fail.draftMoved();
 
     const result = await commitReleaseBatch(deps, {
       formId,
-      workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
+      workspaceId,
       principalId: principal.userId,
       agent: agentStepSite(c),
       idempotencyKey: body.idempotencyKey,
