@@ -545,7 +545,7 @@ describe("FormBuilder and the apply-draft card", () => {
   it("saves nothing when the refusal lands on an edit whose debounce timer is already armed", async () => {
     vi.useFakeTimers();
     const actions = builderActions();
-    let settleAccept: (state: SaveDraftState) => void = () => undefined;
+    let settleAccept!: (state: SaveDraftState) => void;
     actions.saveDraft
       .mockImplementationOnce(
         () =>

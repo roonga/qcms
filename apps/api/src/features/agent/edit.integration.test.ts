@@ -544,13 +544,9 @@ describe("a keep presented beside another agent act", { timeout: TIMEOUT_MS }, (
   it("refuses a keep carrying a card-less edit token too, and writes no row", async () => {
     const formId = await seededForm();
     const [token] = await tokens(owner, formId, [["copy", "Edited"]]);
-    const res = await put(
-      owner,
-      formId,
-      { definition: definition(formId, "Edited") },
-      token as string,
-      { [ADOPT_HEADER]: await adoptToken(formId) },
-    );
+    const res = await put(owner, formId, { definition: definition(formId, "Edited") }, token, {
+      [ADOPT_HEADER]: await adoptToken(formId),
+    });
     expect(res.status).toBe(403);
     expect(await codeOf(res)).toBe("AGENT_ADOPT_MALFORMED");
     expect(await draftTitle(formId)).toBe("Start");
