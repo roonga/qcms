@@ -19,6 +19,7 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 | `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Requires the step's accept token in `x-qcms-agent-accept`. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.  |
 | `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId, visitId?, viewerToday? }`. Answers `text/event-stream`. |
 | `GET /admin/forms/:id/draft/agent-changes`  | `forms:read`                     | The wizard's read: the newest published version, the open draft and the agent draft changes recorded since. Mounted whatever the flag.                |
+| `PUT /admin/forms/:id/draft`                | `forms:write`                    | The one draft save path. A refused accept's token in `x-qcms-agent-adopt` records the save as an adopted proposal and changes nothing else about it.  |
 
 Both turn routes share **one per-principal limiter key** (Q19), so ten turns a
 minute is the caller's whole budget rather than one budget per route.
@@ -424,15 +425,35 @@ record. The accept also sets the draft row's sticky flag, which the builder head
 shows; an ordinary later save never clears it, and discarding the draft does.
 
 The builder holds an accepted draft's token until a save succeeds, so a failed
-accept is retried under it rather than landing as a plain save. A token the route
-refuses is dropped at once, since it can never verify again: the next autosave is
-a plain save of what the user has in front of them, so no later edit is lost and
-no pre-accept draft is ever written over the server's. `AGENT_ACCEPT_REPLAYED` is
-the one refusal that means the accept committed and only its response was lost, so
-the builder reloads the stored draft instead. The card's
-`apply-draft` step settles only when that save has landed or failed, so a plan's
-later step, a publish above all, never runs against the draft as it stood before
-the accept.
+accept is retried under it rather than landing as a plain save. `AGENT_ACCEPT_REPLAYED`
+means the accept committed and only its response was lost, so the builder reloads the
+stored draft. The card's `apply-draft` step settles only when that save has landed or
+failed, so a plan's later step, a publish above all, never runs against the draft as it
+stood before the accept.
+
+## Keeping a refused proposal as an own edit
+
+Any other `AGENT_ACCEPT_*` refusal leaves the proposed content on screen and stored
+nowhere, and the token can never verify as an accept again. Nothing of the assistant's
+may then be stored without a record, so the builder stops saving and asks (Code Owner,
+2026-11-18): **Undo the assistant change**, which restores the pre-accept draft and saves
+that plainly, or **Keep it as my edit**, which saves the content plainly under the same
+token in `x-qcms-agent-adopt`. The builder takes no edit while the choice stands, so Undo
+is a clean restore, and a keep the server does not record stores nothing either and leaves
+the choice up.
+
+The adopt check runs in the draft save handler, after the route policy, and writes one
+`apply-draft.adopted` row keyed `(<proposal id>.adopt, 0)`. It records attribution and
+nothing else: no question is created, the draft row's sticky flag is left alone, and the
+save stores exactly what the same save without the header stores. It checks the signature,
+the shape, the caller and the form, but **not the expiry**, since an expired accept is the
+commonest refusal the choice follows; a request that also carries a card's token or an edit
+token is refused, as is a second save under one token. Every refusal logs `agent adopt
+refused` with its `AGENT_ADOPT_*` code and nothing else, and with the flag off the header is
+a `400`. The row cannot be forged, because only a genuine token for this caller and this
+form writes one, and it bypasses nothing, because the save it rides can do no more than a
+plain save. The header is read on this one route; it carries no authority, so anywhere else
+it is inert. The wizard's read counts the row with the other draft changes.
 
 The route also materialises every proposed **new question definition** as an
 **unpublished question draft** in the library, in the same transaction (issue

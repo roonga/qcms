@@ -1,8 +1,7 @@
 /**
  * The agent audit rows: one per confirmed card step, one per card-less builder edit or Undo, one per
- * docked-assistant accept and one per proposal a refused accept left the user to keep, each from a verified
- * token and written inside **the act's own transaction**, so a failed act writes no row and the trail and the
- * result agree.
+ * docked-assistant accept and one per proposal a refused accept left a user to keep, each from a verified
+ * token and written inside **the act's own transaction**, so a failed act writes no row.
  */
 
 import { FormId, type Appearance } from "@roonga/qcms-core";

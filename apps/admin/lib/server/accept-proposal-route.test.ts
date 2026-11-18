@@ -55,6 +55,11 @@ async function save(accept?: { token: string; newQuestions: readonly unknown[] }
   await saveDraft(SESSION, "frm_quote", DRAFT, accept);
 }
 
+async function keep(token: string): Promise<void> {
+  const { saveDraft } = await import("./forms.ts");
+  await saveDraft(SESSION, "frm_quote", DRAFT, undefined, undefined, { token });
+}
+
 beforeEach(() => {
   calls.length = 0;
 });
@@ -82,6 +87,20 @@ describe("saveDraft endpoint selection", () => {
     expect(calls[0]?.method).toBe("PUT");
     expect(calls[0]?.headers?.["x-qcms-agent-accept"]).toBeUndefined();
     expect(calls[0]?.body).toEqual({ definition: DRAFT });
+  });
+
+  it("PUTs the draft route under the refused token when the user keeps the content", async () => {
+    await keep("acc.tok");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.path).toBe("/forms/frm_quote/draft");
+    expect(calls[0]?.method).toBe("PUT");
+    expect(calls[0]?.headers).toEqual({ "x-qcms-agent-adopt": "acc.tok" });
+    expect(calls[0]?.body).toEqual({ definition: DRAFT });
+  });
+
+  it("sends no adopt header on an ordinary autosave", async () => {
+    await save();
+    expect(calls[0]?.headers?.["x-qcms-agent-adopt"]).toBeUndefined();
   });
 
   it("POSTs the accept route, with the definitions, when the proposal carried new questions", async () => {

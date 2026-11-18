@@ -849,9 +849,8 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
 
 /**
  * The proposal a refused accept left on screen and the user chose to keep as their own edit:
- * the accept's own token on an ordinary save, which records the attribution and changes
- * nothing about what the save stores. It is read on this one route; the header carries no
- * authority, so anywhere else it is inert.
+ * the accept's own token on an ordinary save, recording the attribution and changing nothing
+ * about what the save stores. The header carries no authority, so elsewhere it is inert.
  */
 async function adoptSite(
   deps: Deps,
