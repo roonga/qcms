@@ -44,6 +44,7 @@ function livePath(pattern: string, sessionId: string): string {
     "[version]": "1",
 
     "[workspaceId]": WORKSPACE_ID,
+    "[accountId]": "usr_reflow_missing",
   };
   return pattern
     .split("/")

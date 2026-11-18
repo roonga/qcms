@@ -313,6 +313,30 @@ const SCREENS: readonly ScreenRow[] = [
     why: "Redeliver and redeliver-all over dead letters.",
   },
   ...[
+    "app/(shell)/@rail/site/accounts/page.tsx",
+    "app/(shell)/@rail/site/accounts/new/page.tsx",
+    "app/(shell)/@rail/site/accounts/[accountId]/page.tsx",
+  ].map((route) => ({
+    route,
+    model: "readonly" as const,
+    why: "The Site configuration rail: links to its screens, and on the list the directory filters, which only shape a read.",
+  })),
+  {
+    route: "app/(shell)/site/accounts/page.tsx",
+    model: "readonly",
+    why: "The account directory, read only: a name opens the account page.",
+  },
+  {
+    route: "app/(shell)/site/accounts/new/page.tsx",
+    model: "action",
+    why: "Create account: one deliberate act that emails a sign-in link and is reported as an outcome, never a save state.",
+  },
+  {
+    route: "app/(shell)/site/accounts/[accountId]/page.tsx",
+    model: "action",
+    why: "Resend, reset, disable and reactivate: each a confirmed act reported as an outcome and written to the site audit.",
+  },
+  ...[
     "app/(shell)/@rail/workspaces/page.tsx",
     "app/(shell)/@rail/workspaces/all/page.tsx",
     "app/(shell)/@rail/workspaces/[workspaceId]/members/page.tsx",

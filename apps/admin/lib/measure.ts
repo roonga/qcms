@@ -61,6 +61,9 @@ export const MEASURE_BY_ROUTE = {
   /** The webhook drawing is 1820, beyond this vocabulary. Keep the current cap until the width scheme can represent that value. */
   "/webhooks": "wide",
   /** No dedicated membership drawings exist; choose caps by the analogous list and detail surfaces until those designs are supplied. */
+  "/site/accounts": "list",
+  "/site/accounts/new": "prose",
+  "/site/accounts/[accountId]": "ops",
   "/workspaces": "ops",
   "/workspaces/all": "list",
   "/workspaces/[workspaceId]/members": "log",
