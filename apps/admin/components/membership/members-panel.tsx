@@ -158,7 +158,10 @@ export function MembersPanel({
                             setOpenId(person.userId);
                           }}
                         >
-                          <NamedLabel visible={labelOf(person)} name={t("membership.members.open", { person: labelOf(person) })} />
+                          <NamedLabel
+                            visible={labelOf(person)}
+                            name={t("membership.members.open", { person: labelOf(person) })}
+                          />
                         </Button>
                         <span className="block text-xs break-all text-(--color-text-muted)">
                           {person.email}
@@ -296,9 +299,7 @@ function PersonConfirm({
           tone="danger"
           title={t("membership.person.revokeTitle", { group: act.hold.group.name, person: label })}
           act={t("membership.person.revokeAct", { group: act.hold.group.name })}
-          preview={losing(
-            liveGrants(person).filter((grant) => grant.id !== act.hold.group.teamId),
-          )}
+          preview={losing(liveGrants(person).filter((grant) => grant.id !== act.hold.group.teamId))}
           onConfirm={() => {
             run(() => actions.revoke(workspaceId, act.hold.group.teamId, person.userId));
           }}

@@ -69,7 +69,10 @@ export default async function WorkspaceMembersPage({
   const everyone = members.ok ? peopleRows(members.data, groupList) : undefined;
   const membersHref = workspaceSectionHref(workspaceId, "members");
   const workspaceName = screen.workspace?.name ?? workspaceId;
-  const grant = readGrantView(query, groupList.map((group) => group.teamId));
+  const grant = readGrantView(
+    query,
+    groupList.map((group) => group.teamId),
+  );
 
   if (grant !== undefined) {
     return (
@@ -102,7 +105,9 @@ export default async function WorkspaceMembersPage({
         workspaceId={workspaceId}
         workspaceName={workspaceName}
         viewerId={screen.session.userId}
-        people={matching === undefined ? undefined : pageOf(matching, filters.page, MEMBERS_PAGE_SIZE)}
+        people={
+          matching === undefined ? undefined : pageOf(matching, filters.page, MEMBERS_PAGE_SIZE)
+        }
         lastAdministrators={(everyone ?? [])
           .filter((row) => isLastAdministrator(everyone ?? [], row.userId))
           .map((row) => row.userId)}

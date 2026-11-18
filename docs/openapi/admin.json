@@ -3799,6 +3799,14 @@
                 "role": {
                   "type": "string"
                 },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "unclaimed",
+                    "disabled"
+                  ]
+                },
                 "groups": {
                   "type": "array",
                   "items": {
@@ -3811,6 +3819,7 @@
                 "email",
                 "name",
                 "role",
+                "status",
                 "groups"
               ]
             }
@@ -3896,11 +3905,15 @@
                       },
                       "email": {
                         "type": "string"
+                      },
+                      "suspended": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
                       "userId",
-                      "email"
+                      "email",
+                      "suspended"
                     ]
                   }
                 }
@@ -3959,11 +3972,15 @@
                     },
                     "email": {
                       "type": "string"
+                    },
+                    "suspended": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "userId",
-                    "email"
+                    "email",
+                    "suspended"
                   ]
                 }
               }

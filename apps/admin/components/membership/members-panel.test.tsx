@@ -33,7 +33,14 @@ const AUTHORS: AccessGroup = {
 };
 
 function member(userId: string, name: string, role = "member"): WorkspaceMember {
-  return { userId, name, email: `${userId.slice(2)}@qcms.test`, role, status: "active", groups: [] };
+  return {
+    userId,
+    name,
+    email: `${userId.slice(2)}@qcms.test`,
+    role,
+    status: "active",
+    groups: [],
+  };
 }
 
 const ROWS = peopleRows(
@@ -112,10 +119,14 @@ describe("Members", () => {
     renderPanel();
     await user.click(screen.getByRole("button", { name: "Open Me" }));
     const sheet = screen.getByTestId("qcms-person-sheet");
-    const remove = within(sheet).getByRole("button", { name: "Remove Workspace administrator, Me" });
+    const remove = within(sheet).getByRole("button", {
+      name: "Remove Workspace administrator, Me",
+    });
     expect(remove.hasAttribute("disabled")).toBe(true);
     expect(sheet.textContent).toContain("Me is the last Workspace administrator of Clinical.");
-    expect(within(sheet).getByRole("button", { name: "Remove from workspace" }).hasAttribute("disabled")).toBe(true);
+    expect(
+      within(sheet).getByRole("button", { name: "Remove from workspace" }).hasAttribute("disabled"),
+    ).toBe(true);
   });
 
   it("appoints a Workspace administrator through a named confirmation", async () => {
@@ -134,7 +145,10 @@ describe("Members", () => {
 });
 
 describe("Grant", () => {
-  function renderGrant(grant: () => Promise<MembershipActionState>, requireSecondApprover: boolean) {
+  function renderGrant(
+    grant: () => Promise<MembershipActionState>,
+    requireSecondApprover: boolean,
+  ) {
     render(
       <GrantForm
         workspaceId="ws_1"

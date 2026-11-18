@@ -1,4 +1,9 @@
-import { accessDelta, newlyUncovered, type AccessDelta, type UncoveredScope } from "./access-patterns.ts";
+import {
+  accessDelta,
+  newlyUncovered,
+  type AccessDelta,
+  type UncoveredScope,
+} from "./access-patterns.ts";
 import { GROUP_ROLES, needsEnvironments, setOf, type ScopedRoles } from "./access-group-form.ts";
 import { grantOf } from "./people.ts";
 import type { AccessGroup } from "./types.ts";

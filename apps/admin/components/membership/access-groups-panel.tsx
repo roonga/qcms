@@ -188,7 +188,10 @@ export function AccessGroupsPanel({
                           setOpenId(group.teamId);
                         }}
                       >
-                        <NamedLabel visible={group.name} name={t("membership.groups.open", { name: group.name })} />
+                        <NamedLabel
+                          visible={group.name}
+                          name={t("membership.groups.open", { name: group.name })}
+                        />
                       </Button>
                     </td>
                     <td>{group.roles.map(roleName).join(", ")}</td>
@@ -371,10 +374,13 @@ function GroupSheet({
                       onAct({ kind: "reconfirm", holder });
                     }}
                   >
-                    <NamedLabel visible={t("membership.person.reconfirm")} name={t("membership.person.reconfirmFor", {
-                      person: person(holder),
-                      group: group.name,
-                    })} />
+                    <NamedLabel
+                      visible={t("membership.person.reconfirm")}
+                      name={t("membership.person.reconfirmFor", {
+                        person: person(holder),
+                        group: group.name,
+                      })}
+                    />
                   </Button>
                 )}
                 <Button
@@ -385,7 +391,10 @@ function GroupSheet({
                     onAct({ kind: "revoke", holder });
                   }}
                 >
-                  <NamedLabel visible={t("membership.groups.removeHolder")} name={t("membership.groups.removeHolderFor", { email: holder.email })} />
+                  <NamedLabel
+                    visible={t("membership.groups.removeHolder")}
+                    name={t("membership.groups.removeHolderFor", { email: holder.email })}
+                  />
                 </Button>
               </li>
             ))}

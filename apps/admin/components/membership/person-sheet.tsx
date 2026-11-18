@@ -8,7 +8,12 @@ import { Button, Dialog } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import { groupScope, roleDescription } from "@/lib/membership/access-group-form";
 import type { AccessCapabilities } from "@/lib/membership/access-patterns";
-import { liveGrants, offersReconfirm, type PersonHold, type PersonRow } from "@/lib/membership/people";
+import {
+  liveGrants,
+  offersReconfirm,
+  type PersonHold,
+  type PersonRow,
+} from "@/lib/membership/people";
 
 import { NamedLabel } from "./named-label";
 import { SuspendedTag } from "./suspended-tag";
@@ -64,9 +69,7 @@ export function PersonSheet({
         <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-semibold">{t("membership.person.administrator")}</p>
-            <p className="text-sm text-(--color-text-muted)">
-              {roleDescription("forms.owner")}
-            </p>
+            <p className="text-sm text-(--color-text-muted)">{roleDescription("forms.owner")}</p>
           </div>
           {person.administrator ? (
             <AdministratorRemoval
@@ -90,7 +93,10 @@ export function PersonSheet({
                 onAct({ kind: "appoint" });
               }}
             >
-              <NamedLabel visible={t("membership.person.appoint")} name={t("membership.person.appointFor", { person: label })} />
+              <NamedLabel
+                visible={t("membership.person.appoint")}
+                name={t("membership.person.appointFor", { person: label })}
+              />
             </Button>
           )}
         </div>
@@ -138,10 +144,13 @@ export function PersonSheet({
                         onAct({ kind: "reconfirm", hold });
                       }}
                     >
-                      <NamedLabel visible={t("membership.person.reconfirm")} name={t("membership.person.reconfirmFor", {
-                        person: label,
-                        group: hold.group.name,
-                      })} />
+                      <NamedLabel
+                        visible={t("membership.person.reconfirm")}
+                        name={t("membership.person.reconfirmFor", {
+                          person: label,
+                          group: hold.group.name,
+                        })}
+                      />
                     </Button>
                   )}
                   <Button
@@ -152,10 +161,13 @@ export function PersonSheet({
                       onAct({ kind: "revoke", hold });
                     }}
                   >
-                    <NamedLabel visible={t("membership.groups.removeHolder")} name={t("membership.person.revokeFor", {
-                      person: label,
-                      group: hold.group.name,
-                    })} />
+                    <NamedLabel
+                      visible={t("membership.groups.removeHolder")}
+                      name={t("membership.person.revokeFor", {
+                        person: label,
+                        group: hold.group.name,
+                      })}
+                    />
                   </Button>
                 </li>
               ))}

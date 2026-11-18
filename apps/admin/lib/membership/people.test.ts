@@ -12,10 +12,7 @@ import {
 } from "./people.ts";
 import type { AccessGroup, WorkspaceMember } from "./types.ts";
 
-function member(
-  userId: string,
-  extra: Partial<WorkspaceMember> = {},
-): WorkspaceMember {
+function member(userId: string, extra: Partial<WorkspaceMember> = {}): WorkspaceMember {
   return {
     userId,
     email: `${userId}@example.test`,

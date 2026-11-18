@@ -183,9 +183,7 @@ test("a group is created, granted by address, re-confirmed, renamed, revoked and
   await page.goto(`/workspaces/${WORKSPACE_ID}/members?grant=1`);
   await waitForHydration(page);
   const grant = page.getByTestId("qcms-grant-form");
-  await grant
-    .getByRole("textbox", { name: "Email address" })
-    .fill(`nobody.${RUN}@admin.test`);
+  await grant.getByRole("textbox", { name: "Email address" }).fill(`nobody.${RUN}@admin.test`);
   await chooseOption(grant, "Access group", `${GROUP_NAME} - View responses, in test`);
   await grant.getByRole("button", { name: "Grant", exact: true }).click();
   await expect(
@@ -201,9 +199,12 @@ test("a group is created, granted by address, re-confirmed, renamed, revoked and
   await suspendHold(WORKSPACE_ID, GROUP_NAME, MEMBER, MEMBER);
   await page.goto(`/workspaces/${WORKSPACE_ID}/members?q=${encodeURIComponent(MEMBER)}`);
   await waitForHydration(page);
-  const row = page.getByRole("table", { name: /members/iu }).getByRole("row").filter({
-    hasText: MEMBER,
-  });
+  const row = page
+    .getByRole("table", { name: /members/iu })
+    .getByRole("row")
+    .filter({
+      hasText: MEMBER,
+    });
   await expect(row).toContainText(GROUP_NAME);
   await expect(row).toContainText("Suspended");
   await row.getByRole("button", { name: /^Open / }).click();
@@ -233,12 +234,18 @@ test("a group is created, granted by address, re-confirmed, renamed, revoked and
     .getByTestId("qcms-group-sheet")
     .getByRole("button", { name: `Revoke this access group from ${MEMBER}` })
     .click();
-  await page.getByRole("dialog").getByRole("button", { name: `Revoke ${RENAMED}` }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: `Revoke ${RENAMED}` })
+    .click();
   await expect(renamed).toContainText("Nobody");
 
   await page.getByRole("button", { name: `Open ${RENAMED}`, exact: true }).click();
   await page.getByTestId("qcms-group-sheet").getByRole("button", { name: "Delete group" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: `Delete ${RENAMED}` }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: `Delete ${RENAMED}` })
+    .click();
   await expect(page.getByText("The group and every grant it carried were removed")).toBeVisible();
   await expect(renamed).toHaveCount(0);
 });
@@ -273,7 +280,10 @@ test("Re-confirm is never offered on your own suspended membership", async ({ pa
   await expect(sheet).toContainText("You cannot re-confirm your own membership.");
 
   await sheet.getByRole("button", { name: "Delete group" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: `Delete ${own}` }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: `Delete ${own}` })
+    .click();
   await expect(page.locator(`[data-group-name="${own}"]`)).toHaveCount(0);
 });
 

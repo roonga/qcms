@@ -14,13 +14,24 @@ export interface WorkspaceListItem {
   readonly questions: number | undefined;
 }
 
+/** The account's own state, as the members list reports it. */
+export type MemberStatus = "active" | "unclaimed" | "disabled";
+
 export interface WorkspaceMember {
   readonly userId: string;
   readonly email: string;
   readonly name: string;
 
   readonly role: string;
+  readonly status: MemberStatus;
   readonly groups: readonly string[];
+}
+
+export interface AccessGroupHolder {
+  readonly userId: string;
+  readonly email: string;
+  /** Held until another administrator re-confirms it, so it grants nothing yet. */
+  readonly suspended: boolean;
 }
 
 export interface AccessGroup {
@@ -30,7 +41,7 @@ export interface AccessGroup {
   readonly roles: readonly string[];
   readonly environments: readonly string[];
   readonly externalGroupId: string | null;
-  readonly holders: readonly { readonly userId: string; readonly email: string }[];
+  readonly holders: readonly AccessGroupHolder[];
 }
 
 export interface AccessGroupList {
@@ -136,4 +147,6 @@ export type MembershipActionState =
       readonly userId?: string;
       readonly requireSecondApprover?: boolean;
     }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: "error"; readonly message: string }
+  /** The API took the act as a request, or refused it until an Approver makes it: never a success. */
+  | { readonly status: "held"; readonly message: string };

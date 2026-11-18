@@ -3,15 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 let status = 200;
 let body: unknown = {};
 
-const adminApiFetch = vi.fn<(session: unknown, path: string, init?: unknown) => Promise<Response>>(() =>
-  Promise.resolve(
-    status === 204
-      ? new Response(null, { status })
-      : new Response(JSON.stringify(body), {
-          status,
-          headers: { "content-type": "application/json" },
-        }),
-  ),
+const adminApiFetch = vi.fn<(session: unknown, path: string, init?: unknown) => Promise<Response>>(
+  () =>
+    Promise.resolve(
+      status === 204
+        ? new Response(null, { status })
+        : new Response(JSON.stringify(body), {
+            status,
+            headers: { "content-type": "application/json" },
+          }),
+    ),
 );
 
 vi.mock("./api.ts", () => ({ adminApiFetch }));
@@ -56,7 +57,11 @@ describe("the access group write clients", () => {
     expect(adminApiFetch.mock.calls[0]?.[1]).toBe("/workspaces/org%20a/access-groups/tm_1");
     expect(adminApiFetch.mock.calls[0]?.[2]).toMatchObject({
       method: "PUT",
-      body: { name: "Authors", roles: ["forms.editor", "responses.viewer"], environments: ["test"] },
+      body: {
+        name: "Authors",
+        roles: ["forms.editor", "responses.viewer"],
+        environments: ["test"],
+      },
     });
     if (!result.ok) throw new Error("expected the update to succeed");
     expect(result.data.holders.map((holder) => holder.suspended)).toEqual([true, false]);
@@ -95,7 +100,14 @@ describe("the access group write clients", () => {
   it("reads each member's status, and an unknown one as active", async () => {
     body = {
       members: [
-        { userId: "u_1", email: "a@x.test", name: "A", role: "member", status: "disabled", groups: [] },
+        {
+          userId: "u_1",
+          email: "a@x.test",
+          name: "A",
+          role: "member",
+          status: "disabled",
+          groups: [],
+        },
         { userId: "u_2", email: "b@x.test", name: "B", role: "member", status: "odd", groups: [] },
       ],
     };

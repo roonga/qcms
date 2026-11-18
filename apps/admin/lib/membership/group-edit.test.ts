@@ -36,7 +36,11 @@ describe("saving a group (criterion 15)", () => {
       { name: " Authors ", roles: ["responses.viewer"], environments: ["prod", "staging"] },
       ENVIRONMENTS,
     );
-    expect(payload).toEqual({ name: "Authors", roles: ["responses.viewer"], environments: ["prod"] });
+    expect(payload).toEqual({
+      name: "Authors",
+      roles: ["responses.viewer"],
+      environments: ["prod"],
+    });
   });
 
   it("keeps an edited group's set exactly as it was when nothing is ticked anew", () => {
@@ -77,14 +81,21 @@ describe("the self-grant hold", () => {
   const before = { roles: ["forms.editor"], environments: [] };
 
   it("holds a response role, or a new environment for one, added to the actor's own group", () => {
-    expect(addsResponseAccess(before, { roles: ["forms.editor", "responses.viewer"], environments: ["prod"] })).toBe(true);
+    expect(
+      addsResponseAccess(before, {
+        roles: ["forms.editor", "responses.viewer"],
+        environments: ["prod"],
+      }),
+    ).toBe(true);
     expect(
       addsResponseAccess(
         { roles: ["responses.viewer"], environments: ["test"] },
         { roles: ["responses.viewer"], environments: ["test", "prod"] },
       ),
     ).toBe(true);
-    expect(addsResponseAccess(undefined, { roles: ["responses.eraser"], environments: ["prod"] })).toBe(true);
+    expect(
+      addsResponseAccess(undefined, { roles: ["responses.eraser"], environments: ["prod"] }),
+    ).toBe(true);
   });
 
   it("does not hold a change that adds no response access", () => {
@@ -94,14 +105,22 @@ describe("the self-grant hold", () => {
         { roles: ["responses.viewer"], environments: ["prod"] },
       ),
     ).toBe(false);
-    expect(addsResponseAccess(before, { roles: ["forms.publisher"], environments: ["prod"] })).toBe(false);
+    expect(addsResponseAccess(before, { roles: ["forms.publisher"], environments: ["prod"] })).toBe(
+      false,
+    );
   });
 
   it("holds only with Second approval on and the actor in the group", () => {
     const after = { roles: ["responses.viewer"], environments: ["prod"] };
-    expect(holdsForApproval({ requireSecondApprover: true, actorInGroup: true, before, after })).toBe(true);
-    expect(holdsForApproval({ requireSecondApprover: true, actorInGroup: false, before, after })).toBe(false);
-    expect(holdsForApproval({ requireSecondApprover: false, actorInGroup: true, before, after })).toBe(false);
+    expect(
+      holdsForApproval({ requireSecondApprover: true, actorInGroup: true, before, after }),
+    ).toBe(true);
+    expect(
+      holdsForApproval({ requireSecondApprover: true, actorInGroup: false, before, after }),
+    ).toBe(false);
+    expect(
+      holdsForApproval({ requireSecondApprover: false, actorInGroup: true, before, after }),
+    ).toBe(false);
   });
 });
 

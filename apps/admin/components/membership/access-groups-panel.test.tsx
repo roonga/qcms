@@ -22,14 +22,24 @@ function group(
 const STARTERS: AccessGroupList = {
   workspaceId: "ws_1",
   groups: [
-    group("tm_a", "Authors", ["forms.editor", "forms.publisher", "responses.viewer"], ["test"], [
-      { userId: "u_me", email: "me@qcms.test", suspended: false },
-    ]),
+    group(
+      "tm_a",
+      "Authors",
+      ["forms.editor", "forms.publisher", "responses.viewer"],
+      ["test"],
+      [{ userId: "u_me", email: "me@qcms.test", suspended: false }],
+    ),
     group("tm_p", "Publishers", ["forms.publisher"], ["prod"]),
-    group("tm_v", "Response viewers", ["responses.viewer"], ["prod"], [
-      { userId: "u_aiko", email: "aiko@qcms.test", suspended: true },
-      { userId: "u_me", email: "me@qcms.test", suspended: true },
-    ]),
+    group(
+      "tm_v",
+      "Response viewers",
+      ["responses.viewer"],
+      ["prod"],
+      [
+        { userId: "u_aiko", email: "aiko@qcms.test", suspended: true },
+        { userId: "u_me", email: "me@qcms.test", suspended: true },
+      ],
+    ),
     group("tm_e", "Response erasers", ["responses.eraser"], ["prod"]),
     group("tm_r", "Reviewers", ["forms.viewer"], []),
   ],
@@ -118,7 +128,9 @@ describe("changing a group", () => {
     expect(within(form).queryByRole("checkbox", { name: "prod" })).toBeNull();
 
     await user.click(within(form).getByRole("checkbox", { name: "View responses" }));
-    expect(within(form).getByRole<HTMLInputElement>("checkbox", { name: "prod" }).checked).toBe(false);
+    expect(within(form).getByRole<HTMLInputElement>("checkbox", { name: "prod" }).checked).toBe(
+      false,
+    );
     await user.click(within(form).getByRole("button", { name: "Save group" }));
     expect(within(form).getByRole("alert").textContent).toContain(
       "Choose at least one environment for Publish forms, View responses or Erase responses.",
@@ -190,8 +202,9 @@ describe("re-confirming in a group", () => {
       within(sheet).getByRole("button", { name: "Re-confirm Aiko Tanaka in Response viewers" }),
     );
     await user.click(
-      within(screen.getByRole("dialog", { name: "Re-confirm Aiko Tanaka in Response viewers?" }))
-        .getByRole("button", { name: "Re-confirm" }),
+      within(
+        screen.getByRole("dialog", { name: "Re-confirm Aiko Tanaka in Response viewers?" }),
+      ).getByRole("button", { name: "Re-confirm" }),
     );
     expect(acts.reconfirm).toHaveBeenCalledWith("ws_1", "tm_v", "u_aiko", "Aiko Tanaka");
   });
