@@ -7,6 +7,7 @@ import type {
   PreviewRoster,
 } from "../forms/builder-state.ts";
 import { parseIssues } from "../forms/issues.ts";
+import { parseDraftAppearance } from "../forms/preview-appearance.ts";
 import { readDraftRules, readDraftSteps } from "../forms/draft-payload.ts";
 import { FORM_AVAILABILITIES } from "../forms/types.ts";
 import type {
@@ -129,6 +130,7 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
         requiresSecondApprover: raw["requiresSecondApprover"] === true,
 
         canWriteDraft: raw["canWriteDraft"] === true,
+        appearance: parseDraftAppearance(raw["appearance"]),
         ...readWorkflow(raw["workflow"]),
       },
     };

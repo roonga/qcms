@@ -155,7 +155,7 @@ A `shortText` `pattern` is the only format check there is: `packages/core/src/qu
 - A pattern must also compile under the `v` flag, because a browser compiles the HTML attribute that way: `compilesUnderV` and `toVSafePattern` at `packages/core/src/safe-pattern.ts:235-242` and `:318-322`, refused by the authoring API as `PATTERN_NOT_BROWSER_SAFE` (`docs/DOMAIN_SCHEMA.md:162-167`). Every pattern in the recipes was checked against both.
 - `&&` or `--` unescaped inside a character class is a publish warning, not a refusal: `packages/core/src/publish-warning.ts:13`.
 
-**There is no email, phone, postcode or URL check**, named or built in. The compiled control is a plain text field carrying `minLength`, `maxLength` and `pattern`, with no input type and no input mode: `packages/a2ui-compiler/src/mapping.ts:102-111`, and the longer box carries the two lengths at `:112-120`. Everything an author wants is hand-written as a pattern, once per question, with no shared source. This is gap G8.
+**There is no email, phone, postcode or URL check**, named or built in. The compiled control is a plain text field carrying `minLength`, `maxLength` and `pattern`, with no input type and no input mode: `packages/a2ui-compiler/src/mapping.ts:102-111`, and the longer box carries the two lengths at `:112-120`. What a vetted expression now has is a shared source rather than a named check: `FORMAT_PATTERNS` in `packages/core/src/format-patterns.ts` publishes seven entries for email, phone and five postcodes, each with its companion `maxLength` and message, which the admin's constraints panel offers and the email, phone and postcode recipes quote (`apps/api/src/features/agent/prompts.test.ts` fails on any drift). Any other shape is still hand-written as a pattern, once per question. G8 is narrowed to that, not closed: there is no `format` field on a question and no kernel resolution step (`docs/DOMAIN_SCHEMA.md:174`).
 
 ### Length limits
 
@@ -207,7 +207,7 @@ One draft issue body per gap, in `$(node scripts/agent-scratch.mjs 1270-gaps)`. 
 
 G1, G2 and G3 are the three defects the issue reports. The rest came out of the corpus.
 
-G7 is closed: `longText` carries `minLength`, counted as its maximum is. The long free text recipe still says a minimum cannot be set and is the prompt lane's to correct.
+G7 is closed: `longText` carries `minLength`, counted as its maximum is, and the long free text recipe sets it. G8 is narrowed rather than closed: the vetted expressions have a shared source and the recipes quote it, but a question still carries no `format` field.
 
 ## 4. Eval scenarios
 

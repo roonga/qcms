@@ -4,6 +4,7 @@
 
 **Settings**
 
+- Where the reference is really an email address, a phone number or a postcode, use that recipe instead. Those three carry a checked expression and cap to take unchanged; nothing else does, so the shape here is written for this form.
 - `shortText`, never `number`. A number drops a leading zero and shows grouping separators, and these codes keep both.
 - `constraints.pattern` matching the exact shape, anchored at both ends: `^\d{8,9}$` for an eight or nine digit tax number, `^[A-Z]\d{7}$` for a letter and seven digits.
 - Escape every character class member that a browser's own check reserves: write `^[A-Z0-9 \-]{6,12}$`, never `^[A-Z0-9 -]{6,12}$`.
