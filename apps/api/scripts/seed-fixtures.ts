@@ -210,7 +210,7 @@ export function publishRefusalMessage(formId: string, reasons: readonly string[]
     "",
     "Rename or remove the conflicting question(s), or start from a stack with none of them:",
     "",
-    "  pnpm dev:down && pnpm dev:up && pnpm dev:seed",
+    "  export QCMS_PORT_SEAT=<your seat> && pnpm dev:down && pnpm dev:up && pnpm dev:seed",
   ].join("\n");
 }
 
@@ -393,7 +393,7 @@ export function refusalMessage(formId: string, blockers: readonly Blocker[]): st
     "",
     "NOTHING WAS DELETED. For a stack with no respondent data, drop this one and start again:",
     "",
-    "  pnpm dev:down && pnpm dev:up && pnpm dev:seed",
+    "  export QCMS_PORT_SEAT=<your seat> && pnpm dev:down && pnpm dev:up && pnpm dev:seed",
   ].join("\n");
 }
 

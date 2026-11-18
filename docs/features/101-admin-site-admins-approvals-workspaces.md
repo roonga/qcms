@@ -11,7 +11,7 @@ The rest of Site configuration. It depends on 099 so that one end-to-end test ca
 
 - Site administrators: promote and demote with a step-up dialog.
 - Approval requests, site and workspace: pending, approved, rejected, expired.
-- Site audit.
+- Site audit. A row whose actor is `system` (an approval request the sweep expired, task 092) renders as the system, never as an account or a missing one (Code Owner, 2026-11-17).
 - Workspaces list and New workspace (first administrator, starter groups checklist).
 
 ## Exit criteria

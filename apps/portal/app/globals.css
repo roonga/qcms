@@ -156,6 +156,12 @@ body {
   font-size: var(--type-body);
 }
 
+.qcms-appearance__note {
+  margin: 0;
+  font-size: var(--type-hint);
+  color: var(--color-text-muted);
+}
+
 .qcms-appearance__apply {
   display: none;
   align-items: center;

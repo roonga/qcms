@@ -4,9 +4,11 @@ import {
   compileDraft,
   parseFormDefinition,
   parseLocaleCode,
+  parseQuestionDefinition,
   parseQuestionVersionRecord,
   type FrozenSnapshot,
   type LocaleCode,
+  type QuestionDefinition,
   type QuestionId,
   type QuestionVersionRecord,
 } from "@roonga/qcms-core";
@@ -14,6 +16,7 @@ import { parseNode } from "@a2ra/core";
 import { describe, expect, it } from "vitest";
 
 import { compileForm, compileFormWith } from "./compile.js";
+import { questionToNode, type TextResolver } from "./mapping.js";
 import type { StepResolver } from "./step-resolver.js";
 import type { A2UINode } from "./types.js";
 
@@ -377,6 +380,39 @@ describe("compileForm (kitchen-sink)", () => {
     await expect(`${JSON.stringify(compiled, null, 2)}\n`).toMatchFileSnapshot(
       fileURLToPath(new URL("../fixtures/kitchen-sink.a2ui.json", import.meta.url)),
     );
+  });
+});
+
+describe("questionToNode (longText length bounds)", () => {
+  const EN = localeOf("en");
+  const resolve: TextResolver = (text) => text[EN] ?? "";
+
+  function longText(constraints: Record<string, number>): QuestionDefinition {
+    const parsed = parseQuestionDefinition({
+      type: "longText",
+      questionId: "q_what_happened",
+      label: { en: "What happened?" },
+      constraints,
+    });
+    if (!parsed.ok) {
+      throw new Error(`definition did not parse: ${JSON.stringify(parsed.error)}`);
+    }
+    return parsed.value;
+  }
+
+  it("forwards a minimum beside the maximum, as the mapping doc specifies", () => {
+    expect(questionToNode(longText({ minLength: 40, maxLength: 1000 }), resolve, EN)).toEqual({
+      type: "TextArea",
+      props: { label: "What happened?", name: "q_what_happened", minLength: 40, maxLength: 1000 },
+    });
+  });
+
+  it("omits the bound the author left unset rather than emitting a default", () => {
+    expect(questionToNode(longText({ minLength: 25 }), resolve, EN).props).toEqual({
+      label: "What happened?",
+      name: "q_what_happened",
+      minLength: 25,
+    });
   });
 });
 

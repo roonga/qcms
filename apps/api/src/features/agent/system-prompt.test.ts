@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   type Condition,
+  FORMAT_PATTERNS,
   parseCondition,
   QUESTION_TYPES,
   VALIDATION_MESSAGE_KEYS,
@@ -30,7 +31,11 @@ const FORBIDDEN_TERMS = [
   "lnk_",
   "slug",
   "unpinned",
+  "mint",
+  "mints",
   "minted",
+  "release",
+  "releases",
   "BFF",
   "draft v1",
   "halts",
@@ -102,7 +107,8 @@ const VOICE_RULES: readonly { readonly rule: string; readonly phrases: readonly 
       "ONE short clause naming what you are",
       "is the whole opener",
       "a subordinate clause always does",
-      "never the same answer twice in one",
+      "never the same answer twice",
+      "Having to look again is not a reason for a second clause",
     ],
   },
   {
@@ -223,10 +229,9 @@ describe("the draft assistant system prompt", () => {
   // The hyphen is not what 'v' rejects: an unescaped bracket is, so the example has to be
   // one that actually compiles.
   it("gives a pattern example that compiles under the v flag", () => {
-    const prompt = buildSystemPrompt();
-    const example = /\^\\\+\?\[0-9 \\\(\\\)\\-\]\{7,20\}\$/.exec(prompt)?.[0];
-    expect(example).toBeDefined();
-    expect(() => new RegExp(example as string, "v")).not.toThrow();
+    const example = FORMAT_PATTERNS.phone.pattern;
+    expect(buildSystemPrompt()).toContain(example);
+    expect(() => new RegExp(example, "v")).not.toThrow();
   });
 
   it("asks for complete question definitions, naming every field a type supports", () => {
@@ -257,7 +262,7 @@ describe("the draft assistant system prompt", () => {
     for (const phrase of [
       "Publishing to prod is ordinary work you may propose",
       "never straight to prod",
-      "propose a publish to prod whenever form.release offers prod",
+      "propose a publish to prod whenever a step publishing an existing",
       "Name another person only when one is actually needed",
       'Say "publish to prod"',
     ]) {

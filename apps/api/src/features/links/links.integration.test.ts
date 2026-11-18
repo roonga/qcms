@@ -13,6 +13,7 @@ import {
   startTestDb,
   type TestDb,
 } from "@roonga/qcms-db/testing";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
@@ -50,6 +51,7 @@ let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let adminSessionToken: string;
+let adminUserId: string;
 let linkKeyA: string;
 let baseEnv: Record<string, string | undefined>;
 
@@ -77,7 +79,7 @@ beforeAll(async () => {
   baseEnv = validEnv({ QCMS_LINK_KEYS: linkKeyA });
   ({ deps, app } = buildApp(linkKeyA));
   internalToken = internalTokenFor(deps.config);
-  adminSessionToken = (await seedAdminSession(testDb.db)).token;
+  ({ token: adminSessionToken, userId: adminUserId } = await seedAdminSession(testDb.db));
 
   await createForm(testDb.db, {
     workspaceId: SEED_WORKSPACE_ID,
@@ -450,5 +452,155 @@ describe("minting is refused in an environment the form is not live in (#1323)",
 
     const live = await app.request(path, { method: "POST", headers: adminHeaders(), body });
     expect(live.status).toBe(201);
+  });
+});
+
+interface LinkAuditRow {
+  readonly actor: string;
+  readonly workspace_id: string;
+  readonly environment: string | null;
+  readonly form_id: string | null;
+  readonly detail: string | null;
+}
+
+async function linkAuditRows(): Promise<Array<LinkAuditRow & { readonly id: string }>> {
+  const result = await testDb.db.execute(
+    sql`select id, actor, workspace_id, environment, form_id, detail from control.access_audit
+         where kind = 'link'`,
+  );
+  return result.rows as unknown as Array<LinkAuditRow & { readonly id: string }>;
+}
+
+async function agentActionCount(): Promise<number> {
+  const result = await testDb.db.execute(
+    sql`select count(*)::int as total from control.agent_actions`,
+  );
+  return Number((result.rows[0] as { total: number }).total);
+}
+
+async function newAuditRows(act: () => Promise<Response>): Promise<{
+  readonly res: Response;
+  readonly rows: LinkAuditRow[];
+}> {
+  const before = new Set((await linkAuditRows()).map((row) => row.id));
+  const res = await act();
+  const rows = (await linkAuditRows())
+    .filter((row) => !before.has(row.id))
+    .map((row) => ({
+      actor: row.actor,
+      workspace_id: row.workspace_id,
+      environment: row.environment,
+      form_id: row.form_id,
+      detail: row.detail,
+    }));
+  return { res, rows };
+}
+
+describe("link mints and revokes are audited in the workspace audit (#1272)", () => {
+  it("writes exactly one link row for a batch mint, naming every link it minted", async () => {
+    const agentBefore = await agentActionCount();
+    const { res, rows } = await newAuditRows(() =>
+      mint(app, { expiresAt: FUTURE, oneTime: true, count: 3 }),
+    );
+    expect(res.status).toBe(201);
+    const { links } = (await res.json()) as { links: Array<{ linkId: string; url: string }> };
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      actor: adminUserId,
+      workspace_id: SEED_WORKSPACE_ID,
+      environment: DEFAULT_TEST_ENVIRONMENT,
+      form_id: FORM_ID,
+      detail:
+        `link=minted count=3 oneTime=true expiresAt=${FUTURE} ` +
+        `ids=${links.map((link) => link.linkId).join(",")}`,
+    });
+    for (const link of links) expect(rows[0]?.detail).not.toContain(tokenFromUrl(link.url));
+    expect(await agentActionCount()).toBe(agentBefore);
+  });
+
+  it("writes exactly one link row for a revoke, and none for a revoke that matches nothing", async () => {
+    const minted = await mint(app, { expiresAt: FUTURE });
+    const { links } = (await minted.json()) as { links: Array<{ linkId: string }> };
+    const linkId = links[0]!.linkId;
+
+    const revoked = await newAuditRows(() => revoke(FORM_ID, linkId));
+    expect(revoked.res.status).toBe(200);
+    expect(revoked.rows).toEqual([
+      {
+        actor: adminUserId,
+        workspace_id: SEED_WORKSPACE_ID,
+        environment: DEFAULT_TEST_ENVIRONMENT,
+        form_id: FORM_ID,
+        detail: `link=revoked id=${linkId}`,
+      },
+    ]);
+
+    const again = await newAuditRows(() => revoke(FORM_ID, linkId));
+    expect(again.res.status).toBe(404);
+    expect(again.rows).toEqual([]);
+  });
+
+  it("writes no row for a refused mint", async () => {
+    const refusals: Array<() => Promise<Response>> = [
+      () => mint(app, { environment: "test", expiresAt: FUTURE }),
+      () => mint(app, { expiresAt: "2020-01-01T00:00:00.000Z" }),
+      async () =>
+        app.request(`/admin/forms/${OTHER_FORM_ID}/links`, {
+          method: "POST",
+          headers: adminHeaders(),
+          body: JSON.stringify({ environment: DEFAULT_TEST_ENVIRONMENT, expiresAt: FUTURE }),
+        }),
+    ];
+    for (const refuse of refusals) {
+      const { res, rows } = await newAuditRows(refuse);
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(rows).toEqual([]);
+    }
+  });
+
+  describe("the row commits in the same transaction as the act", () => {
+    async function failingLinkAudit<T>(run: () => Promise<T>): Promise<T> {
+      await testDb.db.execute(
+        sql.raw(`
+          create function control.fail_link_audit() returns trigger language plpgsql as $$
+          begin
+            if new.kind = 'link' then
+              raise exception 'forced failure inside the link transaction';
+            end if;
+            return new;
+          end $$;
+          create trigger fail_link_audit before insert on control.access_audit
+            for each row execute function control.fail_link_audit();
+        `),
+      );
+      try {
+        return await run();
+      } finally {
+        await testDb.db.execute(
+          sql.raw(`
+            drop trigger fail_link_audit on control.access_audit;
+            drop function control.fail_link_audit();
+          `),
+        );
+      }
+    }
+
+    it("mints no link when the audit row cannot be written", async () => {
+      const before = await listStates(app);
+      const res = await failingLinkAudit(() => mint(app, { expiresAt: FUTURE, count: 2 }));
+      expect(res.status).toBe(500);
+      expect(await listStates(app)).toEqual(before);
+    });
+
+    it("leaves the link active when the revoke's audit row cannot be written", async () => {
+      const minted = await mint(app, { expiresAt: FUTURE });
+      const { links } = (await minted.json()) as { links: Array<{ linkId: string }> };
+      const linkId = links[0]!.linkId;
+
+      const res = await failingLinkAudit(() => revoke(FORM_ID, linkId));
+      expect(res.status).toBe(500);
+      expect((await listStates(app))[linkId]).toBe("active");
+    });
   });
 });

@@ -126,6 +126,24 @@ describe("invalid fixtures", () => {
     }
   });
 
+  it("refuses a longText whose minLength is above its maxLength", () => {
+    const result = parseQuestionDefinition({
+      type: "longText",
+      questionId: "q_what_happened",
+      label: { en: "What happened?" },
+      constraints: { minLength: 200, maxLength: 100 },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toEqual([
+        expect.objectContaining({
+          code: "MIN_LENGTH_ABOVE_MAX_LENGTH",
+          path: ["constraints", "minLength"],
+        }),
+      ]);
+    }
+  });
+
   it("rejects an unknown type discriminant with the structural code", () => {
     const result = parseQuestionDefinition({
       type: "rating",

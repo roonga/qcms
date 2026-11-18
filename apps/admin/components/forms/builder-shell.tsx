@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
+  useRef,
   useState,
   useSyncExternalStore,
   useTransition,
@@ -12,7 +13,10 @@ import {
 } from "react";
 
 import { Alert, Button, Tab, TabList, TabPanel, Tabs } from "@/components/kit";
+import { BuilderPreview, type BuilderPreviewSource } from "@/components/forms/builder-preview";
+import { SelectedQuestion } from "@/components/forms/selected-question";
 import { ConversationProvider } from "@/lib/agent/conversation";
+import { clearBuilderFacts } from "@/lib/agent/builder-facts-store";
 import { builderConversationKey } from "@/lib/agent/conversation-state";
 import { BUILDER_PANE_WIDTH, BUILDER_TABS_QUERY } from "@/lib/agent/panel";
 import { builderPublishHref, editByHandHref, sharePreviewHref } from "@/lib/forms/build-return";
@@ -53,13 +57,20 @@ interface AssistantSubject {
 }
 
 function AssistantPane({ subject }: { readonly subject: AssistantSubject }) {
+  const heading = useRef<HTMLParagraphElement>(null);
   return (
     <div className="qcms-builder__pane-body" data-testid="qcms-builder-assistant">
-      <p className="text-sm text-(--color-text-muted)">
+      <p
+        ref={heading}
+        tabIndex={-1}
+        className="text-sm text-(--color-text-muted)"
+        data-testid="qcms-builder-assistant-subject"
+      >
         {subject.formId === null
           ? t("builder.assistant.subjectNew")
           : t("builder.assistant.subject", { name: subject.name })}
       </p>
+      <SelectedQuestion returnFocusTo={heading} />
       <BuilderAssistant
         formId={subject.formId}
         workspaceId={subject.workspaceId}
@@ -70,7 +81,23 @@ function AssistantPane({ subject }: { readonly subject: AssistantSubject }) {
   );
 }
 
-function PreviewPane({ formId }: { readonly formId: string | null }) {
+function PreviewPane({
+  formId,
+  source,
+}: {
+  readonly formId: string | null;
+  readonly source: BuilderPreviewSource | undefined;
+}) {
+  if (formId !== null && source !== undefined && source.draft !== null) {
+    return (
+      <div
+        className="qcms-builder__pane-body qcms-builder__pane-body--preview"
+        data-testid="qcms-builder-preview"
+      >
+        <BuilderPreview formId={formId} draft={source.draft} source={source} />
+      </div>
+    );
+  }
   return (
     <div className="qcms-builder__pane-body" data-testid="qcms-builder-preview">
       <p className="text-sm text-(--color-text-muted)">
@@ -80,7 +107,13 @@ function PreviewPane({ formId }: { readonly formId: string | null }) {
   );
 }
 
-function Panes({ subject }: { readonly subject: AssistantSubject }) {
+function Panes({
+  subject,
+  source,
+}: {
+  readonly subject: AssistantSubject;
+  readonly source: BuilderPreviewSource | undefined;
+}) {
   const formId = subject.formId;
   const narrow = useSyncExternalStore(subscribeNarrow, isNarrow, notNarrowOnServer);
   const [selected, setSelected] = useState<PaneKey>("assistant");
@@ -109,7 +142,7 @@ function Panes({ subject }: { readonly subject: AssistantSubject }) {
           <AssistantPane subject={subject} />
         </TabPanel>
         <TabPanel id="preview" className="qcms-builder__tabpanel">
-          <PreviewPane formId={formId} />
+          <PreviewPane formId={formId} source={source} />
         </TabPanel>
       </Tabs>
     );
@@ -133,7 +166,7 @@ function Panes({ subject }: { readonly subject: AssistantSubject }) {
         <h2 id="qcms-builder-preview-heading" className="qcms-builder__pane-heading">
           {t("builder.pane.preview")}
         </h2>
-        <PreviewPane formId={formId} />
+        <PreviewPane formId={formId} source={source} />
       </section>
     </div>
   );
@@ -248,6 +281,7 @@ export function BuilderShell({
   userId,
   workspaceId,
   canPublish,
+  preview,
   startDraft,
   draft = null,
   edits,
@@ -257,6 +291,8 @@ export function BuilderShell({
   readonly userId: string;
   readonly workspaceId: string;
   readonly canPublish: boolean;
+  /** The draft the preview renders; absent until the form exists. */
+  readonly preview?: BuilderPreviewSource;
   /** Present when the form has no open draft, which has to be started before the builder edits it. */
   readonly startDraft?: () => Promise<StartDraftState>;
   /** The open draft, which names the form on a card. */
@@ -268,6 +304,7 @@ export function BuilderShell({
     setBuilderSubjectName(name);
     return () => {
       setBuilderSubjectName("");
+      clearBuilderFacts();
     };
   }, [name]);
 
@@ -283,7 +320,7 @@ export function BuilderShell({
           userId={userId}
           storageKey={builderConversationKey(userId, workspaceId, formId)}
         >
-          <Panes subject={{ formId, name, workspaceId, draft, edits }} />
+          <Panes subject={{ formId, name, workspaceId, draft, edits }} source={preview} />
         </ConversationProvider>
       ) : (
         <StartDraft start={startDraft} />

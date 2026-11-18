@@ -1,0 +1,16 @@
+{
+  "formId": "frm_long_text_minimum",
+  "defaultLocale": "en",
+  "title": { "en": "A longer typed answer with a minimum" },
+  "steps": [
+    {
+      "stepId": "stp_incident",
+      "title": { "en": "The incident" },
+      "items": [
+        { "questionId": "q_lt_incident", "version": 1 },
+        { "questionId": "q_lt_repair", "version": 1 }
+      ]
+    }
+  ],
+  "rules": []
+}

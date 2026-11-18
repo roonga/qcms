@@ -28,6 +28,7 @@ import {
   type ProposalStepBinding,
 } from "../proposal-token.js";
 import { argsSchemaWithReferences } from "./args-schema.js";
+import { readPlanTitle } from "./plan-title.js";
 
 export const PROPOSALS_PER_TURN = 1;
 
@@ -115,6 +116,8 @@ export interface Proposal {
   readonly currentEnvironment: string;
   /** The names of the workspaces this plan's arguments name, for the card to show. */
   readonly workspaces?: readonly WorkspaceName[];
+  /** The plan's outcome as the assistant wrote it, for a card of more than one step. */
+  readonly title?: string;
 }
 
 export type ProposeOutcome =
@@ -123,6 +126,8 @@ export type ProposeOutcome =
 
 export interface ProposeInput {
   readonly steps: readonly ProposedStep[];
+  /** The plan's outcome as the assistant wrote it; refused rather than cleaned up. */
+  readonly title?: string | undefined;
   /** The principal the token is issued to. */
   readonly subject: string;
   readonly appKey: string;
@@ -919,6 +924,9 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
   const shape = planShapeRefusal(input, steps, resolved.revision);
   if (shape !== undefined) return refuse(shape);
 
+  const titled = readPlanTitle(input.title);
+  if ("reason" in titled) return refuse(titled.reason);
+
   // Validated before anything is signed, so a refused plan mints no token at all.
   const enriched = await withDraftArguments(input, await withProposedDraft(input, steps));
   if ("reason" in enriched) return refuse(enriched.reason);
@@ -960,6 +968,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
       expiresAt: new Date(input.issuedAt.getTime() + 10 * 60 * 1000).toISOString(),
       formId: boundFormId,
       currentEnvironment: input.current,
+      ...(titled.title === undefined ? {} : { title: titled.title }),
       ...(await namedWorkspaces(input, steps)),
     },
   };

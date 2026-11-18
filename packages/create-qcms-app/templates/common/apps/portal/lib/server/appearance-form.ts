@@ -4,7 +4,8 @@ import { z } from "zod";
 import {
   APPEARANCE_MODES,
   APPEARANCE_ROUTE,
-  DENSITY_LEVELS,
+  BASELINE_PREFIX,
+  TEXT_SCALES,
   type AppearanceChoice,
 } from "../appearance";
 
@@ -58,6 +59,11 @@ export function safeReturnPath(
   return internalPath(candidate) ?? refererPath(referer, baseUrl) ?? DEFAULT_RETURN;
 }
 
+/**
+ * Only the axes whose value differs from the posted baseline: the form posts every axis at
+ * the value it was rendered with, and saving an untouched one would pin a form's face as
+ * the respondent's choice on every other form.
+ */
 export function parseAppearanceChoice(
   form: FormData,
   offeredFonts: readonly string[],
@@ -65,9 +71,17 @@ export function parseAppearanceChoice(
   const parsed = choiceSchema(offeredFonts).safeParse({
     mode: field(form, "mode"),
     font: field(form, "font"),
-    density: field(form, "density"),
+    textSize: field(form, "textSize"),
   });
-  return parsed.success ? parsed.data : {};
+  if (!parsed.success) return {};
+  const { mode, font, textSize } = parsed.data;
+  const changed = (axis: string, value: string | undefined): boolean =>
+    value !== undefined && value !== field(form, `${BASELINE_PREFIX}${axis}`);
+  return {
+    ...(changed("mode", mode) ? { mode } : {}),
+    ...(changed("font", font) ? { font } : {}),
+    ...(changed("textSize", textSize) ? { textSize } : {}),
+  };
 }
 
 /** One form field as a string, or `undefined` for an absent field or an uploaded file. */
@@ -82,6 +96,6 @@ function choiceSchema(offeredFonts: readonly string[]) {
   return z.object({
     mode: z.enum(APPEARANCE_MODES).optional(),
     font: font.optional(),
-    density: z.enum(DENSITY_LEVELS).optional(),
+    textSize: z.enum(TEXT_SCALES).optional(),
   });
 }

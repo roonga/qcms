@@ -121,7 +121,7 @@ function referenceText(
 ): string {
   if (reference === undefined) return vocabularyText(name, raw) ?? scalarText(raw);
   if (resolved !== undefined) return vocabularyText(name, resolved) ?? scalarText(resolved);
-  return t("agent.card.usesStep", { field: reference.field, step: reference.fromStep + 1 });
+  return t("agent.card.usesStep", { step: reference.fromStep + 1 });
 }
 
 const VOCABULARY_ARGUMENTS: Readonly<Record<string, readonly string[]>> = {
@@ -157,14 +157,17 @@ export function stepArguments(
     const resolved =
       reference === undefined ? undefined : reported[reference.fromStep]?.[reference.field];
     const value = referenceText(raw, reference, resolved, name);
-    const named = displayName(name, value, names);
-    const branded = NAMED_ID_ARGUMENTS.has(name) && literalId(raw) !== undefined;
+    // The run reports an id for a reference, and nothing in the workspace names it yet: the
+    // step that makes the subject is what names it, before the run and after it alike.
+    const named = displayName(name, value, names) ?? plannedSubject(name, reference, names);
+    const literal = literalId(raw) ?? (reference === undefined ? undefined : literalId(resolved));
+    const branded = NAMED_ID_ARGUMENTS.has(name) && literal !== undefined;
     return {
       name,
       label: argumentLabel(name),
       value: named ?? value,
       mono: named === undefined && MONO_ARGUMENTS.has(name),
-      id: branded ? value : undefined,
+      id: branded ? literal : undefined,
       idOnly: branded && named === undefined,
       ...(reference === undefined ? { fromStep: undefined } : { fromStep: reference.fromStep }),
     };
@@ -174,6 +177,16 @@ export function stepArguments(
 function displayName(name: string, value: string, names: PlanNames): string | undefined {
   if (NAMED_ID_ARGUMENTS.has(name)) return namedSubject(value, names);
   return name === LOCALE_ARGUMENT ? localeName(value) : undefined;
+}
+
+/** What the step this argument points at calls the thing it makes. */
+function plannedSubject(
+  name: string,
+  reference: StepReference | undefined,
+  names: PlanNames,
+): string | undefined {
+  if (reference === undefined || !NAMED_ID_ARGUMENTS.has(name)) return undefined;
+  return names.byStep.get(reference.fromStep);
 }
 
 /** What the screen calls this id, and the title the plan would rename it to where that differs. */
@@ -446,9 +459,12 @@ export function planTitleSubject(
   return outcome === undefined ? "" : stepTitle(outcome, reported, steps, names);
 }
 
+/** The sentence a step registers when confirming it is what respondents start getting. */
+const PRODUCTION_KEY = "agent.card.environment.production";
+
 export function stepConsequences(step: AgentPlanStep): readonly string[] {
   return step.card.consequenceKeys
-    .filter((key) => key !== "agent.card.environment.production")
+    .filter((key) => key !== PRODUCTION_KEY)
     .map((key) => t(key as MessageKey, { environment: step.environment }));
 }
 
@@ -475,8 +491,17 @@ export function isProductionStep(step: AgentPlanStep): boolean {
   return step.environment === PROD_ENVIRONMENT;
 }
 
-export function productionSentence(): string {
-  return t("agent.card.environment.production");
+/**
+ * What a prod step says beside its environment. Only the steps that put a form in front of
+ * respondents carry the full sentence; every other prod step gets the plain note, because a
+ * warning on a webhook retarget reads as a warning about the form and is not one.
+ */
+export function productionSentence(step: AgentPlanStep): string {
+  return t(
+    step.card.consequenceKeys.includes(PRODUCTION_KEY)
+      ? PRODUCTION_KEY
+      : "agent.card.environment.prodNote",
+  );
 }
 
 /** Allow only served page routes; a model link must never turn a download handler into a browser fetch. */

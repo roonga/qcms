@@ -9,6 +9,7 @@ import {
   APPEARANCE_LOGOS_TABLE,
   APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
   APPEARANCE_LOGO_TOMBSTONES_TABLE,
+  APPROVAL_REQUESTS_TABLE,
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_COLUMNS,
   CONTROL_READ_TABLES,
@@ -16,6 +17,8 @@ import {
   ENDPOINT_PROPOSALS_TABLE,
   GRANT_SOURCES,
   SITE_AUDIT_TABLE,
+  STEP_UPS_TABLE,
+  SUSPENSION_MARKERS_TABLE,
   ownsControlSchema,
   reconcileWorkspaceReporting,
   regrantEnvironments,
@@ -63,6 +66,13 @@ const APPEND_ONLY_TABLES: readonly string[] = [
   ...AUDIT_TABLES,
   SITE_AUDIT_TABLE,
   APPEARANCE_LOGOS_TABLE,
+];
+
+/** Rows only ever changed in place, so no application role may delete one. */
+const NO_DELETE_TABLES: readonly string[] = [
+  APPROVAL_REQUESTS_TABLE,
+  STEP_UPS_TABLE,
+  SUSPENSION_MARKERS_TABLE,
 ];
 
 /** Not `/tmp`: the `postgres` user's own directory in a container this test alone owns. */
@@ -431,6 +441,19 @@ describe("after the restore and the re-grant", () => {
 });
 
 describe("the projections of that map, named so a failure says which claim broke", () => {
+  it("lets the control role append a link audit row, so the restored kind CHECK carries it", async () => {
+    const client = clients.get(CONTROL_ROLE) as pg.Client;
+    await client.query(
+      `insert into control.${ACCESS_AUDIT_TABLE} (actor, workspace_id, kind, detail)
+       values ('usr_restore', 'org_restore_home', 'link', 'link=revoked id=lnk_restore')`,
+    );
+    const held = await owner.query<{ n: string }>(
+      `select count(*) as n from control.${ACCESS_AUDIT_TABLE}
+        where kind = 'link' and actor = 'usr_restore'`,
+    );
+    expect(Number(held.rows[0]?.n)).toBe(1);
+  });
+
   it("gives the control role DML on `control` with the append-only tables carved out", async () => {
     const held = await tablePrivileges("control", CONTROL_ROLE);
     expect(held["two_factor_resets"]).toBeUndefined();
@@ -439,8 +462,11 @@ describe("the projections of that map, named so a failure says which claim broke
     for (const table of APPEND_ONLY_TABLES) {
       expect([...(held[table] ?? [])].sort(), table).toEqual(["INSERT", "SELECT"]);
     }
+    for (const table of NO_DELETE_TABLES) {
+      expect([...(held[table] ?? [])].sort(), table).toEqual(["INSERT", "SELECT", "UPDATE"]);
+    }
     for (const [table, privileges] of Object.entries(held)) {
-      if (APPEND_ONLY_TABLES.includes(table)) continue;
+      if (APPEND_ONLY_TABLES.includes(table) || NO_DELETE_TABLES.includes(table)) continue;
       expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
     }
     expect(Object.keys(held).length).toBeGreaterThan(10);

@@ -9,6 +9,7 @@ answer whenever you already have one:
   form's versions." is the whole opener. "I'm checking that form's versions to
   see whether there is a 9, and then I'll put a card up" is too long: it narrates
   the plan instead of naming the look-up, and a subordinate clause always does.
-- Write that clause ONCE. Having looked, give the answer straight: no second
-  announcement, no account of the looking, and never the same answer twice in one
-  reply.
+- Write that clause ONCE in a reply. Having looked, give the answer straight: no
+  second announcement, no account of the looking, and never the same answer twice
+  in one reply. Having to look again is not a reason for a second clause: look,
+  and answer.

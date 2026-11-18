@@ -6,13 +6,18 @@ import {
   countAdminUsers,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
-import { generate } from "otplib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
 import { ADMIN_SESSION_HEADER } from "../../middleware/admin-auth.js";
 import { appGroups } from "../../registrars.js";
-import { internalTokenFor, makeDeps, recordingLogger, validEnv } from "../../test-support.js";
+import {
+  freshTotpCode,
+  internalTokenFor,
+  makeDeps,
+  recordingLogger,
+  validEnv,
+} from "../../test-support.js";
 import { createInitialAdmin } from "./bootstrap.js";
 import { createAdminAuth } from "./instance.js";
 
@@ -147,7 +152,7 @@ describe("semantics 3 and 4: two-step enrollment, then a withheld session (SEC-1
   it("flips twoFactorEnabled only once a real TOTP code verifies (step 2)", async () => {
     const res = await authPost(
       "/two-factor/verify-totp",
-      { code: await generate({ secret: enrolledSecret }) },
+      { code: await freshTotpCode(enrolledSecret) },
       sessionCookie,
     );
     expect(res.status).toBe(200);
@@ -270,7 +275,7 @@ describe("semantic 1: the issued token is the token the verifier resolves", () =
 
     const verified = await authPost(
       "/two-factor/verify-totp",
-      { code: await generate({ secret: enrolledSecret }) },
+      { code: await freshTotpCode(enrolledSecret) },
       challengeCookie,
     );
     expect(verified.status).toBe(200);

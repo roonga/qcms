@@ -23,6 +23,6 @@
 
 **Say this**
 
-> Each person gets the same set of questions, and the number of people comes from the count they give earlier. One thing I had to flatten: the source form asks about each job of each person, and a repeating set cannot sit inside another repeating set, so I have asked for the main job only. Tell me if the others matter and we will find another shape.
+> Each person gets the same set of questions, and the number of people comes from the count they give earlier. One thing had to be flattened: the source form asks about each job of each person, and a repeating set cannot sit inside another repeating set, so the plan asks for the main job only. Tell me if the others matter and we will find another shape.
 
 **Corpus sources:** Australian Medicare enrolment MS004 (up to five people, shared contact details, repeated people and relationships), US American Community Survey (repeated person questionnaires, limits on paper person slots), US health insurance claim CMS-1500 (six service lines with dates, codes, units and amounts), US naturalization N-400 (repeated name, residence, employment, travel and family information), Australian national private patient hospital claim (repeated diagnoses and procedures), NSW driver licence application (previous names and previous licences).

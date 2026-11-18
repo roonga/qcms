@@ -17,6 +17,7 @@ const VIEWER: HeldGrant = { roles: ["forms.viewer"], environments: [] };
 
 function propose(args: {
   readonly steps: readonly ProposedStep[];
+  readonly title?: string;
   readonly grants?: readonly HeldGrant[];
   readonly memberRole?: string;
   readonly current?: string;
@@ -34,6 +35,7 @@ function propose(args: {
   const grants = args.grants ?? [EDITOR, PUBLISHER];
   return buildProposal({
     steps: args.steps,
+    ...(args.title === undefined ? {} : { title: args.title }),
     ...(args.savedDraft === undefined ? {} : { savedDraft: args.savedDraft }),
     ...(args.workspaceNames === undefined ? {} : { workspaceNames: args.workspaceNames }),
     ...(args.canWriteDraft === undefined ? {} : { canWriteDraft: args.canWriteDraft }),
@@ -1265,5 +1267,68 @@ describe("buildProposal: the subject a step names is checked before its draft is
       questionIdTaken: () => Promise.resolve(false),
     });
     expect(outcome.ok).toBe(true);
+  });
+});
+
+describe("buildProposal: a hand-off step finishes on the screen itself", () => {
+  const RESPONSES: HeldGrant = {
+    roles: ["responses.viewer", "responses.eraser"],
+    environments: ["test", "prod"],
+  };
+  const exportStep: ProposedStep = {
+    kind: "response.export",
+    args: { formId: "frm_a", format: "csv", shape: "long" },
+  };
+  const unflag: ProposedStep = {
+    kind: "response.unflag",
+    args: { formId: "frm_a", sessionId: "ses_a" },
+  };
+
+  it("refuses a plan whose hand-off is not its last step, and says which step it is", async () => {
+    const outcome = await propose({
+      steps: [exportStep, unflag],
+      grants: [RESPONSES],
+      screen: "/operations/forms/[formId]/responses",
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("Step 1");
+    expect(outcome.reason).toContain("the last step of a plan");
+  });
+
+  it("accepts the same two steps with the hand-off last", async () => {
+    const outcome = await propose({
+      steps: [unflag, exportStep],
+      grants: [RESPONSES],
+      screen: "/operations/forms/[formId]/responses",
+    });
+    expect(outcome.ok).toBe(true);
+  });
+});
+
+describe("buildProposal: the plan's own title", () => {
+  it("carries the outcome line the assistant wrote onto the proposal", async () => {
+    const outcome = await propose({
+      steps: [publish],
+      title: "Ask about allergies, then publish to test",
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.title).toBe("Ask about allergies, then publish to test");
+  });
+
+  it("leaves the title off a plan that named none, so the card titles itself", async () => {
+    const outcome = await propose({ steps: [publish] });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.title).toBeUndefined();
+  });
+
+  it("refuses the plan outright when its title names an id", async () => {
+    const outcome = await propose({ steps: [publish], title: "Publish frm_a to test" });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("frm_a");
+    expect(outcome.reason).toContain("never by an id");
   });
 });

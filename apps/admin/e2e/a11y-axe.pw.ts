@@ -1,7 +1,6 @@
 import { chooseEnvironment } from "./support/environment.js";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { generate } from "otplib";
 import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
 import { rulesNotRun } from "@roonga/qcms-e2e-support/axe";
 
@@ -13,6 +12,7 @@ import {
   activeElementId,
   enrollNewAdmin,
   fillStable,
+  freshTotpCode,
   openAppearance,
   openMenu,
   readSetupKey,
@@ -966,8 +966,8 @@ test("the whole auth loop is reachable by keyboard alone", async ({ page }) => {
   await page.keyboard.press("Enter");
 
   await expect(page).toHaveURL(/\/two-factor\/challenge$/);
+  const code = await freshTotpCode(totpSecret);
   await expect(async () => {
-    const code = await generate({ secret: totpSecret });
     await page.goto("/two-factor/challenge");
     await waitForHydration(page);
     await page.keyboard.press("Tab");

@@ -2,60 +2,31 @@
 
 import { fontClass } from "@roonga/qcms-ui/fonts";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 
 import { useAppearance, type FontChoice } from "@/components/appearance-context";
 import {
   APPEARANCE_MODES,
   APPEARANCE_ROUTE,
-  DENSITY_CLASSES,
-  DENSITY_LEVELS,
-  DENSITY_COOKIE,
+  BASELINE_PREFIX,
   FONT_COOKIE,
   MODE_COOKIE,
   RETURN_FIELD,
+  TEXT_SCALE_CLASSES,
+  TEXT_SCALES,
+  TEXT_SIZE_COOKIE,
   appearanceCookie,
-  densityClass,
+  textScaleClass,
   type AppearanceMode,
-  type Density,
+  type TextScale,
 } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
 
 const SELECTED_MARK = "✓";
 
-// Decorative: the visible text label names the option, because an icon-only toggle
-// would put the whole meaning of this control behind a glyph.
-function DensityIcon({ gap }: { readonly gap: number }) {
-  const middle = 8;
-  return (
-    <svg
-      aria-hidden="true"
-      className="qcms-seg__icon"
-      viewBox="0 0 16 16"
-      width="16"
-      height="16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-    >
-      {[middle - gap, middle, middle + gap].map((y) => (
-        <line key={y} x1="2.5" y1={y} x2="13.5" y2={y} />
-      ))}
-    </svg>
-  );
-}
-
-const DENSITY_ICON_GAP: Readonly<Record<Density, number>> = {
-  compact: 3,
-  comfortable: 4.5,
-  spacious: 6,
-};
-
 interface SegmentedOption<T extends string> {
   readonly value: T;
   readonly label: string;
-  readonly icon?: ReactNode;
 }
 
 /**
@@ -101,7 +72,6 @@ function Segmented<T extends string>({
               <span className="qcms-seg__mark" aria-hidden="true">
                 {selected ? SELECTED_MARK : ""}
               </span>
-              {option.icon}
               <span>{option.label}</span>
             </label>
           );
@@ -135,7 +105,7 @@ export function AppearanceControls() {
   const returnTo = search === "" ? prefixed : `${prefixed}?${search}`;
   const [mode, setMode] = useState<AppearanceMode>(state?.mode ?? "light");
   const [font, setFont] = useState<string>(state?.font ?? "");
-  const [density, setDensity] = useState<Density>(state?.density ?? "comfortable");
+  const [textScale, setTextScale] = useState<TextScale>(state?.textScale ?? "100");
 
   useEffect(() => {
     const live = APPEARANCE_MODES.find((candidate) =>
@@ -168,10 +138,16 @@ export function AppearanceControls() {
     document.cookie = appearanceCookie(FONT_COOKIE, next, secure);
   };
 
-  const chooseDensity = (next: Density): void => {
-    setDensity(next);
-    swapRootClass(DENSITY_CLASSES, densityClass(next));
-    document.cookie = appearanceCookie(DENSITY_COOKIE, next, secure);
+  const chooseTextScale = (next: TextScale): void => {
+    setTextScale(next);
+    swapRootClass(TEXT_SCALE_CLASSES, textScaleClass(next));
+    document.cookie = appearanceCookie(TEXT_SIZE_COOKIE, next, secure);
+  };
+
+  const closeOnEscape = (event: KeyboardEvent<HTMLDetailsElement>): void => {
+    if (event.key !== "Escape" || !event.currentTarget.open) return;
+    event.currentTarget.open = false;
+    event.currentTarget.querySelector("summary")?.focus();
   };
 
   // Hydrated, the form never submits: the click handlers have already applied the choice,
@@ -182,7 +158,7 @@ export function AppearanceControls() {
   };
 
   return (
-    <details className="qcms-appearance" data-testid="appearance">
+    <details className="qcms-appearance" data-testid="appearance" onKeyDown={closeOnEscape}>
       <summary className="qcms-appearance__summary">
         {/* Decorative: the visible label names the control. */}
         <svg
@@ -207,6 +183,10 @@ export function AppearanceControls() {
         onSubmit={keepOnPage}
       >
         <input type="hidden" name={RETURN_FIELD} value={returnTo} />
+        {/* The rendered values, so the no-JS route saves only the axes the respondent changed. */}
+        <input type="hidden" name={`${BASELINE_PREFIX}mode`} value={state.mode} />
+        <input type="hidden" name={`${BASELINE_PREFIX}font`} value={state.font} />
+        <input type="hidden" name={`${BASELINE_PREFIX}textSize`} value={state.textScale} />
         <Segmented
           name="mode"
           legend={t("appearance.mode.legend")}
@@ -245,16 +225,17 @@ export function AppearanceControls() {
         </div>
 
         <Segmented
-          name="density"
-          legend={t("appearance.density.legend")}
-          value={density}
-          onChange={chooseDensity}
-          options={DENSITY_LEVELS.map((value) => ({
+          name="textSize"
+          legend={t("appearance.textSize.legend")}
+          value={textScale}
+          onChange={chooseTextScale}
+          options={TEXT_SCALES.map((value) => ({
             value,
-            label: t(`appearance.density.${value}`),
-            icon: <DensityIcon gap={DENSITY_ICON_GAP[value]} />,
+            label: t(`appearance.textSize.${value}`),
           }))}
         />
+
+        <p className="qcms-appearance__note">{t("appearance.note")}</p>
 
         {/* Revealed only by the `<noscript>` rule in `app/layout.tsx`. Hidden by
             default rather than rendered conditionally, so the served HTML is the same

@@ -77,7 +77,7 @@ export function hasOptions(type: QuestionType): boolean {
 // Boolean and singleChoice accept no constraints object, including an empty one.
 export const CONSTRAINT_FIELDS: Readonly<Record<QuestionType, readonly string[]>> = {
   shortText: ["minLength", "maxLength", "pattern"],
-  longText: ["maxLength"],
+  longText: ["minLength", "maxLength"],
   number: ["min", "max", "integer"],
   date: ["min", "max"],
   boolean: [],

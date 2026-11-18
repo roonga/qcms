@@ -15,7 +15,30 @@
   ],
   "seed": {
     "reset": "after:publish-and-test-link",
-    "requires": "The form published to test and not to prod, the signed-in person holding Publish forms for prod, and second approval off in that workspace.",
+    "requires": "The form published to test and not to prod, with no rule on it, the signed-in person holding Publish forms for prod, and second approval off in that workspace. The card is left unconfirmed, so this scenario leaves the starting point exactly as it found it.",
+    "expect": [
+      {
+        "check": "released",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test"
+      },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "prod"
+      },
+      {
+        "check": "linkCount",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test",
+        "exactly": 1
+      },
+      {
+        "check": "ruleCount",
+        "title": "Larkmead new patient sign-up",
+        "exactly": 0
+      }
+    ],
     "fixtures": "Fake clinic data only."
   },
   "budget": {

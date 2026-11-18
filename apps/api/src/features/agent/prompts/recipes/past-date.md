@@ -18,6 +18,6 @@
 
 **Say this**
 
-> The latest date it accepts is today's date, set as a fixed date. It will stop being right as time passes, so it needs changing from time to time. A window such as "in the last year" is not something I can set.
+> The latest date it accepts is today's date, set as a fixed date. It will stop being right as time passes, so it needs changing from time to time. A window such as "in the last year" is not something the form can hold.
 
 **Corpus sources:** Australian national private patient hospital claim (admission and separation dates), ahm travel insurance claim (medical and cancellation claims), NHS new-patient questionnaire (conditional stopped dates), Canadian adult passport (previous travel documents).

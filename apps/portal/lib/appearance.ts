@@ -14,7 +14,36 @@ export const DEFAULT_DENSITY: Density = "comfortable";
 
 export const MODE_COOKIE = "qcms-theme";
 export const FONT_COOKIE = "qcms-font";
-export const DENSITY_COOKIE = "qcms-density";
+export const TEXT_SIZE_COOKIE = "qcms-text-size";
+
+/** The respondent's multiplier over the form's base size, in percent. */
+export const TEXT_SCALES = ["100", "125", "150", "200"] as const;
+export type TextScale = (typeof TEXT_SCALES)[number];
+export const DEFAULT_TEXT_SCALE: TextScale = "100";
+
+/** The admin base size bounds in px; a page with no form appearance uses the minimum. */
+export const TEXT_BASE_MIN = 16;
+export const TEXT_BASE_MAX = 24;
+export const DEFAULT_TEXT_BASE = TEXT_BASE_MIN;
+/** No base and scale pair may render body text larger than this. */
+export const TEXT_SIZE_CAP_PX = 32;
+
+/**
+ * The rendered root size in px at the browser's default 16 px, which is what
+ * `theme.css` computes from the base ratio and the scale class.
+ */
+export function textSizePx(base: number, scale: TextScale): number {
+  return Math.min((base * Number(scale)) / 100, TEXT_SIZE_CAP_PX);
+}
+
+/** Always emitted, the default included: the class is what opts the root into the scale rule. */
+export function textScaleClass(scale: TextScale): string {
+  return `text-scale-${scale}`;
+}
+
+export const TEXT_SCALE_CLASSES: readonly string[] = TEXT_SCALES.map((scale) =>
+  textScaleClass(scale),
+);
 
 /**
  * A year: an appearance choice is a preference and not a session, and a respondent who
@@ -28,10 +57,6 @@ export function densityClass(density: Density): string {
   return density === DEFAULT_DENSITY ? "" : `density-${density}`;
 }
 
-export const DENSITY_CLASSES: readonly string[] = DENSITY_LEVELS.map((level) =>
-  densityClass(level),
-).filter((className) => className !== "");
-
 /**
  * The `undefined` return is what separates this from the config-side `oneOf` helper: no
  * cookie and a nonsense cookie both have to fall through to the deployment default and
@@ -41,8 +66,8 @@ export function parseMode(raw: string | undefined): AppearanceMode | undefined {
   return APPEARANCE_MODES.find((mode) => mode === raw);
 }
 
-export function parseDensity(raw: string | undefined): Density | undefined {
-  return DENSITY_LEVELS.find((level) => level === raw);
+export function parseTextScale(raw: string | undefined): TextScale | undefined {
+  return TEXT_SCALES.find((scale) => scale === raw);
 }
 
 /**
@@ -83,15 +108,14 @@ export const APPEARANCE_ROUTE = "/appearance";
 
 export const RETURN_FIELD = "returnTo";
 
-/**
- * An absent axis means not chosen in this submission rather than reset to the default.
- * The form always posts all three, so the shape is partial only because
- * {@link appearanceCookiesFor} is also the answer for values that failed validation.
- */
+/** The prefix of the hidden field carrying the value an axis was rendered with. */
+export const BASELINE_PREFIX = "was-";
+
+/** An absent axis means not changed in this submission rather than reset to the default. */
 export interface AppearanceChoice {
   readonly mode?: AppearanceMode | undefined;
   readonly font?: string | undefined;
-  readonly density?: Density | undefined;
+  readonly textSize?: TextScale | undefined;
 }
 
 /**
@@ -103,8 +127,8 @@ export function appearanceCookiesFor(choice: AppearanceChoice, secure: boolean):
   const written: string[] = [];
   if (choice.mode !== undefined) written.push(appearanceCookie(MODE_COOKIE, choice.mode, secure));
   if (choice.font !== undefined) written.push(appearanceCookie(FONT_COOKIE, choice.font, secure));
-  if (choice.density !== undefined) {
-    written.push(appearanceCookie(DENSITY_COOKIE, choice.density, secure));
+  if (choice.textSize !== undefined) {
+    written.push(appearanceCookie(TEXT_SIZE_COOKIE, choice.textSize, secure));
   }
   return written;
 }

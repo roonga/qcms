@@ -100,15 +100,16 @@ golden/
 Each corpus form has one `<form>.a2ui.json` per generation it existed for (the last
 two joined in task 048, so they have no `v1/` document):
 
-| Golden                         | Fixture                                         | What it pins                                                                                                          |
-| ------------------------------ | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `kitchen-sink.a2ui.json`       | `forms/valid/kitchen-sink.json`                 | Every question type across 3 steps; h1 on step 1, h2 on each; required/help/constraint props.                         |
-| `insurance.a2ui.json`          | `forms/valid/insurance.json`                    | The DOMAIN_SCHEMA §6 flow: boolean + number in one step.                                                              |
-| `minimal.a2ui.json`            | `forms/valid/minimal.json`                      | Smallest form: one step, one control.                                                                                 |
-| `constraints-heavy.a2ui.json`  | `forms/valid/constraints-heavy.json`            | Every constraint-bearing control in a single dense step.                                                              |
-| `deep-nesting-rules.a2ui.json` | `forms/valid/deep-nesting-rules.json`           | A depth-8 rule form; proves the compiled A2UI is a plain projection (rules apply at serve time, not in the document). |
-| `author-messages.a2ui.json`    | `../fixtures/corpus/forms/author-messages.json` | Author-supplied validation messages (ADR-32). Appended in task 048, so `v2/` onwards.                                 |
-| `boolean-labels.a2ui.json`     | `../fixtures/corpus/forms/boolean-labels.json`  | Boolean label overrides (ADR-36). Appended in task 048, so `v2/` onwards.                                             |
+| Golden                         | Fixture                                           | What it pins                                                                                                          |
+| ------------------------------ | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `kitchen-sink.a2ui.json`       | `forms/valid/kitchen-sink.json`                   | Every question type across 3 steps; h1 on step 1, h2 on each; required/help/constraint props.                         |
+| `insurance.a2ui.json`          | `forms/valid/insurance.json`                      | The DOMAIN_SCHEMA §6 flow: boolean + number in one step.                                                              |
+| `minimal.a2ui.json`            | `forms/valid/minimal.json`                        | Smallest form: one step, one control.                                                                                 |
+| `constraints-heavy.a2ui.json`  | `forms/valid/constraints-heavy.json`              | Every constraint-bearing control in a single dense step.                                                              |
+| `deep-nesting-rules.a2ui.json` | `forms/valid/deep-nesting-rules.json`             | A depth-8 rule form; proves the compiled A2UI is a plain projection (rules apply at serve time, not in the document). |
+| `author-messages.a2ui.json`    | `../fixtures/corpus/forms/author-messages.json`   | Author-supplied validation messages (ADR-32). Appended in task 048, so `v2/` onwards.                                 |
+| `boolean-labels.a2ui.json`     | `../fixtures/corpus/forms/boolean-labels.json`    | Boolean label overrides (ADR-36). Appended in task 048, so `v2/` onwards.                                             |
+| `long-text-minimum.a2ui.json`  | `../fixtures/corpus/forms/long-text-minimum.json` | `minLength` on a `longText`: one with both bounds, one with the minimum alone. Appended, so `v4/` onwards.            |
 
 **`kitchen-sink` here is the HEALTH-domain form** (`q_preexisting_conditions`,
 `q_medical_history`), and it is the one the `@roonga/qcms-core`, `@roonga/qcms-a2ui-compiler`

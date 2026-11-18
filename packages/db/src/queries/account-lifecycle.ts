@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, isNull, like, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, like, ne, sql } from "drizzle-orm";
 
 import { carriesResponsesRole } from "../access-groups.js";
 import {
@@ -12,6 +12,7 @@ import {
   authVerification,
 } from "../schema/control/auth.js";
 import { signInLinks } from "../schema/control/sign-in-links.js";
+import { suspensionMarkers } from "../schema/control/suspension-markers.js";
 import { SITE_ADMINISTRATOR_ROLE } from "./auth.js";
 import type { Executor } from "./executor.js";
 import { listWorkspaceAdministrators, OWNER_MEMBER_ROLE } from "./grants.js";
@@ -123,27 +124,6 @@ export async function wasSentResetOrReactivationLink(
     )
     .limit(1);
   return rows.length > 0;
-}
-
-/**
- * Whether `issuerId` performed the reset or reactivation behind any of the account's newest
- * unbroken run of reset or reactivation links. A resent link keeps its act's issuer.
- */
-export async function issuedPendingResetLink(
-  exec: Executor,
-  userId: string,
-  issuerId: string,
-): Promise<boolean> {
-  const rows = await exec
-    .select({ purpose: signInLinks.purpose, issuedBy: signInLinks.issuedBy })
-    .from(signInLinks)
-    .where(eq(signInLinks.userId, userId))
-    .orderBy(sql`${signInLinks.createdAt} desc`, sql`${signInLinks.id} desc`);
-  for (const row of rows) {
-    if (row.purpose !== "reset" && row.purpose !== "reactivated") return false;
-    if (row.issuedBy === issuerId) return true;
-  }
-  return false;
 }
 
 /**
@@ -409,4 +389,219 @@ export async function listWorkspacesHeldBy(
     .innerJoin(authTeam, eq(authTeam.id, authTeamMember.teamId))
     .where(eq(authTeamMember.userId, userId));
   return [...new Set([...members, ...teams].map((row) => row.workspaceId))].sort();
+}
+
+/** Every active, claimed Site administrator, the only ones any guard counts. */
+export async function listActiveSiteAdministratorIds(exec: Executor): Promise<readonly string[]> {
+  const rows = await exec
+    .select({ userId: authUser.id })
+    .from(authUser)
+    .where(
+      and(
+        eq(authUser.role, SITE_ADMINISTRATOR_ROLE),
+        isNull(authUser.disabledAt),
+        isNotNull(authUser.claimedAt),
+      ),
+    )
+    .orderBy(asc(authUser.id));
+  return rows.map((row) => row.userId);
+}
+
+/** Make the account a Site administrator, or take the role away. */
+export async function setSiteAdministrator(
+  exec: Executor,
+  input: { readonly userId: string; readonly administrator: boolean; readonly at: Date },
+): Promise<void> {
+  await exec
+    .update(authUser)
+    .set({ role: input.administrator ? SITE_ADMINISTRATOR_ROLE : null, updatedAt: input.at })
+    .where(eq(authUser.id, input.userId));
+}
+
+const SITE_ADMINISTRATORS_LOCK_CLASS = "qcms.site-administrators";
+
+/**
+ * Serialise every act that can change who counts as an active Site administrator, so two
+ * acts never each see the other's target as a second one. Tried, never waited for.
+ */
+export async function tryLockSiteAdministrators(exec: Executor): Promise<boolean> {
+  const result = await exec.execute<{ locked: boolean }>(
+    sql`select pg_try_advisory_xact_lock(hashtext(${SITE_ADMINISTRATORS_LOCK_CLASS}), 0) as locked`,
+  );
+  return result.rows[0]?.locked === true;
+}
+
+const openMarker = isNull(suspensionMarkers.liftedAt);
+
+/**
+ * Open the account's suspension run for one reset or reactivation: an account-wide marker
+ * naming the performer, and one per access group whose hold the act suspended.
+ */
+export async function openSuspensionRun(
+  exec: Executor,
+  input: {
+    readonly userId: string;
+    readonly performedBy: string;
+    readonly at: Date;
+    readonly teamIds: readonly string[];
+  },
+): Promise<void> {
+  const teams: (string | null)[] = [null, ...input.teamIds];
+  await exec
+    .insert(suspensionMarkers)
+    .values(
+      teams.map((teamId) => ({
+        userId: input.userId,
+        teamId,
+        performedBy: input.performedBy,
+        createdAt: input.at,
+      })),
+    )
+    .onConflictDoNothing();
+}
+
+/** Who performed a reset or reactivation the account still owes a re-confirmation for. */
+export async function suspensionPerformers(
+  exec: Executor,
+  userId: string,
+): Promise<readonly string[]> {
+  const rows = await exec
+    .selectDistinct({ performedBy: suspensionMarkers.performedBy })
+    .from(suspensionMarkers)
+    .where(and(eq(suspensionMarkers.userId, userId), openMarker))
+    .orderBy(asc(suspensionMarkers.performedBy));
+  return rows.map((row) => row.performedBy);
+}
+
+/** Whether the account's suspension run is open. */
+export async function hasOpenSuspension(exec: Executor, userId: string): Promise<boolean> {
+  const rows = await exec
+    .select({ id: suspensionMarkers.id })
+    .from(suspensionMarkers)
+    .where(and(eq(suspensionMarkers.userId, userId), openMarker))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** Who an open marker on this account's hold of this group names, or `undefined`. */
+export async function openHoldMarker(
+  exec: Executor,
+  userId: string,
+  teamId: string,
+): Promise<string | undefined> {
+  const [row] = await exec
+    .select({ performedBy: suspensionMarkers.performedBy })
+    .from(suspensionMarkers)
+    .where(
+      and(eq(suspensionMarkers.userId, userId), eq(suspensionMarkers.teamId, teamId), openMarker),
+    )
+    .orderBy(asc(suspensionMarkers.createdAt))
+    .limit(1);
+  return row?.performedBy;
+}
+
+/** Mark one hold as owing a re-confirmation, naming who wrote it suspended. */
+export async function markHoldSuspended(
+  exec: Executor,
+  input: {
+    readonly userId: string;
+    readonly teamId: string;
+    readonly performedBy: string;
+    readonly at: Date;
+  },
+): Promise<void> {
+  await exec
+    .insert(suspensionMarkers)
+    .values({
+      userId: input.userId,
+      teamId: input.teamId,
+      performedBy: input.performedBy,
+      createdAt: input.at,
+    })
+    .onConflictDoNothing();
+}
+
+/**
+ * Lift every marker on one hold, as a re-confirmation by `by` does, then end the account's
+ * run if nothing more is owed.
+ */
+export async function liftHoldMarkers(
+  exec: Executor,
+  input: {
+    readonly userId: string;
+    readonly teamId: string;
+    readonly by: string;
+    readonly at: Date;
+  },
+): Promise<void> {
+  await exec
+    .update(suspensionMarkers)
+    .set({ liftedAt: input.at, liftedBy: input.by })
+    .where(
+      and(
+        eq(suspensionMarkers.userId, input.userId),
+        eq(suspensionMarkers.teamId, input.teamId),
+        openMarker,
+      ),
+    );
+  await settleSuspensionRun(exec, input);
+}
+
+/**
+ * End the account's run when it is claimed and active and no group marker is open. The claim
+ * and every lift call it, so a run with nothing left to re-confirm never outlives the claim.
+ */
+export async function settleSuspensionRun(
+  exec: Executor,
+  input: { readonly userId: string; readonly by: string; readonly at: Date },
+): Promise<void> {
+  const [account] = await exec
+    .select({ claimedAt: authUser.claimedAt, disabledAt: authUser.disabledAt })
+    .from(authUser)
+    .where(eq(authUser.id, input.userId))
+    .limit(1);
+  if (account === undefined || account.claimedAt === null || account.disabledAt !== null) return;
+  const owed = await exec
+    .select({ id: suspensionMarkers.id })
+    .from(suspensionMarkers)
+    .where(
+      and(
+        eq(suspensionMarkers.userId, input.userId),
+        isNotNull(suspensionMarkers.teamId),
+        openMarker,
+      ),
+    )
+    .limit(1);
+  if (owed.length > 0) return;
+  await exec
+    .update(suspensionMarkers)
+    .set({ liftedAt: input.at, liftedBy: input.by })
+    .where(
+      and(eq(suspensionMarkers.userId, input.userId), isNull(suspensionMarkers.teamId), openMarker),
+    );
+}
+
+/**
+ * Lift the markers a deleted group leaves, for every account `by` took no part in: neither the
+ * account itself nor a performer of its run. Theirs stay open, so deleting a group never ends
+ * a run for either of them.
+ */
+export async function liftMarkersOfDeletedGroup(
+  exec: Executor,
+  input: { readonly teamId: string; readonly by: string; readonly at: Date },
+): Promise<void> {
+  const owed = await exec
+    .selectDistinct({ userId: suspensionMarkers.userId })
+    .from(suspensionMarkers)
+    .where(
+      and(
+        eq(suspensionMarkers.teamId, input.teamId),
+        ne(suspensionMarkers.userId, input.by),
+        openMarker,
+      ),
+    );
+  for (const { userId } of owed) {
+    if ((await suspensionPerformers(exec, userId)).includes(input.by)) continue;
+    await liftHoldMarkers(exec, { userId, teamId: input.teamId, by: input.by, at: input.at });
+  }
 }

@@ -35,9 +35,9 @@ describe("the card's quoted reason", () => {
     );
   });
 
-  it("drops whole lines rather than stopping one mid-thought", () => {
+  it("drops whole lines rather than stopping one mid-thought, and says it stopped", () => {
     const quoted = plainQuote("Short enough.\n" + "word ".repeat(80), 40) ?? "";
-    expect(quoted).toBe("Short enough.");
+    expect(quoted).toBe("Short enough. \u2026");
   });
 
   it("drops an item with no text rather than leaving its marker", () => {
@@ -47,7 +47,7 @@ describe("the card's quoted reason", () => {
   it("cuts one over-long line on a sentence boundary where there is one", () => {
     const text = `${"word ".repeat(40)}end. ${"tail ".repeat(40)}`;
     const quoted = plainQuote(text, 280) ?? "";
-    expect(quoted.endsWith("end.")).toBe(true);
+    expect(quoted.endsWith("end. \u2026")).toBe(true);
   });
 
   it("cuts on a word boundary otherwise, with an ellipsis", () => {
@@ -69,8 +69,9 @@ describe("the card's quoted reason", () => {
 
   it("quotes at most the documented length", () => {
     expect(REASON_CHARS).toBe(280);
+    // The marker that says the quote was cut is not part of the quoted text.
     expect((plainQuote("x ".repeat(400), REASON_CHARS) ?? "").length).toBeLessThanOrEqual(
-      REASON_CHARS + 1,
+      REASON_CHARS + 2,
     );
   });
 });

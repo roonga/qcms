@@ -67,6 +67,29 @@ describe("which panel the column shows", () => {
     expect(screen.queryByRole("textbox", { name: "Label" })).toBeNull();
   });
 
+  it("offers a longText both length bounds and no pattern", () => {
+    render(
+      <QuestionEditor
+        mode="edit"
+        action={idle()}
+        initialSlug="what-happened"
+        initialDefinition={
+          {
+            questionId: "q_what_happened",
+            type: "longText",
+            label: { en: "What happened?" },
+            constraints: { minLength: 40, maxLength: 2000 },
+          } as unknown as QuestionDefinitionView
+        }
+        version={1}
+        addressedPanel="constraints"
+      />,
+    );
+    expect(screen.getByRole("textbox", { name: "Shortest answer" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Longest answer" })).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Pattern" })).toBeNull();
+  });
+
   it("carries the id the rail row controls on the panel's own section", () => {
     const { container } = render(
       <QuestionEditor

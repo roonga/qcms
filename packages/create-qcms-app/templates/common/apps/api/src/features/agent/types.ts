@@ -130,6 +130,8 @@ export type FormDefinitionPort = (input: {
  */
 export type ProposePort = (input: {
   readonly steps: readonly ProposedStep[];
+  /** The plan's outcome as the assistant wrote it, which the card may use as its heading. */
+  readonly title?: string | undefined;
 
   readonly proposalsThisTurn: number;
   /**
@@ -545,6 +547,8 @@ export interface AgentContext {
   readonly conversation: readonly AssistTurn[];
   /** The server's own date as `YYYY-MM-DD`; a date bound the model works out needs it. */
   readonly today?: string;
+  /** The date on the viewer's own clock, which is the one their screen writes dates in. */
+  readonly viewerToday?: string;
   readonly maxSteps: number;
   /** The tools this caller holds a cell for; the door refuses every other name. */
   readonly tools: readonly string[];

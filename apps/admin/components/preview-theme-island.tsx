@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode, type Ref } from "react";
 
 import { Select } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
@@ -55,15 +55,39 @@ export function PreviewThemeIsland({
         />
       </div>
       <Frame label={frameLabel}>
-        <div
-          className={`qcms-preview qcms-preview-surface ${mode}`}
-          data-testid="qcms-preview-surface"
-          data-qcms-theme-scope=""
-          data-theme={theme}
-        >
+        <PreviewSurface theme={theme} classes={[mode]}>
           {children}
-        </div>
+        </PreviewSurface>
       </Frame>
+    </div>
+  );
+}
+
+/** The theme scope carrier every respondent render mounts inside; the builder drives its look from its own toolbar. */
+export function PreviewSurface({
+  theme,
+  classes,
+  tokens,
+  surfaceRef,
+  children,
+}: {
+  readonly theme: PreviewTheme;
+  readonly classes: readonly string[];
+  /** Colour tokens set on the carrier itself, which outrank every theme block. */
+  readonly tokens?: CSSProperties & Readonly<Record<`--${string}`, string>>;
+  readonly surfaceRef?: Ref<HTMLDivElement>;
+  readonly children: ReactNode;
+}) {
+  return (
+    <div
+      ref={surfaceRef}
+      className={["qcms-preview qcms-preview-surface", ...classes].join(" ")}
+      data-testid="qcms-preview-surface"
+      data-qcms-theme-scope=""
+      data-theme={theme}
+      style={tokens}
+    >
+      {children}
     </div>
   );
 }

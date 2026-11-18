@@ -1,0 +1,74 @@
+{
+  "documents": [
+    {
+      "stepId": "stp_incident",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h1",
+                  "size": "2xl",
+                  "weight": "bold"
+                },
+                "children": "A longer typed answer with a minimum"
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2",
+                  "size": "xl",
+                  "weight": "semibold"
+                },
+                "children": "The incident"
+              },
+              {
+                "type": "TextArea",
+                "props": {
+                  "label": "What happened?",
+                  "description": "A sentence or two is enough",
+                  "name": "q_lt_incident",
+                  "isRequired": true,
+                  "messages": {
+                    "required": "Tell us what happened before we can go on",
+                    "minLength": "Give us a sentence or two, not a single word",
+                    "maxLength": "Keep this under 1000 characters"
+                  },
+                  "minLength": 40,
+                  "maxLength": 1000
+                }
+              },
+              {
+                "type": "TextArea",
+                "props": {
+                  "label": "What repair are you asking for?",
+                  "name": "q_lt_repair",
+                  "minLength": 25
+                }
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "compilerVersion": "0.3.0",
+  "a2uiSpecVersion": "1.0.0-preview.7"
+}

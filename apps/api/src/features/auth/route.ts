@@ -6,6 +6,7 @@ import { ApiError } from "../../errors.js";
 import { claimAfterFactorVerified } from "../accounts/claim.js";
 import { accountStateRefusal, authEndpointRefused } from "./account-state.js";
 import { AUTH_BASE_PATH, createAdminAuth, type AdminAuth } from "./instance.js";
+import { spendTotpCode } from "./totp.js";
 
 /** The one endpoint that can turn an unclaimed account's enrolment into a claim. */
 const TOTP_VERIFY_ENDPOINT = "POST /two-factor/verify-totp";
@@ -89,6 +90,27 @@ async function issuedSession(
   return session === null ? undefined : { userId: session.user.id, token: session.session.token };
 }
 
+/**
+ * Spend the code of a factor check made on a session before the vendor sees it, so it cannot
+ * be spent again at sign-in or step-up. A sign-in, which holds no session, is judged by the
+ * session-create hook instead. `false` means refused.
+ */
+async function sessionCodeSpent(auth: AdminAuth, deps: Deps, request: Request): Promise<boolean> {
+  const resolved = await auth.api.getSession({ headers: request.headers });
+  if (resolved === null) return true;
+  const body = (await request
+    .clone()
+    .json()
+    .catch(() => null)) as { code?: unknown } | null;
+  if (typeof body?.code !== "string") return true;
+  const { secretConfig } = await auth.$context;
+  return spendTotpCode(deps.databases.control, secretConfig, {
+    userId: resolved.user.id,
+    code: body.code,
+    verifiedOnly: false,
+  });
+}
+
 export function authSubPath(url: string): string {
   const { pathname } = new URL(url);
   const rest = pathname.startsWith(AUTH_BASE_PATH) ? pathname.slice(AUTH_BASE_PATH.length) : "";
@@ -112,6 +134,9 @@ export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
     // here as well as on `/admin`. Sign-in and sign-out are exempt: neither is the stale
     // cookie's to decide, and the session-create hook refuses the sign-in instead.
     if (await authEndpointRefused(auth, request, endpoint)) throw accountStateRefusal();
+    if (endpoint === TOTP_VERIFY_ENDPOINT && !(await sessionCodeSpent(auth, deps, request))) {
+      return Response.json({ code: "INVALID_CODE", message: "Invalid code" }, { status: 401 });
+    }
     const response = await auth.handler(request);
     // The claim is finished by the act, not by the screen that posted it: the account
     // holds nothing until a password and a verified second factor both exist.

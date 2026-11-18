@@ -406,6 +406,16 @@ Bring it down with the matching command, which removes the containers, the netwo
 pnpm dev:down
 ```
 
+`dev:down` refuses to run on seat 0 by default, because it deletes the stack's volumes.
+In the primary checkout it requires `QCMS_PORT_SEAT` to be set.
+For the default stack, say so explicitly with `QCMS_PORT_SEAT=0 pnpm dev:down`.
+`dev:up` is unchanged.
+
+`pnpm dev:fresh` is `down` then `up` under one name: this seat's stack taken down with its
+database and brought back, which is what the assistant review's `seed.reset: fresh` asks
+for (`scripts/agent-review/README.md`). It removes volumes, so it carries the same refusal:
+`QCMS_PORT_SEAT=<0-9> pnpm dev:fresh`, and never a seat another lane is on.
+
 ### Sample data: `pnpm dev:seed`, `pnpm dev:seed:clear`, `pnpm dev:seed:reset`
 
 A freshly created stack has an empty question library and no form, which is the right default: the empty state is a screen worth reviewing, and it is what every list screen's empty-state copy is written against. When you want content instead:
@@ -467,12 +477,12 @@ Refusing to clear: frm_sample_library is referenced by rows this seed did not cr
 ...
 NOTHING WAS DELETED. For a stack with no respondent data, drop this one and start again:
 
-  pnpm dev:down && pnpm dev:up && pnpm dev:seed
+  export QCMS_PORT_SEAT=<your seat> && pnpm dev:down && pnpm dev:up && pnpm dev:seed
 ```
 
 Secure links and webhooks authored against the seeded form block it the same way and for the same reason: they are hand-authored rows, and this script deletes none of those.
 
-**The refusal is a decision, not a gap.** The Code Owner ruled on 2026-09-25 (issue #994) that it stays and that there is no `--force` erasing the sessions through the sanctioned erasure door: a sample-data script opening the GDPR path on respondent rows is not worth the thirty seconds `pnpm dev:down && pnpm dev:up && pnpm dev:seed` costs, and that escape is already in the refusal text. If a force is ever wanted it comes back as its own issue with its own security note.
+**The refusal is a decision, not a gap.** The Code Owner ruled on 2026-09-25 (issue #994) that it stays and that there is no `--force` erasing the sessions through the sanctioned erasure door: a sample-data script opening the GDPR path on respondent rows is not worth the thirty seconds `export QCMS_PORT_SEAT=<your seat> && pnpm dev:down && pnpm dev:up && pnpm dev:seed` costs, and that escape is already in the refusal text. If a force is ever wanted it comes back as its own issue with its own security note.
 
 **Why these are commands rather than `DATABASE_URL=... pnpm qcms:seed-fixtures`.** That is the documented way to seed the `7S20` dev database, and it cannot reach this stack: the composed topology's Postgres is deliberately unpublished, and `scripts/compose-config.test.ts` asserts it stays that way with the toolbox overlay layered on. So the loader runs **inside** the network, as a one-shot container built from the API image (`docker/seed.Dockerfile`), which is the one image whose dependency tree already has `@roonga/qcms-core`, `@roonga/qcms-db`, drizzle and `pg`. All three commands take that one door with a different subcommand, which is what makes a command that _deletes_ sample data incapable of reaching any database but this stack's: it is handed a URL naming `postgres:5432`, a host that resolves on this Compose network and nowhere else. The database URL travels in the docker CLI's environment and never in an argv (issue #440).
 
@@ -485,7 +495,7 @@ The service is behind a Compose `seed` profile, so `dev:up` neither builds nor r
 **What `dev:up` does beyond `docker compose up`**, because each piece is a step that used to be manual and easy to get wrong:
 
 - **It creates the first administrator, inside this stack.** The composed stack has a Postgres of its own, separate from the `7S20` database `pnpm dev:portal` uses, so `create-admin` is run in this stack's `api` container (`scripts/compose-admin.mjs`, the same step the full-stack harness uses). An admin created against the wrong database is invisible here, and the symptom is a sign-in that fails with nothing wrong anywhere you would look.
-- **It is safe to re-run.** `create-admin` refuses once a Site administrator exists (SEC-1) and that refusal is correct, so a second `dev:up` reports the skip and prints the URLs rather than working around it. To get a fresh account, `pnpm dev:down` first: the volume goes with it.
+- **It is safe to re-run.** `create-admin` refuses once a Site administrator exists (SEC-1) and that refusal is correct, so a second `dev:up` reports the skip and prints the URLs rather than working around it. To get a fresh account, run `QCMS_PORT_SEAT=<your seat> pnpm dev:down` first: the volume goes with it.
 - **A promoted account prints no password.** If an interrupted first run left an ordinary account behind, the next `dev:up` promotes it to Site administrator and says so. Its existing password applies; the one `dev:up` generated is not printed, because it was never set.
 - **It pins `QCMS_ADMIN_AUTH_SECRET`** in `.env.dev-admin` (gitignored), generating one on first use. Unpinned, the API mints a fresh secret every boot, which makes an existing TOTP enrolment permanently unverifiable and burns a recovery code per restart - see the pinning note earlier in this guide. An exported value wins; `.env` is deliberately not consulted, so re-copying the operator template cannot silently replace a pinned secret with its placeholder. The file is made **owner-only on every run**, not just when it is created: if you already have one that other users on the machine can read, `dev:up` tightens it and prints one line saying so. (`writeFileSync`'s `mode` option applies only when the call creates the file, so setting it at creation would have protected the one case that needs it least.)
 - **It derives the seat's ports and Compose project name** from `scripts/ports.mjs` (R8). Seat 0's project is `qcms-local-stack`, so `docker compose ls` shows one named group; another seat gets `qcms-local-stack-s<N>`, its own containers and its own volume. Neither collides with the dev database (`qcms-dev`) or the full-stack e2e stack. From a linked worktree, `QCMS_PORT_SEAT` is refused rather than defaulted (issue #296): `dev:down` removes volumes, so an adopted seat would delete another lane's stack rather than read it.
@@ -711,10 +721,22 @@ It carries no credential, no address and no transcript text beyond a check's own
 
 ## The browser suite's gates, and measuring them
 
-**Before any of this: the gate needs OS libraries, not just the downloaded browsers** (issue #249). `pnpm exec playwright install chromium` fetches the binaries; on a bare Linux or WSL host it does not install the shared libraries they link against, and the resulting failure looks nothing like a missing package. It fails **every** test in the suite, identically, before any assertion, with `Error: browserType.launch: Target page, context or browser has been closed` - which reads as a harness bug or a resource problem. It is neither, and `playwright install` reports nothing wrong, because the binaries really are present: it is normally only `chrome-headless-shell` that is short of dependencies, while the full `chrome` beside it resolves everything, so every hand check says the browsers are installed. The Playwright config now runs `ldd` over both binaries before the first launch and refuses with the missing library names (`apps/portal/e2e/support/browser-libs.ts`), so the diagnosis arrives in a second rather than six minutes in. Two ways out, and the first is the one to take on a host you control:
+**Before any of this: the gate needs OS libraries, not just the downloaded browsers** (issue #249). `pnpm playwright:install` fetches the binaries; on a bare Linux or WSL host it does not install the shared libraries they link against, and the resulting failure looks nothing like a missing package. It fails **every** test in the suite, identically, before any assertion, with `Error: browserType.launch: Target page, context or browser has been closed` - which reads as a harness bug or a resource problem. It is neither, and `playwright install` reports nothing wrong, because the binaries really are present: it is normally only `chrome-headless-shell` that is short of dependencies, while the full `chrome` beside it resolves everything, so every hand check says the browsers are installed. The Playwright config now runs `ldd` over both binaries before the first launch and refuses with the missing library names (`apps/portal/e2e/support/browser-libs.ts`), so the diagnosis arrives in a second rather than six minutes in. Two ways out, and the first is the one to take on a host you control:
 
 1. `sudo pnpm exec playwright install-deps chromium`, once per host.
 2. Run the gate in the dev container, or leave it to CI. Both run `playwright install --with-deps chromium` already (`.devcontainer/post-create.sh`). **This does not work from a host-created worktree**, which is where every agent lane works: the repository mounts at a different path inside the container, and the container's pnpm refuses to reuse the host `node_modules` - it aborts with `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY` and wants to purge and reinstall, which would break the host-side install every other gate depends on.
+
+**One browser cache serves every worktree, and an install can delete the build a neighbour is running** (issue #1325). Playwright downloads into `~/.cache/ms-playwright` on Linux (`~/Library/Caches/ms-playwright` on macOS), one directory for the whole host, and it ["keeps track of the clients that use its browsers"](https://playwright.dev/docs/browsers#managing-browser-binaries): "when there are no more clients that require a particular version of the browser, that version is deleted from the system". Across worktrees that bookkeeping does not hold, so a bare `pnpm exec playwright install` in one lane removed `chromium_headless_shell` from under two running gates on 2026-11-16. The documented opt-out is `PLAYWRIGHT_SKIP_BROWSER_GC=1`, or the equivalent `--no-remove` flag.
+
+So the gate owns it. Loading `playwright.config.ts` checks that both pinned builds (`chromium-<rev>` and `chromium_headless_shell-<rev>`) carry Playwright's `INSTALLATION_COMPLETE` marker, and installs with the collection disabled when one is gone - before the first launch, rather than minutes in. It costs two `stat` calls when the cache is intact. The same code is on hand as commands:
+
+```sh
+pnpm playwright:install        # install by hand; never collects another lane's build
+pnpm playwright:prune          # what is in the shared cache, and which builds this checkout pins
+pnpm playwright:prune --apply  # Playwright's own `uninstall --all`: empties it for every checkout
+```
+
+Use `pnpm playwright:install` rather than `pnpm exec playwright install chromium`, which still collects. Reclaiming the disk is now deliberate: `--apply` removes every build on the host, so run it only when no browser gate is running anywhere, and the next gate downloads what it needs. CI and the dev container keep the default collection, because each owns a cache no other lane shares and pruning on upgrade is what you want there.
 
 Every portal Playwright spec imports `test` from `apps/portal/e2e/support/gates.ts` rather than from `@playwright/test`, so two gates run automatically: a **browser-fault gate** (any `console.error`, any `console.warn`, any uncaught `pageerror`) and a **server-log gate** (any error-level line the API, Postgres or the portal dev server wrote during the test). That file is the authority on what each one fails on, and on why every allowlist entry is there.
 

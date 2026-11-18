@@ -20,6 +20,6 @@
 
 **Say this**
 
-> They can tick as many as apply, and I have made at least one answer necessary. Rules about which answers can go together are not something the form can hold.
+> They can tick as many as apply, and the plan makes at least one answer necessary. Rules about which answers can go together are not something the form can hold.
 
 **Corpus sources:** US American Community Survey (select-all responses), ahm travel insurance claim (multiple claim reasons together), NHS new-patient questionnaire, US BRFSS health survey, Council customer satisfaction survey.

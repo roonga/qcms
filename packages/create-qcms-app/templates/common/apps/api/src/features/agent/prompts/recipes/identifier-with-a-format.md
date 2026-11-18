@@ -4,6 +4,7 @@
 
 **Settings**
 
+- Where the reference is really an email address, a phone number or a postcode, use that recipe instead. Those three carry a checked expression and cap to take unchanged; nothing else does, so the shape here is written for this form.
 - `shortText`, never `number`. A number drops a leading zero and shows grouping separators, and these codes keep both.
 - `constraints.pattern` matching the exact shape, anchored at both ends: `^\d{8,9}$` for an eight or nine digit tax number, `^[A-Z]\d{7}$` for a letter and seven digits.
 - Escape every character class member that a browser's own check reserves: write `^[A-Z0-9 \-]{6,12}$`, never `^[A-Z0-9 -]{6,12}$`.
@@ -19,6 +20,6 @@
 
 **Say this**
 
-> I check the shape: how many characters, and which ones. Whether the number really exists, and whether its check digit adds up, is not something the form can work out, so a well shaped but wrong number will get through.
+> The question checks the shape: how many characters, and which ones. Whether the number really exists, and whether its check digit adds up, is not something the form can work out, so a well shaped but wrong number will get through.
 
 **Corpus sources:** NZ tax code declaration IR330 (eight or nine digit tax number, leading zeros kept), US health insurance claim CMS-1500 (coded values), Australian Medicare enrolment MS004, NSW driver licence, Canadian adult passport (previous travel documents).

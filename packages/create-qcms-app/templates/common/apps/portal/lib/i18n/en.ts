@@ -127,18 +127,18 @@ export const messages = {
   "completion.submittedAt": "Submitted",
   "completion.reference": "Reference",
 
-  // "Spacing" rather than "Density" for the visible label: density is the token
-  // contract's word for the axis, not one a respondent should have to decode.
   "appearance.title": "Appearance",
   "appearance.mode.legend": "Colour mode",
   "appearance.mode.light": "Light",
   "appearance.mode.dark": "Dark",
   "appearance.mode.hc": "High contrast",
   "appearance.font.legend": "Font",
-  "appearance.density.legend": "Spacing",
-  "appearance.density.compact": "Compact",
-  "appearance.density.comfortable": "Comfortable",
-  "appearance.density.spacious": "Spacious",
+  "appearance.textSize.legend": "Text size",
+  "appearance.textSize.100": "Default",
+  "appearance.textSize.125": "Large",
+  "appearance.textSize.150": "Larger",
+  "appearance.textSize.200": "Largest",
+  "appearance.note": "These choices are saved on this device.",
   // Visible only when scripting is off, so it names the action rather than the control.
   "appearance.apply": "Apply appearance",
 } as const;

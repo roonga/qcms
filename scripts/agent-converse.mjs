@@ -312,6 +312,11 @@ async function converse(page, run, target, vault) {
     await waitForReply(page, run.timeoutMs);
 
     const before = await page.evaluate(readPanel);
+
+    // The card as the person decides on it, which a shot taken after Confirm cannot show.
+    const proposed = `turn-${String(at).padStart(2, "0")}-proposed.png`;
+    await page.screenshot({ path: join(target, proposed) });
+
     const { action, index: acted } = await applyDirective(
       page,
       message.cards,
@@ -321,8 +326,10 @@ async function converse(page, run, target, vault) {
     const panel =
       action === "confirmed" || action === "declined" ? await page.evaluate(readPanel) : before;
 
+    // The viewport rather than the whole page: the app fills one and scrolls inside it, so a
+    // full-page shot is the panel stretched to a height nobody ever sees.
     const shot = `turn-${String(at).padStart(2, "0")}.png`;
-    await page.screenshot({ path: join(target, shot), fullPage: true });
+    await page.screenshot({ path: join(target, shot) });
 
     const reply = panel.turns.filter((turn) => turn.role === "assistant").at(-1);
     const cards = recordCards(panel.cards, vault, at);
@@ -341,6 +348,7 @@ async function converse(page, run, target, vault) {
       card: cards.find((entry) => entry.index === acted) ?? cards[0] ?? null,
       panelError: panel.panelError,
       screenshot: shot,
+      screenshotProposed: proposed,
     });
   }
   return turns;

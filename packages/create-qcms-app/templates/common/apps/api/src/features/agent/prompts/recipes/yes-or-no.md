@@ -17,6 +17,6 @@
 
 **Say this when the person wants a third answer**
 
-> Yes or no holds exactly two answers, so I made this a list with your three: yes, no and not sure. It reads the same on screen.
+> Yes or no holds exactly two answers, so the plan makes this a list with your three: yes, no and not sure. It reads the same on screen.
 
 **Corpus sources:** NHS new-patient questionnaire (carer question, smoker and drinker questions), NSW driver licence application (disqualification and health declarations), Australian national private patient hospital claim (compensation, workplace injury, motor accident), US tax withholding W-4 (multiple jobs).

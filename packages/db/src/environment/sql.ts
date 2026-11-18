@@ -408,6 +408,19 @@ export function grantControlTableStatements(table: string): string[] {
 }
 
 /**
+ * {@link grantControlTableStatements} without `DELETE`, for a table whose rows are only ever
+ * changed in place. The revoke takes back what a re-grant's schema-wide pass gives.
+ */
+export function grantControlTableNoDeleteStatements(table: string): string[] {
+  return [
+    guardedOnRole(CONTROL_ROLE, [
+      `GRANT SELECT, INSERT, UPDATE ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(CONTROL_ROLE)}`,
+    ]),
+    revokeTableWritesStatement(table, "DELETE"),
+  ];
+}
+
+/**
  * Application roles may insert audit rows but never update or delete them. Only the control role may read,
  * so environment roles cannot use RETURNING on inserts.
  */
@@ -489,7 +502,7 @@ $$;`;
 }
 
 // Against the role prefix, so a role an operator creates later is covered too.
-function revokeTableWritesStatement(table: string): string {
+function revokeTableWritesStatement(table: string, privileges = "UPDATE, DELETE"): string {
   return `DO $$
 DECLARE application_role text;
 BEGIN
@@ -497,7 +510,7 @@ BEGIN
 \t\tSELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms\\_app%'
 \tLOOP
 \t\tEXECUTE format(
-\t\t\t'REVOKE UPDATE, DELETE ON TABLE ${CONTROL_SCHEMA}.${table} FROM %I',
+\t\t\t'REVOKE ${privileges} ON TABLE ${CONTROL_SCHEMA}.${table} FROM %I',
 \t\t\tapplication_role);
 \tEND LOOP;
 END

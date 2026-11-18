@@ -81,6 +81,9 @@ const CORPUS: readonly {
   // Appended rather than a new generation: the template node already carried
   // `presentation`, so no compiler output moved.
   { fixture: "repeat-table-group.json", golden: "repeat-table-group.a2ui.json", local: true },
+  // Appended rather than a new generation: `minLength` on a `longText` is a
+  // constraint no earlier corpus form could carry, so no committed output moved.
+  { fixture: "long-text-minimum.json", golden: "long-text-minimum.a2ui.json", local: true },
 ];
 
 function readJson(...segments: string[]): unknown {

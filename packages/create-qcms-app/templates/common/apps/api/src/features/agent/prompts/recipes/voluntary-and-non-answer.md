@@ -17,6 +17,6 @@
 
 **Say this**
 
-> I made "Prefer not to say" a real answer rather than letting people leave it blank. That way you can tell the difference between someone who chose not to say and someone who just skipped it.
+> The plan makes "Prefer not to say" a real answer rather than letting people leave it blank. That way you can tell the difference between someone who chose not to say and someone who just skipped it.
 
 **Corpus sources:** US BRFSS health survey (refusal, do-not-know and not-asked codes preserved separately from ordinary choices; interviewer-only routing), Australian Medicare enrolment MS004 (voluntary demographic questions), NSW driver licence application (voluntary questions preserved), US American Community Survey.

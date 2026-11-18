@@ -5,6 +5,7 @@ import {
   APPEARANCE_LOGOS_TABLE,
   APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
   APPEARANCE_LOGO_TOMBSTONES_TABLE,
+  APPROVAL_REQUESTS_TABLE,
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_COLUMNS,
   CONTROL_READ_TABLES,
@@ -12,6 +13,8 @@ import {
   ENDPOINT_PROPOSALS_TABLE,
   DATA_PLANE_TABLE_NAMES,
   SITE_AUDIT_TABLE,
+  STEP_UPS_TABLE,
+  SUSPENSION_MARKERS_TABLE,
   workspaceReportingRoleName,
   workspaceReportingStatements,
 } from "@roonga/qcms-db";
@@ -49,6 +52,13 @@ const APPEND_ONLY_TABLES: readonly string[] = [
   ...AUDIT_TABLES,
   SITE_AUDIT_TABLE,
   APPEARANCE_LOGOS_TABLE,
+];
+
+/** Rows only ever changed in place, so no application role may delete one. */
+const NO_DELETE_TABLES: readonly string[] = [
+  APPROVAL_REQUESTS_TABLE,
+  STEP_UPS_TABLE,
+  SUSPENSION_MARKERS_TABLE,
 ];
 
 // Each planner probe needs a session of its own: `pg_temp` is per session, and a notice
@@ -340,8 +350,11 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
       expect([...(held[table] ?? [])].sort(), table).toEqual(["INSERT", "SELECT"]);
     }
     expect([...(held[ENDPOINT_PROPOSALS_TABLE] ?? [])].sort()).toEqual([...DML].sort());
+    for (const table of NO_DELETE_TABLES) {
+      expect([...(held[table] ?? [])].sort(), table).toEqual(["INSERT", "SELECT", "UPDATE"]);
+    }
     for (const [table, privileges] of Object.entries(held)) {
-      if (APPEND_ONLY_TABLES.includes(table)) continue;
+      if (APPEND_ONLY_TABLES.includes(table) || NO_DELETE_TABLES.includes(table)) continue;
       expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
     }
     expect(Object.keys(held).length).toBeGreaterThan(10);
@@ -388,6 +401,15 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     expect(
       await hasFunctionExecute(CONTROL_ROLE, `${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}(text)`),
     ).toBe(true);
+  });
+
+  it("is refused a DELETE on the request, step-up and marker tables at the statement", async () => {
+    const client = clients.get(CONTROL_ROLE)!;
+    for (const table of NO_DELETE_TABLES) {
+      expect(await refusalFor(client, `delete from control.${table}`), table).toMatch(
+        /permission denied/i,
+      );
+    }
   });
 
   it("holds nothing on the takedown tombstones, which only the takedown function writes", async () => {
@@ -894,6 +916,24 @@ describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)"
         where conrelid = 'control.access_audit'::regclass and contype = 'f'`,
     );
     expect(keys.rows).toEqual([]);
+  });
+
+  it("lets the control role append a link row, the pool a link mint or revoke runs on", async () => {
+    const client = clients.get(CONTROL_ROLE) as pg.Client;
+    await client.query(
+      `insert into control.access_audit (actor, workspace_id, environment, form_id, kind, detail)
+       values ('usr_e2e', 'org_e2e', 'prod', 'frm_e2e', 'link', 'link=revoked id=lnk_e2e')`,
+    );
+    const read = await client.query<{ n: string }>(
+      `select count(*) as n from control.access_audit where kind = 'link' and actor = 'usr_e2e'`,
+    );
+    expect(Number(read.rows[0]?.n)).toBeGreaterThan(0);
+    expect(
+      await refusalFor(
+        client,
+        `insert into control.access_audit (actor, workspace_id, kind) values ('usr_e2e', 'org_e2e', 'links')`,
+      ),
+    ).toMatch(/access_audit_kind/);
   });
 });
 

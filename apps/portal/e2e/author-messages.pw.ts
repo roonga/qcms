@@ -10,12 +10,14 @@ const AM = {
   vin: "VIN",
   tows: "Do you tow a trailer?",
   garaged: "Is the vehicle garaged overnight?",
+  notes: "What else should we know about the vehicle?",
 } as const;
 
 const AUTHORED = {
   required: "Check the vehicle paperwork",
   minLength: "A plate is at least 3 characters",
   pattern: "Use capitals, digits and hyphens only, like ABC-123",
+  notesMinLength: "Give us a sentence or two, not a single word",
 } as const;
 
 const DEFAULT_INVALID = "Answer must be at least 5 characters";
@@ -82,6 +84,29 @@ test("a constraint the author left alone still shows the portal default", async 
 
   await commitRefused(page, AM.plate, "AB");
   await expect(page.getByText(AUTHORED.minLength)).toBeVisible();
+});
+
+test("a longer typed answer below its minimum is refused in the author's words", async ({
+  page,
+  browserGuard,
+}) => {
+  browserGuard.expectRequestFailure({ status: 422, url: ANSWERS_URL });
+  const { authorMessagesSlug } = readFixtures();
+  await startAuthorMessages(page, authorMessagesSlug);
+
+  const notes = page.getByRole("textbox", { name: AM.notes });
+  await expect(notes).toHaveAttribute("minlength", "20");
+
+  await commitRefused(page, AM.notes, "Nothing");
+  await expect(page.getByText(AUTHORED.notesMinLength)).toBeVisible();
+
+  const accepted = page.waitForResponse(
+    (r) => r.url().includes("/answers") && r.request().method() === "POST" && r.status() === 200,
+  );
+  await notes.fill("It is garaged on a quiet street behind the house.");
+  await blurActive(page);
+  await accepted;
+  await expect(page.getByText(AUTHORED.notesMinLength)).toBeHidden();
 });
 
 test("an overridden boolean label is what the accessibility tree announces", async ({ page }) => {

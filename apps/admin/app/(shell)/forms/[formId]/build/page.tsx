@@ -7,11 +7,19 @@ import { builderFormName, mayBuildForm } from "@/lib/forms/build-access";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { agentAuthoringEnabled } from "@/lib/server/agent";
+import { previewPortalBrand, previewPortalTheme } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
-import { applyAgentEditAction, readStoredDraftAction, startBuildDraftAction } from "../../actions";
+import {
+  applyAgentEditAction,
+  previewDraftAction,
+  readStoredDraftAction,
+  startBuildDraftAction,
+} from "../../actions";
+
+import "./preview-fonts.css";
 
 export async function generateMetadata({
   params,
@@ -55,6 +63,13 @@ export default async function FormBuildPage({
       edits={{
         apply: applyAgentEditAction.bind(null, form.formId),
         readStored: readStoredDraftAction.bind(null, form.formId),
+      }}
+      preview={{
+        draft: form.draft,
+        preview: previewDraftAction.bind(null, form.formId),
+        defaultTheme: previewPortalTheme(),
+        appearance: form.appearance ?? null,
+        brand: previewPortalBrand(),
       }}
       {...(form.draftSource === "open"
         ? {}

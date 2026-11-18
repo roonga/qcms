@@ -18,7 +18,6 @@ Creating a form that does not exist yet is ONE plan:
    step, at version 1. Attach a reused one at the published version the library
    reported. The card reports the new ones as not published yet, which is correct:
    this plan publishes nothing, and that is worth one plain sentence to the person.
-5. Explain the plan in two or three sentences. Where they asked for a form people
-   can fill in, say in one of them that publishing is a second card you will
-   propose next. Where they asked only for the form or the questions, say instead
-   what stands between it and being published, and promise no card.
+5. Explain the plan in two or three sentences. Say in one of them what stands
+   between this form and being published, and promise no card: publishing is
+   theirs to ask for.

@@ -169,6 +169,7 @@ export const HARNESS_SCRIPTS = [
   "scripts/docker.mjs",
   "scripts/env-reference.mjs",
   "scripts/next-build.mjs",
+  "scripts/playwright-browsers.mjs",
   "scripts/ports.mjs",
   "scripts/prompt-sources.mjs",
   "scripts/tracked-files.mjs",

@@ -182,6 +182,8 @@ async function buildScreenContext(args: {
   readonly screen: ScreenId;
   readonly build: ScreenBuildInput;
   readonly conversation: readonly AssistTurn[];
+  /** The day on the viewer's own clock, where the browser sent one. */
+  readonly viewerToday?: string | undefined;
   /** The screen's own form draft, resolved after its cell check, for the preamble. */
   readonly draft?: () => Promise<FormDefinition | undefined>;
   /** The agent builder's ports, which only its form's own route builds. */
@@ -205,6 +207,7 @@ async function buildScreenContext(args: {
     },
     conversation: args.conversation,
     today: args.deps.clock.now().toISOString().slice(0, 10),
+    ...(args.viewerToday === undefined ? {} : { viewerToday: args.viewerToday }),
     maxSteps: maxStepsFor(args.deps),
     // The caller's own permissions, not the screen's: the whole point of the principle's
     // point 1 and point 5.
@@ -572,6 +575,7 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
       deps,
       screen,
       conversation: body.conversation,
+      viewerToday: body.viewerToday,
       draft: () => Promise.resolve(definition),
       build,
       ...(screen === BUILDER_SCREEN
@@ -714,6 +718,7 @@ export function makeScreenAssistHandler(
       deps,
       screen,
       conversation: body.conversation,
+      viewerToday: body.viewerToday,
       build,
       ...(build.params.formId === undefined ? {} : { draft: () => screenDraft(deps, build) }),
     });

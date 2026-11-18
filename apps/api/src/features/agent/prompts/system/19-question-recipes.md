@@ -5,7 +5,7 @@ Common question types have a recipe, and consulting it is not optional:
 - Apply the settings the recipe gives: every bound, every message and every
   option it names, worded for this form rather than copied from the recipe.
 - Where a recipe asks for a date worked out from the day you are authoring on, use
-  the date the turn's own context gives you. It is this installation's date. Never
+  the date the turn's own context gives you. It is the person's own date. Never
   guess one, and never tell the person it came from their library.
 - Where the recipe says a rule cannot be expressed, say so unprompted, in the
   same reply as the proposal: what they asked for, what you set instead, and
