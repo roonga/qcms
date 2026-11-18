@@ -45,6 +45,15 @@ import {
   ValidateDraftResponse,
 } from "./schema.js";
 import { PublishBatchBody, ReleaseBatchResponse } from "../releases/schema.js";
+import {
+  approveHeldPublishRoute,
+  HeldPublishResponse,
+  listHeldPublishesRoute,
+  makeApproveHeldPublishHandler,
+  makeListHeldPublishesHandler,
+  makeRejectHeldPublishHandler,
+  rejectHeldPublishRoute,
+} from "./held-publish.js";
 
 const tags = ["forms"];
 
@@ -232,13 +241,20 @@ export const publishAndReleaseFormRoute = createRoute({
     "immutable version and keeps it - there is no draft-level release and nothing skips " +
     "publishing - and the publish, the release record and the `form.released` event share " +
     "one transaction, so it happens atomically or not at all. Where a non-prod environment " +
-    "is served, a draft is never published straight to prod, whatever the workflow says.",
+    "is served, a draft is never published straight to prod, whatever the workflow says. " +
+    "On a site whose only environment is prod, with second approval on, a publish to prod " +
+    "is held as a request, answered 202, and nothing is frozen until another holder of " +
+    "Publish forms for prod approves it.",
   tags,
   request: { params: FormIdParam, body: jsonBody(PublishAndReleaseBody) },
   responses: {
     200: {
       description: "The new published version and the environment it was released to",
       content: { "application/json": { schema: PublishedAndReleasedResponse } },
+    },
+    202: {
+      description: "Held for approval; nothing is frozen",
+      content: { "application/json": { schema: HeldPublishResponse } },
     },
     ...errorResponses(400, 401, 404, 409, 422),
   },
@@ -262,13 +278,20 @@ export const publishBatchRoute = createRoute({
     "and the two-person rule still refuses a gated production destination whose " +
     "publisher is this account, which is why that case stays two requests by two " +
     "accounts. `idempotencyKey` replays the stored result on reuse and is refused with " +
-    "422 for a changed intent, so a browser timeout never creates a second version.",
+    "422 for a changed intent, so a browser timeout never creates a second version. On a " +
+    "site whose only environment is prod, with second approval on, a draft publish to prod " +
+    "is held as a request bound to the draft's revision and content, answered 202, and " +
+    "nothing is frozen until another holder of Publish forms for prod approves it.",
   tags,
   request: { params: FormIdParam, body: jsonBody(PublishBatchBody) },
   responses: {
     200: {
       description: "The version frozen and one record per destination",
       content: { "application/json": { schema: ReleaseBatchResponse } },
+    },
+    202: {
+      description: "Held for approval; nothing is frozen",
+      content: { "application/json": { schema: HeldPublishResponse } },
     },
     ...errorResponses(400, 401, 403, 404, 409, 422),
   },
@@ -337,6 +360,9 @@ export const registerForms: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(publishFormRoute, makePublishFormHandler(deps));
   group.openapi(publishAndReleaseFormRoute, makePublishAndReleaseFormHandler(deps));
   group.openapi(publishBatchRoute, makePublishBatchHandler(deps));
+  group.openapi(listHeldPublishesRoute, makeListHeldPublishesHandler(deps));
+  group.openapi(approveHeldPublishRoute, makeApproveHeldPublishHandler(deps));
+  group.openapi(rejectHeldPublishRoute, makeRejectHeldPublishHandler(deps));
   group.openapi(closeFormRoute, makeCloseFormHandler(deps));
   group.openapi(reopenFormRoute, makeReopenFormHandler(deps));
   group.openapi(getFormVersionRoute, makeGetFormVersionHandler(deps));

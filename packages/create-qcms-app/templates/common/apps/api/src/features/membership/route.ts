@@ -8,6 +8,14 @@ import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { errorResponses, jsonBody, withScopes } from "../../openapi.js";
 import {
+  approveWorkspaceRequestRoute,
+  listWorkspaceRequestsRoute,
+  makeApproveWorkspaceRequestHandler,
+  makeListWorkspaceRequestsHandler,
+  makeRejectWorkspaceRequestHandler,
+  rejectWorkspaceRequestRoute,
+} from "./approvals.js";
+import {
   makeAddHolderHandler,
   makeAgentAuditHandler,
   makeAuditHandler,
@@ -16,6 +24,7 @@ import {
   makeListAccessGroupsHandler,
   makeListMembersHandler,
   makeMyAccessHandler,
+  makeReadWorkspaceSettingsHandler,
   makeReconfirmHolderHandler,
   makeRemoveHolderHandler,
   makeRemoveMemberHandler,
@@ -25,6 +34,7 @@ import {
   makeWorkspaceSettingsHandler,
 } from "./handler.js";
 import {
+  AccessGroupHeldResponse,
   AccessGroupHolderParams,
   AccessGroupListResponse,
   AccessGroupParams,
@@ -45,6 +55,8 @@ import {
   WorkspaceMemberParams,
   WorkspaceMemberResponse,
   WorkspaceSettingsBody,
+  WorkspaceSettingsHeldResponse,
+  WorkspaceSettingsReadResponse,
   WorkspaceSettingsResponse,
 } from "./schema.js";
 
@@ -203,6 +215,13 @@ export const updateAccessGroupRoute = createRoute({
       description: "The access group as it now stands",
       content: { "application/json": { schema: AccessGroupResponse } },
     },
+    202: {
+      description:
+        "Held as a self-grant request, because second approval is on and the edit gives the " +
+        "caller, who is in the group, a response role or a new environment for one. Nothing, " +
+        "the name included, changes until it is approved.",
+      content: { "application/json": { schema: AccessGroupHeldResponse } },
+    },
     ...errorResponses(400, 401, 403, 404, 409),
   },
   ...withScopes("forms:write"),
@@ -235,9 +254,10 @@ export const addHolderRoute = createRoute({
     "Team membership is the grant, so this is where a grant is written. The holder " +
     "gets a workspace member row carrying the empty role if they have none, because " +
     "the organisation plugin's own team queries assume a team member is a member of " +
-    "the workspace. A self-grant of a responses role is refused while the workspace " +
-    "requires a second approver, and then a second owner or the installation " +
-    "administrator makes the grant; with that switch off it is allowed and audited. " +
+    "the workspace. With second approval on, a self-grant of a group carrying a response " +
+    "role is held as a workspace approval request bound to the group's roles and " +
+    "environments, answered 202, until a different Workspace administrator or a Site " +
+    "administrator approves it; with it off it is allowed and audited. " +
     "An unknown account gets one generic 404, `ACCOUNT_NOT_ADDABLE`, on both the " +
     "`email` and the `userId` path, and so does an account named by `userId` that is " +
     "not yet in this workspace unless the caller is the installation administrator: " +
@@ -251,6 +271,10 @@ export const addHolderRoute = createRoute({
     201: {
       description: "The access group, with its holders",
       content: { "application/json": { schema: AccessGroupResponse } },
+    },
+    202: {
+      description: "Held as a self-grant request; the group is unchanged",
+      content: { "application/json": { schema: AccessGroupHeldResponse } },
     },
     ...errorResponses(400, 401, 403, 404, 409),
   },
@@ -303,8 +327,11 @@ export const workspaceSettingsRoute = createRoute({
   description:
     "Off by default. It governs second approval for a production publish and a " +
     "production endpoint change, and the self-grant rule for a response role, so a " +
-    "workspace turns on one thing and gets the whole posture. Turning it on or off " +
-    "writes an access-audit row of kind `setting`. Refused on an archived workspace.",
+    "workspace turns on one thing and gets the whole posture. Turning it on is refused " +
+    "where nobody else could approve: no other active Workspace administrator or Site " +
+    "administrator, or fewer than two active holders of Publish forms for prod. Turning " +
+    "it off while it is on is held as a workspace approval request, answered 202. Each " +
+    "change writes an access-audit row of kind `setting`. Refused on an archived workspace.",
   tags,
   request: { params: WorkspaceIdParam, body: jsonBody(WorkspaceSettingsBody) },
   responses: {
@@ -312,9 +339,33 @@ export const workspaceSettingsRoute = createRoute({
       description: "The settings as they now stand",
       content: { "application/json": { schema: WorkspaceSettingsResponse } },
     },
+    202: {
+      description: "Turning it off is held until another administrator approves it",
+      content: { "application/json": { schema: WorkspaceSettingsHeldResponse } },
+    },
     ...errorResponses(400, 401, 403, 404, 409),
   },
   ...withScopes("forms:write"),
+});
+
+export const readWorkspaceSettingsRoute = createRoute({
+  method: "get",
+  path: "/workspaces/{id}/settings",
+  summary: "The workspace's second-approval switch, and whether anybody else could approve (admin)",
+  description:
+    "`nobodyElseCouldApprove` is read from the caller's seat: true where there is no " +
+    "other active Workspace administrator or Site administrator, or fewer than two active " +
+    "holders of Publish forms for prod. Unclaimed and disabled accounts never count.",
+  tags,
+  request: { params: WorkspaceIdParam },
+  responses: {
+    200: {
+      description: "The settings",
+      content: { "application/json": { schema: WorkspaceSettingsReadResponse } },
+    },
+    ...errorResponses(401, 403, 404),
+  },
+  ...withScopes("forms:read"),
 });
 
 export const auditRoute = createRoute({
@@ -397,6 +448,10 @@ export const registerMembership: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(removeHolderRoute, makeRemoveHolderHandler(deps));
   group.openapi(reconfirmHolderRoute, makeReconfirmHolderHandler(deps));
   group.openapi(workspaceSettingsRoute, makeWorkspaceSettingsHandler(deps));
+  group.openapi(readWorkspaceSettingsRoute, makeReadWorkspaceSettingsHandler(deps));
+  group.openapi(listWorkspaceRequestsRoute, makeListWorkspaceRequestsHandler(deps));
+  group.openapi(approveWorkspaceRequestRoute, makeApproveWorkspaceRequestHandler(deps));
+  group.openapi(rejectWorkspaceRequestRoute, makeRejectWorkspaceRequestHandler(deps));
   group.openapi(auditRoute, makeAuditHandler(deps));
   group.openapi(siteAuditRoute, makeSiteAuditHandler(deps));
   group.openapi(agentAuditRoute, makeAgentAuditHandler(deps));

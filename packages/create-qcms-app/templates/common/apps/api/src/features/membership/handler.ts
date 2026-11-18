@@ -51,7 +51,9 @@ import {
   writeAccessAuditRow,
   writeSiteAuditRow,
   type AccessGroupRow,
+  type ApprovalRequestRow,
   type Executor,
+  type GrantSubjectRow,
   type WorkspaceAdministratorRow,
   type WorkspaceRow,
 } from "@roonga/qcms-db";
@@ -60,10 +62,16 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { agentStepSite, writeAgentStep } from "../agent/audit.js";
+import { requestView } from "../site-admins/schema.js";
 import { requireOpenWorkspace } from "../workspaces/resolve.js";
 import { holdsStatement, type Resource } from "./policy.js";
 import { holdsInstallationClaim, resolveCallerWorkspaces } from "./resolver.js";
 import { OPERATIONAL_CELLS } from "./route-policy.js";
+import {
+  holdWorkspaceRequest,
+  nobodyElseCouldApprove,
+  secondApprovalShortfall,
+} from "./two-person.js";
 import type {
   addHolderRoute,
   agentAuditRoute,
@@ -78,6 +86,7 @@ import type {
   removeMemberRoute,
   setMemberRoleRoute,
   siteAuditRoute,
+  readWorkspaceSettingsRoute,
   updateAccessGroupRoute,
   workspaceSettingsRoute,
 } from "./route.js";
@@ -86,7 +95,7 @@ import type {
 // as their removal cascades change grants with no audit row. Each write puts its grants and audit row in one
 // control-pool transaction.
 
-const fail = {
+export const fail = {
   notFound: (): ApiError => new ApiError("WORKSPACE_NOT_FOUND", 404, "No such workspace"),
   archived: (): ApiError =>
     new ApiError(
@@ -133,14 +142,17 @@ const fail = {
         "without one is a workspace nobody can administer. Appoint somebody else first. " +
         "The Site administrator role does not stand in for it.",
     ),
-  selfGrant: (): ApiError =>
+  noSecondApprover: (shortfall: {
+    readonly administrator: boolean;
+    readonly publisher: boolean;
+  }): ApiError =>
     new ApiError(
-      "SELF_GRANT_REFUSED",
+      "SECOND_APPROVAL_NO_APPROVER",
       409,
-      "This workspace has Second approval on, so you cannot give yourself a response " +
-        "role, or a new environment for one: another Workspace administrator, or a " +
-        "Site administrator, has to make this change. A grant on response data " +
-        "is a grant on personal data.",
+      "Second approval cannot be turned on here, because nobody else could approve: it " +
+        "needs another active Workspace administrator or Site administrator, and two " +
+        "active people holding Publish forms for prod in this workspace.",
+      { administrator: shortfall.administrator, publisher: shortfall.publisher },
     ),
   noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
   accountBusy: (): ApiError =>
@@ -259,7 +271,7 @@ function refuseLastAdministrator(
   if (administrators.filter((row) => row.counts).length <= 1) throw fail.lastAdministrator();
 }
 
-async function groupView(
+export async function groupView(
   exec: Executor,
   group: AccessGroupRow,
 ): Promise<{
@@ -281,7 +293,7 @@ async function groupView(
   };
 }
 
-async function validateGroup(
+export async function validateGroup(
   exec: Executor,
   input: {
     readonly name: string;
@@ -318,12 +330,12 @@ async function suspendingGrantor(
   return openHoldMarker(tx, userId, teamId);
 }
 
-function gainsResponseRole(before: readonly string[], after: readonly string[]): boolean {
+export function gainsResponseRole(before: readonly string[], after: readonly string[]): boolean {
   return after.some((role) => isResponsesRole(role) && !before.includes(role));
 }
 
-/** Whether the second-approver rule refuses this change as a self-grant. */
-function refuseSelfGrant(input: {
+/** Whether second approval holds this change as a self-grant. */
+function holdsAsSelfGrant(input: {
   readonly actorHolds: boolean;
   readonly requireSecondApprover: boolean;
   readonly before: { readonly roles: readonly string[]; readonly environments: readonly string[] };
@@ -661,9 +673,68 @@ export function makeCreateAccessGroupHandler(
   };
 }
 
+/**
+ * Write a group change under the caller's membership lock: the new sets, the suspension a
+ * gained response role puts on each hold, and one `group` row naming both sides.
+ */
+export async function applyGroupEdit(
+  tx: Executor,
+  deps: Deps,
+  input: {
+    readonly workspaceId: string;
+    readonly existing: AccessGroupRow;
+    readonly name: string;
+    readonly roles: readonly string[];
+    readonly environments: readonly string[];
+    readonly actorId: string;
+    readonly approval?: string;
+  },
+): Promise<AccessGroupRow> {
+  const { existing, workspaceId } = input;
+  const row = await updateAccessGroup(tx, existing.teamId, {
+    name: input.name,
+    roles: input.roles,
+    environments: input.environments,
+    updatedAt: deps.clock.now(),
+  });
+  if (row === undefined) throw fail.groupNotFound();
+  if (gainsResponseRole(existing.roles, row.roles)) {
+    for (const holder of await listAccessGroupHolders(tx, existing.teamId)) {
+      const outcome = await keepSuspensionOnGain(tx, {
+        group: row,
+        userId: holder.userId,
+        actorId: input.actorId,
+        at: deps.clock.now(),
+      });
+      if (outcome === "reconfirmed") {
+        await writeReconfirmAudit(tx, deps, {
+          actorId: input.actorId,
+          workspaceId,
+          group: row,
+          userId: holder.userId,
+          via: "edit",
+          byPerformer: false,
+        });
+      }
+    }
+  }
+
+  const detail = groupDetail("changed", row, existing);
+  await writeAccessAuditRow(tx, {
+    actor: input.actorId,
+    workspaceId,
+    kind: "group",
+    ...scopeColumns(row),
+    detail: input.approval === undefined ? detail : `${detail} ${input.approval}`,
+    occurredAt: deps.clock.now(),
+  });
+  return row;
+}
+
 // A rename or a change of roles or environments writes one `group` row naming both sides,
-// which is the act; who holds the group is the group's own list. The self-grant check is
-// here too: editing a group you are in is one of the ways to give yourself response access.
+// which is the act; who holds the group is the group's own list. Editing a group you are in
+// is one of the ways to give yourself response access, so with second approval on such an
+// edit is held as a request and nothing, the name included, changes until it is approved.
 export function makeUpdateAccessGroupHandler(
   deps: Deps,
 ): RouteHandler<typeof updateAccessGroupRoute, ApiEnv> {
@@ -673,11 +744,11 @@ export function makeUpdateAccessGroupHandler(
     const actor = principalOf(c);
 
     const exec = deps.databases.control;
-    const updated = await exec.transaction(async (tx) => {
+    const outcome = await exec.transaction(async (tx) => {
       await lockWorkspaceMembership(tx, workspaceId);
-      // Every read the refusal rests on is taken here: a holder add that commits between
+      // Every read the hold rests on is taken here: a holder add that commits between
       // the check and this write would otherwise leave the actor holding the response
-      // role the check exists to refuse.
+      // role the check exists to hold.
       const workspace = await openWorkspaceOf(tx, workspaceId);
       const existing = await getAccessGroup(tx, teamId);
       if (existing === undefined || existing.workspaceId !== workspaceId) {
@@ -686,59 +757,47 @@ export function makeUpdateAccessGroupHandler(
 
       const checked = await validateGroup(tx, body);
       if (
-        refuseSelfGrant({
+        holdsAsSelfGrant({
           actorHolds: await holdsAccessGroup(tx, teamId, actor.userId),
           requireSecondApprover: workspace.requireSecondApprover,
           before: existing,
           after: checked,
         })
       ) {
-        throw fail.selfGrant();
+        const held = await holdWorkspaceRequest(tx, deps.clock.now(), {
+          kind: "self-grant",
+          workspaceId,
+          target: teamId,
+          requester: actor.userId,
+          payload: {
+            roles: [...checked.roles],
+            environments: [...checked.environments],
+            previousRoles: [...existing.roles],
+            previousEnvironments: [...existing.environments],
+          },
+        });
+        return { group: existing, held };
       }
 
       if (await isAccessGroupNameTaken(tx, workspaceId, body.name, teamId)) {
         throw fail.nameTaken(body.name);
       }
-      const row = await updateAccessGroup(tx, teamId, {
+      const row = await applyGroupEdit(tx, deps, {
+        workspaceId,
+        existing,
         name: body.name,
         roles: checked.roles,
         environments: checked.environments,
-        updatedAt: deps.clock.now(),
+        actorId: actor.userId,
       });
-      if (row === undefined) throw fail.groupNotFound();
-      if (gainsResponseRole(existing.roles, row.roles)) {
-        for (const holder of await listAccessGroupHolders(tx, teamId)) {
-          const outcome = await keepSuspensionOnGain(tx, {
-            group: row,
-            userId: holder.userId,
-            actorId: actor.userId,
-            at: deps.clock.now(),
-          });
-          if (outcome === "reconfirmed") {
-            await writeReconfirmAudit(tx, deps, {
-              actorId: actor.userId,
-              workspaceId,
-              group: row,
-              userId: holder.userId,
-              via: "edit",
-              byPerformer: false,
-            });
-          }
-        }
-      }
-
-      await writeAccessAuditRow(tx, {
-        actor: actor.userId,
-        workspaceId,
-        kind: "group",
-        ...scopeColumns(row),
-        detail: groupDetail("changed", row, existing),
-        occurredAt: deps.clock.now(),
-      });
-      return row;
+      return { group: row, held: undefined };
     });
 
-    return c.json({ group: await groupView(exec, updated) }, 200);
+    const group = await groupView(exec, outcome.group);
+    if (outcome.held !== undefined) {
+      return c.json({ group, request: requestView(outcome.held) }, 202);
+    }
+    return c.json({ group }, 200);
   };
 }
 
@@ -798,79 +857,111 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
 
     const exec = deps.databases.control;
     const site = agentStepSite(c);
-    const group = await exec.transaction(async (tx) => {
-      await lockWorkspaceMembership(tx, workspaceId);
-      // Read here for the same reason the group edit does, and the `grant` row names this
-      // row's roles, so it records what the group carried when the hold was written.
-      const workspace = await openWorkspaceOf(tx, workspaceId);
-      const held = await getAccessGroup(tx, teamId);
-      if (held === undefined || held.workspaceId !== workspaceId) throw fail.groupNotFound();
+    const group = await exec.transaction(
+      async (tx): Promise<{ group: AccessGroupRow; request: ApprovalRequestRow | undefined }> => {
+        await lockWorkspaceMembership(tx, workspaceId);
+        // Read here for the same reason the group edit does, and the `grant` row names this
+        // row's roles, so it records what the group carried when the hold was written.
+        const workspace = await openWorkspaceOf(tx, workspaceId);
+        const held = await getAccessGroup(tx, teamId);
+        if (held === undefined || held.workspaceId !== workspaceId) throw fail.groupNotFound();
 
-      const subject =
-        body.userId !== undefined
-          ? (await findUsersByIds(tx, [body.userId]))[0]
-          : await findUserByEmail(tx, body.email as string);
-      if (subject === undefined) throw fail.cannotAdd();
-      // One answer by address for an unknown, a disabled and an unclaimed account, so a
-      // Workspace administrator learns nothing about the directory from a refusal. Granting
-      // an unclaimed account is the Site administrator's act, by id, audited below.
-      if (body.email !== undefined && accountStatusOf(subject) !== "active") {
-        throw fail.cannotAdd();
-      }
-      // Only the installation administrator browses the account directory; anybody else
-      // adds a newcomer by exact address, so an id must already belong to this workspace.
-      if (
-        body.userId !== undefined &&
-        !holdsInstallationClaim(actor.role) &&
-        (await resolveMembership(tx, subject.userId, workspaceId)).memberRole === undefined
-      ) {
-        throw fail.cannotAdd();
-      }
+        const subject =
+          body.userId !== undefined
+            ? (await findUsersByIds(tx, [body.userId]))[0]
+            : await findUserByEmail(tx, body.email as string);
+        if (subject === undefined) throw fail.cannotAdd();
+        // One answer by address for an unknown, a disabled and an unclaimed account, so a
+        // Workspace administrator learns nothing about the directory from a refusal. Granting
+        // an unclaimed account is the Site administrator's act, by id, audited below.
+        if (body.email !== undefined && accountStatusOf(subject) !== "active") {
+          throw fail.cannotAdd();
+        }
+        // Only the installation administrator browses the account directory; anybody else
+        // adds a newcomer by exact address, so an id must already belong to this workspace.
+        if (
+          body.userId !== undefined &&
+          !holdsInstallationClaim(actor.role) &&
+          (await resolveMembership(tx, subject.userId, workspaceId)).memberRole === undefined
+        ) {
+          throw fail.cannotAdd();
+        }
 
-      // The test is "is this account giving itself a response role", so the installation
-      // claim is not a way around the rule.
-      if (
-        subject.userId === actor.userId &&
-        carriesResponsesRole(held.roles) &&
-        workspace.requireSecondApprover
-      ) {
-        throw fail.selfGrant();
-      }
+        if (await holdsAccessGroup(tx, teamId, subject.userId)) throw fail.alreadyHolds();
 
-      if (await holdsAccessGroup(tx, teamId, subject.userId)) throw fail.alreadyHolds();
-      const suspended = await writeHold(tx, {
-        group: held,
-        userId: subject.userId,
-        actorId: actor.userId,
-        at: deps.clock.now(),
-      });
-      const grant = `subject=${subject.userId} group=${held.name}`;
-      await writeAccessAuditRow(tx, {
-        actor: actor.userId,
-        workspaceId,
-        kind: "grant",
-        ...scopeColumns(held),
-        detail: scopeDetail(held, suspended ? `${grant} suspended=1` : grant),
-        occurredAt: deps.clock.now(),
-      });
-      // A grant made while the account is still unclaimed is a site act too, so it is
-      // findable in the site audit as well as in this workspace's own.
-      if (subject.claimedAt === null) {
-        await writeSiteAuditRow(tx, {
-          actor: actor.userId,
-          subject: subject.userId,
-          workspaceId,
-          kind: "account",
-          detail: `act=grant-while-unclaimed group=${held.name}`,
-          occurredAt: deps.clock.now(),
-        });
-      }
-      await writeAgentStep(tx, site, teamId, deps.clock.now());
-      return held;
-    });
+        // The test is "is this account giving itself a response role", so the installation
+        // claim is not a way around the rule. The request binds the group as it is now.
+        if (
+          subject.userId === actor.userId &&
+          carriesResponsesRole(held.roles) &&
+          workspace.requireSecondApprover
+        ) {
+          const request = await holdWorkspaceRequest(tx, deps.clock.now(), {
+            kind: "self-grant",
+            workspaceId,
+            target: teamId,
+            requester: actor.userId,
+            payload: { roles: [...held.roles], environments: [...held.environments] },
+          });
+          return { group: held, request };
+        }
 
-    return c.json({ group: await groupView(exec, group) }, 201);
+        await applyGrant(tx, deps, { workspaceId, group: held, subject, actorId: actor.userId });
+        await writeAgentStep(tx, site, teamId, deps.clock.now());
+        return { group: held, request: undefined };
+      },
+    );
+
+    const view = await groupView(exec, group.group);
+    if (group.request !== undefined) {
+      return c.json({ group: view, request: requestView(group.request) }, 202);
+    }
+    return c.json({ group: view }, 201);
   };
+}
+
+/** Write one hold with its `grant` row, and the site row a grant to an unclaimed account takes. */
+export async function applyGrant(
+  tx: Executor,
+  deps: Deps,
+  input: {
+    readonly workspaceId: string;
+    readonly group: AccessGroupRow;
+    readonly subject: GrantSubjectRow;
+    readonly actorId: string;
+    readonly approval?: string;
+  },
+): Promise<void> {
+  const { group, subject, workspaceId } = input;
+  const suspended = await writeHold(tx, {
+    group,
+    userId: subject.userId,
+    actorId: input.actorId,
+    at: deps.clock.now(),
+  });
+  const parts = [`subject=${subject.userId} group=${group.name}`];
+  if (suspended) parts.push("suspended=1");
+  if (input.approval !== undefined) parts.push(input.approval);
+  await writeAccessAuditRow(tx, {
+    actor: input.actorId,
+    workspaceId,
+    kind: "grant",
+    ...scopeColumns(group),
+    detail: scopeDetail(group, parts.join(" ")),
+    occurredAt: deps.clock.now(),
+  });
+  // A grant made while the account is still unclaimed is a site act too, so it is
+  // findable in the site audit as well as in this workspace's own.
+  if (subject.claimedAt === null) {
+    await writeSiteAuditRow(tx, {
+      actor: input.actorId,
+      subject: subject.userId,
+      workspaceId,
+      kind: "account",
+      detail: `act=grant-while-unclaimed group=${group.name}`,
+      occurredAt: deps.clock.now(),
+    });
+  }
 }
 
 // Suspended where the hold still owes a re-confirmation, or the grantor performed the run or
@@ -1043,8 +1134,32 @@ export function makeReconfirmHolderHandler(
   };
 }
 
-// Turning the switch off is the act somebody would want to find afterwards, so it is
-// audited. A write that changes nothing writes no row.
+/** Turn the switch, writing its `setting` row; `approval` names the request that held it. */
+export async function applySecondApprovalSetting(
+  tx: Executor,
+  deps: Deps,
+  input: {
+    readonly workspaceId: string;
+    readonly value: boolean;
+    readonly actorId: string;
+    readonly approval?: string;
+  },
+): Promise<boolean> {
+  const value = await setRequireSecondApprover(tx, input.workspaceId, input.value);
+  if (value === undefined) throw fail.notFound();
+  const detail = `setting=requireSecondApprover value=${String(value)}`;
+  await writeAccessAuditRow(tx, {
+    actor: input.actorId,
+    workspaceId: input.workspaceId,
+    kind: "setting",
+    detail: input.approval === undefined ? detail : `${detail} ${input.approval}`,
+    occurredAt: deps.clock.now(),
+  });
+  return value;
+}
+
+// Turning the switch on is refused where nobody else could approve; turning it off while it
+// is on is held as a workspace approval request. A write that changes nothing writes no row.
 export function makeWorkspaceSettingsHandler(
   deps: Deps,
 ): RouteHandler<typeof workspaceSettingsRoute, ApiEnv> {
@@ -1054,30 +1169,75 @@ export function makeWorkspaceSettingsHandler(
     const actor = principalOf(c);
 
     const site = agentStepSite(c);
-    const requireSecondApprover = await deps.databases.control.transaction(async (tx) => {
+    const outcome = await deps.databases.control.transaction(async (tx) => {
       // The same lock the membership writes take: this switch is what their self-grant
-      // check turns on, so it may not move between one of those checks and its write.
+      // check turns on, and who could approve is read from them.
       await lockWorkspaceMembership(tx, workspaceId);
       const workspace = await requireOpenWorkspace(tx, workspaceId);
       if (body.requireSecondApprover === workspace.requireSecondApprover) {
         await writeAgentStep(tx, site, workspaceId, deps.clock.now());
-        return workspace.requireSecondApprover;
+        return { value: workspace.requireSecondApprover, held: undefined };
       }
 
-      const value = await setRequireSecondApprover(tx, workspaceId, body.requireSecondApprover);
-      if (value === undefined) throw fail.notFound();
-      await writeAccessAuditRow(tx, {
-        actor: actor.userId,
+      if (!body.requireSecondApprover) {
+        const held = await holdWorkspaceRequest(tx, deps.clock.now(), {
+          kind: "second-approval-off",
+          workspaceId,
+          target: workspaceId,
+          requester: actor.userId,
+          payload: {},
+        });
+        return { value: true, held };
+      }
+
+      const shortfall = await secondApprovalShortfall(tx, {
         workspaceId,
-        kind: "setting",
-        detail: `setting=requireSecondApprover value=${String(value)}`,
-        occurredAt: deps.clock.now(),
+        requester: actor.userId,
+      });
+      if (nobodyElseCouldApprove(shortfall)) throw fail.noSecondApprover(shortfall);
+      const value = await applySecondApprovalSetting(tx, deps, {
+        workspaceId,
+        value: true,
+        actorId: actor.userId,
       });
       await writeAgentStep(tx, site, workspaceId, deps.clock.now());
-      return value;
+      return { value, held: undefined };
     });
 
-    return c.json({ workspaceId, requireSecondApprover }, 200);
+    if (outcome.held !== undefined) {
+      return c.json(
+        { workspaceId, requireSecondApprover: outcome.value, request: requestView(outcome.held) },
+        202,
+      );
+    }
+    return c.json({ workspaceId, requireSecondApprover: outcome.value }, 200);
+  };
+}
+
+/**
+ * The switch and whether nobody other than the caller could approve, which is the Settings
+ * warning while the rule is on and the turn-on refusal while it is off.
+ */
+export function makeReadWorkspaceSettingsHandler(
+  deps: Deps,
+): RouteHandler<typeof readWorkspaceSettingsRoute, ApiEnv> {
+  return async (c) => {
+    const workspaceId = c.req.valid("param").id;
+    const actor = principalOf(c);
+    const workspace = await workspaceOf(deps, workspaceId);
+    const shortfall = await secondApprovalShortfall(deps.databases.control, {
+      workspaceId,
+      requester: actor.userId,
+    });
+    return c.json(
+      {
+        workspaceId,
+        requireSecondApprover: workspace.requireSecondApprover,
+        nobodyElseCouldApprove: nobodyElseCouldApprove(shortfall),
+        missingApprover: shortfall,
+      },
+      200,
+    );
   };
 }
 
