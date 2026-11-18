@@ -200,8 +200,9 @@ export const updateAccessGroupRoute = createRoute({
   summary: "Rename an access group, or change its roles and environments (admin)",
   description:
     "One `group` audit row naming what the group now carries and what it carried " +
-    "before. A change that would give the person making it a response role, or a new " +
-    "environment for one, is refused while the workspace requires a second approver. " +
+    "before. With second approval on, a change that would give the person making it, who " +
+    "is in the group, a response role or a new environment for one is held as a self-grant " +
+    "request, answered 202, binding the roles and environments it asked for. " +
     "A change that adds a response role leaves a holder's hold suspended until a different " +
     "administrator re-confirms it, where the holder's newest sign-in links are reset or " +
     "reactivation links and the person making the change performed that reset or " +

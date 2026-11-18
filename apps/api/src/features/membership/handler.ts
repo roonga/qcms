@@ -731,10 +731,8 @@ export async function applyGroupEdit(
   return row;
 }
 
-// A rename or a change of roles or environments writes one `group` row naming both sides,
-// which is the act; who holds the group is the group's own list. Editing a group you are in
-// is one of the ways to give yourself response access, so with second approval on such an
-// edit is held as a request and nothing, the name included, changes until it is approved.
+// Editing a group you are in is one way to give yourself response access, so with second
+// approval on such an edit is held, and nothing, the name included, changes until approved.
 export function makeUpdateAccessGroupHandler(
   deps: Deps,
 ): RouteHandler<typeof updateAccessGroupRoute, ApiEnv> {
