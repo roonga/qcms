@@ -44,6 +44,7 @@ import {
   updateSettings,
   validateDraft,
   type AgentAccept,
+  type AgentAdopt,
 } from "@/lib/server/forms";
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
 import type { AgentProposalRef } from "@/lib/server/agent-proposal";
@@ -185,6 +186,7 @@ export async function saveDraftAction(
   draft: DraftForm,
   accept?: AgentAccept,
   proposal?: AgentProposalRef,
+  adopt?: AgentAdopt,
 ): Promise<SaveDraftState> {
   const session = await requireAdminSession();
   if (!withinCap(draft)) {
@@ -197,7 +199,7 @@ export async function saveDraftAction(
     };
   }
 
-  const result = await saveDraft(session, formId, draft, accept, proposal);
+  const result = await saveDraft(session, formId, draft, accept, proposal, adopt);
   if (!result.ok) {
     return {
       status: "error",

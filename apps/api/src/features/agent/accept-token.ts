@@ -25,8 +25,17 @@ export const ACCEPT_TTL_MS = PROPOSAL_TTL_MS;
 
 export const ACCEPT_HEADER = "x-qcms-agent-accept";
 
+/**
+ * The same token on a plain draft save, for the one case where the accept route refused and the
+ * user chose to keep the content as their own. It records attribution and authorises nothing.
+ */
+export const ADOPT_HEADER = "x-qcms-agent-adopt";
+
 /** The kind the accept's row records. */
 export const ACCEPT_KIND = "apply-draft";
+
+/** The kind an adopted proposal's row records: the content is the user's own edit from here on. */
+export const ADOPT_KIND = "apply-draft.adopted";
 
 /** A plan's own token steps hold `(pid, i)`, so the accept's row keeps a key of its own. */
 export function acceptRowKey(pid: string): {
@@ -34,6 +43,14 @@ export function acceptRowKey(pid: string): {
   readonly stepIndex: number;
 } {
   return { proposalId: `${pid}.accept`, stepIndex: 0 };
+}
+
+/** The adopt row's key, apart from the accept's so one proposal holds at most one of each. */
+export function adoptRowKey(pid: string): {
+  readonly proposalId: string;
+  readonly stepIndex: number;
+} {
+  return { proposalId: `${pid}.adopt`, stepIndex: 0 };
 }
 
 const Payload = z.strictObject({
@@ -63,6 +80,21 @@ export type AcceptRefusalCode = (typeof ACCEPT_REFUSAL_CODES)[number];
 export type AcceptTokenResult =
   | { readonly ok: true; readonly payload: AcceptTokenPayload }
   | { readonly ok: false; readonly code: AcceptRefusalCode };
+
+export const ADOPT_REFUSAL_CODES = [
+  "AGENT_ADOPT_DISABLED",
+  "AGENT_ADOPT_MALFORMED",
+  "AGENT_ADOPT_SIGNATURE",
+  "AGENT_ADOPT_SUBJECT",
+  "AGENT_ADOPT_FORM",
+  "AGENT_ADOPT_REPLAYED",
+] as const;
+
+export type AdoptRefusalCode = (typeof ADOPT_REFUSAL_CODES)[number];
+
+export type AdoptTokenResult =
+  | { readonly ok: true; readonly payload: AcceptTokenPayload }
+  | { readonly ok: false; readonly code: AdoptRefusalCode };
 
 const encoder = new TextEncoder();
 
@@ -94,16 +126,14 @@ export async function signAcceptToken(
   return `${body}.${base64url(new Uint8Array(mac))}`;
 }
 
-/** Signature, shape and expiry. The user and the form are the caller's to compare. */
-export async function verifyAcceptToken(
-  appKey: string,
-  token: string,
-  now: Date,
-): Promise<AcceptTokenResult> {
+type ParsedToken =
+  | { readonly ok: true; readonly payload: AcceptTokenPayload }
+  | { readonly ok: false; readonly malformed: boolean };
+
+/** Signature and shape. Expiry, the user and the form are each the caller's to decide. */
+async function parseAcceptToken(appKey: string, token: string): Promise<ParsedToken> {
   const separator = token.indexOf(".");
-  if (separator <= 0 || separator === token.length - 1) {
-    return { ok: false, code: "AGENT_ACCEPT_MALFORMED" };
-  }
+  if (separator <= 0 || separator === token.length - 1) return { ok: false, malformed: true };
   const body = token.slice(0, separator);
   let mac: Uint8Array<ArrayBuffer>;
   let json: string;
@@ -111,21 +141,51 @@ export async function verifyAcceptToken(
     mac = fromBase64url(token.slice(separator + 1));
     json = new TextDecoder().decode(fromBase64url(body));
   } catch {
-    return { ok: false, code: "AGENT_ACCEPT_MALFORMED" };
+    return { ok: false, malformed: true };
   }
   if (!(await crypto.subtle.verify("HMAC", await signingKey(appKey), mac, encoder.encode(body)))) {
-    return { ok: false, code: "AGENT_ACCEPT_SIGNATURE" };
+    return { ok: false, malformed: false };
   }
   let raw: unknown;
   try {
     raw = JSON.parse(json);
   } catch {
-    return { ok: false, code: "AGENT_ACCEPT_MALFORMED" };
+    return { ok: false, malformed: true };
   }
   const parsed = Payload.safeParse(raw);
-  if (!parsed.success) return { ok: false, code: "AGENT_ACCEPT_MALFORMED" };
-  if (now.getTime() > parsed.data.exp) return { ok: false, code: "AGENT_ACCEPT_EXPIRED" };
-  return { ok: true, payload: parsed.data };
+  return parsed.success ? { ok: true, payload: parsed.data } : { ok: false, malformed: true };
+}
+
+/** Signature, shape and expiry. The user and the form are the caller's to compare. */
+export async function verifyAcceptToken(
+  appKey: string,
+  token: string,
+  now: Date,
+): Promise<AcceptTokenResult> {
+  const parsed = await parseAcceptToken(appKey, token);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      code: parsed.malformed ? "AGENT_ACCEPT_MALFORMED" : "AGENT_ACCEPT_SIGNATURE",
+    };
+  }
+  if (now.getTime() > parsed.payload.exp) return { ok: false, code: "AGENT_ACCEPT_EXPIRED" };
+  return { ok: true, payload: parsed.payload };
+}
+
+/**
+ * Signature and shape alone: an expired token is the commonest reason the accept refused, and
+ * recording that the user kept its content needs a genuine token rather than a live one.
+ */
+export async function verifyAdoptToken(appKey: string, token: string): Promise<AdoptTokenResult> {
+  const parsed = await parseAcceptToken(appKey, token);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      code: parsed.malformed ? "AGENT_ADOPT_MALFORMED" : "AGENT_ADOPT_SIGNATURE",
+    };
+  }
+  return { ok: true, payload: parsed.payload };
 }
 
 function message(code: AcceptRefusalCode): string {
@@ -141,4 +201,19 @@ function message(code: AcceptRefusalCode): string {
 
 export function acceptRefusal(code: AcceptRefusalCode): ApiError {
   return new ApiError(code, 403, message(code));
+}
+
+function adoptMessage(code: AdoptRefusalCode): string {
+  switch (code) {
+    case "AGENT_ADOPT_DISABLED":
+      return "This deployment does not run the assistant, so it records no adopted proposals.";
+    case "AGENT_ADOPT_REPLAYED":
+      return "That proposal is already recorded as your own edit.";
+    default:
+      return "Only a proposal the assistant made can be kept as your own edit.";
+  }
+}
+
+export function adoptRefusal(code: AdoptRefusalCode): ApiError {
+  return new ApiError(code, code === "AGENT_ADOPT_DISABLED" ? 400 : 403, adoptMessage(code));
 }

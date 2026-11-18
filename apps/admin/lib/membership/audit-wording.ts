@@ -52,6 +52,7 @@ interface ActionWording {
 const ACTIONS: Readonly<Record<string, ActionWording>> = {
   "form.create": { act: "membership.agentAudit.act.form.create", detail: "formId" },
   "apply-draft": { act: "membership.agentAudit.act.apply-draft" },
+  "apply-draft.adopted": { act: "membership.agentAudit.act.apply-draft.adopted" },
   "form.saveDraft": { act: "membership.agentAudit.act.form.saveDraft", detail: "formId" },
   "form.publish": { act: "membership.agentAudit.act.form.publish", detail: "version" },
   "form.release": { act: "membership.agentAudit.act.form.release", detail: "version" },

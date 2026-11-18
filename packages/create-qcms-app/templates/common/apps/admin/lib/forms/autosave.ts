@@ -32,11 +32,15 @@ export interface DraftAutosave {
 export function useDraftAutosave({
   draft,
   initialVerdict,
+  hold,
   saveDraft,
   validateDraft,
   onSaved,
 }: {
   readonly draft: DraftForm;
+  /* Stops this screen saving at all, including the unmount flush, while the screen owes the user a
+     decision about what is on it. */
+  readonly hold?: boolean;
   // Seed only a real server verdict; an empty fallback would falsely claim publishability.
   readonly initialVerdict?: {
     readonly issues: readonly FormIssue[];
@@ -66,8 +70,11 @@ export function useDraftAutosave({
 
   const paused = unsaveableReason(draft);
 
+  const held = useRef(hold === true);
+  held.current = hold === true;
+
   useEffect(() => {
-    if (!isDirty.current || paused !== undefined) return undefined;
+    if (!isDirty.current || paused !== undefined || hold === true) return undefined;
     setStatus("saving");
     pending.current = draft;
     const timer = setTimeout(() => {
@@ -101,14 +108,14 @@ export function useDraftAutosave({
     return () => {
       clearTimeout(timer);
     };
-  }, [draft, paused]);
+  }, [draft, paused, hold]);
 
   // Flush the latest edit on unmount before clearing the debounce so route navigation cannot discard a pending save.
   useEffect(() => {
     return () => {
       const unsaved = pending.current;
       pending.current = undefined;
-      if (unsaved === undefined) return;
+      if (unsaved === undefined || held.current) return;
       void actions.current.saveDraft(unsaved);
     };
   }, []);

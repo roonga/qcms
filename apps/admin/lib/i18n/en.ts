@@ -684,6 +684,10 @@ export const messages = {
   "forms.save.flash": "Saved",
   "forms.builder.concurrentDismiss": "Got it",
   "forms.builder.saveFailed": "This draft could not be saved. {message}",
+  "forms.builder.assistantChangeRefused":
+    "The assistant's change could not be applied, so none of it is saved and this draft has stopped saving. Undo it to get your own draft back, or keep it as your own edit.",
+  "forms.builder.assistantChangeUndo": "Undo the assistant change",
+  "forms.builder.assistantChangeKeep": "Keep it as my edit",
   "forms.builder.closed":
     "This form is closed to new responses. Editing the draft is still allowed; publishing is what makes a change live.",
 
@@ -1263,6 +1267,7 @@ export const messages = {
   "forms.publish.changes.step.draft.undo": "Undid an edit",
   "forms.publish.changes.step.form.saveDraft": "Saved a whole draft from a card",
   "forms.publish.changes.step.apply-draft": "Applied a proposed draft",
+  "forms.publish.changes.step.apply-draft.adopted": "Kept a proposed draft as an own edit",
   "forms.publish.changes.step.other": "Changed the draft",
   "forms.publish.freezes.steps.one": "1 step",
   "forms.publish.freezes.steps.other": "{count} steps",
@@ -2026,6 +2031,8 @@ export const messages = {
 
   "agent.card.note.unresolvedReference": "This step needed a value an earlier step did not report.",
   "agent.card.note.unreachable": "The request did not reach the server.",
+  "agent.card.note.acceptUndecided":
+    "The builder is waiting for a decision about the assistant's last change.",
   "agent.card.note.stale": "This proposal is more than ten minutes old.",
   "agent.card.note.draftMoved":
     "This form's saved draft has changed since the plan was proposed. Ask the assistant again.",
@@ -2639,6 +2646,7 @@ export const messages = {
   "membership.agentAudit.screen.question": "Question details",
   "membership.agentAudit.act.form.create": "Created a form",
   "membership.agentAudit.act.apply-draft": "Applied a proposed draft",
+  "membership.agentAudit.act.apply-draft.adopted": "Kept a proposed draft as an own edit",
   "membership.agentAudit.act.form.saveDraft": "Saved a form's draft",
   "membership.agentAudit.act.form.publish": "Published a new form version to an environment",
   "membership.agentAudit.act.form.release": "Published an existing form version to an environment",

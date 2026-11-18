@@ -31,7 +31,7 @@ import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../f
 import { decideAccess, type Resource } from "../membership/policy.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, type ResolvedMembership } from "../membership/resolver.js";
-import { ACCEPT_HEADER, ACCEPT_KIND, type AcceptRefusalCode } from "./accept-token.js";
+import { ACCEPT_HEADER, ACCEPT_KIND, ADOPT_KIND, type AcceptRefusalCode } from "./accept-token.js";
 import { admitAgentAccept, recordAgentAccept, verifyAgentAccept } from "./audit.js";
 import { savedDraftPins } from "./draft-pins.js";
 import { mergeOffers, offeredActionKinds, offersNoAction } from "./grant-filter.js";
@@ -894,10 +894,15 @@ export function makeAcceptProposalHandler(
 }
 
 /** The card kinds that save a whole draft, which the wizard counts with the card-less edits. */
-const DRAFT_CHANGE_KINDS: readonly string[] = [...DRAFT_EDIT_KINDS, "form.saveDraft", ACCEPT_KIND];
+const DRAFT_CHANGE_KINDS: readonly string[] = [
+  ...DRAFT_EDIT_KINDS,
+  "form.saveDraft",
+  ACCEPT_KIND,
+  ADOPT_KIND,
+];
 
 /** The kinds whose `detail` is the draft revision they left. */
-const REVISION_KINDS: readonly string[] = [...DRAFT_EDIT_KINDS, ACCEPT_KIND];
+const REVISION_KINDS: readonly string[] = [...DRAFT_EDIT_KINDS, ACCEPT_KIND, ADOPT_KIND];
 
 function revisionOf(kind: string, detail: string | null): number | null {
   if (!REVISION_KINDS.includes(kind) || detail === null || !/^\d{1,10}$/u.test(detail)) return null;

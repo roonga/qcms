@@ -125,6 +125,33 @@ function renamedDraft(title: string) {
   };
 }
 
+const EXPIRED = {
+  status: "error" as const,
+  issues: [],
+  warnings: [],
+  code: "AGENT_ACCEPT_EXPIRED",
+  message: "That proposal is more than ten minutes old. Ask the assistant again.",
+};
+
+type SaveCall = [
+  { title: Record<string, string>; steps: readonly { title: Record<string, string> }[] },
+  unknown,
+  unknown,
+  unknown,
+];
+
+function titleField(): HTMLInputElement {
+  return screen.getByLabelText(t("forms.builder.formTitle")) as HTMLInputElement;
+}
+
+function choice(): HTMLElement | null {
+  return screen.queryByTestId("qcms-builder-accept-choice");
+}
+
+function press(key: "forms.builder.assistantChangeUndo" | "forms.builder.assistantChangeKeep") {
+  fireEvent.click(screen.getByRole("button", { name: t(key) }));
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -245,15 +272,88 @@ describe("FormBuilder and the apply-draft card", () => {
     expect(actions.saveDraft.mock.calls[2]?.[1]).toBeUndefined();
   });
 
-  it("stops sending a refused token and keeps the edits made since, saving them plainly", async () => {
+  it("pauses autosave and asks what to do when the accept is refused", async () => {
     const actions = builderActions();
     actions.saveDraft
+      .mockResolvedValueOnce(EXPIRED)
+      .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] });
+    render(
+      <FormBuilder
+        detail={DETAIL}
+        {...CHROME}
+        {...actions}
+        assist={{ endpoint: "/forms/frm_quote/assist" }}
+      />,
+    );
+    await confirmApplyDraft(applyDraftStep({ definition: renamedDraft("Expired") }));
+    await waitFor(() => expect(choice()).not.toBeNull(), { timeout: 3000 });
+
+    fireEvent.change(titleField(), { target: { value: "An edit while the choice shows" } });
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(actions.saveDraft).toHaveBeenCalledTimes(1);
+    expect(titleField().value).toBe("Vehicle insurance quote");
+  });
+
+  it("restores the draft the assistant replaced, and saves that, when the change is undone", async () => {
+    const actions = builderActions();
+    actions.saveDraft
+      .mockResolvedValueOnce(EXPIRED)
+      .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] });
+    render(
+      <FormBuilder
+        detail={DETAIL}
+        {...CHROME}
+        {...actions}
+        assist={{ endpoint: "/forms/frm_quote/assist" }}
+      />,
+    );
+    await confirmApplyDraft(applyDraftStep({ definition: renamedDraft("Expired") }));
+    await waitFor(() => expect(choice()).not.toBeNull(), { timeout: 3000 });
+
+    press("forms.builder.assistantChangeUndo");
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    const [restored, accept, , adopt] = actions.saveDraft.mock.calls[1] as SaveCall;
+    expect(accept).toBeUndefined();
+    expect(adopt).toBeUndefined();
+    expect(restored.steps[0]?.title["en"]).toBe("Basics");
+    expect(choice()).toBeNull();
+  });
+
+  it("saves the content plainly under the refused token when the user keeps it as their own edit", async () => {
+    const actions = builderActions();
+    actions.saveDraft
+      .mockResolvedValueOnce(EXPIRED)
+      .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] });
+    render(
+      <FormBuilder
+        detail={DETAIL}
+        {...CHROME}
+        {...actions}
+        assist={{ endpoint: "/forms/frm_quote/assist" }}
+      />,
+    );
+    await confirmApplyDraft(applyDraftStep({ definition: renamedDraft("Expired") }));
+    await waitFor(() => expect(choice()).not.toBeNull(), { timeout: 3000 });
+
+    press("forms.builder.assistantChangeKeep");
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    const [kept, accept, , adopt] = actions.saveDraft.mock.calls[1] as SaveCall;
+    expect(accept).toBeUndefined();
+    expect(adopt).toEqual({ token: ACCEPT_TOKEN });
+    expect(kept.steps[0]?.title["en"]).toBe("Expired");
+    await waitFor(() => expect(choice()).toBeNull(), { timeout: 3000 });
+  });
+
+  it("leaves the choice open, and the content unsaved, when the keep is not recorded", async () => {
+    const actions = builderActions();
+    actions.saveDraft
+      .mockResolvedValueOnce(EXPIRED)
       .mockResolvedValueOnce({
         status: "error" as const,
         issues: [],
         warnings: [],
-        code: "AGENT_ACCEPT_EXPIRED",
-        message: "That proposal is more than ten minutes old. Ask the assistant again.",
+        code: "AGENT_ADOPT_SIGNATURE",
+        message: "Only a proposal the assistant made can be kept as your own edit.",
       })
       .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] });
     render(
@@ -265,46 +365,44 @@ describe("FormBuilder and the apply-draft card", () => {
       />,
     );
     await confirmApplyDraft(applyDraftStep({ definition: renamedDraft("Expired") }));
-    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    await waitFor(() => expect(choice()).not.toBeNull(), { timeout: 3000 });
 
-    fireEvent.change(screen.getByLabelText(t("forms.builder.formTitle")), {
-      target: { value: "Kept after the refusal" },
-    });
+    press("forms.builder.assistantChangeKeep");
     await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    await waitFor(
+      () =>
+        expect(
+          (
+            screen.getByRole("button", {
+              name: t("forms.builder.assistantChangeUndo"),
+            }) as HTMLButtonElement
+          ).disabled,
+        ).toBe(false),
+      { timeout: 3000 },
+    );
+    expect(choice()).not.toBeNull();
 
-    const [kept, accept] = actions.saveDraft.mock.calls[1] as [
-      { title: Record<string, string>; steps: readonly { title: Record<string, string> }[] },
-      unknown,
-    ];
+    press("forms.builder.assistantChangeKeep");
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(3), { timeout: 3000 });
+    const [, accept, , adopt] = actions.saveDraft.mock.calls[2] as SaveCall;
     expect(accept).toBeUndefined();
-    expect(kept.title["en"]).toBe("Kept after the refusal");
-    expect(kept.steps[0]?.title["en"]).toBe("Expired");
+    expect(adopt).toEqual({ token: ACCEPT_TOKEN });
+    await waitFor(() => expect(choice()).toBeNull(), { timeout: 3000 });
   });
 
-  it("stops retrying a persistently failing accept once its token expires, keeping every edit", async () => {
+  it("retries a persistently failing accept until its token expires, then keeps every edit made since", async () => {
     const actions = builderActions();
+    const taken = {
+      status: "error" as const,
+      issues: [],
+      warnings: [],
+      code: "QUESTION_ID_TAKEN",
+      message: "That question id is in use.",
+    };
     actions.saveDraft
-      .mockResolvedValueOnce({
-        status: "error" as const,
-        issues: [],
-        warnings: [],
-        code: "QUESTION_ID_TAKEN",
-        message: "That question id is in use.",
-      })
-      .mockResolvedValueOnce({
-        status: "error" as const,
-        issues: [],
-        warnings: [],
-        code: "QUESTION_ID_TAKEN",
-        message: "That question id is in use.",
-      })
-      .mockResolvedValueOnce({
-        status: "error" as const,
-        issues: [],
-        warnings: [],
-        code: "AGENT_ACCEPT_EXPIRED",
-        message: "That proposal is more than ten minutes old. Ask the assistant again.",
-      })
+      .mockResolvedValueOnce(taken)
+      .mockResolvedValueOnce(taken)
+      .mockResolvedValueOnce(EXPIRED)
       .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] });
     render(
       <FormBuilder
@@ -317,10 +415,8 @@ describe("FormBuilder and the apply-draft card", () => {
     await confirmApplyDraft(applyDraftStep({ definition: renamedDraft("Proposed") }));
     await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(1), { timeout: 3000 });
 
-    for (const [index, title] of ["First edit", "Second edit", "Third edit"].entries()) {
-      fireEvent.change(screen.getByLabelText(t("forms.builder.formTitle")), {
-        target: { value: title },
-      });
+    for (const [index, title] of ["First edit", "Second edit"].entries()) {
+      fireEvent.change(titleField(), { target: { value: title } });
       await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(index + 2), {
         timeout: 3000,
       });
@@ -330,9 +426,15 @@ describe("FormBuilder and the apply-draft card", () => {
       token: ACCEPT_TOKEN,
       newQuestions: [],
     });
-    expect(actions.saveDraft.mock.calls[3]?.[1]).toBeUndefined();
-    const [kept] = actions.saveDraft.mock.calls[3] as [{ title: Record<string, string> }, unknown];
-    expect(kept.title["en"]).toBe("Third edit");
+    await waitFor(() => expect(choice()).not.toBeNull(), { timeout: 3000 });
+
+    press("forms.builder.assistantChangeKeep");
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(4), { timeout: 3000 });
+    const [kept, accept, , adopt] = actions.saveDraft.mock.calls[3] as SaveCall;
+    expect(accept).toBeUndefined();
+    expect(adopt).toEqual({ token: ACCEPT_TOKEN });
+    expect(kept.title["en"]).toBe("Second edit");
+    expect(kept.steps[0]?.title["en"]).toBe("Proposed");
   });
 
   it("reloads the stored draft when a lost accept response makes the retry a replay", async () => {

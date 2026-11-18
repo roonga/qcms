@@ -138,10 +138,20 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
 
 export const AGENT_ACCEPT_HEADER = "x-qcms-agent-accept";
 
+export const AGENT_ADOPT_HEADER = "x-qcms-agent-adopt";
+
 /** The docked assistant's accepted proposal: the token its apply-draft step carried and the questions it invents. */
 export interface AgentAccept {
   readonly token: string;
   readonly newQuestions: readonly unknown[];
+}
+
+/**
+ * A proposal the accept route refused, which the user chose to keep as their own edit: the same
+ * token on a plain save, where it records the attribution and creates no question.
+ */
+export interface AgentAdopt {
+  readonly token: string;
 }
 
 /**
@@ -154,6 +164,7 @@ export async function saveDraft(
   definition: DraftForm,
   accept?: AgentAccept,
   proposal?: AgentProposalRef,
+  adopt?: AgentAdopt,
 ): Promise<
   ApiResult<{
     readonly issues: readonly FormIssue[];
@@ -181,7 +192,10 @@ export async function saveDraft(
         })
       : await adminApiFetch(session, draftPath, {
           method: "PUT",
-          headers: proposalHeaders(proposal),
+          headers: {
+            ...proposalHeaders(proposal),
+            ...(adopt === undefined ? {} : { [AGENT_ADOPT_HEADER]: adopt.token }),
+          },
           body: { definition },
         }),
   );

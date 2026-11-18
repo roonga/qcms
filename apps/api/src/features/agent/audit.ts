@@ -1,7 +1,8 @@
 /**
- * The agent audit rows: one per confirmed card step, one per card-less builder edit or Undo, and one per
- * docked-assistant accept, each from a verified token and written inside **the act's own transaction**, so a
- * failed act writes no row and the trail and the result agree.
+ * The agent audit rows: one per confirmed card step, one per card-less builder edit or Undo, one per
+ * docked-assistant accept and one per proposal a refused accept left the user to keep, each from a verified
+ * token and written inside **the act's own transaction**, so a failed act writes no row and the trail and the
+ * result agree.
  */
 
 import { FormId, type Appearance } from "@roonga/qcms-core";
@@ -21,9 +22,14 @@ import {
   ACCEPT_KIND,
   acceptRefusal,
   acceptRowKey,
+  ADOPT_KIND,
+  adoptRefusal,
+  adoptRowKey,
   verifyAcceptToken,
+  verifyAdoptToken,
   type AcceptRefusalCode,
   type AcceptTokenPayload,
+  type AdoptRefusalCode,
 } from "./accept-token.js";
 import { editRefusal, type VerifiedEdit } from "./edit-provenance.js";
 import {
@@ -345,3 +351,79 @@ export async function recordAgentAccept(
 
 /** The apply-draft kind's own screen, which is where the docked assistant runs. */
 const ACCEPT_SCREEN = "/forms/[formId]";
+
+export interface AgentAdoptSite {
+  readonly adopt: AcceptTokenPayload;
+  readonly actor: string;
+  readonly workspaceId: string;
+  readonly log: (code: AdoptRefusalCode) => void;
+}
+
+/**
+ * The adopt check on a plain draft save: the refused accept's own token, signed, and issued to
+ * this caller for this form. It is not checked for expiry, because an expired accept is the
+ * commonest refusal the choice follows. It adds a row and no right, so the save it rides stores
+ * exactly what the same save without it would store.
+ */
+export async function verifyAgentAdopt(
+  token: string,
+  args: {
+    readonly appKey: string;
+    readonly actor: string;
+    readonly formId: string;
+    readonly enabled: boolean;
+    readonly otherAgentAct: boolean;
+    readonly log: (code: AdoptRefusalCode) => void;
+  },
+): Promise<AcceptTokenPayload> {
+  const refuse = (code: AdoptRefusalCode) => {
+    args.log(code);
+    return adoptRefusal(code);
+  };
+  if (!args.enabled) throw refuse("AGENT_ADOPT_DISABLED");
+  // One request is one kind of agent act: a card's step, a card-less edit or an adopted proposal.
+  if (args.otherAgentAct) throw refuse("AGENT_ADOPT_MALFORMED");
+  const verified = await verifyAdoptToken(args.appKey, token);
+  if (!verified.ok) throw refuse(verified.code);
+  if (verified.payload.sub !== args.actor) throw refuse("AGENT_ADOPT_SUBJECT");
+  if (verified.payload.formId !== args.formId) throw refuse("AGENT_ADOPT_FORM");
+  return verified.payload;
+}
+
+/** Refuses a token already recorded as adopted, read inside the save's transaction. */
+export async function admitAgentAdopt(exec: Executor, site: AgentAdoptSite): Promise<void> {
+  const key = adoptRowKey(site.adopt.pid);
+  if (await agentStepRecorded(exec, key.proposalId, key.stepIndex)) {
+    site.log("AGENT_ADOPT_REPLAYED");
+    throw adoptRefusal("AGENT_ADOPT_REPLAYED");
+  }
+}
+
+/** The adopted proposal's one row, in the save's own transaction. */
+export async function recordAgentAdopt(
+  exec: Executor,
+  site: AgentAdoptSite,
+  saved: { readonly revision: number },
+  confirmedAt: Date,
+): Promise<void> {
+  try {
+    await writeAgentActionRow(exec, {
+      ...adoptRowKey(site.adopt.pid),
+      stepCount: 1,
+      actor: site.actor,
+      workspaceId: site.workspaceId,
+      formId: site.adopt.formId,
+      kind: ADOPT_KIND,
+      screen: ACCEPT_SCREEN,
+      proposedAt: new Date(site.adopt.iat),
+      confirmedAt,
+      detail: String(saved.revision),
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      site.log("AGENT_ADOPT_REPLAYED");
+      throw adoptRefusal("AGENT_ADOPT_REPLAYED");
+    }
+    throw error;
+  }
+}

@@ -1,4 +1,5 @@
 import type { RouteHandler, z } from "@hono/zod-openapi";
+import type { Context } from "hono";
 import { compileForm } from "@roonga/qcms-a2ui-compiler";
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import {
@@ -71,13 +72,18 @@ import {
 import type { Executor, FormDraftRow, FormVersionRow, QuestionOwnership } from "@roonga/qcms-db";
 
 import { challengeEnforceable } from "../../config.js";
+import { ADOPT_HEADER, type AdoptRefusalCode } from "../agent/accept-token.js";
 import {
+  admitAgentAdopt,
   admitAgentEdit,
   agentEditSite,
   agentStepSite,
+  recordAgentAdopt,
   recordAgentEdit,
+  verifyAgentAdopt,
   writeAgentStep,
 } from "../agent/audit.js";
+import type { AgentAdoptSite } from "../agent/audit.js";
 import { logIfEditRefusal } from "../agent/edit-provenance.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
@@ -842,6 +848,37 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
 }
 
 /**
+ * The proposal a refused accept left on screen and the user chose to keep as their own edit:
+ * the accept's own token on an ordinary save, which records the attribution and changes
+ * nothing about what the save stores. It is read on this one route; the header carries no
+ * authority, so anywhere else it is inert.
+ */
+async function adoptSite(
+  deps: Deps,
+  c: Context<ApiEnv>,
+  formId: FormId,
+  workspaceId: string,
+  proposed: boolean,
+): Promise<AgentAdoptSite | undefined> {
+  const token = c.req.header(ADOPT_HEADER);
+  if (token === undefined || token === "") return undefined;
+  const principal = c.get("adminPrincipal");
+  if (principal === undefined) throw fail.noPrincipal();
+  const log = (code: AdoptRefusalCode): void => {
+    deps.logger.warn("agent adopt refused", { code });
+  };
+  const adopt = await verifyAgentAdopt(token, {
+    appKey: deps.config.keys.app,
+    actor: principal.userId,
+    formId,
+    enabled: deps.config.flags.agentAuthoring !== "none",
+    otherAgentAct: proposed || c.get("agentEdit") !== undefined,
+    log,
+  });
+  return { adopt, actor: principal.userId, workspaceId, log };
+}
+
+/**
  * The one draft save path, so the appearance lock is enforced here for every author and
  * for the assistant alike (agent-builder Q10). An omitted `appearance` keeps what the form
  * carries, so a client that knows nothing of appearance never clears one.
@@ -858,6 +895,7 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
     const edit = agentEditSite(c, form.workspaceId);
+    const adopt = await adoptSite(deps, c, formId, form.workspaceId, site !== undefined);
     const appearance =
       body.appearance === undefined ? undefined : requireNullableAppearance(body.appearance);
 
@@ -886,6 +924,7 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
           throw fail.appearanceLocked();
         }
       }
+      if (adopt !== undefined) await admitAgentAdopt(tx, adopt);
       const row = await storeDraftDefinition(
         tx,
         formId,
@@ -894,6 +933,7 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
         appearance,
       );
       await writeAgentStep(tx, site, formId, deps.clock.now());
+      if (adopt !== undefined) await recordAgentAdopt(tx, adopt, row, deps.clock.now());
       const undoToken =
         edit === undefined
           ? undefined

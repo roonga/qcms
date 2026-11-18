@@ -53,6 +53,7 @@ const STEP_LABELS: Readonly<Record<string, MessageKey>> = {
   "draft.undo": "forms.publish.changes.step.draft.undo",
   "form.saveDraft": "forms.publish.changes.step.form.saveDraft",
   "apply-draft": "forms.publish.changes.step.apply-draft",
+  "apply-draft.adopted": "forms.publish.changes.step.apply-draft.adopted",
 };
 
 function stepLabel(kind: string): string {
