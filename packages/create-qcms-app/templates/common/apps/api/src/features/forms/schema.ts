@@ -84,9 +84,13 @@ const OpaqueAppearance = z.record(z.string(), z.unknown()).nullable().openapi("A
     "A form's appearance: the four palettes, logo key, face, corners, density, text size, progress mode and page tint. Validated against the shared appearance schema and the WCAG contrast check. Null clears it.",
 });
 
-export const AgentEditHeaders = z.object({
+export const DraftAgentHeaders = z.object({
   "x-qcms-agent-edit": z.string().max(2_000).optional().openapi({
     description: "An agent edit or Undo token; flag-gated, refused with 400 when the flag is off.",
+  }),
+  "x-qcms-agent-adopt": z.string().max(2_000).optional().openapi({
+    description:
+      "The accept token of a proposal the user chose to keep as their own edit after the accept was refused; attribution only, flag-gated, refused with 400 when the flag is off, and refused alongside either other agent header.",
   }),
 });
 

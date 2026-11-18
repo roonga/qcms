@@ -80,6 +80,17 @@ function isAcceptRefusal(code: string | undefined): boolean {
   return code?.startsWith("AGENT_ACCEPT_") === true;
 }
 
+/** What a save refused while the choice stands answers with, so nothing of it reaches the server. */
+function undecidedSave(): SaveDraftState {
+  return {
+    status: "error",
+    issues: [],
+    warnings: [],
+    code: "AGENT_ACCEPT_UNDECIDED",
+    message: t("agent.card.note.acceptUndecided"),
+  };
+}
+
 function storedAsDraft(definition: unknown, formId: string): DraftForm | undefined {
   if (definition === null || typeof definition !== "object") return undefined;
   return { ...(definition as Record<string, unknown>), formId } as unknown as DraftForm;
@@ -146,6 +157,11 @@ export function FormBuilder({
   const [keeping, setKeeping] = useState(false);
   const pendingAdopt = useRef<AgentAdopt | undefined>(undefined);
 
+  // Raised at the refusal itself rather than through the render that follows it: an edit made while
+  // the accept was in flight already has a debounce timer armed, and letting it fire would store the
+  // assistant's content as a plain save with no record of where it came from.
+  const saveHeld = useRef(false);
+
   const storedDraftReader = useRef(readStoredDraft);
   storedDraftReader.current = readStoredDraft;
 
@@ -155,15 +171,25 @@ export function FormBuilder({
     draft,
     hold: refusedAccept !== undefined && !keeping,
     saveDraft: async (next) => {
-      const held = pendingAccept.current;
       const adopt = pendingAdopt.current;
+      if (adopt === undefined && saveHeld.current) return undecidedSave();
+      const held = pendingAccept.current;
       const saved = await saveDraft(next, held?.accept, undefined, adopt);
       if (adopt !== undefined && pendingAdopt.current === adopt) {
-        // A keep the server did not record stored nothing either, so the choice stands and the save
-        // strip carries the reason.
         pendingAdopt.current = undefined;
         setKeeping(false);
-        if (saved.status === "saved") setRefusedAccept(undefined);
+        if (saved.status === "saved") {
+          setRefusedAccept(undefined);
+        } else if (saved.code === "AGENT_ADOPT_REPLAYED") {
+          // The keep committed and only its response was lost, so the record stands and the server's
+          // draft is the kept one. Leaving the choice up would offer an Undo over a recorded keep.
+          setRefusedAccept(undefined);
+          void reloadStoredDraft();
+        } else {
+          // A keep the server did not record stored nothing either, so the choice stands and the
+          // save strip carries the reason.
+          holdForDecision();
+        }
       }
       if (held === undefined || pendingAccept.current !== held) return saved;
       held.settle(
@@ -182,6 +208,7 @@ export function FormBuilder({
         if (saved.code === "AGENT_ACCEPT_REPLAYED") {
           void reloadStoredDraft();
         } else {
+          holdForDecision();
           setRefusedAccept({ token: held.accept.token, before: held.before });
         }
       }
@@ -205,7 +232,7 @@ export function FormBuilder({
   const mutate = (next: DraftForm) => {
     // Nothing of the assistant's may be stored without a record, so the screen takes no edit until the
     // choice below is answered and Undo stays a clean restore.
-    if (refusedAccept !== undefined) return;
+    if (refusedAccept !== undefined || saveHeld.current) return;
     autosave.markDirty();
     setDraft(next);
   };
@@ -358,11 +385,18 @@ export function FormBuilder({
     if (next !== undefined) setDraft(next);
   }
 
+  /** Stops every save this screen can make, including a timer armed before the refusal landed. */
+  function holdForDecision(): void {
+    saveHeld.current = true;
+    autosave.holdNow();
+  }
+
   /** Restores the draft the refused accept replaced, which the next autosave stores plainly. */
   function undoAssistantChange(): void {
     const held = refusedAccept;
     if (held === undefined) return;
     pendingAdopt.current = undefined;
+    saveHeld.current = false;
     setKeeping(false);
     setRefusedAccept(undefined);
     autosave.markDirty();
@@ -374,6 +408,7 @@ export function FormBuilder({
     const held = refusedAccept;
     if (held === undefined) return;
     pendingAdopt.current = { token: held.token };
+    saveHeld.current = false;
     autosave.markDirty();
     setKeeping(true);
   }
