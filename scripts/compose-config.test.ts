@@ -461,12 +461,22 @@ describe("portal appearance-group plumbing (ADR-30, issue #752)", () => {
   });
 
   it("keeps the group off the admin, the API and the one-shot migration", () => {
-    const rest = appearanceVars.filter((name) => name !== "QCMS_PORTAL_THEME");
+    // The admin's previews show the respondent theme and the portal header's brand.
+    const preview = new Set([
+      "QCMS_PORTAL_THEME",
+      "QCMS_PORTAL_BRAND_NAME",
+      "QCMS_PORTAL_BRAND_LOGO",
+    ]);
     for (const serviceName of ["admin", "api", "migrate"]) {
       const environment = service(solo, serviceName).environment;
-      for (const name of rest) {
+      for (const name of appearanceVars) {
+        if (name === "QCMS_PORTAL_THEME" || (serviceName === "admin" && preview.has(name)))
+          continue;
         expect(environment, `${serviceName} must not forward ${name}`).not.toHaveProperty(name);
       }
+    }
+    for (const name of preview) {
+      expect(service(solo, "admin").environment, `admin must forward ${name}`).toHaveProperty(name);
     }
   });
 });

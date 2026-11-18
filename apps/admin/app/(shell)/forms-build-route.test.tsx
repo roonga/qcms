@@ -114,7 +114,11 @@ vi.mock("@/lib/server/shell", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   shellAccess: () => Promise.resolve({ status: "unknown" }),
 }));
-vi.mock("@/lib/server/config", () => ({ secureCookies: () => false }));
+vi.mock("@/lib/server/config", () => ({
+  secureCookies: () => false,
+  previewPortalTheme: () => "slate",
+  previewPortalBrand: () => ({ name: undefined, logoSrc: undefined }),
+}));
 vi.mock("@/components/forms/builder-shell", () => ({
   BuilderShell: (props: Record<string, unknown>) => {
     builderProps.push(props);
@@ -139,6 +143,7 @@ vi.mock("./forms/forms-table", () => ({
 vi.mock("./forms/actions", () => ({
   createFormAction: () => Promise.resolve({ status: "idle" }),
   startBuildDraftAction: () => Promise.resolve({ status: "started" }),
+  previewDraftAction: () => Promise.resolve({ status: "idle" }),
   reviewReleaseAction: () => Promise.resolve({ ok: false }),
   confirmPublishAction: () => Promise.resolve({ status: "idle" }),
   lookupPublishResultAction: () => Promise.resolve({ status: "idle" }),
