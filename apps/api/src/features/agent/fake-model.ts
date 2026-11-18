@@ -340,6 +340,7 @@ function planRecoveredStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,
 ): StreamPart[] {
+  if (acceptJustSaved(prompt)) return afterAcceptStep();
   const round = prompt.filter((m) => m.role === "tool").length;
   if (round === 0) {
     return [
@@ -390,6 +391,7 @@ function planProposeQuestionsStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,
 ): StreamPart[] {
+  if (acceptJustSaved(prompt)) return afterAcceptStep();
   const questionId = newQuestionId(prompt);
 
   if (!results.has("propose_questions")) {
@@ -464,6 +466,7 @@ function planNarrateStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,
 ): StreamPart[] {
+  if (acceptJustSaved(prompt)) return afterAcceptStep();
   if (!results.has("search_question_library")) {
     const query = pickSearchQuery(prompt);
     const input = { limit: 10, ...(query === undefined ? {} : { query }) };
@@ -499,6 +502,7 @@ function planReasoningStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,
 ): StreamPart[] {
+  if (acceptJustSaved(prompt)) return afterAcceptStep();
   const reasoning: StreamPart[] = [
     { type: "reasoning-start", id: "r0" },
     {
