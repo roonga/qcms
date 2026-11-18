@@ -177,9 +177,7 @@ async function asStep(
   const token = await signProposalToken(deps.config.keys.app, {
     sub: actor.userId,
     pid: proposalId,
-    steps: [
-      { kind: step.kind, argsDigest: await argumentsDigest(step.args), environment: "prod" },
-    ],
+    steps: [{ kind: step.kind, argsDigest: await argumentsDigest(step.args), environment: "prod" }],
     issuedAt: deps.clock.now(),
   });
   const res = await app.request(`/admin${path}`, {
@@ -197,9 +195,7 @@ async function asStep(
   return { res, proposalId };
 }
 
-async function stepRows(
-  proposalId: string,
-): Promise<{ kind: string; detail: string | null }[]> {
+async function stepRows(proposalId: string): Promise<{ kind: string; detail: string | null }[]> {
   const rows = await testDb.client.query<{ kind: string; detail: string | null }>(
     `select kind, detail from control.agent_actions where proposal_id = $1`,
     [proposalId],

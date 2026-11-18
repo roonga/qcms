@@ -212,10 +212,9 @@ async function rejectWithin(
 
 /**
  * Freeze the draft as it was requested and make it live in `prod`, in one transaction under
- * the form's lock: the requester is recorded as the account that froze the version and the
- * approver as its approver. A draft saved since the request ends the request with a
- * `lapsed` act naming the approver who tried, so the requester can ask again, and nothing
- * is frozen.
+ * the form's lock, the requester recorded as having frozen the version. A draft saved since
+ * the request freezes nothing and ends the request with a `lapsed` act naming the approver
+ * who tried, so the requester can ask again.
  */
 export async function approveDraftPublish(
   deps: Deps,
