@@ -32,13 +32,7 @@ export type SiteApprovalKind = (typeof SITE_APPROVAL_KINDS)[number];
  * `lapsed` ends a request an approver found unappliable because what it bound had moved. The
  * approver who tried is its decider, and it is not a rejection: nobody refused the request.
  */
-export const APPROVAL_STATUSES = [
-  "pending",
-  "approved",
-  "rejected",
-  "expired",
-  "lapsed",
-] as const;
+export const APPROVAL_STATUSES = ["pending", "approved", "rejected", "expired", "lapsed"] as const;
 
 /** One of {@link APPROVAL_STATUSES}. */
 export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];

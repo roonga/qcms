@@ -1644,9 +1644,9 @@ describe("a held draft publish on a site whose only environment is prod (criteri
       const requestId = requestIdOf(held.body);
       await saveDraft(prodOnlyAuthor.token, formId);
 
-      expect(
-        (await decide(testPublisherOnly.token, formId, requestId, "approve")).status,
-      ).toBe(403);
+      expect((await decide(testPublisherOnly.token, formId, requestId, "approve")).status).toBe(
+        403,
+      );
       const own = await decide(prodOnlyAuthor.token, formId, requestId, "approve");
       expect(own.status).toBe(409);
       expect(codeOf(own.body)).toBe("OWN_REQUEST");
