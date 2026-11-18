@@ -159,6 +159,9 @@ describe("changing a group", () => {
       roles: ["forms.editor", "forms.publisher", "responses.viewer"],
       environments: ["test"],
     });
+    // The saved answer belongs to the list, so the sheet must not be left over it.
+    expect(await screen.findByText("Saved.")).toBeTruthy();
+    expect(screen.queryByTestId("qcms-group-sheet")).toBeNull();
   });
 
   it("holds a response environment added to the actor's own group, and shows it pending", async () => {

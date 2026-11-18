@@ -244,7 +244,13 @@ export function AccessGroupsPanel({
               pending={pending}
               error={actError}
               onSubmit={(payload) => {
-                run(() => actions.update(workspaceId, open.teamId, payload));
+                // A save is answered by an alert on the list, so the sheet gives way to it.
+                run(
+                  () => actions.update(workspaceId, open.teamId, payload),
+                  () => {
+                    setOpenId(undefined);
+                  },
+                );
               }}
               onCancel={() => {
                 setActError(undefined);

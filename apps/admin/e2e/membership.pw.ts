@@ -240,7 +240,7 @@ test("a group is created, granted by address, re-confirmed, renamed, revoked and
     .click();
   await expect(renamed).toContainText("Nobody");
 
-  await page.getByRole("button", { name: `Open ${RENAMED}`, exact: true }).click();
+  // A revoke leaves the group's sheet open, because the group is still its subject.
   await page.getByTestId("qcms-group-sheet").getByRole("button", { name: "Delete group" }).click();
   await page
     .getByRole("dialog")
