@@ -57,6 +57,7 @@ const SENTINEL = "RESPONDENT-ONLY-SENTINEL-VALUE";
 
 let testDb: TestDb;
 let deps: Deps;
+let env: Record<string, string | undefined>;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let adminSessionToken: string;
@@ -81,11 +82,13 @@ beforeAll(async () => {
   const recorder = recordingLogger();
   logLines = recorder.lines;
 
+  // Kept so a second app can be built on the same keys and the same seeded session.
+  env = validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake", QCMS_AGENT_MAX_STEPS: "40" });
   deps = makeDeps({
     db: testDb.db,
     // The read walk calls one tool per step, and the caller holds every cell, so the
     // ceiling has to clear the whole registry for a single turn to cover it.
-    env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake", QCMS_AGENT_MAX_STEPS: "40" }),
+    env,
     logger: recorder.logger,
     draftAssistant: aiSdkDraftAssistant({
       model: recordingModel,
@@ -735,6 +738,67 @@ describe("keeping a refused proposal as an own edit (SEC-17)", () => {
           .filter((line) => line["msg"] === "agent adopt refused")
           .map((line) => line["code"]),
       ).toEqual(cases.map(([, code]) => code));
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "lets one of two keeps racing on one token through and refuses the other",
+    async () => {
+      await seedPublishedQuestion("q_adopt_race", "Adopt race");
+      await seedForm("frm_adopt_race", ["q_adopt_race"]);
+      const loggedBefore = logLines.length;
+      const before = await revisionOf("frm_adopt_race");
+      const token = await expired("frm_adopt_race");
+
+      const [first, second] = await Promise.all([
+        keep("frm_adopt_race", ["q_adopt_race"], token),
+        keep("frm_adopt_race", ["q_adopt_race"], token),
+      ]);
+
+      const statuses = [first.status, second.status].sort((a, b) => a - b);
+      expect(statuses).toEqual([200, 403]);
+      const refused = first.status === 403 ? first : second;
+      expect(await codeOf(refused)).toBe("AGENT_ADOPT_REPLAYED");
+      expect(
+        logLines
+          .slice(loggedBefore)
+          .filter((line) => line["msg"] === "agent adopt refused")
+          .map((line) => line["code"]),
+      ).toEqual(["AGENT_ADOPT_REPLAYED"]);
+
+      expect(await rowsFor("frm_adopt_race")).toHaveLength(1);
+      expect(await revisionOf("frm_adopt_race")).toBe(before + 1);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "refuses the header with 400 on a deployment that mints no accept token",
+    async () => {
+      await seedPublishedQuestion("q_adopt_off", "Adopt off");
+      await seedForm("frm_adopt_off", ["q_adopt_off"]);
+      const token = await expired("frm_adopt_off");
+      const before = await revisionOf("frm_adopt_off");
+
+      // The same keys and the same seeded session, with the flag that mints the token off.
+      const offDeps = makeDeps({
+        db: testDb.db,
+        env: { ...env, QCMS_FLAG_AGENT_AUTHORING: undefined },
+      });
+      const offApp = createApp(offDeps, ADMIN_ONLY, {
+        groups: { admin: [registerAdminAuth, registerGrantCheck, registerForms] },
+      });
+
+      const res = await offApp.request(`/admin/forms/frm_adopt_off/draft`, {
+        method: "PUT",
+        headers: { ...authHeaders(), [ADOPT_HEADER]: token },
+        body: JSON.stringify({ definition: draftFor("frm_adopt_off", ["q_adopt_off"]) }),
+      });
+      expect(res.status).toBe(400);
+      expect(await codeOf(res)).toBe("AGENT_ADOPT_DISABLED");
+      expect(await rowsFor("frm_adopt_off")).toEqual([]);
+      expect(await revisionOf("frm_adopt_off")).toBe(before);
     },
     BOOT_TIMEOUT,
   );

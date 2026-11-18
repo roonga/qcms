@@ -39,6 +39,7 @@ import {
 import { registerForms } from "../forms/route.js";
 import { registerGrantCheck } from "../membership/middleware.js";
 import { registerQuestions } from "../questions/route.js";
+import { ADOPT_HEADER, signAcceptToken } from "./accept-token.js";
 import { EDIT_HEADER } from "./edit-provenance.js";
 import {
   EDIT_TOKEN_PURPOSE,
@@ -50,6 +51,7 @@ import {
   signEditToken,
   type EditOp,
 } from "./edit-token.js";
+import { argumentsDigest, signProposalToken } from "./proposal-token.js";
 import { registerAgentProvenance } from "./provenance-mount.js";
 import { PROPOSAL_HEADER, PROPOSAL_STEP_HEADER } from "./provenance.js";
 import { registerAgentChanges, registerFormsAssist } from "./route.js";
@@ -517,6 +519,71 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
       [PROPOSAL_STEP_HEADER]: "0",
     });
     expect(res.status).toBe(403);
+    expect(await rowsFor(formId)).toEqual([]);
+  });
+});
+
+/**
+ * One request is one kind of agent act (SEC-17): the token that records a kept proposal is refused
+ * next to a card's step or a card-less edit rather than adding a second record to the same save.
+ */
+describe("a keep presented beside another agent act", { timeout: TIMEOUT_MS }, () => {
+  let adoptCounter = 0;
+
+  /** The accept token a refused accept leaves the builder, which the user's Keep sends back. */
+  async function adoptToken(formId: string): Promise<string> {
+    adoptCounter += 1;
+    return signAcceptToken(deps.config.keys.app, {
+      sub: owner.userId,
+      formId,
+      pid: `prp_adopt${String(adoptCounter).padStart(5, "0")}`,
+      issuedAt: new Date(now.getTime() - 11 * 60 * 1000),
+    });
+  }
+
+  it("refuses a keep carrying a card-less edit token too, and writes no row", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, [["copy", "Edited"]]);
+    const res = await put(
+      owner,
+      formId,
+      { definition: definition(formId, "Edited") },
+      token as string,
+      { [ADOPT_HEADER]: await adoptToken(formId) },
+    );
+    expect(res.status).toBe(403);
+    expect(await codeOf(res)).toBe("AGENT_ADOPT_MALFORMED");
+    expect(await draftTitle(formId)).toBe("Start");
+    expect(await rowsFor(formId)).toEqual([]);
+  });
+
+  it("refuses a keep carrying a card's own step too, and writes no row", async () => {
+    const formId = await seededForm();
+    const body = { definition: definition(formId, "From a card") };
+    const proposal = await signProposalToken(deps.config.keys.app, {
+      sub: owner.userId,
+      pid: `prp_card${formId.replaceAll("_", "")}`,
+      steps: [
+        {
+          kind: "form.saveDraft",
+          argsDigest: await argumentsDigest({
+            formId,
+            definition: { ...body.definition, formId: undefined },
+          }),
+          environment: "test",
+        },
+      ],
+      formId,
+      issuedAt: now,
+    });
+    const res = await put(owner, formId, body, undefined, {
+      [PROPOSAL_HEADER]: proposal,
+      [PROPOSAL_STEP_HEADER]: "0",
+      [ADOPT_HEADER]: await adoptToken(formId),
+    });
+    expect(res.status).toBe(403);
+    expect(await codeOf(res)).toBe("AGENT_ADOPT_MALFORMED");
+    expect(await draftTitle(formId)).toBe("Start");
     expect(await rowsFor(formId)).toEqual([]);
   });
 });

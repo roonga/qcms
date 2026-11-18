@@ -27,6 +27,9 @@ export interface DraftAutosave {
   readonly markDirty: () => void;
   // Feed out-of-loop settings stores into the same strip so the screen retains one save statement.
   readonly markSavedAt: (instant: string) => void;
+  /* Holds the loop in the turn the caller decides to hold it. The `hold` prop reaches the loop only
+     through a render, by which time a timer armed before the decision has already fired. */
+  readonly holdNow: () => void;
 }
 
 export function useDraftAutosave({
@@ -73,11 +76,16 @@ export function useDraftAutosave({
   const held = useRef(hold === true);
   held.current = hold === true;
 
+  // The armed debounce timer, which a hold raised between arming and firing has to cancel.
+  const armed = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
   useEffect(() => {
     if (!isDirty.current || paused !== undefined || hold === true) return undefined;
     setStatus("saving");
     pending.current = draft;
     const timer = setTimeout(() => {
+      armed.current = undefined;
+      if (held.current) return;
       // Claim before sending so teardown cannot flush the same edit twice.
       pending.current = undefined;
       void (async () => {
@@ -105,8 +113,10 @@ export function useDraftAutosave({
         setStatus("saved");
       })();
     }, AUTOSAVE_DEBOUNCE_MS);
+    armed.current = timer;
     return () => {
       clearTimeout(timer);
+      if (armed.current === timer) armed.current = undefined;
     };
   }, [draft, paused, hold]);
 
@@ -131,5 +141,15 @@ export function useDraftAutosave({
       isDirty.current = true;
     },
     markSavedAt: setLastSavedAt,
+    holdNow: () => {
+      held.current = true;
+      if (armed.current !== undefined) {
+        clearTimeout(armed.current);
+        armed.current = undefined;
+      }
+      // The edit this timer carried is what the caller is holding, so the unmount flush must not
+      // find it either.
+      pending.current = undefined;
+    },
   };
 }

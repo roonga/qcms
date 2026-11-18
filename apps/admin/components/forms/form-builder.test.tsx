@@ -1,8 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { runStepAction } from "@/components/agent/step-actions";
 import type { AgentPlanStep } from "@/lib/forms/assist-stream";
+import { AUTOSAVE_DEBOUNCE_MS } from "@/lib/forms/autosave";
+import type { SaveDraftState } from "@/lib/forms/builder-state";
 import type { FormDetail, PinnableQuestion } from "@/lib/forms/types";
 import type { ReadState } from "@/lib/read-state";
 import { t } from "@/lib/i18n/en";
@@ -152,7 +154,18 @@ function press(key: "forms.builder.assistantChangeUndo" | "forms.builder.assista
   fireEvent.click(screen.getByRole("button", { name: t(key) }));
 }
 
+/** Lets React commit and the debounce clock reach `ms`, in that order. */
+async function elapse(ms: number): Promise<void> {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+}
+
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -527,6 +540,82 @@ describe("FormBuilder and the apply-draft card", () => {
     expect(accept).toBeUndefined();
     expect(kept.title["en"]).toBe("Still editable");
     expect(kept.steps[0]?.title["en"]).toBe("Already applied");
+  });
+
+  it("saves nothing when the refusal lands on an edit whose debounce timer is already armed", async () => {
+    vi.useFakeTimers();
+    const actions = builderActions();
+    let settleAccept: (state: SaveDraftState) => void = () => undefined;
+    actions.saveDraft
+      .mockImplementationOnce(
+        () =>
+          new Promise<SaveDraftState>((resolve) => {
+            settleAccept = resolve;
+          }),
+      )
+      .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] });
+    render(
+      <FormBuilder
+        detail={DETAIL}
+        {...CHROME}
+        {...actions}
+        assist={{ endpoint: "/forms/frm_quote/assist" }}
+      />,
+    );
+
+    void confirmApplyDraft(applyDraftStep({ definition: renamedDraft("Expired") }));
+    await elapse(AUTOSAVE_DEBOUNCE_MS);
+    expect(actions.saveDraft).toHaveBeenCalledTimes(1);
+
+    // The user types while the accept is still in flight, arming a debounce timer of its own.
+    fireEvent.change(titleField(), { target: { value: "Edit in flight" } });
+
+    // The refusal lands with no render between it and that timer, which is the gap the hold closes.
+    settleAccept(EXPIRED);
+    for (let tick = 0; tick < 10; tick += 1) await Promise.resolve();
+    vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+
+    await elapse(AUTOSAVE_DEBOUNCE_MS * 4);
+    expect(actions.saveDraft, "no plain save of the assistant's content").toHaveBeenCalledTimes(1);
+    expect(choice()).not.toBeNull();
+  });
+
+  it("dismisses the choice and reloads the stored draft when a lost keep response replays", async () => {
+    const actions = builderActions();
+    const stored = { ...renamedDraft("Expired"), title: { en: "Kept on the server" } };
+    actions.saveDraft
+      .mockResolvedValueOnce(EXPIRED)
+      .mockResolvedValueOnce({
+        status: "error" as const,
+        issues: [],
+        warnings: [],
+        code: "AGENT_ADOPT_REPLAYED",
+        message: "That change is already recorded as your own edit.",
+      })
+      .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] });
+    const readStoredDraft = vi
+      .fn()
+      .mockResolvedValue({ status: "read" as const, definition: stored });
+    render(
+      <FormBuilder
+        detail={DETAIL}
+        {...CHROME}
+        {...actions}
+        readStoredDraft={readStoredDraft}
+        assist={{ endpoint: "/forms/frm_quote/assist" }}
+      />,
+    );
+    await confirmApplyDraft(applyDraftStep({ definition: renamedDraft("Expired") }));
+    await waitFor(() => expect(choice()).not.toBeNull(), { timeout: 3000 });
+
+    press("forms.builder.assistantChangeKeep");
+    await waitFor(() => expect(readStoredDraft).toHaveBeenCalled(), { timeout: 3000 });
+    await waitFor(() => expect(choice()).toBeNull(), { timeout: 3000 });
+    await waitFor(() => expect(titleField().value).toBe("Kept on the server"), { timeout: 3000 });
+    expect(
+      screen.queryByRole("button", { name: t("forms.builder.assistantChangeUndo") }),
+      "no Undo over a keep the server recorded",
+    ).toBeNull();
   });
 
   it("returns to the form when the applied draft deletes the step on screen", async () => {
