@@ -14,6 +14,15 @@ function first(value: string | readonly string[] | undefined): string | undefine
   return typeof value === "string" ? value : value?.[0];
 }
 
+/** Shape only: one `@` with something before it and a dotted domain after, and no space. The API decides. */
+export function looksLikeAddress(value: string): boolean {
+  const at = value.indexOf("@");
+  if (at <= 0 || at !== value.lastIndexOf("@") || /\s/u.test(value)) return false;
+  const domain = value.slice(at + 1);
+  const dot = domain.lastIndexOf(".");
+  return dot > 0 && dot < domain.length - 1;
+}
+
 export function membersGrantHref(workspaceId: string): string {
   return `${workspaceSectionHref(workspaceId, "members")}?grant=1`;
 }

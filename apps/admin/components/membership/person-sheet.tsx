@@ -10,6 +10,7 @@ import { groupScope, roleDescription } from "@/lib/membership/access-group-form"
 import type { AccessCapabilities } from "@/lib/membership/access-patterns";
 import { liveGrants, offersReconfirm, type PersonHold, type PersonRow } from "@/lib/membership/people";
 
+import { NamedLabel } from "./named-label";
 import { SuspendedTag } from "./suspended-tag";
 
 export type PersonAct =
@@ -85,12 +86,11 @@ export function PersonSheet({
               variant="secondary"
               size="md"
               isDisabled={pending}
-              aria-label={t("membership.person.appointFor", { person: label })}
               onPress={() => {
                 onAct({ kind: "appoint" });
               }}
             >
-              {t("membership.person.appoint")}
+              <NamedLabel visible={t("membership.person.appoint")} name={t("membership.person.appointFor", { person: label })} />
             </Button>
           )}
         </div>
@@ -134,30 +134,28 @@ export function PersonSheet({
                     <Button
                       size="md"
                       isDisabled={pending}
-                      aria-label={t("membership.person.reconfirmFor", {
-                        person: label,
-                        group: hold.group.name,
-                      })}
                       onPress={() => {
                         onAct({ kind: "reconfirm", hold });
                       }}
                     >
-                      {t("membership.person.reconfirm")}
+                      <NamedLabel visible={t("membership.person.reconfirm")} name={t("membership.person.reconfirmFor", {
+                        person: label,
+                        group: hold.group.name,
+                      })} />
                     </Button>
                   )}
                   <Button
                     variant="secondary"
                     size="md"
                     isDisabled={pending}
-                    aria-label={t("membership.person.revokeFor", {
-                      person: label,
-                      group: hold.group.name,
-                    })}
                     onPress={() => {
                       onAct({ kind: "revoke", hold });
                     }}
                   >
-                    {t("membership.groups.removeHolder")}
+                    <NamedLabel visible={t("membership.groups.removeHolder")} name={t("membership.person.revokeFor", {
+                      person: label,
+                      group: hold.group.name,
+                    })} />
                   </Button>
                 </li>
               ))}

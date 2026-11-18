@@ -21,6 +21,7 @@ import type {
 } from "@/lib/membership/types";
 
 import { GroupForm } from "./group-form";
+import { NamedLabel } from "./named-label";
 import { SuspendedTag } from "./suspended-tag";
 
 export interface AccessGroupsActions {
@@ -180,7 +181,6 @@ export function AccessGroupsPanel({
                       <Button
                         variant="secondary"
                         size="md"
-                        aria-label={t("membership.groups.open", { name: group.name })}
                         onPress={() => {
                           setState({ status: "idle" });
                           setActError(undefined);
@@ -188,7 +188,7 @@ export function AccessGroupsPanel({
                           setOpenId(group.teamId);
                         }}
                       >
-                        {group.name}
+                        <NamedLabel visible={group.name} name={t("membership.groups.open", { name: group.name })} />
                       </Button>
                     </td>
                     <td>{group.roles.map(roleName).join(", ")}</td>
@@ -367,27 +367,25 @@ function GroupSheet({
                   <Button
                     size="md"
                     isDisabled={pending}
-                    aria-label={t("membership.person.reconfirmFor", {
-                      person: person(holder),
-                      group: group.name,
-                    })}
                     onPress={() => {
                       onAct({ kind: "reconfirm", holder });
                     }}
                   >
-                    {t("membership.person.reconfirm")}
+                    <NamedLabel visible={t("membership.person.reconfirm")} name={t("membership.person.reconfirmFor", {
+                      person: person(holder),
+                      group: group.name,
+                    })} />
                   </Button>
                 )}
                 <Button
                   variant="secondary"
                   size="md"
                   isDisabled={pending}
-                  aria-label={t("membership.groups.removeHolderFor", { email: holder.email })}
                   onPress={() => {
                     onAct({ kind: "revoke", holder });
                   }}
                 >
-                  {t("membership.groups.removeHolder")}
+                  <NamedLabel visible={t("membership.groups.removeHolder")} name={t("membership.groups.removeHolderFor", { email: holder.email })} />
                 </Button>
               </li>
             ))}

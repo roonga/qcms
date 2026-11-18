@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 let status = 200;
 let body: unknown = {};
 
-const adminApiFetch = vi.fn((_session: unknown, _path: string, _init?: unknown) =>
+const adminApiFetch = vi.fn<(session: unknown, path: string, init?: unknown) => Promise<Response>>(() =>
   Promise.resolve(
     status === 204
       ? new Response(null, { status })

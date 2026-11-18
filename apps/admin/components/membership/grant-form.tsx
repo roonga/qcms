@@ -12,9 +12,8 @@ import { groupScope } from "@/lib/membership/access-group-form";
 import { accessDelta } from "@/lib/membership/access-patterns";
 import { holdsForApproval } from "@/lib/membership/group-edit";
 import { grantOf, liveGrants, type PersonRow } from "@/lib/membership/people";
+import { looksLikeAddress } from "@/lib/membership/workspace-views";
 import type { AccessGroup, MembershipActionState } from "@/lib/membership/types";
-
-const ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
 /** Grant by exact address: the only way a Workspace administrator adds somebody. */
 export function GrantForm({
@@ -53,7 +52,7 @@ export function GrantForm({
   const [pending, startTransition] = useTransition();
 
   const address = email.trim();
-  const invalid = !ADDRESS.test(address);
+  const invalid = !looksLikeAddress(address);
   const group = groups.find((entry) => entry.teamId === teamId);
   const existing = people.find(
     (person) => person.email.toLocaleLowerCase() === address.toLocaleLowerCase(),
@@ -68,6 +67,9 @@ export function GrantForm({
       after: group,
     });
   const before = existing === undefined ? [] : liveGrants(existing);
+  let submit = t("membership.grant.submit");
+  if (held) submit = t("access.preview.requestApproval");
+  if (pending) submit = t("membership.grant.working");
 
   return (
     <section aria-labelledby="qcms-grant-heading" className="flex min-w-0 flex-col gap-4">
@@ -148,11 +150,7 @@ export function GrantForm({
 
           <div className="flex flex-wrap gap-2">
             <Button type="submit" size="md" isDisabled={pending}>
-              {pending
-                ? t("membership.grant.working")
-                : held
-                  ? t("access.preview.requestApproval")
-                  : t("membership.grant.submit")}
+              {submit}
             </Button>
             <Link href={cancelHref} className="qcms-button-link qcms-button-link--secondary">
               {t("access.confirm.cancel")}

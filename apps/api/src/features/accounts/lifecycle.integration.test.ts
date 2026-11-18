@@ -406,8 +406,7 @@ async function suspendedBy(group: string, userId: string): Promise<string | null
 
 /** Whether the administration list reports this hold as suspended. */
 async function holdSeen(group: string, userId: string): Promise<boolean | undefined> {
-  const response = await adminSend(
-    "GET",
+  const response = await adminGet(
     `/admin/workspaces/${workspaceId}/access-groups`,
     workspaceAdminToken,
   );
@@ -420,11 +419,7 @@ async function holdSeen(group: string, userId: string): Promise<boolean | undefi
 }
 
 async function memberStatusSeen(userId: string): Promise<string | undefined> {
-  const response = await adminSend(
-    "GET",
-    `/admin/workspaces/${workspaceId}/members`,
-    workspaceAdminToken,
-  );
+  const response = await adminGet(`/admin/workspaces/${workspaceId}/members`, workspaceAdminToken);
   const body = (await response.json()) as { members: { userId: string; status: string }[] };
   return body.members.find((member) => member.userId === userId)?.status;
 }

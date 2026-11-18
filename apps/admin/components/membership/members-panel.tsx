@@ -14,6 +14,7 @@ import { grantOf, liveGrants, type PersonRow } from "@/lib/membership/people";
 import type { MembershipActionState } from "@/lib/membership/types";
 
 import { PersonSheet, type PersonAct } from "./person-sheet";
+import { NamedLabel } from "./named-label";
 import { SuspendedTag } from "./suspended-tag";
 
 export interface MembersActions {
@@ -151,14 +152,13 @@ export function MembersPanel({
                         <Button
                           variant="secondary"
                           size="md"
-                          aria-label={t("membership.members.open", { person: labelOf(person) })}
                           onPress={() => {
                             setState({ status: "idle" });
                             setActError(undefined);
                             setOpenId(person.userId);
                           }}
                         >
-                          {labelOf(person)}
+                          <NamedLabel visible={labelOf(person)} name={t("membership.members.open", { person: labelOf(person) })} />
                         </Button>
                         <span className="block text-xs break-all text-(--color-text-muted)">
                           {person.email}

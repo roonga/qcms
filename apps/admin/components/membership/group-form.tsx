@@ -71,6 +71,10 @@ export function GroupForm({
     after: payload,
   });
 
+  let submit = submitLabel;
+  if (held) submit = t("access.preview.requestApproval");
+  if (pending) submit = t("access.confirm.working");
+
   function roleBox(role: GroupRole) {
     const description = roleDescription(role);
     return (
@@ -181,11 +185,7 @@ export function GroupForm({
           </Button>
         )}
         <Button type="submit" size="md" isDisabled={pending}>
-          {pending
-            ? t("access.confirm.working")
-            : held
-              ? t("access.preview.requestApproval")
-              : submitLabel}
+          {submit}
         </Button>
       </div>
     </form>

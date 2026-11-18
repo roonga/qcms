@@ -118,9 +118,7 @@ describe("changing a group", () => {
     expect(within(form).queryByRole("checkbox", { name: "prod" })).toBeNull();
 
     await user.click(within(form).getByRole("checkbox", { name: "View responses" }));
-    expect((within(form).getByRole("checkbox", { name: "prod" }) as HTMLInputElement).checked).toBe(
-      false,
-    );
+    expect(within(form).getByRole<HTMLInputElement>("checkbox", { name: "prod" }).checked).toBe(false);
     await user.click(within(form).getByRole("button", { name: "Save group" }));
     expect(within(form).getByRole("alert").textContent).toContain(
       "Choose at least one environment for Publish forms, View responses or Erase responses.",
