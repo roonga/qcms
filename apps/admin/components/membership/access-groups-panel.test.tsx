@@ -2,130 +2,197 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AccessGroupList, MembershipActionState } from "@/lib/membership/types";
+import type { AccessGroup, AccessGroupList, MembershipActionState } from "@/lib/membership/types";
+import { WORKSPACE_ADMINISTRATION } from "@/lib/membership/workspace-views";
 
-import { AccessGroupsPanel } from "./access-groups-panel";
+import { AccessGroupsPanel, type AccessGroupsActions } from "./access-groups-panel";
 
-const DONE: MembershipActionState = { status: "done", message: "ok" };
+const DONE: MembershipActionState = { status: "done", message: "Saved." };
 
-const GROUP_NAME = "Response viewers";
+function group(
+  teamId: string,
+  name: string,
+  roles: readonly string[],
+  environments: readonly string[],
+  holders: AccessGroup["holders"] = [],
+): AccessGroup {
+  return { teamId, name, roles, environments, externalGroupId: null, holders };
+}
 
-const LIST: AccessGroupList = {
+const STARTERS: AccessGroupList = {
   workspaceId: "ws_1",
   groups: [
-    {
-      teamId: "tm_1",
-      name: GROUP_NAME,
-      roles: ["responses.viewer"],
-      environments: ["test"],
-      externalGroupId: null,
-      holders: [{ userId: "u1", email: "held@qcms.test" }],
-    },
+    group("tm_a", "Authors", ["forms.editor", "forms.publisher", "responses.viewer"], ["test"], [
+      { userId: "u_me", email: "me@qcms.test", suspended: false },
+    ]),
+    group("tm_p", "Publishers", ["forms.publisher"], ["prod"]),
+    group("tm_v", "Response viewers", ["responses.viewer"], ["prod"], [
+      { userId: "u_aiko", email: "aiko@qcms.test", suspended: true },
+      { userId: "u_me", email: "me@qcms.test", suspended: true },
+    ]),
+    group("tm_e", "Response erasers", ["responses.eraser"], ["prod"]),
+    group("tm_r", "Reviewers", ["forms.viewer"], []),
   ],
 };
 
-function renderPanel(create = vi.fn(() => Promise.resolve(DONE))) {
+function actions(overrides: Partial<AccessGroupsActions> = {}): AccessGroupsActions {
+  return {
+    update: vi.fn(() => Promise.resolve(DONE)),
+    remove: vi.fn(() => Promise.resolve(DONE)),
+    revoke: vi.fn(() => Promise.resolve(DONE)),
+    reconfirm: vi.fn(() => Promise.resolve(DONE)),
+    ...overrides,
+  };
+}
+
+function renderPanel(
+  list: AccessGroupList,
+  options: {
+    readonly acts?: AccessGroupsActions;
+    readonly requireSecondApprover?: boolean;
+    readonly initialGroup?: string;
+  } = {},
+) {
+  const acts = options.acts ?? actions();
   render(
     <AccessGroupsPanel
-      list={LIST}
+      list={list}
       message={undefined}
-      environments={["dev", "test", "prod"]}
-      members={[
-        { userId: "u1", email: "held@qcms.test", name: "Held" },
-        { userId: "u2", email: "free@qcms.test", name: "Free" },
-      ]}
-      create={create}
-      remove={vi.fn(() => Promise.resolve(DONE))}
-      grant={vi.fn(() => Promise.resolve(DONE))}
-      revoke={vi.fn(() => Promise.resolve(DONE))}
+      environments={["test", "prod"]}
+      viewerId="u_me"
+      requireSecondApprover={options.requireSecondApprover ?? false}
+      capabilities={WORKSPACE_ADMINISTRATION}
+      initialGroup={options.initialGroup}
+      newHref="/workspaces/ws_1/access-groups?new=1"
+      grantHref="/workspaces/ws_1/members?grant=1"
+      names={{ u_aiko: "Aiko Tanaka", u_me: "Me" }}
+      actions={acts}
     />,
   );
-  return create;
+  return acts;
 }
 
-/* React Aria paints the role list in a popover, which is overlay layout and belongs in Playwright
-   (ADR-23); the select it keeps for form submission carries the same options. */
-function chooseRole(user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> {
-  const option = screen.getByRole("option", { name, hidden: true });
-  const field = option.closest("select");
-  if (field === null) throw new Error(`the role ${name} is on no select`);
-  return user.selectOptions(field, option);
-}
-
-describe("the access-group form", () => {
-  it("types no environment or account: every pick is a control", () => {
-    renderPanel();
-    const textboxes = screen.getAllByRole("textbox").map((box) => box.getAttribute("type"));
-    expect(screen.queryByLabelText(/one id per line/iu)).toBeNull();
-    expect(screen.queryByLabelText("Account address")).toBeNull();
-    expect(textboxes).not.toContain("email");
-    expect(screen.getByRole("textbox", { name: "Name" })).toBeTruthy();
+describe("Access groups", () => {
+  it("lists each group's roles, environments and people", () => {
+    renderPanel(STARTERS);
+    const table = screen.getByRole("table", { name: /access groups/iu });
+    const reviewers = within(table).getByRole("row", { name: /Reviewers/u });
+    expect(reviewers).toHaveTextContent("View forms");
+    expect(reviewers).toHaveTextContent("every environment");
+    expect(reviewers).toHaveTextContent("Nobody");
+    expect(within(table).getByRole("row", { name: /Response viewers/u })).toHaveTextContent(
+      "Suspended, needs re-confirmation",
+    );
   });
 
-  it("names a group by its own label and says its roles and environments in words", () => {
-    renderPanel();
-    const row = screen.getByText(GROUP_NAME).closest("li");
-    expect(row).not.toBeNull();
-    const scope = within(row as HTMLElement);
-    expect(scope.getByText("View responses, in test")).toBeTruthy();
-    expect(scope.queryByText("responses.viewer")).toBeNull();
-    expect(scope.getByText("View responses")).toBeTruthy();
+  it("names a role no group grants once a starter group is gone (criterion 96)", () => {
+    renderPanel({
+      workspaceId: "ws_1",
+      groups: STARTERS.groups.filter((entry) => entry.teamId !== "tm_e"),
+    });
+    expect(screen.getByTestId("qcms-uncovered-notice")).toHaveTextContent(
+      "Erase responses: no group grants it yet.",
+    );
   });
 
-  it("offers only members who do not hold the group yet", () => {
-    renderPanel();
-    const row = screen.getByText(GROUP_NAME).closest("li") as HTMLElement;
-    const options = within(row).getAllByRole("option", { hidden: true });
-    expect(
-      options.map((option) => option.textContent?.trim()).filter((text) => text !== ""),
-    ).toEqual(["free@qcms.test"]);
-  });
-
-  it("offers no environment picker while the chosen role applies everywhere", () => {
-    renderPanel();
-    expect(screen.getByTestId("qcms-group-no-environments")).toBeTruthy();
-    expect(screen.queryByRole("checkbox", { name: "test" })).toBeNull();
-  });
-
-  it("asks for environments as soon as the chosen role needs them", async () => {
+  it("says before deleting a starter group what it leaves uncovered (criterion 96)", async () => {
     const user = userEvent.setup();
-    renderPanel();
-    await chooseRole(user, "Publish forms");
-    for (const environment of ["dev", "test", "prod"]) {
-      expect(screen.getByRole("checkbox", { name: environment })).toBeTruthy();
-    }
-    expect(screen.queryByTestId("qcms-group-no-environments")).toBeNull();
+    const acts = renderPanel(STARTERS, { initialGroup: "tm_e" });
+    await user.click(screen.getByRole("button", { name: "Delete group" }));
+    const dialog = screen.getByRole("dialog", { name: "Delete Response erasers?" });
+    expect(within(dialog).getByTestId("qcms-group-delete-preview")).toHaveTextContent(
+      "Nobody will hold Erase responses through any group",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Delete Response erasers" }));
+    expect(acts.remove).toHaveBeenCalledWith("ws_1", "tm_e");
   });
+});
 
-  it("creates with the typed name and the ticked environments, in the installation's order", async () => {
+describe("changing a group", () => {
+  it("offers environments only once a role reads them, and saves no unticked one (criterion 15)", async () => {
     const user = userEvent.setup();
-    const create = renderPanel();
-    await user.type(screen.getByRole("textbox", { name: "Name" }), "  Publishers  ");
-    await chooseRole(user, "Publish forms");
-    await user.click(screen.getByRole("checkbox", { name: "prod" }));
-    await user.click(screen.getByRole("checkbox", { name: "dev" }));
+    const acts = renderPanel(STARTERS, { initialGroup: "tm_r" });
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    const form = screen.getByTestId("qcms-group-form");
+    expect(within(form).getByTestId("qcms-group-no-environments")).toBeInTheDocument();
+    expect(within(form).queryByRole("checkbox", { name: "prod" })).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Create group" }));
-    expect(create).toHaveBeenCalledWith("ws_1", {
-      name: "Publishers",
-      roles: ["forms.publisher"],
-      environments: ["dev", "prod"],
+    await user.click(within(form).getByRole("checkbox", { name: "View responses" }));
+    expect(within(form).getByRole("checkbox", { name: "prod" })).not.toBeChecked();
+    await user.click(within(form).getByRole("button", { name: "Save group" }));
+    expect(within(form).getByRole("alert")).toHaveTextContent(
+      "Choose at least one environment for Publish forms, View responses or Erase responses.",
+    );
+    expect(acts.update).not.toHaveBeenCalled();
+
+    await user.click(within(form).getByRole("checkbox", { name: "prod" }));
+    await user.click(within(form).getByRole("button", { name: "Save group" }));
+    expect(acts.update).toHaveBeenCalledWith("ws_1", "tm_r", {
+      name: "Reviewers",
+      roles: ["forms.viewer", "responses.viewer"],
+      environments: ["prod"],
     });
   });
 
-  it("holds the create back until the group has a name and, where needed, an environment", async () => {
+  it("renames a group and keeps its environment set exactly", async () => {
     const user = userEvent.setup();
-    renderPanel();
-    const submit = screen.getByRole("button", { name: "Create group" });
-    expect(submit.hasAttribute("disabled")).toBe(true);
+    const acts = renderPanel(STARTERS, { initialGroup: "tm_a" });
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    const name = screen.getByRole("textbox", { name: "Name" });
+    await user.clear(name);
+    await user.type(name, "Builders");
+    await user.click(screen.getByRole("button", { name: "Save group" }));
+    expect(acts.update).toHaveBeenCalledWith("ws_1", "tm_a", {
+      name: "Builders",
+      roles: ["forms.editor", "forms.publisher", "responses.viewer"],
+      environments: ["test"],
+    });
+  });
 
-    await user.type(screen.getByRole("textbox", { name: "Name" }), "Authors");
-    expect(submit.hasAttribute("disabled")).toBe(false);
-
-    await chooseRole(user, "Erase responses");
-    expect(submit.hasAttribute("disabled")).toBe(true);
-
+  it("holds a response environment added to the actor's own group, and shows it pending", async () => {
+    const user = userEvent.setup();
+    const held: MembershipActionState = { status: "held", message: "Request sent." };
+    const acts = renderPanel(STARTERS, {
+      initialGroup: "tm_a",
+      requireSecondApprover: true,
+      acts: actions({ update: vi.fn(() => Promise.resolve(held)) }),
+    });
+    await user.click(screen.getByRole("button", { name: "Change" }));
     await user.click(screen.getByRole("checkbox", { name: "prod" }));
-    expect(submit.hasAttribute("disabled")).toBe(false);
+    expect(screen.getByTestId("qcms-access-approval")).toHaveTextContent("Needs an Approver");
+    await user.click(screen.getByRole("button", { name: "Request approval" }));
+    expect(acts.update).toHaveBeenCalledOnce();
+    expect(await screen.findByText("Request sent.")).toBeInTheDocument();
+    expect(screen.queryByText("Saved.")).toBeNull();
+  });
+
+  it("applies the same edit at once for an administrator not in the group", async () => {
+    const user = userEvent.setup();
+    renderPanel(STARTERS, { initialGroup: "tm_p", requireSecondApprover: true });
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    await user.click(screen.getByRole("checkbox", { name: "View responses" }));
+    expect(screen.queryByTestId("qcms-access-approval")).toBeNull();
+    expect(screen.getByRole("button", { name: "Save group" })).toBeInTheDocument();
+  });
+});
+
+describe("re-confirming in a group", () => {
+  it("is offered for another person's suspended membership and never for your own", async () => {
+    const user = userEvent.setup();
+    const acts = renderPanel(STARTERS, { initialGroup: "tm_v" });
+    const sheet = screen.getByTestId("qcms-group-sheet");
+    expect(
+      within(sheet).queryByRole("button", { name: "Re-confirm Me in Response viewers" }),
+    ).toBeNull();
+    expect(within(sheet).getByText(/cannot re-confirm your own membership/u)).toBeInTheDocument();
+
+    await user.click(
+      within(sheet).getByRole("button", { name: "Re-confirm Aiko Tanaka in Response viewers" }),
+    );
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Re-confirm Aiko Tanaka in Response viewers?" }))
+        .getByRole("button", { name: "Re-confirm" }),
+    );
+    expect(acts.reconfirm).toHaveBeenCalledWith("ws_1", "tm_v", "u_aiko", "Aiko Tanaka");
   });
 });
