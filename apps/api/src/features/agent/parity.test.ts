@@ -21,10 +21,9 @@ import {
 } from "./tools/registry.js";
 
 /**
- * Task 096's audit: every action kind and every tool against the policy evaluator, for each
- * role and environment. The offer side is the grant filter and the tool list; the execution
- * side is `ROUTE_POLICIES`, which the route middleware reads. Where the two disagree, a card
- * is offered the route refuses, or an act the user may perform is withheld from them.
+ * Every action kind and every tool against the policy evaluator, for each role and
+ * environment. The offer side is the grant filter and the tool list; the execution side is
+ * `ROUTE_POLICIES`, which the route middleware reads.
  */
 
 const ENVIRONMENTS = ["test", "prod"] as const;

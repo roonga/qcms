@@ -53,7 +53,6 @@ import {
   forbidden,
   holdsCellIn,
   membershipIn,
-  requireCell,
   requireForm,
   resolveForm,
   resolveQuestion,
@@ -349,10 +348,9 @@ async function workspaceNamesFor(
 }
 
 /**
- * A step's own cells on the subject it names, in the environment that step binds. `resolve`
- * then ask the evaluator is the pair every read port uses, so the answer is the one the
- * route itself would give. A subject an earlier step creates has no workspace of its own
- * yet, so the question becomes whether the caller may act in the workspace that step targets.
+ * A step's own cells on the subject it names, in the environment that step binds, through the
+ * resolve-then-evaluate pair every read port uses. A subject an earlier step creates has no
+ * workspace of its own yet, so the question becomes that step's own target workspace.
  */
 async function subjectAllows(
   build: ScreenBuildInput,

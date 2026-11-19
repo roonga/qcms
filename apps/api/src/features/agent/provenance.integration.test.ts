@@ -1655,9 +1655,9 @@ describe("a Confirm from a disabled account is refused (criterion 67)", () => {
 });
 
 /**
- * Criterion 91's other half at Confirm. A draft edit carries no card, so task 111 rechecks
- * both on every edit request; a card's Confirm is a request of its own, and the session gate
- * and the grant check are what read the account and the membership again.
+ * Criterion 91 at Confirm. A Confirm is a request of its own, so the session gate and the
+ * grant check are what read the account and the membership again; a card-less edit has its
+ * own recheck, since no card stands in front of it.
  */
 describe("a Confirm after the membership it needs was suspended is refused (criterion 91)", () => {
   it("refuses the step and writes no row, because the grant check reads the hold again", async () => {

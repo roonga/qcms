@@ -239,11 +239,8 @@ test("confirms the second-approver switch on its own screen", async ({ page }) =
   await clearSecondApprover();
 });
 
-/*
- * Criterion 91: turning the rule off is held for an Approver, so the card holds the plan at
- * that step. Before task 096 the 202 read as success and the step said "Done." over a switch
- * that had not moved.
- */
+// Criterion 91: turning the rule off is held for an Approver, so the card holds the plan at
+// that step rather than reporting a switch that has not moved.
 test("holds the card when turning the switch off waits for an Approver", async ({ page }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);
