@@ -656,9 +656,12 @@ describe("FormBuilder and the apply-draft card", () => {
     let superseding: { outcome: string } | undefined;
     void confirmApplyDraft(
       applyDraftStep({ definition: renamedDraft("Second proposal"), acceptToken: "acc.tok2" }),
-    ).then((result) => {
-      superseding = result;
-    });
+    ).then(
+      (result) => {
+        superseding = result;
+      },
+      () => undefined,
+    );
 
     await elapse(AUTOSAVE_DEBOUNCE_MS * 4);
     // Left pending it would never settle, and its token would ride out on the keep below.
