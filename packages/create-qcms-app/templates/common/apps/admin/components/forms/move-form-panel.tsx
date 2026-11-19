@@ -33,10 +33,7 @@ export function MoveFormPanel({
   readonly chosen?: MoveDestination;
   readonly preview?: MovePreview;
   readonly error?: string;
-  readonly move: (
-    formId: string,
-    destination: MoveDestination,
-  ) => Promise<MoveState>;
+  readonly move: (formId: string, destination: MoveDestination) => Promise<MoveState>;
 }) {
   const [state, setState] = useState<MoveState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
@@ -81,25 +78,15 @@ export function MoveFormPanel({
         <p className="text-sm text-(--color-text-muted)">{t("forms.move.choose")}</p>
       ) : (
         <div className="flex min-w-0 flex-col gap-3" data-testid="qcms-move-preview">
-          <p className="text-sm">
-            {t("forms.move.summary", { source, destination: chosen.name })}
-          </p>
+          <p className="text-sm">{t("forms.move.summary", { source, destination: chosen.name })}</p>
           <People
-            label={tPlural(
-              "forms.move.gainsOne",
-              "forms.move.gains",
-              preview.gains.length,
-            )}
+            label={tPlural("forms.move.gainsOne", "forms.move.gains", preview.gains.length)}
             people={preview.gains}
             locale={locale}
             testId="qcms-move-gains"
           />
           <People
-            label={tPlural(
-              "forms.move.losesOne",
-              "forms.move.loses",
-              preview.losses.length,
-            )}
+            label={tPlural("forms.move.losesOne", "forms.move.loses", preview.losses.length)}
             people={preview.losses}
             locale={locale}
             testId="qcms-move-losses"

@@ -88,12 +88,7 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-async function as(
-  actor: Actor,
-  method: string,
-  path: string,
-  body?: unknown,
-): Promise<Response> {
+async function as(actor: Actor, method: string, path: string, body?: unknown): Promise<Response> {
   return app.request(`/admin${path}`, {
     method,
     headers: {

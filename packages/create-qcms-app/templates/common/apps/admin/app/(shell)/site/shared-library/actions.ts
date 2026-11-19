@@ -13,9 +13,10 @@ export type LibraryState =
   | { readonly status: "error"; readonly message: string };
 
 /* Marking one workspace unmarks the one that held the library, so the two writes are one act. */
-export async function setSharedLibraryAction(
-  next: { readonly workspaceId: string | null; readonly holder: string | null },
-): Promise<LibraryState> {
+export async function setSharedLibraryAction(next: {
+  readonly workspaceId: string | null;
+  readonly holder: string | null;
+}): Promise<LibraryState> {
   const session = await requireAdminSession();
   if (next.holder !== null && next.holder !== next.workspaceId) {
     const cleared = await setSharedWorkspace(session, next.holder, false);

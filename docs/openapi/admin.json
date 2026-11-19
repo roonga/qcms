@@ -222,6 +222,10 @@
             "type": "string",
             "example": "org_default_workspace"
           },
+          "shared": {
+            "type": "boolean",
+            "example": false
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -274,6 +278,7 @@
           "questionId",
           "slug",
           "workspaceId",
+          "shared",
           "createdAt",
           "latestVersion",
           "latestStatus",
@@ -495,6 +500,10 @@
             "type": "string",
             "example": "signup"
           },
+          "workspaceId": {
+            "type": "string",
+            "example": "org_default_workspace"
+          },
           "defaultLocale": {
             "type": "string",
             "example": "en"
@@ -620,6 +629,7 @@
         "required": [
           "formId",
           "slug",
+          "workspaceId",
           "defaultLocale",
           "status",
           "draftSource",

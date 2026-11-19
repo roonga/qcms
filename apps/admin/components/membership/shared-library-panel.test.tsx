@@ -29,7 +29,9 @@ describe("the shared question library screen (criterion 109)", () => {
     expect(confirm.textContent).toContain(
       "Everyone with Edit forms in any workspace will be able to see and pin Question library's questions.",
     );
-    expect(confirm.textContent).toContain("Recorded in the site audit and in Question library's audit.");
+    expect(confirm.textContent).toContain(
+      "Recorded in the site audit and in Question library's audit.",
+    );
 
     await userEvent.click(within(confirm).getByRole("button", { name: t("site.library.save") }));
     expect(save).toHaveBeenCalledWith({ workspaceId: "org_library", holder: null });
@@ -50,9 +52,7 @@ describe("the shared question library screen (criterion 109)", () => {
   });
 
   it("says a library matters at two or more workspaces", () => {
-    render(
-      <SharedLibraryPanel workspaces={[WORKSPACES[0]!]} holder={null} save={vi.fn()} />,
-    );
+    render(<SharedLibraryPanel workspaces={[WORKSPACES[0]!]} holder={null} save={vi.fn()} />);
     expect(screen.getByTestId("qcms-shared-library").textContent).toContain(
       t("site.library.oneWorkspace"),
     );

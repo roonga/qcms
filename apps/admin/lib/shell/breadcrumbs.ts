@@ -140,7 +140,10 @@ export function breadcrumbTrail(pathname: string, names: CrumbNames = {}): reado
       trail = workspaces(rest, names);
       break;
     case "site":
-      trail = [{ label: t("site.title"), href: SHARED_LIBRARY_PATH }, { label: t("site.library.title") }];
+      trail = [
+        { label: t("site.title"), href: SHARED_LIBRARY_PATH },
+        { label: t("site.library.title") },
+      ];
       break;
     case "settings":
       trail = [{ label: t("settings.title") }];

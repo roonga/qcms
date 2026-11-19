@@ -28,8 +28,10 @@ export default async function SharedLibraryPage() {
   if (!workspaces.ok) {
     return <Alert variant="error">{workspaces.message}</Alert>;
   }
+  // Archived workspaces are not offered as a choice, but one that still holds the library
+  // is named as the holder so saving another hands it on rather than being refused.
   const open = workspaces.data.filter((workspace) => workspace.archivedAt === null);
-  const holder = open.find((workspace) => workspace.isShared === true);
+  const holder = workspaces.data.find((workspace) => workspace.isShared === true);
 
   return (
     <div className="flex min-w-0 flex-col gap-4">

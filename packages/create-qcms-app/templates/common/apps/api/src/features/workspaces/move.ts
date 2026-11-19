@@ -109,10 +109,7 @@ async function cellsHeld(
   return held;
 }
 
-function actsFrom(
-  keys: readonly string[],
-  environments: readonly string[],
-): readonly MovedAct[] {
+function actsFrom(keys: readonly string[], environments: readonly string[]): readonly MovedAct[] {
   const byAct = new Map<string, string[]>();
   for (const key of keys) {
     const [act = "", environment] = key.split("@");
@@ -184,9 +181,7 @@ export async function moveHoldReason(
 ): Promise<MoveHoldReason | undefined> {
   if (input.source.requireSecondApprover) return "second-approval";
   const administrators = await listWorkspaceAdministrators(exec, input.source.id);
-  const administers = administrators.some(
-    (row) => row.userId === input.moverId && row.counts,
-  );
+  const administers = administrators.some((row) => row.userId === input.moverId && row.counts);
   return administers ? undefined : "not-source-administrator";
 }
 

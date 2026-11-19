@@ -51,7 +51,8 @@ export default async function FormMovePage({
 
   const asked = typeof query["to"] === "string" ? query["to"] : undefined;
   const chosen = destinations.find((destination) => destination.workspaceId === asked);
-  const preview = chosen === undefined ? undefined : await readMovePreview(session, formId, chosen.workspaceId);
+  const preview =
+    chosen === undefined ? undefined : await readMovePreview(session, formId, chosen.workspaceId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -67,9 +68,7 @@ export default async function FormMovePage({
         source={source}
         destinations={destinations}
         {...(chosen === undefined ? {} : { chosen })}
-        {...(preview === undefined || !preview.ok
-          ? {}
-          : { preview: preview.data })}
+        {...(preview === undefined || !preview.ok ? {} : { preview: preview.data })}
         {...(preview !== undefined && !preview.ok ? { error: preview.message } : {})}
         move={moveFormAction}
       />
