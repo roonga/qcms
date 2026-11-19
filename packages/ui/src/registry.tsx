@@ -41,6 +41,7 @@ import { RepeatGroup } from "./repeat/RepeatGroup.tsx";
 import { RepeatInstance } from "./repeat/RepeatInstance.tsx";
 import { RepeatRow } from "./repeat/RepeatRow.tsx";
 import { RepeatTable } from "./repeat/RepeatTable.tsx";
+import { questionIdOfField } from "./repeat/repeat-node.ts";
 import { RepeatGroupSchema, RepeatInstanceSchema } from "./repeat/repeat.schema.ts";
 import {
   RepeatCellSchema,
@@ -123,7 +124,13 @@ function FieldBlur({
     }
   };
   return (
-    <div style={{ display: "contents" }} id={name} data-qcms-field={name} onBlur={handleBlur}>
+    <div
+      style={{ display: "contents" }}
+      id={name}
+      data-qcms-field={name}
+      data-qcms-question-id={name === undefined ? undefined : questionIdOfField(name)}
+      onBlur={handleBlur}
+    >
       {children}
     </div>
   );

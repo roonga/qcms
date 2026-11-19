@@ -38,7 +38,7 @@ const KEYS = [
 ] as const;
 
 /** No cookies at all: the shape `resolveAppearance` sees for a first-time visitor. */
-const NO_COOKIES = { mode: undefined, font: undefined, density: undefined } as const;
+const NO_COOKIES = { mode: undefined, font: undefined, textSize: undefined } as const;
 
 afterEach(() => {
   for (const key of KEYS) delete process.env[key];
@@ -245,18 +245,20 @@ describe("respondent choices resolve over config (task 053)", () => {
       modeChosen: false,
       font: "inter",
       density: "spacious",
+      textScale: "100",
     });
   });
 
-  it("an explicit cookie beats config on every axis", () => {
+  it("an explicit cookie beats config on every respondent axis", () => {
     process.env.QCMS_PORTAL_MODE = "light";
     process.env.QCMS_PORTAL_DENSITY = "comfortable";
     process.env.QCMS_PORTAL_FONT = "inter";
-    expect(resolveAppearance({ mode: "hc", font: "atkinson", density: "compact" })).toEqual({
+    expect(resolveAppearance({ mode: "hc", font: "atkinson", textSize: "150" })).toEqual({
       mode: "hc",
       modeChosen: true,
       font: "atkinson",
-      density: "compact",
+      density: "comfortable",
+      textScale: "150",
     });
   });
 
@@ -269,11 +271,12 @@ describe("respondent choices resolve over config (task 053)", () => {
 
   it("treats a nonsense cookie as no choice, not as a value to render", () => {
     process.env.QCMS_PORTAL_MODE = "dark";
-    const resolved = resolveAppearance({ mode: "sepia", font: "papyrus", density: "cosy" });
+    const resolved = resolveAppearance({ mode: "sepia", font: "papyrus", textSize: "175" });
     expect(resolved.mode).toBe("dark");
     expect(resolved.modeChosen).toBe(false);
     expect(resolved.font).toBe(DEFAULT_FONT);
     expect(resolved.density).toBe(DEFAULT_DENSITY);
+    expect(resolved.textScale).toBe("100");
   });
 
   it("ignores a font cookie naming a face this deployment no longer offers", () => {
@@ -282,28 +285,36 @@ describe("respondent choices resolve over config (task 053)", () => {
     expect(resolveAppearance({ ...NO_COOKIES, font: "lexend" }).font).toBe("inter");
     expect(resolveAppearance({ ...NO_COOKIES, font: SYSTEM_FONT_KEY }).font).toBe(SYSTEM_FONT_KEY);
   });
+
+  it("ignores a legibility face the operator curated away, like any other face", () => {
+    process.env.QCMS_PORTAL_FONTS = "inter, atkinson";
+    process.env.QCMS_PORTAL_FONT = "inter";
+    expect(resolveAppearance({ ...NO_COOKIES, font: "opendyslexic" }).font).toBe("inter");
+    expect(resolveAppearance({ ...NO_COOKIES, font: "atkinson" }).font).toBe("atkinson");
+  });
 });
 
 describe("a form's appearance sits between the respondent's choice and config", () => {
-  const FORM = { face: "lexend", density: "spacious", corners: "pill" } as const;
+  const FORM = { face: "roboto", density: "spacious", corners: "pill" } as const;
 
   it("the form beats config on face, density and corners", () => {
     process.env.QCMS_PORTAL_FONT = "inter";
     process.env.QCMS_PORTAL_DENSITY = "compact";
     process.env.QCMS_PORTAL_CORNERS = "sharp";
     const resolved = resolveAppearance(NO_COOKIES, FORM);
-    expect(resolved.font).toBe("lexend");
+    expect(resolved.font).toBe("roboto");
     expect(resolved.density).toBe("spacious");
     expect(resolveCorners(FORM)).toBe("pill");
   });
 
-  it("the respondent's cookie beats the form on every axis it carries", () => {
+  it("the respondent's cookie beats the form on every axis it carries, never on density", () => {
     process.env.QCMS_PORTAL_MODE = "light";
-    expect(resolveAppearance({ mode: "hc", font: "atkinson", density: "compact" }, FORM)).toEqual({
+    expect(resolveAppearance({ mode: "hc", font: "atkinson", textSize: "200" }, FORM)).toEqual({
       mode: "hc",
       modeChosen: true,
       font: "atkinson",
-      density: "compact",
+      density: "spacious",
+      textScale: "200",
     });
   });
 
@@ -328,41 +339,45 @@ describe("a form's appearance sits between the respondent's choice and config", 
   it("applies the form's face when the deployment does not offer it, and adds it to the menu", () => {
     process.env.QCMS_PORTAL_FONTS = "inter";
     process.env.QCMS_PORTAL_FONT = "inter";
-    expect(resolveAppearance(NO_COOKIES, FORM).font).toBe("lexend");
-    expect(pageFontChoices(FORM).map((entry) => entry.key)).toEqual(["system", "inter", "lexend"]);
+    expect(resolveAppearance(NO_COOKIES, FORM).font).toBe("roboto");
+    expect(pageFontChoices(FORM).map((entry) => entry.key)).toEqual(["system", "inter", "roboto"]);
   });
 
   it("keeps a saved choice of the form's face on that form's page only", () => {
     process.env.QCMS_PORTAL_FONTS = "inter";
     process.env.QCMS_PORTAL_FONT = "inter";
-    const saved = { ...NO_COOKIES, font: "lexend" };
-    expect(resolveAppearance(saved, FORM).font).toBe("lexend");
-    expect(resolveAppearance(saved, { ...FORM, face: "atkinson" }).font).toBe("atkinson");
+    const saved = { ...NO_COOKIES, font: "roboto" };
+    expect(resolveAppearance(saved, FORM).font).toBe("roboto");
+    expect(resolveAppearance(saved, { ...FORM, face: "merriweather" }).font).toBe("merriweather");
     expect(resolveAppearance(saved).font).toBe("inter");
   });
 
   it("adds nothing to the menu for a face the deployment already offers, or with no form", () => {
-    process.env.QCMS_PORTAL_FONTS = "inter, lexend";
+    process.env.QCMS_PORTAL_FONTS = "inter, roboto";
     expect(pageFontChoices(FORM)).toEqual(portalFontChoices());
     expect(pageFontChoices(null)).toEqual(portalFontChoices());
   });
 });
 
 describe("root class name", () => {
-  const at = (mode: string, font: string, density: string) =>
-    ({ mode, modeChosen: false, font, density }) as Parameters<typeof rootClassName>[0];
+  const at = (mode: string, font: string, density: string, textScale = "100") =>
+    ({ mode, modeChosen: false, font, density, textScale }) as Parameters<typeof rootClassName>[0];
 
-  it("carries the mode and the font, omitting the class for the two base presets", () => {
-    expect(rootClassName(at("auto", "system", "comfortable"), "subtle")).toBe("light font-system");
-    expect(rootClassName(at("dark", "inter", "comfortable"), "subtle")).toBe("dark font-inter");
+  it("carries the mode, the font and the scale, omitting the class for the two base presets", () => {
+    expect(rootClassName(at("auto", "system", "comfortable"), "subtle")).toBe(
+      "light font-system text-scale-100",
+    );
+    expect(rootClassName(at("dark", "inter", "comfortable"), "subtle")).toBe(
+      "dark font-inter text-scale-100",
+    );
   });
 
-  it("carries all four when a non-default preset, font and density are in force", () => {
-    expect(rootClassName(at("hc", "atkinson", "compact"), "pill")).toBe(
-      "hc radius-pill font-atkinson density-compact",
+  it("carries all five when a non-default preset, font, density and scale are in force", () => {
+    expect(rootClassName(at("hc", "atkinson", "compact", "200"), "pill")).toBe(
+      "hc radius-pill font-atkinson density-compact text-scale-200",
     );
-    expect(rootClassName(at("light", "system", "spacious"), "subtle")).toBe(
-      "light font-system density-spacious",
+    expect(rootClassName(at("light", "system", "spacious", "125"), "subtle")).toBe(
+      "light font-system density-spacious text-scale-125",
     );
   });
 });

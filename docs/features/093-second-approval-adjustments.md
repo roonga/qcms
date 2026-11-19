@@ -44,7 +44,7 @@ Spec criteria owned: **27 to 44, 46, 47, 49, 116**. This task owns those and no 
 
 ## Migration
 
-None. Uses 092's table and its `payload` column for the bound roles, environments, draft revision and hash.
+`packages/db/migrations/0016_approval_request_lapsed.sql` adds `lapsed` to the approval request status `CHECK` and admits a decider on such a row (Code Owner ruling, 2026-11-19, `docs/WORKSPACE_ACCESS.md`, "Ruled (Code Owner, 2026-11-19)"). Otherwise uses 092's table and its `payload` column for the bound roles, environments, draft revision and hash.
 
 ## Gates
 

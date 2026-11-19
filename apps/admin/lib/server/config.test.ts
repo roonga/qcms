@@ -8,6 +8,7 @@ import {
   assertNoPlaceholderSecrets,
   assertSecureCookiesConfigured,
   looksLikePlaceholder,
+  previewPortalBrand,
   secureCookies,
 } from "./config.ts";
 
@@ -297,5 +298,28 @@ describe("QCMS_LOCALE", () => {
     }
     vi.stubEnv("QCMS_LOCALE", "en-GB");
     expect(() => assertLocaleConfigured()).not.toThrow();
+  });
+});
+
+describe("previewPortalBrand", () => {
+  it("reads the portal's brand name, blank as the portal's default", () => {
+    vi.stubEnv("QCMS_PORTAL_BRAND_NAME", "  Acme  ");
+    expect(previewPortalBrand().name).toBe("Acme");
+    vi.stubEnv("QCMS_PORTAL_BRAND_NAME", " ");
+    expect(previewPortalBrand().name).toBeUndefined();
+  });
+
+  it("carries a data image logo over and drops a portal path or anything unsafe", () => {
+    vi.stubEnv("QCMS_PORTAL_BRAND_LOGO", "data:image/png;base64,AAAA");
+    expect(previewPortalBrand().logoSrc).toBe("data:image/png;base64,AAAA");
+    for (const raw of [
+      "/brand.png",
+      "https://cdn.example/logo.png",
+      'data:image/png;base64,A"B',
+      "",
+    ]) {
+      vi.stubEnv("QCMS_PORTAL_BRAND_LOGO", raw);
+      expect(previewPortalBrand().logoSrc, raw).toBeUndefined();
+    }
   });
 });

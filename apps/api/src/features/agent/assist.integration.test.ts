@@ -35,7 +35,8 @@ import { aiSdkDraftAssistant } from "./assistant.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import { SCREEN_IDS } from "./screens.js";
 import { AGENT_READ_TOOL_NAMES } from "./tools/registry.js";
-import { registerFormsAssist } from "./route.js";
+import { ACCEPT_HEADER, ADOPT_HEADER, signAcceptToken } from "./accept-token.js";
+import { registerAgentChanges, registerFormsAssist } from "./route.js";
 import type { ProposedDraftStep } from "./tools/propose.js";
 import type { AssistEvent } from "./types.js";
 
@@ -56,6 +57,7 @@ const SENTINEL = "RESPONDENT-ONLY-SENTINEL-VALUE";
 
 let testDb: TestDb;
 let deps: Deps;
+let env: Record<string, string | undefined>;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let adminSessionToken: string;
@@ -80,11 +82,13 @@ beforeAll(async () => {
   const recorder = recordingLogger();
   logLines = recorder.lines;
 
+  // Kept so a second app can be built on the same keys and the same seeded session.
+  env = validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake", QCMS_AGENT_MAX_STEPS: "40" });
   deps = makeDeps({
     db: testDb.db,
     // The read walk calls one tool per step, and the caller holds every cell, so the
     // ceiling has to clear the whole registry for a single turn to cover it.
-    env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake", QCMS_AGENT_MAX_STEPS: "40" }),
+    env,
     logger: recorder.logger,
     draftAssistant: aiSdkDraftAssistant({
       model: recordingModel,
@@ -93,7 +97,15 @@ beforeAll(async () => {
     }),
   });
   app = createApp(deps, ADMIN_ONLY, {
-    groups: { admin: [registerAdminAuth, registerGrantCheck, registerForms, registerFormsAssist] },
+    groups: {
+      admin: [
+        registerAdminAuth,
+        registerGrantCheck,
+        registerForms,
+        registerFormsAssist,
+        registerAgentChanges,
+      ],
+    },
   });
   internalToken = internalTokenFor(deps.config);
   const seeded = await seedAdminSession(testDb.db);
@@ -124,6 +136,48 @@ async function post(path: string, body?: unknown): Promise<Response> {
     headers: authHeaders(),
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
+}
+
+function freshPid(): string {
+  return `prp_${crypto.randomUUID().replaceAll("-", "")}`;
+}
+
+function acceptTokenFor(
+  formId: string,
+  over: { sub?: string; pid?: string; issuedAt?: Date } = {},
+): Promise<string> {
+  return signAcceptToken(deps.config.keys.app, {
+    sub: over.sub ?? adminUserId,
+    formId,
+    pid: over.pid ?? freshPid(),
+    issuedAt: over.issuedAt ?? deps.clock.now(),
+  });
+}
+
+/** The docked accept, under a token minted as the proposing turn would mint it unless one is given. */
+async function postAccept(formId: string, body: unknown, token?: string | null): Promise<Response> {
+  const presented = token === undefined ? await acceptTokenFor(formId) : token;
+  return app.request(`/admin/forms/${formId}/draft/assist/accept`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(),
+      ...(presented === null ? {} : { [ACCEPT_HEADER]: presented }),
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+/** The open draft's revision, which an agent row's detail is checked against. */
+async function revisionOf(formId: string): Promise<number> {
+  const rows = await testDb.client.query(
+    `select revision from control.form_drafts where form_id = $1`,
+    [formId],
+  );
+  return (rows.rows[0] as { revision: number }).revision;
+}
+
+async function codeOf(res: Response): Promise<string> {
+  return ((await res.json()) as { error: { code: string } }).error.code;
 }
 
 async function put(path: string, body: unknown): Promise<Response> {
@@ -403,9 +457,8 @@ describe("the assist slice over HTTP", () => {
       await seedPublishedQuestion("q_prov", "Provenance");
       await seedForm("frm_prov", ["q_prov"]);
 
-      const accepted = await put(`/forms/frm_prov/draft`, {
+      const accepted = await postAccept("frm_prov", {
         definition: draftFor("frm_prov", ["q_prov"]),
-        agentAssisted: true,
       });
       expect((await accepted.json()) as { agentAssisted: boolean }).toMatchObject({
         agentAssisted: true,
@@ -427,6 +480,361 @@ describe("the assist slice over HTTP", () => {
   );
 });
 
+describe("the accept token (SEC-17)", () => {
+  async function rowsFor(formId: string): Promise<{ proposal_id: string; proposed_at: Date }[]> {
+    const rows = await testDb.client.query(
+      `select proposal_id, proposed_at from control.agent_actions where form_id = $1`,
+      [formId],
+    );
+    return rows.rows as { proposal_id: string; proposed_at: Date }[];
+  }
+
+  async function refusedWithNothingWritten(
+    formId: string,
+    token: string | null,
+    code: string,
+  ): Promise<void> {
+    const before = await revisionOf(formId);
+    const res = await postAccept(formId, { definition: draftFor(formId, ["q_tok_any"]) }, token);
+    expect(res.status).toBe(403);
+    expect(await codeOf(res)).toBe(code);
+    expect(await rowsFor(formId)).toEqual([]);
+    expect(await revisionOf(formId)).toBe(before);
+  }
+
+  it(
+    "takes the token the proposing turn minted, writes one row at the proposal's own time, and refuses a replay",
+    async () => {
+      await resetLimiter();
+      await seedPublishedQuestion("q_tok_turn", "Token turn");
+      await seedForm("frm_tok_turn", ["q_tok_turn"]);
+
+      const events = await readEvents(
+        await assist("frm_tok_turn", "a vehicle-insurance quote with a follow-up"),
+      );
+      const card = events.find((event) => event.type === "plan");
+      if (card?.type !== "plan") throw new Error(JSON.stringify(events));
+      const token = appliedDraft(events).acceptToken;
+      expect(token).toEqual(expect.any(String));
+      expect(JSON.stringify(providerCalls)).not.toContain(token);
+
+      const body = { definition: draftFor("frm_tok_turn", ["q_tok_turn"]) };
+      const accepted = await postAccept("frm_tok_turn", body, token);
+      expect(accepted.status).toBe(200);
+      const rows = await rowsFor("frm_tok_turn");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.proposal_id).toBe(`${card.proposal.proposalId}.accept`);
+      expect(new Date(rows[0]?.proposed_at ?? 0).toISOString()).toBe(card.proposal.proposedAt);
+
+      const replay = await postAccept("frm_tok_turn", body, token);
+      expect(replay.status).toBe(403);
+      expect(await codeOf(replay)).toBe("AGENT_ACCEPT_REPLAYED");
+      expect(await rowsFor("frm_tok_turn")).toHaveLength(1);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "lets one of two concurrent accepts on one token through and refuses the other with nothing part-written",
+    async () => {
+      await seedPublishedQuestion("q_tok_race", "Race");
+      await seedForm("frm_tok_race", ["q_tok_race"]);
+      const loggedBefore = logLines.length;
+      const before = await revisionOf("frm_tok_race");
+      const token = await acceptTokenFor("frm_tok_race");
+      const body = { definition: draftFor("frm_tok_race", ["q_tok_race"]) };
+
+      const [first, second] = await Promise.all([
+        postAccept("frm_tok_race", body, token),
+        postAccept("frm_tok_race", body, token),
+      ]);
+
+      const statuses = [first.status, second.status].sort((a, b) => a - b);
+      expect(statuses).toEqual([200, 403]);
+      const refused = first.status === 403 ? first : second;
+      expect(await codeOf(refused)).toBe("AGENT_ACCEPT_REPLAYED");
+      expect(
+        logLines
+          .slice(loggedBefore)
+          .filter((line) => line["msg"] === "agent accept refused")
+          .map((line) => line["code"]),
+      ).toEqual(["AGENT_ACCEPT_REPLAYED"]);
+
+      expect(await rowsFor("frm_tok_race")).toHaveLength(1);
+      expect(await revisionOf("frm_tok_race")).toBe(before + 1);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "refuses an accept with no token, a forged one, an expired one, another form's and another user's",
+    async () => {
+      await seedPublishedQuestion("q_tok_any", "Any");
+      await seedForm("frm_tok_refused", ["q_tok_any"]);
+      await seedForm("frm_tok_other", ["q_tok_any"]);
+      const loggedBefore = logLines.length;
+
+      await refusedWithNothingWritten("frm_tok_refused", null, "AGENT_ACCEPT_MISSING");
+
+      const genuine = await acceptTokenFor("frm_tok_refused");
+      const [body = "", mac = ""] = genuine.split(".");
+      const forged = `${body}.${mac.slice(0, -2)}${mac.endsWith("AA") ? "BB" : "AA"}`;
+      await refusedWithNothingWritten("frm_tok_refused", forged, "AGENT_ACCEPT_SIGNATURE");
+      await refusedWithNothingWritten("frm_tok_refused", "not-a-token", "AGENT_ACCEPT_MALFORMED");
+
+      const issuedAt = new Date(deps.clock.now().getTime() - 11 * 60 * 1000);
+      await refusedWithNothingWritten(
+        "frm_tok_refused",
+        await acceptTokenFor("frm_tok_refused", { issuedAt }),
+        "AGENT_ACCEPT_EXPIRED",
+      );
+
+      await refusedWithNothingWritten(
+        "frm_tok_refused",
+        await acceptTokenFor("frm_tok_other"),
+        "AGENT_ACCEPT_FORM",
+      );
+
+      await refusedWithNothingWritten(
+        "frm_tok_refused",
+        await acceptTokenFor("frm_tok_refused", { sub: "usr_someone_else" }),
+        "AGENT_ACCEPT_SUBJECT",
+      );
+
+      const refusals = logLines
+        .slice(loggedBefore)
+        .filter((line) => line["msg"] === "agent accept refused");
+      expect(refusals.map((line) => line["code"])).toEqual([
+        "AGENT_ACCEPT_MISSING",
+        "AGENT_ACCEPT_SIGNATURE",
+        "AGENT_ACCEPT_MALFORMED",
+        "AGENT_ACCEPT_EXPIRED",
+        "AGENT_ACCEPT_FORM",
+        "AGENT_ACCEPT_SUBJECT",
+      ]);
+    },
+    BOOT_TIMEOUT,
+  );
+});
+
+describe("keeping a refused proposal as an own edit (SEC-17)", () => {
+  interface Row {
+    proposal_id: string;
+    kind: string;
+    detail: string | null;
+    proposed_at: Date;
+    actor: string;
+    workspace_id: string;
+  }
+
+  async function rowsFor(formId: string): Promise<Row[]> {
+    const rows = await testDb.client.query(
+      `select proposal_id, kind, detail, proposed_at, actor, workspace_id
+         from control.agent_actions where form_id = $1`,
+      [formId],
+    );
+    return rows.rows as Row[];
+  }
+
+  /** The plain draft save the choice's Keep makes: the refused accept's own token, no other change. */
+  async function keep(
+    formId: string,
+    questionIds: readonly string[],
+    token: string | null,
+  ): Promise<Response> {
+    return app.request(`/admin/forms/${formId}/draft`, {
+      method: "PUT",
+      headers: {
+        ...authHeaders(),
+        ...(token === null ? {} : { [ADOPT_HEADER]: token }),
+      },
+      body: JSON.stringify({ definition: draftFor(formId, questionIds) }),
+    });
+  }
+
+  async function expired(formId: string, pid?: string): Promise<string> {
+    return acceptTokenFor(formId, {
+      issuedAt: new Date(deps.clock.now().getTime() - 11 * 60 * 1000),
+      ...(pid === undefined ? {} : { pid }),
+    });
+  }
+
+  it(
+    "records one adopted row on the plain save the refused token rides, and refuses a second",
+    async () => {
+      await seedPublishedQuestion("q_adopt", "Adopt");
+      await seedForm("frm_adopt", ["q_adopt"]);
+      const pid = freshPid();
+      const token = await expired("frm_adopt", pid);
+
+      const refused = await postAccept(
+        "frm_adopt",
+        { definition: draftFor("frm_adopt", ["q_adopt"]) },
+        token,
+      );
+      expect(refused.status).toBe(403);
+      expect(await codeOf(refused)).toBe("AGENT_ACCEPT_EXPIRED");
+      expect(await rowsFor("frm_adopt")).toEqual([]);
+
+      const before = await revisionOf("frm_adopt");
+      const kept = await keep("frm_adopt", ["q_adopt"], token);
+      expect(kept.status).toBe(200);
+      // Attribution only: the save stores exactly what the same save without the token stores.
+      expect((await kept.json()) as { agentAssisted: boolean }).toMatchObject({
+        agentAssisted: false,
+      });
+      expect(await revisionOf("frm_adopt")).toBe(before + 1);
+
+      const rows = await rowsFor("frm_adopt");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.kind).toBe("apply-draft.adopted");
+      expect(rows[0]?.proposal_id).toBe(`${pid}.adopt`);
+      expect(rows[0]?.actor).toBe(adminUserId);
+      expect(rows[0]?.workspace_id).toBe(SEED_WORKSPACE_ID);
+      expect(rows[0]?.detail).toBe(String(before + 1));
+      expect(new Date(rows[0]?.proposed_at ?? 0).getTime()).toBe(
+        deps.clock.now().getTime() - 11 * 60 * 1000,
+      );
+
+      const replay = await keep("frm_adopt", ["q_adopt"], token);
+      expect(replay.status).toBe(403);
+      expect(await codeOf(replay)).toBe("AGENT_ADOPT_REPLAYED");
+      expect(await rowsFor("frm_adopt")).toHaveLength(1);
+      expect(await revisionOf("frm_adopt")).toBe(before + 1);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "refuses a forged token, another form's and another user's, with nothing written",
+    async () => {
+      await seedPublishedQuestion("q_adopt_bad", "Adopt refused");
+      await seedForm("frm_adopt_bad", ["q_adopt_bad"]);
+      await seedForm("frm_adopt_other", ["q_adopt_bad"]);
+      const loggedBefore = logLines.length;
+
+      const genuine = await expired("frm_adopt_bad");
+      const [body = "", mac = ""] = genuine.split(".");
+      const forged = `${body}.${mac.slice(0, -2)}${mac.endsWith("AA") ? "BB" : "AA"}`;
+
+      const cases: readonly (readonly [string, string])[] = [
+        [forged, "AGENT_ADOPT_SIGNATURE"],
+        ["not-a-token", "AGENT_ADOPT_MALFORMED"],
+        [await expired("frm_adopt_other"), "AGENT_ADOPT_FORM"],
+        [await acceptTokenFor("frm_adopt_bad", { sub: "usr_someone_else" }), "AGENT_ADOPT_SUBJECT"],
+      ];
+      for (const [token, code] of cases) {
+        const before = await revisionOf("frm_adopt_bad");
+        const res = await keep("frm_adopt_bad", ["q_adopt_bad"], token);
+        expect(res.status).toBe(403);
+        expect(await codeOf(res)).toBe(code);
+        expect(await rowsFor("frm_adopt_bad")).toEqual([]);
+        expect(await revisionOf("frm_adopt_bad")).toBe(before);
+      }
+
+      expect(
+        logLines
+          .slice(loggedBefore)
+          .filter((line) => line["msg"] === "agent adopt refused")
+          .map((line) => line["code"]),
+      ).toEqual(cases.map(([, code]) => code));
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "lets one of two keeps racing on one token through and refuses the other",
+    async () => {
+      await seedPublishedQuestion("q_adopt_race", "Adopt race");
+      await seedForm("frm_adopt_race", ["q_adopt_race"]);
+      const loggedBefore = logLines.length;
+      const before = await revisionOf("frm_adopt_race");
+      const token = await expired("frm_adopt_race");
+
+      const [first, second] = await Promise.all([
+        keep("frm_adopt_race", ["q_adopt_race"], token),
+        keep("frm_adopt_race", ["q_adopt_race"], token),
+      ]);
+
+      const statuses = [first.status, second.status].sort((a, b) => a - b);
+      expect(statuses).toEqual([200, 403]);
+      const refused = first.status === 403 ? first : second;
+      expect(await codeOf(refused)).toBe("AGENT_ADOPT_REPLAYED");
+      expect(
+        logLines
+          .slice(loggedBefore)
+          .filter((line) => line["msg"] === "agent adopt refused")
+          .map((line) => line["code"]),
+      ).toEqual(["AGENT_ADOPT_REPLAYED"]);
+
+      expect(await rowsFor("frm_adopt_race")).toHaveLength(1);
+      expect(await revisionOf("frm_adopt_race")).toBe(before + 1);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "refuses the header with 400 on a deployment that mints no accept token",
+    async () => {
+      await seedPublishedQuestion("q_adopt_off", "Adopt off");
+      await seedForm("frm_adopt_off", ["q_adopt_off"]);
+      const token = await expired("frm_adopt_off");
+      const before = await revisionOf("frm_adopt_off");
+
+      // The same keys and the same seeded session, with the flag that mints the token off.
+      const offDeps = makeDeps({
+        db: testDb.db,
+        env: { ...env, QCMS_FLAG_AGENT_AUTHORING: undefined },
+      });
+      const offApp = createApp(offDeps, ADMIN_ONLY, {
+        groups: { admin: [registerAdminAuth, registerGrantCheck, registerForms] },
+      });
+
+      const res = await offApp.request(`/admin/forms/frm_adopt_off/draft`, {
+        method: "PUT",
+        headers: { ...authHeaders(), [ADOPT_HEADER]: token },
+        body: JSON.stringify({ definition: draftFor("frm_adopt_off", ["q_adopt_off"]) }),
+      });
+      expect(res.status).toBe(400);
+      expect(await codeOf(res)).toBe("AGENT_ADOPT_DISABLED");
+      expect(await rowsFor("frm_adopt_off")).toEqual([]);
+      expect(await revisionOf("frm_adopt_off")).toBe(before);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "reports the adopted row to the publish wizard and writes no apply-draft row",
+    async () => {
+      await seedPublishedQuestion("q_adopt_wizard", "Adopt wizard");
+      await seedForm("frm_adopt_wizard", ["q_adopt_wizard"]);
+      const kept = await keep(
+        "frm_adopt_wizard",
+        ["q_adopt_wizard"],
+        await expired("frm_adopt_wizard"),
+      );
+      expect(kept.status).toBe(200);
+
+      const read = await app.request(`/admin/forms/frm_adopt_wizard/draft/agent-changes`, {
+        headers: authHeaders(),
+      });
+      expect(read.status).toBe(200);
+      const changes = (await read.json()) as {
+        agentAssisted: boolean;
+        changes: { kind: string; revision: number | null }[];
+      };
+      expect(changes.agentAssisted).toBe(true);
+      expect(changes.changes).toHaveLength(1);
+      expect(changes.changes[0]?.kind).toBe("apply-draft.adopted");
+      expect(changes.changes[0]?.revision).toBe(await revisionOf("frm_adopt_wizard"));
+      expect((await rowsFor("frm_adopt_wizard")).map((row) => row.kind)).toEqual([
+        "apply-draft.adopted",
+      ]);
+    },
+    BOOT_TIMEOUT,
+  );
+});
+
 describe("accepting a proposal with new questions", () => {
   function questionDefinition(id: string, label: string): Record<string, unknown> {
     return { questionId: id, type: "shortText", label: { en: label } };
@@ -437,7 +845,7 @@ describe("accepting a proposal with new questions", () => {
     questionIds: readonly string[],
     newQuestions: readonly unknown[],
   ): Promise<Response> {
-    return post(`/forms/${formId}/draft/assist/accept`, {
+    return postAccept(formId, {
       definition: draftFor(formId, questionIds),
       newQuestions,
     });
@@ -615,7 +1023,7 @@ describe("unknown keys are refused inside a nested body object (issue #893)", ()
     async () => {
       await post("/forms", { formId: "frm_nested_key", slug: "nested-key", defaultLocale: "en" });
 
-      const res = await post("/forms/frm_nested_key/draft/assist/accept", {
+      const res = await postAccept("frm_nested_key", {
         definition: draftFor("frm_nested_key", ["q_nested"]),
         newQuestions: [
           { definition: questionDefinition("q_nested", "Nested"), unexpectedNested: true },
@@ -641,7 +1049,7 @@ describe("unknown keys are refused inside a nested body object (issue #893)", ()
       await post("/forms", { formId: "frm_nested_ok", slug: "nested-ok", defaultLocale: "en" });
 
       // `definition` is an opaque record the kernel owns, so its keys stay open.
-      const res = await post("/forms/frm_nested_ok/draft/assist/accept", {
+      const res = await postAccept("frm_nested_ok", {
         definition: draftFor("frm_nested_ok", ["q_nested_ok"]),
         newQuestions: [
           { definition: questionDefinition("q_nested_ok", "Nested ok"), slug: "nested-ok-q" },

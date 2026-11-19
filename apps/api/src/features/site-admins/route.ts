@@ -217,7 +217,9 @@ export const registerSiteAdministrators: SliceRegistrar = (group, deps) => {
     const query = c.req.valid("query");
     const page = query.page === undefined ? 1 : Number(query.page);
     if (!Number.isInteger(page) || page < 1) throw badPage();
+    // A held publish to prod is approved on its form, so it is not listed here.
     const { rows, total } = await listApprovalRequests(deps.databases.control, {
+      excludeKinds: ["draft-publish"],
       ...(query.scope === undefined ? {} : { scope: query.scope }),
       ...(query.status === undefined ? {} : { status: query.status }),
       limit: PAGE_SIZE,

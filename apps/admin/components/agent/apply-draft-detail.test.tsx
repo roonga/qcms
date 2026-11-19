@@ -37,7 +37,7 @@ function WithBuilder({
           canPropose: true,
           draft: current,
           draftUpdatedAt: undefined,
-          accept: () => undefined,
+          accept: () => Promise.resolve({ saved: true as const }),
         },
   );
   return <ApplyDraftDetail draft={draft} id="card-0" />;

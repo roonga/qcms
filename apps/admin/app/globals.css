@@ -571,10 +571,33 @@ button {
   gap: var(--space-3);
   padding: var(--space-3) var(--admin-section-pad);
 }
-.qcms-builder__turns {
+.qcms-builder-edits {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  inline-size: 100%;
+}
+.qcms-builder-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface);
+}
+.qcms-builder-edit__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.qcms-builder-edit__what {
+  flex: 1 1 auto;
+}
+.qcms-builder-edit__note {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
 }
 .qcms-builder__tablist {
   padding-inline: var(--admin-section-pad);
@@ -586,6 +609,265 @@ button {
   gap: var(--space-3);
   max-inline-size: 40rem;
   padding: var(--admin-section-pad);
+}
+.qcms-builder__pane-body--preview {
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+.qcms-builder-selection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-background);
+}
+:root.hc .qcms-builder-selection {
+  border-color: var(--color-border-strong);
+}
+.qcms-builder-selection__heading {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.qcms-builder-preview {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-block-size: 0;
+}
+.qcms-builder-preview__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+.qcms-builder-preview__select {
+  min-inline-size: 9rem;
+}
+.qcms-builder-preview__size {
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+.qcms-builder-preview__group,
+.qcms-builder-preview__steps {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.qcms-builder-preview__toggle {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--admin-control-h);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.qcms-builder-preview__toggle:hover:not(:disabled) {
+  background-color: var(--color-ghost-hover);
+}
+.qcms-builder-preview__toggle[aria-pressed="true"] {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-weight: 600;
+}
+.qcms-builder-preview__toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+:root.hc .qcms-builder-preview__toggle {
+  border-width: 2px;
+}
+.qcms-builder-preview__status {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.qcms-builder-preview__stage {
+  flex: 1 1 auto;
+  min-block-size: 24rem;
+  overflow: auto;
+}
+
+/* The frame is the respondent's viewport: its width is the container the portal's breakpoints read. */
+.qcms-builder-device__box {
+  margin-inline: auto;
+}
+.qcms-builder-device {
+  position: relative;
+  container: qcms-respondent / inline-size;
+  overflow: hidden;
+  /* An outline, not a border: a border would take two pixels off the container the breakpoints read. */
+  outline: 1px solid var(--color-border-strong);
+  transform-origin: 0 0;
+}
+.qcms-builder-device > .qcms-preview-surface {
+  block-size: 100%;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+.qcms-builder-device[data-inspecting] {
+  cursor: crosshair;
+}
+/* The portal header's brand mark, as `apps/portal/app/globals.css` declares it. */
+.qcms-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.qcms-brand__logo {
+  max-height: 1.75rem;
+  width: auto;
+}
+.qcms-brand__name {
+  font-size: var(--type-body);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.qcms-builder-device__outline {
+  position: absolute;
+  pointer-events: none;
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 4px;
+}
+.qcms-builder-device__outline--hover {
+  outline-style: dashed;
+}
+
+/* The viewport's own min-width rule reaches the island at any admin width, so the frame restates the
+   narrow spacing and lets its container width decide, as the respondent's viewport would. */
+.qcms-builder-device [data-qcms-theme-scope] {
+  --space-section-pad: 1.25rem;
+}
+/* The admin's @theme shrinks these for its chrome; the respondent page around the step uses Tailwind's own. */
+.qcms-builder-device [data-qcms-theme-scope] {
+  --text-xs: 0.75rem;
+  --text-xs--line-height: calc(1 / 0.75);
+  --text-sm: 0.875rem;
+  --text-sm--line-height: calc(1.25 / 0.875);
+}
+.qcms-builder-device [data-qcms-theme-scope].density-compact {
+  --space-section-pad: 0.875rem;
+}
+.qcms-builder-device [data-qcms-theme-scope].density-spacious {
+  --space-section-pad: 1.75rem;
+}
+
+/* The portal's `sm:` and `lg:` utilities, read off the frame's container instead of the viewport. */
+@container qcms-respondent (min-width: 40rem) {
+  .qcms-cq-sm-py-10 {
+    padding-block: 2.5rem;
+  }
+
+  .qcms-builder-device :is(:root, [data-qcms-theme-scope]) {
+    --space-section-pad: 2.25rem;
+  }
+
+  .qcms-builder-device :is(:root, [data-qcms-theme-scope]).density-compact {
+    --space-section-pad: 1.5rem;
+  }
+
+  .qcms-builder-device :is(:root, [data-qcms-theme-scope]).density-spacious {
+    --space-section-pad: 3rem;
+  }
+}
+
+@container qcms-respondent (min-width: 64rem) {
+  .qcms-cq-lg-flex {
+    display: flex;
+  }
+
+  .qcms-cq-lg-hidden {
+    display: none;
+  }
+}
+
+@container qcms-respondent (max-width: 40rem) {
+  [data-qcms-theme-scope] .qcms-repeat-table {
+    /* Nothing overflows a one-column card, so no exception to the portal's
+       no-horizontal-scroll rule is needed here. */
+    overflow-x: visible;
+  }
+
+  [data-qcms-theme-scope] .qcms-repeat-table__table,
+  [data-qcms-theme-scope] .qcms-repeat-table__table tbody,
+  [data-qcms-theme-scope] .qcms-repeat-table__table tfoot,
+  [data-qcms-theme-scope] .qcms-repeat-table__table tr,
+  [data-qcms-theme-scope] .qcms-repeat-table__table :is(th, td) {
+    display: block;
+    inline-size: auto;
+  }
+
+  [data-qcms-theme-scope] .qcms-repeat-table__table thead {
+    display: none;
+  }
+
+  [data-qcms-theme-scope] .qcms-repeat-table__table tr {
+    margin-block-end: var(--space-field-gap);
+    padding: var(--space-section-pad);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+  }
+
+  [data-qcms-theme-scope] .qcms-repeat-table__table :is(th, td) {
+    /* Still the containing block: the label is visible here but still positioned. */
+    position: relative;
+    padding: 0;
+    border: 0;
+    margin-block-end: var(--space-field-gap);
+  }
+
+  [data-qcms-theme-scope] .qcms-repeat-table__rowhead {
+    font-weight: 600;
+    margin-block-end: var(--space-stack);
+  }
+
+  [data-qcms-theme-scope] .qcms-repeat-table__cell-name,
+  [data-qcms-theme-scope]
+    .qcms-repeat-table__cell
+    [data-qcms-field]
+    > *
+    > :is(label, span, legend):first-child,
+  [data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * > [slot="description"],
+  [data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * > [data-qcms-hint] {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+  }
+
+  /* Each button under it is already named in full, so a visible header would name
+     the column twice over in a layout with no columns. */
+  [data-qcms-theme-scope] .qcms-repeat-table__actions {
+    text-align: start;
+    margin-block-end: 0;
+  }
+
+  [data-qcms-theme-scope] .qcms-repeat-table__cell-name {
+    display: block;
+    font-size: var(--type-label);
+    color: var(--color-text-muted);
+  }
 }
 
 .qcms-card {

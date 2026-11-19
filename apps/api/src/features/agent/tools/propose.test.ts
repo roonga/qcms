@@ -1177,7 +1177,7 @@ describe("buildProposal: the subject a step names is checked before its draft is
     expect(outcome.ok).toBe(true);
   });
 
-  it("asks about the creating step's own workspace for a form the plan creates", async () => {
+  it("refuses the create itself in a workspace the caller may not create forms in", async () => {
     const asked: unknown[] = [];
     const outcome = await propose({
       steps: [
@@ -1196,6 +1196,29 @@ describe("buildProposal: the subject a step names is checked before its draft is
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(asked).toEqual([{ createdInWorkspace: "wsp_b" }]);
+    expect(outcome.reason).toContain("Step 1 creates a form");
+    expect(outcome.reason).not.toContain("wsp_b");
+  });
+
+  it("asks about the creating step's own workspace for a form the plan creates", async () => {
+    const asked: unknown[] = [];
+    const outcome = await propose({
+      steps: [
+        {
+          kind: "form.create",
+          args: { slug: "new-one", defaultLocale: "en", workspaceId: "wsp_b" },
+        },
+        draftStep({ fromStep: 0, field: "formId" }),
+      ],
+      screen: "/forms",
+      canWriteDraft: (subject) => {
+        asked.push(subject);
+        return Promise.resolve(asked.length === 1);
+      },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(asked).toEqual([{ createdInWorkspace: "wsp_b" }, { createdInWorkspace: "wsp_b" }]);
     expect(outcome.reason).toContain("step 1");
   });
 

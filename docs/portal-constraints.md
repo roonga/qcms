@@ -269,7 +269,8 @@ in `packages/ui/src/theme.css`.
 
 A session renders the appearance frozen with the version it is pinned to, on `<html>`, and
 the deployment configuration when the version carries none (`docs/theming.md`, "Per-form
-appearance"). The respondent's own mode, font and density choices still apply over it.
+appearance"). The respondent's own mode, face and text size still apply over it; density is the form's or
+the deployment's alone (Q6).
 
 ## Accessibility
 

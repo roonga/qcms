@@ -347,6 +347,39 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
     );
   });
 
+  it("refuses a disabled or unclaimed holder of Publish forms for prod as the confirmer (criterion 40)", async () => {
+    const res = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", {
+      url: "https://unconfirmed-consumer.example/hook",
+    });
+    expect(res.status).toBe(202);
+    const { proposal } = (await res.json()) as {
+      proposal: { proposalId: string; webhookId: string };
+    };
+    const disabled = await seedAdminSession(testDb.db, {
+      label: "disabled-confirmer",
+      disabledAt: new Date(),
+    });
+    const unclaimed = await seedAdminSession(testDb.db, {
+      label: "unclaimed-confirmer",
+      claimed: false,
+    });
+    for (const confirmer of [disabled, unclaimed]) {
+      const refused = await as(
+        confirmer.token,
+        `/forms/${FORM_ID}/webhooks/proposals/${proposal.proposalId}/confirm`,
+        "POST",
+      );
+      expect([401, 403]).toContain(refused.status);
+    }
+    expect(await getWebhook(testDb.db, FORM_ID, proposal.webhookId)).toBeUndefined();
+    const withdrawn = await as(
+      secondToken,
+      `/forms/${FORM_ID}/webhooks/proposals/${proposal.proposalId}`,
+      "DELETE",
+    );
+    expect(withdrawn.status).toBe(200);
+  });
+
   it("holds a deactivation pending, so the endpoint keeps delivering until it is agreed", async () => {
     const created = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url: AGREED });
     const first = (await created.json()) as { proposal: { proposalId: string; webhookId: string } };

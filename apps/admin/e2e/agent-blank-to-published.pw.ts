@@ -53,6 +53,15 @@ async function describeTheForm(page: Page, word: string): Promise<void> {
   );
 }
 
+/**
+ * The draft card settles once its accept has saved, and the turn that follows proposes the publish card
+ * over it at once, so its "Done" can be gone before it is read. The publish card is proposed only after an
+ * `apply-draft: done` result, which is what proves this card ran.
+ */
+async function confirmDraftCard(page: Page): Promise<void> {
+  await confirmButton(page).click();
+}
+
 async function waitForPublishCard(page: Page, steps: number): Promise<void> {
   await expect(cardSteps(page)).toHaveCount(steps, { timeout: 120_000 });
   await expect(cardChip(page)).toHaveText("Proposed");
@@ -80,7 +89,7 @@ test("takes a blank form to a published one in test, through two cards", async (
   await expect(card(page).getByTestId("qcms-acard-draft")).toBeVisible();
   await expectAxeClean(page, "proposed draft");
 
-  await confirm(page, /^Done\./u);
+  await confirmDraftCard(page);
   await waitForSaveAfter(page, previousSave);
 
   await waitForPublishCard(page, QUESTION_COUNT + 1);
@@ -100,6 +109,7 @@ test("takes a blank form to a published one in test, through two cards", async (
   ).toContainText("None");
 
   expect(auditDelta(before, await auditTally())).toEqual({
+    "apply-draft": 1,
     "question.publish": QUESTION_COUNT,
     "form.publish": 1,
   });
@@ -117,7 +127,7 @@ test("cancels the publish card, then publishes what the editor left in the draft
 
   const previousSave = await savedStamp(page);
   await describeTheForm(page, word);
-  await confirm(page, /^Done\./u);
+  await confirmDraftCard(page);
   await waitForSaveAfter(page, previousSave);
   await waitForPublishCard(page, QUESTION_COUNT + 1);
 
@@ -158,7 +168,7 @@ test("refuses the publish card after the editor changes the saved draft", async 
 
   const previousSave = await savedStamp(page);
   await describeTheForm(page, word);
-  await confirm(page, /^Done\./u);
+  await confirmDraftCard(page);
   await waitForSaveAfter(page, previousSave);
   await waitForPublishCard(page, QUESTION_COUNT + 1);
 

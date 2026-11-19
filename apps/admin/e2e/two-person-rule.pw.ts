@@ -273,10 +273,24 @@ test("the publish wizard carries the rule's notice with the switch on", async ({
   await expectNoHorizontalScroll(page, "the publish wizard under the two-person rule");
 });
 
+// Turning the switch off is held for another administrator's approval, so it is cleared here
+// the way the cleanup does; the held request's screen is the Settings task's.
+async function clearTwoPersonSwitch(): Promise<void> {
+  const handle = openDbHandle(readFixtures().databaseUrl);
+  try {
+    await handle.query(
+      `update control."organization" set "requireSecondApprover" = false where id = $1`,
+      [WORKSPACE_ID],
+    );
+  } finally {
+    await handle.close();
+  }
+}
+
 test("the publish wizard says nothing about the rule once the switch is off", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, APPROVER, approverSecret);
-  await setTwoPersonSwitch(page, false);
+  await clearTwoPersonSwitch();
 
   await page.goto(`/forms/${FORM_ID}/publish`);
   await chooseSource(page, "An existing version");

@@ -18,7 +18,7 @@ async function openAppearance(page: Page): Promise<void> {
 }
 
 /** One chip of a segmented group, addressed by value rather than by position. */
-function chip(page: Page, group: "mode" | "density", value: string) {
+function chip(page: Page, group: "mode" | "textSize", value: string) {
   return page.locator(`[data-testid="appearance-${group}"] label[data-value="${value}"]`);
 }
 
@@ -88,7 +88,7 @@ test("MODE: High contrast survives the redirect, with no script in play", async 
 
   expect(rootClass(served)).toMatch(/\bhc\b/u);
   expect(rootClass(served)).not.toMatch(/\blight\b/u);
-  expect((await appearanceCookies(page))["qcms-theme"]).toBe("hc");
+  expect(await appearanceCookies(page)).toEqual({ "qcms-theme": "hc" });
 
   const elsewhere = await page.goto(`/f/${slug}`);
   expect(rootClass((await elsewhere?.text()) ?? "")).toMatch(/\bhc\b/u);
@@ -111,18 +111,29 @@ test("FONT: a legibility face survives the redirect, with no script in play", as
   expect((await appearanceCookies(page))["qcms-font"]).toBe("atkinson");
 });
 
-test("DENSITY: Compact survives the redirect, with no script in play", async ({ page }) => {
+test("TEXT SIZE: Largest survives the redirect, with no script in play", async ({ page }) => {
   const { slug } = readFixtures();
   await page.goto(`/f/${slug}`);
   await openAppearance(page);
 
-  await expect(page.locator("html")).not.toHaveClass(/\bdensity-/u);
+  await expect(page.locator("html")).toHaveClass(/\btext-scale-100\b/u);
 
-  await chip(page, "density", "compact").click();
+  await chip(page, "textSize", "200").click();
   const served = await applyAppearance(page);
 
-  expect(rootClass(served)).toMatch(/\bdensity-compact\b/u);
-  expect((await appearanceCookies(page))["qcms-density"]).toBe("compact");
+  expect(rootClass(served)).toMatch(/\btext-scale-200\b/u);
+  expect(await appearanceCookies(page)).toEqual({ "qcms-text-size": "200" });
+  await expect(page.locator("html")).toHaveCSS("font-size", "32px");
+});
+
+test("Apply with nothing changed writes no cookie at all", async ({ page }) => {
+  const { slug } = readFixtures();
+  await page.goto(`/f/${slug}`);
+  await openAppearance(page);
+
+  await applyAppearance(page);
+
+  expect(await appearanceCookies(page)).toEqual({});
 });
 
 test("the redirect returns the respondent to the page they were on, mid-flow", async ({ page }) => {

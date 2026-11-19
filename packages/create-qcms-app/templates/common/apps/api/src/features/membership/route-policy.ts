@@ -380,6 +380,37 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     audit: "setting",
   },
   {
+    method: "GET",
+    path: "/admin/workspaces/{id}/settings",
+    resource: "workspace",
+    action: "update",
+    workspace: "path",
+  },
+  {
+    // The Requests row: read by those who decide its requests, so the deciding cell.
+    method: "GET",
+    path: "/admin/workspaces/{id}/approval-requests",
+    resource: "workspace",
+    action: "update",
+    workspace: "path",
+  },
+  {
+    // An approved switch-off writes a `setting` row and an approved self-grant a `grant`
+    // or `group` row; each decision writes its own `approval` row.
+    method: "POST",
+    path: "/admin/workspaces/{id}/approval-requests/{requestId}/approve",
+    resource: "workspace",
+    action: "update",
+    workspace: "path",
+  },
+  {
+    method: "POST",
+    path: "/admin/workspaces/{id}/approval-requests/{requestId}/reject",
+    resource: "workspace",
+    action: "update",
+    workspace: "path",
+  },
+  {
     // Theming is authoring, so these are the editor's `form: write` cell rather than a
     // workspace setting: a Workspace administrator or a Site administrator holding no Edit
     // forms grant in that workspace is refused, as the matrix has it.
@@ -672,6 +703,33 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     ],
     namesEnvironment: true,
     environmentFrom: "targets",
+  },
+  {
+    // A held publish to prod on a prod-only site: read by whoever reads the history, and
+    // decided under `environment=prod` by a Publish forms holder there.
+    method: "GET",
+    path: "/admin/forms/{id}/publish-requests",
+    resource: "release",
+    action: "read",
+    workspace: "form",
+  },
+  {
+    method: "POST",
+    path: "/admin/forms/{id}/publish-requests/{requestId}/approve",
+    resource: "release",
+    action: "create",
+    workspace: "form",
+    namesEnvironment: true,
+    environmentFrom: "query",
+  },
+  {
+    method: "POST",
+    path: "/admin/forms/{id}/publish-requests/{requestId}/reject",
+    resource: "release",
+    action: "create",
+    workspace: "form",
+    namesEnvironment: true,
+    environmentFrom: "query",
   },
   {
     method: "GET",

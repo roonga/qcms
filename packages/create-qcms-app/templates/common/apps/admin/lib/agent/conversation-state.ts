@@ -1,3 +1,5 @@
+import { BUILDER_EDIT_OPS, type BuilderEditOp } from "../forms/assist-stream";
+
 import type { ActionResultTurn, AgentStepState, ScalarField } from "./plan-state";
 
 /** One conversation's state, with no React and no browser in it. */
@@ -8,11 +10,21 @@ export interface AgentProseTurn {
   readonly content: string;
 }
 
+export const EDIT_OUTCOMES = ["applied", "undone", "failed", "not-run"] as const;
+
+export type EditOutcome = (typeof EDIT_OUTCOMES)[number];
+
+/** What became of the builder's edits, in ops and outcomes only: their content is the draft. */
+export interface EditResultTurn {
+  readonly role: "edit-result";
+  readonly edits: readonly { readonly op: BuilderEditOp; readonly outcome: EditOutcome }[];
+}
+
 /** Action-result turns are built from the card fold and registered result allowlists, never model prose, content or secrets. */
-export type AgentTurnRecord = AgentProseTurn | ActionResultTurn;
+export type AgentTurnRecord = AgentProseTurn | ActionResultTurn | EditResultTurn;
 
 export function isProseTurn(turn: AgentTurnRecord): turn is AgentProseTurn {
-  return turn.role !== "action-result";
+  return turn.role !== "action-result" && turn.role !== "edit-result";
 }
 
 /**
@@ -29,6 +41,7 @@ export interface WaitingProposalTurn {
 export type PromptTurn =
   | { readonly role: "user" | "assistant"; readonly content: string }
   | ActionResultTurn
+  | EditResultTurn
   | WaitingProposalTurn;
 
 /** The history a turn replays: the prose without the panel's own outcome lines. */
@@ -198,6 +211,7 @@ function parseTurn(raw: unknown): AgentTurnRecord | undefined {
   const content = raw["content"];
   const prose = role === "user" || role === "assistant" || role === "result";
   if (prose && typeof content === "string") return { role, content };
+  if (role === "edit-result") return parseEditResult(raw["edits"]);
   if (role !== "action-result") return undefined;
   const proposalId = asNonEmpty(raw["proposalId"]);
   const steps = raw["steps"];
@@ -212,6 +226,19 @@ function parseTurn(raw: unknown): AgentTurnRecord | undefined {
     parsed.push({ kind, outcome, ...(result === undefined ? {} : { result }) });
   }
   return { role: "action-result", proposalId, steps: parsed };
+}
+
+function parseEditResult(raw: unknown): EditResultTurn | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const edits: EditResultTurn["edits"][number][] = [];
+  for (const entry of raw) {
+    if (!isRecord(entry)) return undefined;
+    const op = BUILDER_EDIT_OPS.find((candidate) => candidate === entry["op"]);
+    const outcome = EDIT_OUTCOMES.find((candidate) => candidate === entry["outcome"]);
+    if (op === undefined || outcome === undefined) return undefined;
+    edits.push({ op, outcome });
+  }
+  return { role: "edit-result", edits };
 }
 
 /** Scalars only, as the card's own fold writes them. */

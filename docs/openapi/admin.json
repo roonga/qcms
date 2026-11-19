@@ -748,9 +748,6 @@
           "definition": {
             "$ref": "#/components/schemas/FormDefinitionInput"
           },
-          "agentAssisted": {
-            "type": "boolean"
-          },
           "appearance": {
             "$ref": "#/components/schemas/AppearanceInput"
           }
@@ -1159,6 +1156,103 @@
           "releasedAt"
         ]
       },
+      "HeldPublish": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/ApprovalRequest"
+          }
+        },
+        "required": [
+          "request"
+        ]
+      },
+      "ApprovalRequest": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "example": "apr_0f3c"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "site",
+              "workspace"
+            ]
+          },
+          "workspaceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "promote",
+              "demote",
+              "disable",
+              "reset",
+              "self-grant",
+              "second-approval-off",
+              "draft-publish",
+              "move-form"
+            ]
+          },
+          "target": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            }
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "expired",
+              "lapsed"
+            ]
+          },
+          "decidedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "requestId",
+          "scope",
+          "workspaceId",
+          "kind",
+          "target",
+          "payload",
+          "requestedBy",
+          "requestedAt",
+          "expiresAt",
+          "status",
+          "decidedBy",
+          "decidedAt"
+        ]
+      },
       "PublishAndReleaseBody": {
         "type": "object",
         "properties": {
@@ -1355,6 +1449,58 @@
           "expectedSequence"
         ],
         "additionalProperties": false
+      },
+      "HeldPublishList": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string"
+          },
+          "requests": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/ApprovalRequest"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "draftUnchanged": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "draftUnchanged"
+                  ]
+                }
+              ]
+            }
+          },
+          "draft": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "revision": {
+                "type": "integer"
+              },
+              "definition": {
+                "nullable": true
+              },
+              "appearance": {
+                "nullable": true
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          }
+        },
+        "required": [
+          "formId",
+          "requests",
+          "draft"
+        ]
       },
       "FormStatusResponse": {
         "type": "object",
@@ -2208,11 +2354,15 @@
                     },
                     "refusedAsAuthor": {
                       "type": "boolean"
+                    },
+                    "heldForApproval": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "applies",
-                    "refusedAsAuthor"
+                    "refusedAsAuthor",
+                    "heldForApproval"
                   ]
                 },
                 "protected": {
@@ -4029,6 +4179,71 @@
         ],
         "additionalProperties": false
       },
+      "AccessGroupHeldResponse": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "object",
+            "properties": {
+              "teamId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "environments": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "externalGroupId": {
+                "type": "string",
+                "nullable": true
+              },
+              "holders": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "email"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "teamId",
+              "name",
+              "roles",
+              "environments",
+              "externalGroupId",
+              "holders"
+            ]
+          },
+          "request": {
+            "$ref": "#/components/schemas/ApprovalRequest"
+          }
+        },
+        "required": [
+          "group",
+          "request"
+        ]
+      },
       "UpdateAccessGroupBody": {
         "type": "object",
         "properties": {
@@ -4109,6 +4324,25 @@
           "requireSecondApprover"
         ]
       },
+      "WorkspaceSettingsHeldResponse": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "requireSecondApprover": {
+            "type": "boolean"
+          },
+          "request": {
+            "$ref": "#/components/schemas/ApprovalRequest"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "requireSecondApprover",
+          "request"
+        ]
+      },
       "WorkspaceSettingsBody": {
         "type": "object",
         "properties": {
@@ -4120,6 +4354,81 @@
           "requireSecondApprover"
         ],
         "additionalProperties": false
+      },
+      "WorkspaceSettingsReadResponse": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "requireSecondApprover": {
+            "type": "boolean"
+          },
+          "nobodyElseCouldApprove": {
+            "type": "boolean"
+          },
+          "missingApprover": {
+            "type": "object",
+            "properties": {
+              "administrator": {
+                "type": "boolean"
+              },
+              "publisher": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "administrator",
+              "publisher"
+            ]
+          }
+        },
+        "required": [
+          "workspaceId",
+          "requireSecondApprover",
+          "nobodyElseCouldApprove",
+          "missingApprover"
+        ]
+      },
+      "WorkspaceApprovalRequestList": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalRequest"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "workspaceId",
+          "requests",
+          "page",
+          "total"
+        ]
+      },
+      "ApprovalRequestHeld": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/ApprovalRequest"
+          }
+        },
+        "required": [
+          "request"
+        ]
       },
       "AuditListResponse": {
         "type": "object",
@@ -4644,102 +4953,6 @@
         "required": [
           "account",
           "holdings"
-        ]
-      },
-      "ApprovalRequestHeld": {
-        "type": "object",
-        "properties": {
-          "request": {
-            "$ref": "#/components/schemas/ApprovalRequest"
-          }
-        },
-        "required": [
-          "request"
-        ]
-      },
-      "ApprovalRequest": {
-        "type": "object",
-        "properties": {
-          "requestId": {
-            "type": "string",
-            "example": "apr_0f3c"
-          },
-          "scope": {
-            "type": "string",
-            "enum": [
-              "site",
-              "workspace"
-            ]
-          },
-          "workspaceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "promote",
-              "demote",
-              "disable",
-              "reset",
-              "self-grant",
-              "second-approval-off",
-              "draft-publish",
-              "move-form"
-            ]
-          },
-          "target": {
-            "type": "string"
-          },
-          "payload": {
-            "type": "object",
-            "additionalProperties": {
-              "nullable": true
-            }
-          },
-          "requestedBy": {
-            "type": "string"
-          },
-          "requestedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "approved",
-              "rejected",
-              "expired"
-            ]
-          },
-          "decidedBy": {
-            "type": "string",
-            "nullable": true
-          },
-          "decidedAt": {
-            "type": "string",
-            "nullable": true,
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "requestId",
-          "scope",
-          "workspaceId",
-          "kind",
-          "target",
-          "payload",
-          "requestedBy",
-          "requestedAt",
-          "expiresAt",
-          "status",
-          "decidedBy",
-          "decidedAt"
         ]
       },
       "AccountLinkSentResponse": {
@@ -6692,7 +6905,7 @@
     "/admin/forms/{id}/draft": {
       "put": {
         "summary": "Replace the draft definition; returns advisory publish issues (admin)",
-        "description": "The single draft save path. With the agent flag on, a card-less builder edit or its Undo carries a server-minted token in `x-qcms-agent-edit`, bound to the user, the form, the turn and the draft: an edit to the revision it was minted for, an Undo to the states on either side of its edit. A stale, replayed, foreign or over-cap token is refused and never saved as an ordinary edit. Each accepted edit and Undo writes one `control.agent_actions` row in the save's transaction, and an edit's response carries the token that undoes it. The body's `agentAssisted` is never taken as provenance.",
+        "description": "The single draft save path. With the agent flag on, a card-less builder edit or its Undo carries a server-minted token in `x-qcms-agent-edit`, bound to the user, the form, the turn and the draft: an edit to the revision it was minted for, an Undo to the states on either side of its edit. A stale, replayed, foreign or over-cap token is refused and never saved as an ordinary edit. Each accepted edit and Undo writes one `control.agent_actions` row in the save's transaction, and an edit's response carries the token that undoes it. A proposal whose accept this route's sibling refused may be kept as the user's own edit instead: that save carries the refused accept token in `x-qcms-agent-adopt`, which records one `apply-draft.adopted` row, once per proposal, and changes nothing about what the save stores. Either agent header alone, never both, and neither alongside a card's step. The body carries no provenance mark: only a verified token does.",
         "tags": [
           "forms"
         ],
@@ -6722,6 +6935,17 @@
             "required": false,
             "description": "An agent edit or Undo token; flag-gated, refused with 400 when the flag is off.",
             "name": "x-qcms-agent-edit",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "The accept token of a proposal the user chose to keep as their own edit after the accept was refused; attribution only, flag-gated, refused with 400 when the flag is off, and refused alongside either other agent header."
+            },
+            "required": false,
+            "description": "The accept token of a proposal the user chose to keep as their own edit after the accept was refused; attribution only, flag-gated, refused with 400 when the flag is off, and refused alongside either other agent header.",
+            "name": "x-qcms-agent-adopt",
             "in": "header"
           }
         ],
@@ -7242,7 +7466,7 @@
     "/admin/forms/{id}/publish-and-release": {
       "post": {
         "summary": "Publish the draft and release the new version to an environment, in one act (admin)",
-        "description": "The combined action finding 2 accepted: one intent is one act. It publishes a real, immutable version and keeps it - there is no draft-level release and nothing skips publishing - and the publish, the release record and the `form.released` event share one transaction, so it happens atomically or not at all. Where a non-prod environment is served, a draft is never published straight to prod, whatever the workflow says.",
+        "description": "The combined action finding 2 accepted: one intent is one act. It publishes a real, immutable version and keeps it - there is no draft-level release and nothing skips publishing - and the publish, the release record and the `form.released` event share one transaction, so it happens atomically or not at all. Where a non-prod environment is served, a draft is never published straight to prod, whatever the workflow says. On a site whose only environment is prod, with second approval on, a publish to prod is held as a request, answered 202, and nothing is frozen until another holder of Publish forms for prod approves it.",
         "tags": [
           "forms"
         ],
@@ -7281,6 +7505,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PublishedAndReleasedResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for approval; nothing is frozen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeldPublish"
                 }
               }
             }
@@ -7341,7 +7575,7 @@
     "/admin/forms/{id}/publish-batch": {
       "post": {
         "summary": "Freeze the draft once and release that snapshot into every destination (admin)",
-        "description": "One confirmation, one transaction, **one snapshot**: the draft is frozen once and the same immutable version is released into each destination, never once per target. An empty `targets` is \"create a version without releasing it\" and needs `form: publish` alone; with destinations listed, the gate also evaluates `release: create` once per listed environment and refuses on the first failure, naming only that environment. `source.draftRevision` is the revision the review reported: a save that landed in between is refused and nothing is written. The workflow decides whether a destination accepts a version frozen in the same act, under a fixed floor: where a non-prod environment is served, prod never does, and the two-person rule still refuses a gated production destination whose publisher is this account, which is why that case stays two requests by two accounts. `idempotencyKey` replays the stored result on reuse and is refused with 422 for a changed intent, so a browser timeout never creates a second version.",
+        "description": "One confirmation, one transaction, **one snapshot**: the draft is frozen once and the same immutable version is released into each destination, never once per target. An empty `targets` is \"create a version without releasing it\" and needs `form: publish` alone; with destinations listed, the gate also evaluates `release: create` once per listed environment and refuses on the first failure, naming only that environment. `source.draftRevision` is the revision the review reported: a save that landed in between is refused and nothing is written. The workflow decides whether a destination accepts a version frozen in the same act, under a fixed floor: where a non-prod environment is served, prod never does, and the two-person rule still refuses a gated production destination whose publisher is this account, which is why that case stays two requests by two accounts. `idempotencyKey` replays the stored result on reuse and is refused with 422 for a changed intent, so a browser timeout never creates a second version. On a site whose only environment is prod, with second approval on, a draft publish to prod is held as a request bound to the draft's revision and content, answered 202, and nothing is frozen until another holder of Publish forms for prod approves it.",
         "tags": [
           "forms"
         ],
@@ -7380,6 +7614,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ReleaseBatchResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for approval; nothing is frozen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeldPublish"
                 }
               }
             }
@@ -7436,6 +7680,313 @@
           },
           "422": {
             "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/publish-requests": {
+      "get": {
+        "summary": "Held publishes of this form's draft to prod (admin)",
+        "description": "On a site whose only environment is prod, with second approval on, a draft publish to prod is held here until a different holder of Publish forms for prod approves it. Newest first. `draft` is the draft as it now stands, given while a pending request still binds it, so the approver sees exactly what would be published. A request an approver could not apply carries status `lapsed`, not `rejected`, with that approver as `decidedBy`.",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The held publishes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeldPublishList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/publish-requests/{requestId}/approve": {
+      "post": {
+        "summary": "Approve a held draft publish to prod (admin)",
+        "description": "By a holder of Publish forms for prod who is not the requester, under `environment=prod`. Freezes the draft as the next version and makes it live in prod in one act, the requester recorded as the account that froze it. Refused, and nothing frozen, when the draft changed since the request, which also ends the request as `lapsed` so the requester can ask again; when the requester no longer holds Edit forms and Publish forms for prod; after 7 days.",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "example": "apr_0f3c"
+            },
+            "required": true,
+            "name": "requestId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "prod"
+            },
+            "required": true,
+            "name": "environment",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Approved, frozen and live in prod",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeldPublish"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/publish-requests/{requestId}/reject": {
+      "post": {
+        "summary": "Reject a held draft publish to prod (admin)",
+        "description": "Nothing is frozen. By a holder of Publish forms for prod who is not the requester.",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "example": "apr_0f3c"
+            },
+            "required": true,
+            "name": "requestId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "prod"
+            },
+            "required": true,
+            "name": "environment",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeldPublish"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -7703,7 +8254,7 @@
     "/admin/forms/{id}/draft/agent-changes": {
       "get": {
         "summary": "What the agent changed in the draft since the last publish (admin)",
-        "description": "The cumulative agent change since the last human-reviewed revision, which is the newest published version: that version and the open draft for the publish wizard to diff, and one entry per recorded agent change. Read from `control.agent_actions` alone, never from the draft's client-supplied `agentAssisted` mark.",
+        "description": "The cumulative agent change since the last human-reviewed revision, which is the newest published version: that version and the open draft for the publish wizard to diff, and one entry per recorded agent change. Read from `control.agent_actions` alone, never from the draft row's `agentAssisted` flag.",
         "tags": [
           "forms"
         ],
@@ -10813,7 +11364,7 @@
     "/admin/workspaces/{id}/access-groups/{teamId}": {
       "put": {
         "summary": "Rename an access group, or change its roles and environments (admin)",
-        "description": "One `group` audit row naming what the group now carries and what it carried before. A change that would give the person making it a response role, or a new environment for one, is refused while the workspace requires a second approver. A change that adds a response role leaves a holder's hold suspended until a different administrator re-confirms it, where the holder's newest sign-in links are reset or reactivation links and the person making the change performed that reset or reactivation or is the holder; made by anybody else, it re-confirms the hold, audited as a re-confirmation. It answers `409 ACCOUNT_BUSY` while an act on any holder's account is in flight.",
+        "description": "One `group` audit row naming what the group now carries and what it carried before. With second approval on, a change that would give the person making it, who is in the group, a response role or a new environment for one is held as a self-grant request, answered 202, binding the name, roles and environments it asked for. A change that adds a response role leaves a holder's hold suspended until a different administrator re-confirms it, where the holder's newest sign-in links are reset or reactivation links and the person making the change performed that reset or reactivation or is the holder; made by anybody else, it re-confirms the hold, audited as a re-confirmation. It answers `409 ACCOUNT_BUSY` while an act on any holder's account is in flight.",
         "tags": [
           "membership"
         ],
@@ -10861,6 +11412,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AccessGroupResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held as a self-grant request, because second approval is on and the edit gives the caller, who is in the group, a response role or a new environment for one. Nothing changes until it is approved, and an approval applies the name the edit asked for along with the roles and environments.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGroupHeldResponse"
                 }
               }
             }
@@ -10990,7 +11551,7 @@
     "/admin/workspaces/{id}/access-groups/{teamId}/holders": {
       "post": {
         "summary": "Grant an access group to somebody (admin)",
-        "description": "Team membership is the grant, so this is where a grant is written. The holder gets a workspace member row carrying the empty role if they have none, because the organisation plugin's own team queries assume a team member is a member of the workspace. A self-grant of a responses role is refused while the workspace requires a second approver, and then a second owner or the installation administrator makes the grant; with that switch off it is allowed and audited. An unknown account gets one generic 404, `ACCOUNT_NOT_ADDABLE`, on both the `email` and the `userId` path, and so does an account named by `userId` that is not yet in this workspace unless the caller is the installation administrator: anybody else adds a newcomer by exact address. Refused on an archived workspace. A response grant is written suspended, until a different administrator re-confirms it, where the account's newest sign-in links are reset or reactivation links and the caller sent one or is the account.",
+        "description": "Team membership is the grant, so this is where a grant is written. The holder gets a workspace member row carrying the empty role if they have none, because the organisation plugin's own team queries assume a team member is a member of the workspace. With second approval on, a self-grant of a group carrying a response role is held as a workspace approval request bound to the group's roles and environments, answered 202, until a different Workspace administrator or a Site administrator approves it; with it off it is allowed and audited. An unknown account gets one generic 404, `ACCOUNT_NOT_ADDABLE`, on both the `email` and the `userId` path, and so does an account named by `userId` that is not yet in this workspace unless the caller is the installation administrator: anybody else adds a newcomer by exact address. Refused on an archived workspace. A response grant is written suspended, until a different administrator re-confirms it, where the account's newest sign-in links are reset or reactivation links and the caller sent one or is the account.",
         "tags": [
           "membership"
         ],
@@ -11038,6 +11599,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AccessGroupResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held as a self-grant request; the group is unchanged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGroupHeldResponse"
                 }
               }
             }
@@ -11275,7 +11846,7 @@
     "/admin/workspaces/{id}/settings": {
       "put": {
         "summary": "The workspace's second-approval switch (admin)",
-        "description": "Off by default. It governs second approval for a production publish and a production endpoint change, and the self-grant rule for a response role, so a workspace turns on one thing and gets the whole posture. Turning it on or off writes an access-audit row of kind `setting`. Refused on an archived workspace.",
+        "description": "Off by default. It governs second approval for a production publish and a production endpoint change, and the self-grant rule for a response role, so a workspace turns on one thing and gets the whole posture. Turning it on is refused where nobody else could approve: no other active Workspace administrator or Site administrator, or fewer than two active holders of Publish forms for prod. Turning it off while it is on is held as a workspace approval request, answered 202. Each change writes an access-audit row of kind `setting`. Refused on an archived workspace.",
         "tags": [
           "membership"
         ],
@@ -11318,12 +11889,376 @@
               }
             }
           },
+          "202": {
+            "description": "Turning it off is held until another administrator approves it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSettingsHeldResponse"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "The workspace's second-approval switch, and whether anybody else could approve (admin)",
+        "description": "`nobodyElseCouldApprove` is read from the caller's seat: true where there is no other active Workspace administrator or Site administrator, or fewer than two active holders of Publish forms for prod. Unclaimed and disabled accounts never count.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSettingsReadResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/approval-requests": {
+      "get": {
+        "summary": "The workspace's approval requests (admin)",
+        "description": "The Requests row: turning second approval off and self-grants held for an approver, newest first, fifty to a page. A held publish to prod is approved on its form and is not listed here. A request an approver could not apply carries status `lapsed`, not `rejected`, with that approver as `decidedBy`.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "expired",
+                "lapsed"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,3}$"
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceApprovalRequestList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/approval-requests/{requestId}/approve": {
+      "post": {
+        "summary": "Approve and apply a workspace request (admin)",
+        "description": "By a Workspace administrator of the workspace, or a Site administrator, who is not the requester. Refused after 7 days and once decided. Re-checked as it is applied: the requester must still be a Workspace administrator of the workspace or a Site administrator, and a self-grant applies only the roles, environments and name it bound. A self-grant whose group has moved since the request, or whose requested name has been taken since, applies nothing and ends the request as `lapsed`, so the requester can ask again.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "example": "org_0a1b2c"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "example": "apr_0f3c"
+            },
+            "required": true,
+            "name": "requestId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Approved and applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalRequestHeld"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/approval-requests/{requestId}/reject": {
+      "post": {
+        "summary": "Reject a workspace request (admin)",
+        "description": "Nothing is applied. Refused for the requester, after 7 days, and once decided.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "example": "org_0a1b2c"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "example": "apr_0f3c"
+            },
+            "required": true,
+            "name": "requestId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalRequestHeld"
                 }
               }
             }
@@ -12662,7 +13597,8 @@
                 "pending",
                 "approved",
                 "rejected",
-                "expired"
+                "expired",
+                "lapsed"
               ]
             },
             "required": false,
