@@ -391,7 +391,7 @@ export function FormBuilder({
     autosave.holdNow();
   }
 
-  /** Restores the draft the refused accept replaced, which the next autosave stores plainly. */
+  /** Restores the last draft the server holds, which the next autosave stores plainly. */
   function undoAssistantChange(): void {
     const held = refusedAccept;
     if (held === undefined) return;
