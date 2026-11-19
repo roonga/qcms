@@ -4,7 +4,6 @@ import { t } from "@/lib/i18n/en";
 import { ACCESS_SEARCH_MAX_LENGTH } from "@/lib/membership/access-patterns";
 import { MEMBER_STATUSES, type MemberFilters } from "@/lib/membership/people";
 
-/** Search, Access group, Workspace administrator and Status, for the Members rail. */
 export function MembersRailFilters({
   filters,
   groups,

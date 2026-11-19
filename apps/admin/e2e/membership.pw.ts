@@ -215,7 +215,6 @@ test("a group is created, granted by address, re-confirmed, renamed, revoked and
   await expect(page.getByText(`in ${GROUP_NAME}.`, { exact: false })).toBeVisible();
   await expect(row).not.toContainText("Suspended");
 
-  // Rename, then revoke and delete from the group's sheet.
   await page.goto(`/workspaces/${WORKSPACE_ID}/access-groups`);
   await waitForHydration(page);
   await page.getByRole("button", { name: `Open ${GROUP_NAME}`, exact: true }).click();

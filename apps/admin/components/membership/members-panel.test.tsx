@@ -129,6 +129,18 @@ describe("Members", () => {
     ).toBe(true);
   });
 
+  it("points the last administrator's appoint link at the members list", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Open Me" }));
+    const sheet = screen.getByTestId("qcms-person-sheet");
+    expect(
+      within(sheet)
+        .getByRole("link", { name: "Appoint another Workspace administrator" })
+        .getAttribute("href"),
+    ).toBe("/workspaces/ws_1/members");
+  });
+
   it("appoints a Workspace administrator through a named confirmation", async () => {
     const user = userEvent.setup();
     const acts = renderPanel();

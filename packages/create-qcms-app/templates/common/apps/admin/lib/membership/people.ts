@@ -140,7 +140,6 @@ export function matchesMember(row: PersonRow, filters: MemberFilters): boolean {
   return filters.status === undefined || row.status === filters.status;
 }
 
-/** The query string for one page of the same filters. */
 export function memberFiltersQuery(filters: MemberFilters, page: number): string {
   const query = new URLSearchParams();
   if (filters.search !== "") query.set("q", filters.search);

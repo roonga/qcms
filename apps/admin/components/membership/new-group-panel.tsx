@@ -41,6 +41,7 @@ export function NewGroupPanel({
         <HelpTip label={t("membership.groups.new")}>{t("membership.groups.intro")}</HelpTip>
       </div>
       <div aria-live="polite">
+        {state.status === "held" && <Alert variant="warning">{state.message}</Alert>}
         {state.status === "done" && state.teamId !== undefined && (
           <Alert variant="success">
             {state.message}{" "}

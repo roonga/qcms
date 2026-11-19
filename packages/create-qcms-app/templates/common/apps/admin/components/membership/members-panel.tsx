@@ -11,6 +11,7 @@ import { Alert, Button } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import { accessDelta, type AccessCapabilities } from "@/lib/membership/access-patterns";
 import { grantOf, liveGrants, type PersonRow } from "@/lib/membership/people";
+import { workspaceSectionHref } from "@/lib/membership/sections";
 import type { MembershipActionState } from "@/lib/membership/types";
 
 import { PersonSheet, type PersonAct } from "./person-sheet";
@@ -204,7 +205,7 @@ export function MembersPanel({
           isLast={lastAdministrators.includes(open.userId)}
           grantHref={`${grantHref}&email=${encodeURIComponent(open.email)}`}
           groupHref={(teamId) => `${groupsHref}?group=${encodeURIComponent(teamId)}`}
-          appointHref={grantHref}
+          appointHref={workspaceSectionHref(workspaceId, "members")}
           pending={pending}
           onAct={(next) => {
             setActError(undefined);
