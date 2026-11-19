@@ -65,7 +65,7 @@ import type { AgentAccept, AgentAdopt } from "@/lib/server/forms";
 
 interface PendingAccept {
   readonly accept: AgentAccept;
-  /** The draft the accept replaced, which Undo restores. */
+  /** The last draft the server holds, which Undo restores. */
   readonly before: DraftForm;
   readonly settle: (outcome: AcceptOutcome) => void;
 }
@@ -417,7 +417,9 @@ export function FormBuilder({
     proposedDraft: DraftForm,
     accept: AgentAccept,
   ): Promise<AcceptOutcome> {
-    if (refusedAccept !== undefined) {
+    // The ref is read as well as the state: a refusal raises the hold before the render that shows the
+    // choice, and an accept landing in that gap would never settle while a later keep sent its token.
+    if (refusedAccept !== undefined || saveHeld.current) {
       return Promise.resolve({ saved: false, message: t("agent.card.note.acceptUndecided") });
     }
     const superseded = pendingAccept.current;
@@ -431,7 +433,10 @@ export function FormBuilder({
         resolve(value);
       };
     });
-    pendingAccept.current = { accept, before: draft, settle };
+    // An accept still pending stored nothing, so the draft on screen is the assistant's own and
+    // restoring it would be a plain save with no record. Undo has to land on the superseded accept's
+    // `before`, which is the last draft the server holds.
+    pendingAccept.current = { accept, before: superseded?.before ?? draft, settle };
     if (
       selection.kind === "step" &&
       !proposedDraft.steps.some((step) => step.stepId === selection.stepId)

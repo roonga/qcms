@@ -580,6 +580,101 @@ describe("FormBuilder and the apply-draft card", () => {
     expect(choice()).not.toBeNull();
   });
 
+  it("undoes a superseding accept to the last stored draft, not to the proposal it replaced", async () => {
+    const actions = builderActions();
+    actions.saveDraft
+      .mockResolvedValueOnce({
+        status: "error" as const,
+        issues: [],
+        warnings: [],
+        code: "QUESTION_ID_TAKEN",
+        message: "That question id is in use.",
+      })
+      .mockResolvedValueOnce(EXPIRED)
+      .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] });
+    render(
+      <FormBuilder
+        detail={DETAIL}
+        {...CHROME}
+        {...actions}
+        assist={{ endpoint: "/forms/frm_quote/assist" }}
+      />,
+    );
+
+    await confirmApplyDraft(applyDraftStep({ definition: renamedDraft("First proposal") }));
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(1), { timeout: 3000 });
+
+    await confirmApplyDraft(
+      applyDraftStep({ definition: renamedDraft("Second proposal"), acceptToken: "acc.tok2" }),
+    );
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    expect(actions.saveDraft.mock.calls[1]?.[1]).toEqual({ token: "acc.tok2", newQuestions: [] });
+    await waitFor(() => expect(choice()).not.toBeNull(), { timeout: 3000 });
+
+    press("forms.builder.assistantChangeUndo");
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalledTimes(3), { timeout: 3000 });
+    const [restored, accept, , adopt] = actions.saveDraft.mock.calls[2] as SaveCall;
+    expect(accept).toBeUndefined();
+    expect(adopt).toBeUndefined();
+    expect(restored.steps[0]?.title["en"]).toBe("Basics");
+
+    for (const call of actions.saveDraft.mock.calls as SaveCall[]) {
+      const [sent, sentAccept, , sentAdopt] = call;
+      if (sent.steps[0]?.title["en"] !== "First proposal") continue;
+      expect(sentAccept ?? sentAdopt, "no proposal is stored without a record").toBeDefined();
+    }
+  });
+
+  it("refuses an accept that arrives before the refusal it follows has rendered", async () => {
+    vi.useFakeTimers();
+    const actions = builderActions();
+    let settleAccept!: (state: SaveDraftState) => void;
+    actions.saveDraft
+      .mockImplementationOnce(
+        () =>
+          new Promise<SaveDraftState>((resolve) => {
+            settleAccept = resolve;
+          }),
+      )
+      .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] });
+    render(
+      <FormBuilder
+        detail={DETAIL}
+        {...CHROME}
+        {...actions}
+        assist={{ endpoint: "/forms/frm_quote/assist" }}
+      />,
+    );
+
+    void confirmApplyDraft(applyDraftStep({ definition: renamedDraft("Expired") }));
+    await elapse(AUTOSAVE_DEBOUNCE_MS);
+    expect(actions.saveDraft).toHaveBeenCalledTimes(1);
+
+    // The refusal raises the hold, and the accept below lands before the choice it puts up renders.
+    settleAccept(EXPIRED);
+    for (let tick = 0; tick < 10; tick += 1) await Promise.resolve();
+    let superseding: { outcome: string } | undefined;
+    void confirmApplyDraft(
+      applyDraftStep({ definition: renamedDraft("Second proposal"), acceptToken: "acc.tok2" }),
+    ).then((result) => {
+      superseding = result;
+    });
+
+    await elapse(AUTOSAVE_DEBOUNCE_MS * 4);
+    // Left pending it would never settle, and its token would ride out on the keep below.
+    expect(superseding?.outcome).toBe("failed");
+    expect(actions.saveDraft).toHaveBeenCalledTimes(1);
+    expect(choice()).not.toBeNull();
+
+    press("forms.builder.assistantChangeKeep");
+    await elapse(AUTOSAVE_DEBOUNCE_MS * 2);
+    expect(actions.saveDraft).toHaveBeenCalledTimes(2);
+    const [kept, accept, , adopt] = actions.saveDraft.mock.calls[1] as SaveCall;
+    expect(accept, "the refused proposal's accept token is never sent again").toBeUndefined();
+    expect(adopt).toEqual({ token: ACCEPT_TOKEN });
+    expect(kept.steps[0]?.title["en"]).toBe("Expired");
+  });
+
   it("dismisses the choice and reloads the stored draft when a lost keep response replays", async () => {
     const actions = builderActions();
     const stored = { ...renamedDraft("Expired"), title: { en: "Kept on the server" } };
