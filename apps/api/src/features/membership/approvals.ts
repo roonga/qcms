@@ -276,10 +276,9 @@ async function applyHeldRequest(
 
 /**
  * Approve and apply a held switch-off, self-grant or move in one transaction under the
- * workspace's membership lock, re-checked as it is applied: the approver must still be an
- * active Workspace administrator of the workspace or a Site administrator, and the
- * requester must still hold what the act needs. A request whose ground has moved since it
- * was made ends as `lapsed` instead, applying nothing.
+ * workspace's membership lock. The approver must still administer the workspace or the site,
+ * and the requester must still hold what the act needs; a request whose ground has moved
+ * ends as `lapsed` instead, applying nothing.
  */
 export async function approveWorkspaceRequest(
   deps: Deps,
