@@ -83,6 +83,12 @@ export async function grantAccessGroupAction(
     };
   }
   refresh(workspaceId);
+  if (result.held === true) {
+    return {
+      status: "held",
+      message: t("membership.groups.holderHeld", { email, name: result.data.name }),
+    };
+  }
   return {
     status: "done",
     message: t("membership.groups.holderAdded", { email, name: result.data.name }),
@@ -146,6 +152,9 @@ export async function saveWorkspaceSettingsAction(
     };
   }
   refresh(workspaceId);
+  if (result.held === true) {
+    return { status: "held", message: t("membership.settings.held") };
+  }
   return {
     status: "done",
     message: t("membership.settings.saved"),

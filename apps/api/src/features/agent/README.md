@@ -52,6 +52,7 @@ flag-gated, and streams rather than returning a modelled JSON body.
 | `audit.ts`                              | The one `control.agent_actions` row a confirmed step writes, and the draft-state check and row of a card-less builder edit or Undo, inside the draft save's transaction.                                                                 |
 | `edit-token.ts` / `edit-provenance.ts`  | The builder's edit and Undo tokens under their own purpose key, and the middleware that admits one on `PUT /admin/forms/:id/draft` alone.                                                                                                |
 | `grant-filter.ts`                       | The (kind, environment) pairs a turn is offered, through the evaluator the route middleware uses.                                                                                                                                        |
+| `parity.test.ts`                        | Task 096's audit: every kind and every read tool against its own route's policy row, each role offered the kinds the access matrix allows, and the builder's key sets. |
 | `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                                                                                                                               |
 | `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                                                                                                                                |
 | `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options (081).                                                                                                                                                             |
@@ -147,13 +148,18 @@ browser cannot compile under the `v` flag is refused with the spelling the
 authoring boundary derived, so the model corrects itself rather than the person
 watching step 2 of a confirmed plan fail.
 
-The subject of a step is authorised before that subject is read. A
-`form.saveDraft` naming a form this caller holds no `form: write` on is refused
-in the turn, not left to fail at Confirm, and the check runs before the form's
-draft and workspace row are read to validate it; a `formId` naming an earlier
-step's result is checked in the workspace that create targets. A
-`question.create` whose id has been used before is refused the same way, with
-the route's own reason, because ids are never reused (R6).
+The subject of a step is authorised before that subject is read, for **every**
+kind rather than for the draft save alone (096). The offer is the coarse question
+"does this caller hold the cell in some workspace", so a step naming a
+`workspaceId`, `formId` or `questionId` is asked the route's own question too:
+the kind's whole cell set, in the environment that step binds, on the workspace
+that subject belongs to. A step naming a subject this caller cannot reach is
+refused in the turn rather than put on a card the human would confirm and the
+route would then refuse, so no card is offered for an unreachable workspace. A
+subject an earlier step creates is asked about that step's own target workspace,
+since it has no workspace of its own yet. A `question.create` whose id has been
+used before is refused the same way, with the route's own reason, because ids are
+never reused (R6).
 
 A draft a plan saves is validated by the same `validateDraft` a publish runs,
 against the question versions the plan's **own earlier steps** write: a

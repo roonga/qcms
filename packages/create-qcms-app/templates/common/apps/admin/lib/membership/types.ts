@@ -136,4 +136,6 @@ export type MembershipActionState =
       readonly userId?: string;
       readonly requireSecondApprover?: boolean;
     }
+  /** The API stored the act as a request: nothing changed until an Approver approves it. */
+  | { readonly status: "held"; readonly message: string }
   | { readonly status: "error"; readonly message: string };

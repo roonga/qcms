@@ -485,6 +485,11 @@ export function PublishWizard({
             <Alert variant="warning">{t("forms.publish.uncertain")}</Alert>
           </div>
         )}
+        {state.status === "held" && (
+          <div data-testid="qcms-publish-held">
+            <Alert variant="info">{t("forms.publish.held")}</Alert>
+          </div>
+        )}
         {state.status === "rejected" && (
           <Alert variant="error">
             {t("forms.publish.wizardFailed", { message: state.message ?? "" })}

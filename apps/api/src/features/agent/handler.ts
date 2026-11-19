@@ -33,7 +33,7 @@ import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, type ResolvedMembership } from "../membership/resolver.js";
 import { savedDraftPins } from "./draft-pins.js";
 import { mergeOffers, offeredActionKinds, offersNoAction } from "./grant-filter.js";
-import { buildProposal } from "./tools/propose.js";
+import { buildProposal, type StepSubject } from "./tools/propose.js";
 import {
   AGENT_PROPOSE_TOOL_NAMES,
   AGENT_READ_TOOL_NAMES,
@@ -48,6 +48,7 @@ import {
 } from "./tools/registry.js";
 import { readPorts } from "./contexts/reads.js";
 import {
+  allowsCellIn,
   callerWorkspaces,
   forbidden,
   holdsCellIn,
@@ -55,7 +56,9 @@ import {
   requireCell,
   requireForm,
   resolveForm,
+  resolveQuestion,
   workspacesHolding,
+  workspacesHoldingOrNone,
   type ScreenBuildInput,
   type ScreenParams,
 } from "./contexts/support.js";
@@ -318,7 +321,7 @@ function actionPorts(args: {
           screen: args.screen,
           offered,
           savedDraft: (formId) => savedDraftsFor(args.deps, formId),
-          canWriteDraft: (subject) => canWriteDraft(args.build, subject),
+          subjectAllows: (request) => subjectAllows(args.build, request),
           questionIdTaken: (questionId) => questionIdTaken(args.deps, questionId),
           requireSecondApprover: await secondApproverFor(args.deps, {
             formId: screenForm,
@@ -346,30 +349,61 @@ async function workspaceNamesFor(
 }
 
 /**
- * The draft-write cell on the subject a step names, asked before that step's draft is read.
- * A form an earlier step creates has no workspace of its own yet, so the question becomes
- * whether the caller may create a form in the workspace that step targets.
+ * A step's own cells on the subject it names, in the environment that step binds. `resolve`
+ * then ask the evaluator is the pair every read port uses, so the answer is the one the
+ * route itself would give. A subject an earlier step creates has no workspace of its own
+ * yet, so the question becomes whether the caller may act in the workspace that step targets.
  */
-async function canWriteDraft(
+async function subjectAllows(
   build: ScreenBuildInput,
-  subject: { readonly formId: string } | { readonly createdInWorkspace: string | undefined },
+  request: {
+    readonly cells: readonly { readonly resource: string; readonly action: string }[];
+    readonly environment: string;
+    readonly subject: StepSubject;
+  },
 ): Promise<boolean> {
-  const cell = { resource: "form" as Resource, action: "write" };
-  if (!("formId" in subject)) {
-    const held = await workspacesHolding(build, cell);
-    return subject.createdInWorkspace === undefined
-      ? held.length > 0
-      : held.includes(subject.createdInWorkspace);
+  const cells = request.cells.map((cell) => ({
+    resource: cell.resource as Resource,
+    action: cell.action,
+  }));
+  const subject = request.subject;
+  if ("createdInWorkspace" in subject) {
+    for (const cell of cells) {
+      const held = await workspacesHoldingOrNone(build, {
+        ...cell,
+        environment: request.environment,
+      });
+      const reaches =
+        subject.createdInWorkspace === undefined
+          ? held.length > 0
+          : held.includes(subject.createdInWorkspace);
+      if (!reaches) return false;
+    }
+    return true;
   }
-  // `resolveForm` then `requireCell` is the pair every read port uses, so the environment
-  // scoping and the refusal are the ones the route itself would apply.
   try {
-    const { workspaceId } = await resolveForm(build, subject.formId);
-    await requireCell(build, { workspaceId, ...cell });
+    const workspaceId = await subjectWorkspace(build, subject);
+    for (const cell of cells) {
+      const allowed = await allowsCellIn(build, {
+        workspaceId,
+        environment: request.environment,
+        ...cell,
+      });
+      if (!allowed) return false;
+    }
     return true;
   } catch {
     return false;
   }
+}
+
+async function subjectWorkspace(
+  build: ScreenBuildInput,
+  subject: Exclude<StepSubject, { readonly createdInWorkspace: string | undefined }>,
+): Promise<string> {
+  if ("workspaceId" in subject) return subject.workspaceId;
+  if ("formId" in subject) return (await resolveForm(build, subject.formId)).workspaceId;
+  return (await resolveQuestion(build, subject.questionId)).workspaceId;
 }
 
 /** R6's own question: an id used before is never reused, whatever its question's state. */

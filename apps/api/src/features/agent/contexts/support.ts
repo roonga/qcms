@@ -206,13 +206,42 @@ export async function requireCell(
  */
 export async function workspacesHoldingOrNone(
   input: ScreenBuildInput,
-  args: { readonly resource: Resource; readonly action: string },
+  args: {
+    readonly resource: Resource;
+    readonly action: string;
+    /** A proposed step binds its own environment, which is not always the switcher's. */
+    readonly environment?: string;
+  },
 ): Promise<readonly string[]> {
   const resolved = await resolveCallerWorkspaces(input.deps.databases.control, {
     userId: input.principal.userId,
     claim: input.principal.claim,
   });
-  return workspacesAllowing(resolved, requestFor({ ...args, environment: input.environment }));
+  return workspacesAllowing(
+    resolved,
+    requestFor({ ...args, environment: args.environment ?? input.environment }),
+  );
+}
+
+/**
+ * One cell on one workspace in a named environment. {@link requireCell} asks the same
+ * question for the turn's own environment; a proposed step asks it for the one it binds.
+ */
+export async function allowsCellIn(
+  input: ScreenBuildInput,
+  args: {
+    readonly workspaceId: string;
+    readonly environment: string;
+    readonly resource: Resource;
+    readonly action: string;
+  },
+): Promise<boolean> {
+  const resolved = await membershipIn(input, args.workspaceId);
+  return decideAccess({
+    memberRole: resolved.memberRole,
+    grants: resolved.grants,
+    request: requestFor(args),
+  }).allowed;
 }
 
 /** The caller's grants in every workspace they hold one in, resolved once per turn. */
