@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { RailFrame, RailTree } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
 import {
@@ -5,6 +7,7 @@ import {
   workspaceAreaLabel,
   WORKSPACE_SECTION_LABELS,
   WORKSPACE_SECTIONS,
+  WORKSPACE_SECTIONS_AT_ONE,
   workspaceSectionHref,
   type WorkspaceSection,
 } from "@/lib/membership/sections";
@@ -24,10 +27,13 @@ export function WorkspacesRail({
   workspace,
   section,
   multiple = true,
+  filters,
 }: {
   readonly workspace?: WorkspaceRailRow;
   readonly section?: WorkspaceSection;
   readonly multiple?: boolean;
+  /** The current screen's own Filters form, where it has one. */
+  readonly filters?: ReactNode;
 }) {
   const subject = t(workspaceAreaLabel(multiple));
   return (
@@ -43,12 +49,13 @@ export function WorkspacesRail({
         workspaceArea: subject,
         ...(workspace === undefined ? {} : { workspace: workspace.name }),
       }}
+      {...(filters === undefined ? {} : { filters })}
       {...(workspace === undefined
         ? {}
         : {
             sections: (
               <RailTree
-                items={WORKSPACE_SECTIONS.map((entry) => ({
+                items={(multiple ? WORKSPACE_SECTIONS : WORKSPACE_SECTIONS_AT_ONE).map((entry) => ({
                   key: `section:${entry}`,
                   href: workspaceSectionHref(workspace.workspaceId, entry),
                   label: t(WORKSPACE_SECTION_LABELS[entry]),
