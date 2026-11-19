@@ -12,11 +12,14 @@ export type LibraryState =
   | { readonly status: "done"; readonly message: string }
   | { readonly status: "error"; readonly message: string };
 
-/* Marking one workspace unmarks the one that held the library, so the two writes are one act. */
-export async function setSharedLibraryAction(next: {
+/** The workspace to hold the library, or `null` for none, and the one holding it now. */
+export interface SharedLibraryChoice {
   readonly workspaceId: string | null;
   readonly holder: string | null;
-}): Promise<LibraryState> {
+}
+
+/* Marking one workspace unmarks the one that held the library, so the two writes are one act. */
+export async function setSharedLibraryAction(next: SharedLibraryChoice): Promise<LibraryState> {
   const session = await requireAdminSession();
   if (next.holder !== null && next.holder !== next.workspaceId) {
     const cleared = await setSharedWorkspace(session, next.holder, false);

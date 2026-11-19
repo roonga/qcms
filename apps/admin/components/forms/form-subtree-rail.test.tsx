@@ -91,6 +91,7 @@ describe("the rail's markup", () => {
       "/forms/frm_life/preview",
       "/forms/frm_life/versions",
       "/forms/frm_life/publish",
+      "/forms/frm_life/move",
     ]);
     const formRow = html.slice(html.indexOf('data-rail-item="section:builder"'));
     expect(formRow.slice(0, formRow.indexOf("</li>"))).toContain('data-rail-group="steps"');

@@ -6,7 +6,7 @@ import { Alert, Button, RadioButton, RadioField, RadioGroup } from "@/components
 import { t } from "@/lib/i18n/en";
 import { NO_LIBRARY } from "@/lib/membership/site";
 
-import type { LibraryState } from "@/app/(shell)/site/shared-library/actions";
+import type { LibraryState, SharedLibraryChoice } from "@/app/(shell)/site/shared-library/actions";
 
 export interface LibraryWorkspace {
   readonly workspaceId: string;
@@ -24,10 +24,7 @@ export function SharedLibraryPanel({
 }: {
   readonly workspaces: readonly LibraryWorkspace[];
   readonly holder: string | null;
-  readonly save: (next: {
-    readonly workspaceId: string | null;
-    readonly holder: string | null;
-  }) => Promise<LibraryState>;
+  readonly save: (next: SharedLibraryChoice) => Promise<LibraryState>;
 }) {
   const [chosen, setChosen] = useState(holder ?? NO_LIBRARY);
   const [confirming, setConfirming] = useState(false);
