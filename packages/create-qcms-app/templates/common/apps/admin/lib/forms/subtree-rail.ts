@@ -5,7 +5,7 @@ import { groupAnchorId, stepAnchorId } from "./issues.ts";
 import { isDraftGroup, type DraftGroup, type DraftStep } from "./types.ts";
 
 // Validation stays with builder controls because its entries move focus there; rule destinations include their own route.
-export const RAIL_SECTIONS = ["builder", "rules", "preview", "versions", "publish"] as const;
+export const RAIL_SECTIONS = ["builder", "rules", "preview", "versions", "publish", "move"] as const;
 
 /** One of the form's sibling screens. */
 export type RailSection = (typeof RAIL_SECTIONS)[number];
@@ -61,6 +61,7 @@ export function formSubtreeRail({
   steps,
   issueCounts,
   current,
+  offersMove,
 }: {
   readonly formId: string;
 
@@ -70,6 +71,8 @@ export function formSubtreeRail({
   readonly steps: readonly DraftStep[];
   readonly issueCounts: ReadonlyMap<string, number>;
   readonly current: RailCurrent;
+  /** Move form is offered where the caller holds Edit forms in another workspace (section 9). */
+  readonly offersMove: boolean;
 }): RailGroups {
   const base = `/forms/${encodeURIComponent(formId)}`;
   return {
@@ -99,7 +102,7 @@ export function formSubtreeRail({
         isCurrent: current.kind === "group" && current.groupId === group.groupId,
       })),
     ]),
-    siblings: RAIL_SECTIONS.map((section) => ({
+    siblings: RAIL_SECTIONS.filter((section) => section !== "move" || offersMove).map((section) => ({
       key: `section:${section}`,
       href: sectionHref(base, section),
 

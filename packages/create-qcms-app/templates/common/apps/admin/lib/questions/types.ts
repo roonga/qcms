@@ -91,6 +91,8 @@ export interface QuestionListItem {
   readonly slug: string;
   /** The owning workspace, which tells a shared-library row from one of the reader's own. */
   readonly workspaceId: string;
+  /** True where the shared question library owns it; absent when the read did not say. */
+  readonly shared?: boolean;
   readonly createdAt: string;
   readonly latestVersion: number;
   readonly latestStatus: QuestionStatus;

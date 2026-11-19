@@ -9,26 +9,37 @@ import {
   getWorkspaceBySlug,
   isAccountActive,
   listWorkspaces,
-  moveFormToWorkspace,
   renameWorkspace,
   setWorkspaceShared,
   writeAccessAuditRow,
+  writeSiteAuditWithMirror,
 } from "@roonga/qcms-db";
 import type { ArchiveBlockers, WorkspaceRow } from "@roonga/qcms-db";
 
-import { parseFormId } from "@roonga/qcms-core";
+import { parseFormId, type FormId } from "@roonga/qcms-core";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { holdsStatement } from "../membership/policy.js";
 import { decideInWorkspace, holdsInstallationClaim } from "../membership/resolver.js";
+import { holdWorkspaceRequest } from "../membership/two-person.js";
+import { requestView } from "../site-admins/schema.js";
 import { createWorkspaceWithStarterGroups } from "./create.js";
+import {
+  applyFormMove,
+  moveAccessPreview,
+  moveFail,
+  moveHoldReason,
+  type MoveHoldReason,
+  type MovePreviewPerson,
+} from "./move.js";
 import { requireOpenWorkspace, requireWorkspace, workspaceFail } from "./resolve.js";
 import type {
   archiveWorkspaceRoute,
   createWorkspaceRoute,
   listWorkspacesRoute,
+  moveFormPreviewRoute,
   moveFormRoute,
   renameWorkspaceRoute,
   setSharedWorkspaceRoute,
@@ -96,25 +107,6 @@ const fail = {
   alreadyArchived: (): ApiError =>
     new ApiError("WORKSPACE_ARCHIVED", 409, "That workspace is already archived"),
   invalidFormId: (): ApiError => new ApiError("INVALID_FORM_ID", 400, "Malformed form id"),
-  formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
-  /** The destination half of the move, which the route row cannot name. */
-  notInDestination: (): ApiError =>
-    new ApiError(
-      "FORBIDDEN",
-      403,
-      "Moving a form needs Edit forms in the destination workspace as well as the source.",
-    ),
-  /**
-   * Until the move becomes a held approval request, second approval in the source refuses
-   * it outright rather than applying it with nobody to approve.
-   */
-  moveNeedsApproval: (): ApiError =>
-    new ApiError(
-      "MOVE_NEEDS_APPROVAL",
-      409,
-      "The source workspace requires a second approver, and a held move is not built yet. " +
-        "Turn the setting off to move this form, or move it before turning it on.",
-    ),
 } as const;
 
 function isUniqueViolation(err: unknown): boolean {
@@ -272,6 +264,8 @@ export function makeSetSharedWorkspaceHandler(
   return async (c) => {
     const workspaceId = c.req.valid("param").id;
     const { shared } = c.req.valid("json");
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
     // Unmarking does not require an open workspace: one archived while it held the
     // library would otherwise keep it with no way to hand it on.
     const workspace = shared
@@ -286,8 +280,25 @@ export function makeSetSharedWorkspaceHandler(
       if (holder !== undefined) throw fail.alreadyShared(holder);
     }
 
-    const updated = await setWorkspaceShared(deps.databases.control, workspaceId, shared);
-    if (updated === undefined) throw new ApiError("WORKSPACE_NOT_FOUND", 404, "No such workspace");
+    const updated = await deps.databases.control.transaction(async (tx) => {
+      const row = await setWorkspaceShared(tx, workspaceId, shared);
+      if (row === undefined) throw new ApiError("WORKSPACE_NOT_FOUND", 404, "No such workspace");
+      if (row.isShared !== workspace.isShared) {
+        await writeSiteAuditWithMirror(
+          tx,
+          {
+            actor: principal.userId,
+            subject: workspaceId,
+            workspaceId,
+            kind: "library",
+            detail: `library=${shared ? "marked" : "unmarked"}`,
+            occurredAt: deps.clock.now(),
+          },
+          [workspaceId],
+        );
+      }
+      return row;
+    });
     return c.json({ workspace: await workspaceView(deps, updated) }, 200);
   };
 }
@@ -332,38 +343,135 @@ export function makeArchiveWorkspaceHandler(
   };
 }
 
+interface MoveContext {
+  readonly formId: FormId;
+  readonly moverId: string;
+  readonly source: WorkspaceRow;
+  readonly destination: WorkspaceRow;
+  readonly hold: MoveHoldReason | undefined;
+}
+
+/**
+ * The whole move act's authority: the route row carries the source's Edit forms cell, the
+ * destination's own is checked here because one row names one workspace, and the hold is
+ * read from the source's rule and the mover's standing in it.
+ */
+async function moveContext(
+  deps: Deps,
+  input: {
+    readonly formId: string;
+    readonly principal: { readonly userId: string; readonly role?: string | null } | undefined;
+    readonly destinationWorkspaceId: string;
+  },
+): Promise<MoveContext> {
+  const parsed = parseFormId(input.formId);
+  if (!parsed.ok) throw fail.invalidFormId();
+  const principal = input.principal;
+  if (principal === undefined) throw fail.noPrincipal();
+  const exec = deps.databases.control;
+  const destination = await requireOpenWorkspace(exec, input.destinationWorkspaceId);
+
+  const form = await getForm(exec, parsed.value);
+  if (form === undefined) throw moveFail.formNotFound();
+  const source = await requireWorkspace(exec, form.workspaceId);
+
+  const inDestination = await decideInWorkspace(exec, {
+    userId: principal.userId,
+    workspaceId: destination.id,
+    claim: holdsInstallationClaim(principal.role),
+    request: { resource: "form", action: "write" },
+  });
+  if (!inDestination.allowed) throw moveFail.notInDestination();
+
+  return {
+    formId: parsed.value,
+    moverId: principal.userId,
+    source,
+    destination,
+    hold: await moveHoldReason(exec, { source, moverId: principal.userId }),
+  };
+}
+
 /**
  * One `UPDATE` on the identity row: the slug is unique installation-wide, so an ownership
- * change re-points no public address. The route row carries the source half; the
- * destination's own Edit forms cell is checked here, because one row names one workspace.
+ * change re-points no public address. A held move stores the destination in the request's
+ * payload and moves nothing until it is approved.
  */
 export function makeMoveFormHandler(deps: Deps): RouteHandler<typeof moveFormRoute, ApiEnv> {
   return async (c) => {
-    const parsed = parseFormId(c.req.valid("param").id);
-    if (!parsed.ok) throw fail.invalidFormId();
-    const principal = c.get("adminPrincipal");
-    if (principal === undefined) throw fail.noPrincipal();
-    const target = await requireOpenWorkspace(
-      deps.databases.control,
-      c.req.valid("json").workspaceId,
-    );
-
-    const form = await getForm(deps.databases.control, parsed.value);
-    if (form === undefined) throw fail.formNotFound();
-
-    const source = await getWorkspace(deps.databases.control, form.workspaceId);
-    if (source?.requireSecondApprover === true) throw fail.moveNeedsApproval();
-
-    const inDestination = await decideInWorkspace(deps.databases.control, {
-      userId: principal.userId,
-      workspaceId: target.id,
-      claim: holdsInstallationClaim(principal.role),
-      request: { resource: "form", action: "write" },
+    const move = await moveContext(deps, {
+      formId: c.req.valid("param").id,
+      principal: c.get("adminPrincipal"),
+      destinationWorkspaceId: c.req.valid("json").workspaceId,
     });
-    if (!inDestination.allowed) throw fail.notInDestination();
 
-    const moved = await moveFormToWorkspace(deps.databases.control, parsed.value, target.id);
-    if (moved === undefined) throw fail.formNotFound();
-    return c.json({ id: moved.formId, workspaceId: moved.workspaceId }, 200);
+    if (move.hold !== undefined) {
+      const held = await deps.databases.control.transaction(async (tx) =>
+        holdWorkspaceRequest(tx, deps.clock.now(), {
+          kind: "move-form",
+          workspaceId: move.source.id,
+          target: move.formId,
+          requester: move.moverId,
+          payload: { destinationWorkspaceId: move.destination.id },
+          formId: move.formId,
+        }),
+      );
+      return c.json({ request: requestView(held) }, 202);
+    }
+
+    const workspaceId = await deps.databases.control.transaction(async (tx) =>
+      applyFormMove(tx, deps, {
+        formId: move.formId,
+        sourceWorkspaceId: move.source.id,
+        destinationWorkspaceId: move.destination.id,
+        actorId: move.moverId,
+      }),
+    );
+    return c.json({ id: move.formId, workspaceId }, 200);
+  };
+}
+
+function previewPeople(people: readonly MovePreviewPerson[]): {
+  userId: string;
+  email: string;
+  name: string;
+  acts: { act: string; environments: string[] }[];
+}[] {
+  return people.map((person) => ({
+    userId: person.userId,
+    email: person.email,
+    name: person.name,
+    acts: person.acts.map((entry) => ({
+      act: entry.act,
+      environments: [...entry.environments],
+    })),
+  }));
+}
+
+export function makeMoveFormPreviewHandler(
+  deps: Deps,
+): RouteHandler<typeof moveFormPreviewRoute, ApiEnv> {
+  return async (c) => {
+    const move = await moveContext(deps, {
+      formId: c.req.valid("param").id,
+      principal: c.get("adminPrincipal"),
+      destinationWorkspaceId: c.req.valid("query").workspaceId,
+    });
+    const preview = await moveAccessPreview(deps.databases.control, {
+      sourceWorkspaceId: move.source.id,
+      destinationWorkspaceId: move.destination.id,
+    });
+    return c.json(
+      {
+        formId: String(move.formId),
+        sourceWorkspaceId: move.source.id,
+        destinationWorkspaceId: move.destination.id,
+        requiresApproval: move.hold !== undefined,
+        holdReason: move.hold ?? null,
+        gains: previewPeople(preview.gains),
+        losses: previewPeople(preview.losses),
+      },
+      200,
+    );
   };
 }

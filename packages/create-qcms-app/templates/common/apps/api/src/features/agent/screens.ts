@@ -20,6 +20,7 @@ export const SCREEN_IDS = [
   "/forms/[formId]/versions",
   "/forms/[formId]/versions/[version]",
   "/forms/[formId]/publish",
+  "/forms/[formId]/move",
   "/operations/forms/[formId]/links",
   "/operations/forms/[formId]/webhooks",
   "/operations/forms/[formId]/responses",
@@ -34,6 +35,7 @@ export const SCREEN_IDS = [
   "/responses",
   "/responses/erasures",
   "/settings",
+  "/site/shared-library",
   "/webhooks",
   "/workspaces",
   "/workspaces/[workspaceId]/members",
@@ -78,6 +80,9 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/forms/[formId]/versions": screen(authoringContexts.versions),
   "/forms/[formId]/versions/[version]": screen(authoringContexts.versionDetail),
   "/forms/[formId]/publish": screen(authoringContexts.releases),
+  // The form and its frozen versions are what a move hands over, so the move screen
+  // shows the same facts the version list does.
+  "/forms/[formId]/move": screen(authoringContexts.versions),
   "/operations/forms/[formId]/links": screen(authoringContexts.links),
   "/operations/forms/[formId]/webhooks": screen(operationsContexts.formWebhooks),
   "/operations/forms/[formId]/responses": screen(operationsContexts.responseList),
@@ -92,6 +97,8 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/responses": screen(operationsContexts.responsePicker),
   "/responses/erasures": screen(operationsContexts.erasures),
   "/settings": screen(administrationContexts.settings),
+  // The shared question library is chosen from the workspace list, which is its facts.
+  "/site/shared-library": screen(administrationContexts.workspaces),
   "/webhooks": screen(operationsContexts.deadLetters),
   "/workspaces": screen(administrationContexts.workspaces),
   // One workspace's sections share one set of facts. Which kinds each offers is the
