@@ -427,6 +427,7 @@ export async function confirmPublishAction(
           proposal,
         );
   if (!result.ok) return refusedPublish(result);
+  if ("held" in result.data) return { status: "held" };
   return committedPublish(formId, result.data);
 }
 

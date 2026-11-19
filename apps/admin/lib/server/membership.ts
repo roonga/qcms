@@ -189,6 +189,8 @@ export async function addHolder(
     data: parseGroup(
       typeof group === "object" && group !== null ? (group as Record<string, unknown>) : {},
     ),
+    // A self-grant under second approval answers 202: the group is unchanged until approved.
+    ...(result.held === true ? { held: true as const } : {}),
   };
 }
 
@@ -249,6 +251,8 @@ export async function setWorkspaceSettings(
       workspaceId: str(result.data.workspaceId),
       requireSecondApprover: bool(result.data.requireSecondApprover),
     },
+    // Turning the switch off answers 202: it stays on until an Approver approves.
+    ...(result.held === true ? { held: true as const } : {}),
   };
 }
 

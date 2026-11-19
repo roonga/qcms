@@ -1393,6 +1393,8 @@ export const messages = {
     "The confirmation was sent and no answer arrived, so it may or may not have committed. " +
     "Look the result up before trying anything else: retrying would never create a second " +
     "version, but the answer is already recorded if it committed.",
+  "forms.publish.held":
+    "Nothing was published. This draft is published once an Approver approves the request.",
   "forms.publish.lookup": "Look the result up",
   "forms.publish.lookupNothing":
     "Nothing was committed under that confirmation. You can confirm again.",
@@ -1986,6 +1988,8 @@ export const messages = {
   "agent.card.note.unresolvedReference": "This step needed a value an earlier step did not report.",
   "agent.card.note.unreachable": "The request did not reach the server.",
   "agent.card.note.stale": "This proposal is more than ten minutes old.",
+  "agent.card.note.heldForApprover":
+    "Nothing has changed yet. An Approver has to approve this before it takes effect.",
   "agent.card.note.draftMoved":
     "This form's saved draft has changed since the plan was proposed. Ask the assistant again.",
   "agent.card.note.notWired": "This screen's control is not wired to the assistant yet.",
@@ -2533,6 +2537,8 @@ export const messages = {
   "membership.groups.addHolderNone": "Everybody in this workspace is already in this group.",
   "membership.groups.addHolderSubmit": "Grant",
   "membership.groups.holderAdded": "{email} is now in {name}.",
+  "membership.groups.holderHeld":
+    "Nothing has changed yet. {email} joins {name} once an Approver approves the request.",
   "membership.groups.holderFailed": "The grant was not written: {message}",
   "membership.groups.removeHolder": "Revoke",
   /** The accessible revoke name includes its visible word and the person's email; keep the email out of the painted button to preserve narrow layouts. */
@@ -2547,6 +2553,9 @@ export const messages = {
     "One switch, three effects. A publish to production is refused for the account that froze the version; a production endpoint change takes an Approver's confirmation; and nobody can give themselves a response role, or a new environment for one - a second Workspace administrator, or a Site administrator, has to make that change. Off by default, because a site with one account cannot satisfy the rule at all.",
   "membership.settings.save": "Save settings",
   "membership.settings.saved": "The settings were saved, and the change is on the access audit.",
+  "membership.settings.held":
+    "Nothing has changed yet. Second approval stays on until an Approver approves turning it " +
+    "off.",
   "membership.settings.saveFailed": "The settings were not saved: {message}",
 
   "membership.audit.heading": "Access audit",

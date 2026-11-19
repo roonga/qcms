@@ -92,6 +92,7 @@ export function AccessGroupsPanel({
         </Alert>
       )}
       {state.status === "error" && <Alert variant="error">{state.message}</Alert>}
+      {state.status === "held" && <Alert variant="info">{state.message}</Alert>}
       {state.status === "done" && <Alert variant="success">{state.message}</Alert>}
 
       {list !== undefined &&
