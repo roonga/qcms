@@ -34,6 +34,7 @@ function RailStandIn() {
 const DETAIL: FormDetail = {
   formId: "frm_quote",
   slug: "vehicle-insurance-quote",
+  workspaceId: "org_default_workspace",
   defaultLocale: "en",
   status: "open",
   draft: {

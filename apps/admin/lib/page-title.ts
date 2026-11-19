@@ -10,6 +10,7 @@ export type FormSection =
   | "preview"
   | "versions"
   | "publish"
+  | "move"
   | "links"
   | "responses"
   | "webhooks"

@@ -328,6 +328,7 @@ describe("the rail tree", () => {
       steps: draftWith(9).steps,
       issueCounts: new Map([["stp_travellers", 2]]),
       current: { kind: "group", groupId: "grp_passengers" },
+      offersMove: false,
     });
 
     expect(rail.children.map((item) => [item.kind, item.key, item.isCurrent])).toStrictEqual([
@@ -347,6 +348,7 @@ describe("the rail tree", () => {
       steps: draftWith(9).steps,
       issueCounts: new Map(),
       current: { kind: "section", section: "preview" },
+      offersMove: false,
     });
     const group = rail.children.find((item) => item.kind === "group");
 

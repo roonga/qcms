@@ -1,4 +1,5 @@
 import { t, type MessageKey } from "../i18n/en.ts";
+import { SHARED_LIBRARY_PATH } from "../membership/site.ts";
 import {
   ALL_WORKSPACES_SEGMENT,
   WORKSPACE_SECTION_LABELS,
@@ -29,6 +30,7 @@ const FORM_SECTIONS: Readonly<Record<string, MessageKey>> = {
   preview: "forms.tab.preview",
   versions: "forms.tab.versions",
   publish: "forms.tab.publish",
+  move: "forms.tab.move",
 };
 
 const OPERATIONS_SECTIONS: Readonly<Record<string, MessageKey>> = {
@@ -136,6 +138,9 @@ export function breadcrumbTrail(pathname: string, names: CrumbNames = {}): reado
       break;
     case "workspaces":
       trail = workspaces(rest, names);
+      break;
+    case "site":
+      trail = [{ label: t("site.title"), href: SHARED_LIBRARY_PATH }, { label: t("site.library.title") }];
       break;
     case "settings":
       trail = [{ label: t("settings.title") }];

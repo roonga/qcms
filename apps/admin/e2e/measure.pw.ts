@@ -51,6 +51,7 @@ function screens(sessionId: string): readonly Screen[] {
     { path: `/forms/${FORM_ID}/versions/1`, cap: "wide" },
 
     { path: `/forms/${FORM_ID}/publish`, cap: "wide" },
+    { path: `/forms/${FORM_ID}/move`, cap: "prose" },
     { path: "/questions", cap: "list" },
     { path: `/questions/${QUESTION_ID}`, cap: "wide" },
     { path: "/questions/new", cap: "prose" },
@@ -66,6 +67,7 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/responses", cap: "list" },
     { path: "/responses/erasures", cap: "log" },
     { path: "/settings", cap: "prose" },
+    { path: "/site/shared-library", cap: "prose" },
     { path: "/webhooks", cap: "wide" },
 
     /* Both routes redirect to the current workspace, so the cap read here is that landing's and
@@ -118,7 +120,7 @@ let totpSecret = "";
 let sessionId = "";
 
 test.beforeAll(async () => {
-  await createTestAdmin(EMAIL);
+  await createTestAdmin(EMAIL, { siteAdministrator: true });
 });
 
 test("657 caps each screen at the width its own POC draws, at 1280", async ({ page }) => {
@@ -338,5 +340,7 @@ test("657 leaves every screen the same width at 390, because a cap is fluid belo
     expect.soft(measured.width, `${screen.path} is fluid at 390`).toBe(measured.available);
     widths.set(screen.path, measured.width);
   }
-  expect(new Set(widths.values()).size, "all thirty-two screens measure one width at 390").toBe(1);
+  expect(new Set(widths.values()).size, "all thirty-four screens measure one width at 390").toBe(
+    1,
+  );
 });

@@ -33,6 +33,7 @@ async function render(
       steps={steps}
       issueCounts={issueCounts}
       current={current}
+      offersMove
       actions={<span data-testid="stub-actions" />}
     />,
   );

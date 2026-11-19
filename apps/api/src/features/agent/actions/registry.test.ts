@@ -57,6 +57,15 @@ describe("the action-kind registry", () => {
     expect(actionKindForRoute("POST", "/admin/forms/{id}/draft")).toBeUndefined();
   });
 
+  it("offers no kind that moves a form between workspaces (work order 095)", () => {
+    // A move is applied or held by the source workspace's rule, decided on the screen with
+    // its preview in front of the person; no assistant card applies one.
+    expect(
+      Object.values(ACTION_KINDS).filter((def) => def.route?.path.endsWith("/workspace")),
+    ).toEqual([]);
+    expect(actionKindForRoute("POST", "/admin/forms/{id}/workspace")).toBeUndefined();
+  });
+
   it("resolves no kind for a shared route whose body matches none of them", () => {
     const path = "/admin/forms/{id}/webhooks/{webhookId}";
     expect(

@@ -14,6 +14,7 @@ const CURRENT_SECTION: Readonly<Record<string, string>> = {
   "/forms/[formId]/versions": "versions",
   "/forms/[formId]/versions/[version]": "versions",
   "/forms/[formId]/publish": "publish",
+  "/forms/[formId]/move": "move",
 };
 
 // Operations' rail is a second rail, not this one on another root: its slot pages name a
@@ -81,6 +82,7 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
       ...Object.keys(CURRENT_CONTEXT),
       "/questions/[questionId]",
       "/settings",
+      "/site/shared-library",
 
       "/questions",
       "/questions/new",
@@ -120,6 +122,7 @@ describe("which screens carry the form-subtree section", () => {
     ]);
     expect(sorted(formScopedScreens())).toEqual([
       "/forms/[formId]",
+      "/forms/[formId]/move",
       "/forms/[formId]/preview",
       "/forms/[formId]/publish",
       "/forms/[formId]/rules",
@@ -141,6 +144,7 @@ describe("which screens carry the form-subtree section", () => {
       "questions",
       "responses",
       "settings",
+      "site",
       "webhooks",
       "workspaces",
     ]);

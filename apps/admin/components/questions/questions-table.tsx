@@ -36,7 +36,14 @@ export function QuestionsTable({ rows }: { readonly rows: readonly QuestionListI
                   linkLabel={(shown) => t("questions.open", { questionId: shown })}
                 />
               </th>
-              <td>{textOf(question.label ?? undefined)}</td>
+              <td>
+                {textOf(question.label ?? undefined)}
+                {question.shared === true && (
+                  <span className="qcms-tag" data-question-shared="">
+                    {t("questions.shared")}
+                  </span>
+                )}
+              </td>
               <td className="qcms-cell--drop">
                 {question.type === null
                   ? t("questions.column.typeUnknown")

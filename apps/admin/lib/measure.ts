@@ -36,6 +36,8 @@ export const MEASURE_BY_ROUTE = {
   "/forms/[formId]/versions": "wide",
   /** Match the adjacent version-history width so reviewing and publishing do not reflow the same rows. */
   "/forms/[formId]/publish": "wide",
+  /** No POC draws Move form: one chooser and one preview panel, so it takes the prose cap. */
+  "/forms/[formId]/move": "prose",
   /** Stored and draft previews share the same respondent frame inside the outer cap. */
   "/forms/[formId]/versions/[version]": "wide",
 
@@ -58,6 +60,8 @@ export const MEASURE_BY_ROUTE = {
   "/responses/erasures": "log",
 
   "/settings": "prose",
+  /** No POC draws Site configuration: one chooser and one confirmation, so the prose cap. */
+  "/site/shared-library": "prose",
   /** The webhook drawing is 1820, beyond this vocabulary. Keep the current cap until the width scheme can represent that value. */
   "/webhooks": "wide",
   /** No dedicated membership drawings exist; choose caps by the analogous list and detail surfaces until those designs are supplied. */

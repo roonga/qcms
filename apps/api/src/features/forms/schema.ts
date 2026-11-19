@@ -307,6 +307,8 @@ export const FormDetailResponse = z
   .object({
     formId: z.string().openapi({ example: "frm_signup" }),
     slug: z.string().openapi({ example: "signup" }),
+    /** The workspace that owns it, which the Move form screen names as the source. */
+    workspaceId: z.string().openapi({ example: "org_default_workspace" }),
     defaultLocale: z.string().openapi({ example: "en" }),
     status: FormAvailability.openapi({ example: "open" }),
     /** The open draft, else the latest published definition as a seed, else null. */
