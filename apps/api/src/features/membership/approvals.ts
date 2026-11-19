@@ -18,7 +18,10 @@ import {
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { errorResponses, withScopes, type ApiEnv } from "../../openapi.js";
+import { parseFormId } from "@roonga/qcms-core";
+
 import { ApprovalRequestView, HeldResponse, requestView } from "../site-admins/schema.js";
+import { applyFormMove, moveLapse } from "../workspaces/move.js";
 import { requireOpenWorkspace } from "../workspaces/resolve.js";
 import {
   applyGrant,
@@ -68,6 +71,12 @@ export const workspaceRequestFailures = {
       409,
       "The person who asked is no longer a Workspace administrator of this workspace or a " +
         "Site administrator, so nothing is applied",
+    ),
+  formGone: (): ApiError =>
+    new ApiError(
+      "FORM_NOT_FOUND",
+      409,
+      "The form this request names no longer exists, so nothing is applied",
     ),
   groupGone: (): ApiError =>
     new ApiError(
@@ -205,11 +214,72 @@ async function workspaceRequestOf(
   return request;
 }
 
+const DECIDED_HERE = ["self-grant", "second-approval-off", "move-form"] as const;
+
+function destinationOf(request: ApprovalRequestRow): string {
+  return stringOf(request.payload.destinationWorkspaceId) ?? "";
+}
+
+/** The refusal this request can no longer avoid, or `undefined` when it still applies. */
+async function heldLapse(
+  tx: Executor,
+  request: ApprovalRequestRow,
+  workspaceId: string,
+): Promise<ApiError | undefined> {
+  if (request.kind === "self-grant") return selfGrantLapse(tx, request);
+  if (request.kind === "move-form") {
+    return moveLapse(tx, {
+      moverId: request.requestedBy,
+      sourceWorkspaceId: workspaceId,
+      destinationWorkspaceId: destinationOf(request),
+    });
+  }
+  return undefined;
+}
+
+async function applyHeldRequest(
+  tx: Executor,
+  deps: Deps,
+  input: {
+    readonly request: ApprovalRequestRow;
+    readonly workspace: { readonly id: string; readonly requireSecondApprover: boolean };
+    readonly approval: string;
+  },
+): Promise<void> {
+  const { request, workspace } = input;
+  if (request.kind === "second-approval-off") {
+    if (workspace.requireSecondApprover) {
+      await applySecondApprovalSetting(tx, deps, {
+        workspaceId: workspace.id,
+        value: false,
+        actorId: request.requestedBy,
+        approval: input.approval,
+      });
+    }
+    return;
+  }
+  if (request.kind === "move-form") {
+    const parsed = parseFormId(request.target);
+    if (!parsed.ok) throw workspaceRequestFailures.formGone();
+    await applyFormMove(tx, deps, {
+      formId: parsed.value,
+      sourceWorkspaceId: workspace.id,
+      destinationWorkspaceId: destinationOf(request),
+      // The mover is the actor of the move; the approver is named in the audit marker.
+      actorId: request.requestedBy,
+      approval: input.approval,
+    });
+    return;
+  }
+  await applySelfGrant(tx, deps, request, input.approval);
+}
+
 /**
- * Approve and apply a held switch-off or self-grant in one transaction under the workspace's
- * membership lock, re-checked as it is applied: the approver and the requester must both
- * still be active Workspace administrators of the workspace or Site administrators. A
- * self-grant this workspace has moved past ends as `lapsed` instead, applying nothing.
+ * Approve and apply a held switch-off, self-grant or move in one transaction under the
+ * workspace's membership lock, re-checked as it is applied: the approver must still be an
+ * active Workspace administrator of the workspace or a Site administrator, and the
+ * requester must still hold what the act needs. A request whose ground has moved since it
+ * was made ends as `lapsed` instead, applying nothing.
  */
 export async function approveWorkspaceRequest(
   deps: Deps,
@@ -218,7 +288,7 @@ export async function approveWorkspaceRequest(
   const applied = await deps.databases.control.transaction(async (tx) => {
     await lockWorkspaceMembership(tx, input.workspaceId);
     const request = await workspaceRequestOf(tx, input.workspaceId, input.requestId);
-    if (request.kind !== "self-grant" && request.kind !== "second-approval-off") {
+    if (!(DECIDED_HERE as readonly string[]).includes(request.kind)) {
       throw workspaceRequestFailures.notDecidedYet();
     }
     const at = deps.clock.now();
@@ -228,17 +298,22 @@ export async function approveWorkspaceRequest(
     if (!administrators.includes(input.approverId)) {
       throw workspaceRequestFailures.approverNotAdministrator();
     }
-    if (!administrators.includes(request.requestedBy)) {
+    // A move asks what the move needs of its mover, Edit forms in both workspaces, rather
+    // than that they administer this one: anybody holding it may ask for one.
+    if (request.kind !== "move-form" && !administrators.includes(request.requestedBy)) {
       throw workspaceRequestFailures.requesterNotAdministrator();
     }
     const workspace = await requireOpenWorkspace(tx, input.workspaceId);
 
-    if (request.kind === "self-grant") {
-      const lapse = await selfGrantLapse(tx, request);
-      if (lapse !== undefined) {
-        await lapseHeldRequest(tx, { request, actor: input.approverId, at });
-        return lapse;
-      }
+    const lapse = await heldLapse(tx, request, input.workspaceId);
+    if (lapse !== undefined) {
+      await lapseHeldRequest(tx, {
+        request,
+        actor: input.approverId,
+        at,
+        ...(request.kind === "move-form" ? { formId: request.target } : {}),
+      });
+      return lapse;
     }
 
     const decided = await decideApprovalRequest(tx, {
@@ -249,24 +324,17 @@ export async function approveWorkspaceRequest(
     });
     if (decided === undefined) throw heldRequestFailures.notPending();
 
-    const approval = `request=${request.requestId} approver=${input.approverId}`;
-    if (request.kind === "second-approval-off") {
-      if (workspace.requireSecondApprover) {
-        await applySecondApprovalSetting(tx, deps, {
-          workspaceId: input.workspaceId,
-          value: false,
-          actorId: request.requestedBy,
-          approval,
-        });
-      }
-    } else {
-      await applySelfGrant(tx, deps, request, approval);
-    }
+    await applyHeldRequest(tx, deps, {
+      request,
+      workspace: { id: input.workspaceId, requireSecondApprover: workspace.requireSecondApprover },
+      approval: `request=${request.requestId} approver=${input.approverId}`,
+    });
     await writeHeldRequestAudit(tx, {
       request: decided,
       act: "approve",
       actor: input.approverId,
       at,
+      ...(request.kind === "move-form" ? { formId: request.target } : {}),
     });
     return decided;
   });
@@ -294,6 +362,7 @@ export async function rejectWorkspaceRequest(
       act: "reject",
       actor: input.deciderId,
       at,
+      ...(request.kind === "move-form" ? { formId: request.target } : {}),
     });
     return decided;
   });
@@ -338,10 +407,10 @@ export const listWorkspaceRequestsRoute = createRoute({
   path: "/workspaces/{id}/approval-requests",
   summary: "The workspace's approval requests (admin)",
   description:
-    "The Requests row: turning second approval off and self-grants held for an approver, " +
-    "newest first, fifty to a page. A held publish to prod is approved on its form and is " +
-    "not listed here. A request an approver could not apply carries status `lapsed`, not " +
-    "`rejected`, with that approver as `decidedBy`.",
+    "The Requests row: turning second approval off, self-grants and moves held for an " +
+    "approver, newest first, fifty to a page. A held publish to prod is approved on its " +
+    "form and is not listed here. A request an approver could not apply carries status " +
+    "`lapsed`, not `rejected`, with that approver as `decidedBy`.",
   tags,
   request: { params: WorkspaceIdParam, query: WorkspaceRequestQuery },
   responses: {
@@ -360,12 +429,12 @@ export const approveWorkspaceRequestRoute = createRoute({
   summary: "Approve and apply a workspace request (admin)",
   description:
     "By a Workspace administrator of the workspace, or a Site administrator, who is not the " +
-    "requester. Refused after 7 days and once decided. Re-checked as it is applied: the " +
-    "requester must still be a Workspace administrator of the workspace or a Site " +
-    "administrator, and a self-grant applies only the roles, environments and name it " +
-    "bound. A self-grant whose group has moved since the request, or whose requested name " +
-    "has been taken since, applies nothing and ends the request as `lapsed`, so the " +
-    "requester can ask again.",
+    "requester. Refused after 7 days and once decided. Re-checked as it is applied: a " +
+    "switch-off's or self-grant's requester must still be a Workspace administrator of the " +
+    "workspace or a Site administrator, a move's mover must still hold Edit forms in both " +
+    "workspaces with the destination unarchived, and a self-grant applies only the roles, " +
+    "environments and name it bound. A request whose ground has moved since it was made " +
+    "applies nothing and ends as `lapsed`, so the requester can ask again.",
   tags,
   request: { params: RequestParams },
   responses: {

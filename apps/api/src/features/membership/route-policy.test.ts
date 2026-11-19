@@ -321,7 +321,6 @@ describe("every row names an action the policy declares", () => {
       "POST /admin/forms/{id}/publish",
       "POST /admin/forms/{id}/publish-and-release",
       "POST /admin/forms/{id}/publish-batch",
-      "POST /admin/forms/{id}/workspace",
     ]);
     const combined = policyForRequest("POST", "/admin/forms/frm_x/publish-and-release");
     expect(combined?.resource).toBe("form");
@@ -344,11 +343,18 @@ describe("every row names an action the policy declares", () => {
     expect(policyForRequest("POST", "/admin/questions/q_x/workspace")).toBeUndefined();
   });
 
-  it("takes Edit forms and a Workspace administrator to move a form", () => {
+  it("takes Edit forms in the source to move a form, and the same cell to preview it", () => {
     const move = policyForRequest("POST", "/admin/forms/frm_x/workspace");
     expect(move?.resource).toBe("form");
     expect(move?.action).toBe("write");
-    expect(move?.also).toEqual([{ resource: "workspace", action: "update" }]);
+    // Not a Workspace administrator cell: a holder of Edit forms in both workspaces who
+    // administers neither asks for the move, and an approver applies it (criterion 102).
+    expect(move?.also).toBeUndefined();
+
+    const preview = policyForRequest("GET", "/admin/forms/frm_x/workspace/preview");
+    expect(preview?.resource).toBe("form");
+    expect(preview?.action).toBe("write");
+    expect(preview?.workspace).toBe("form");
   });
 });
 

@@ -137,6 +137,41 @@ export const MoveToWorkspaceBody = z
   })
   .openapi("MoveToWorkspaceBody");
 
+export const MovePreviewQuery = z.object({
+  workspaceId: z
+    .string()
+    .min(1)
+    .openapi({ param: { name: "workspaceId", in: "query" }, example: "org_default_workspace" }),
+});
+
+const MovedAct = z
+  .object({
+    act: z.string().openapi({ example: "response.read" }),
+    environments: z.array(z.string()).openapi({ example: ["prod"] }),
+  })
+  .openapi("MovedAct");
+
+const MovePreviewPerson = z
+  .object({
+    userId: z.string(),
+    email: z.email(),
+    name: z.string(),
+    acts: z.array(MovedAct),
+  })
+  .openapi("MovePreviewPerson");
+
+export const MovePreviewResponse = z
+  .object({
+    formId: z.string().openapi({ example: "frm_signup" }),
+    sourceWorkspaceId: z.string().openapi({ example: "org_default_workspace" }),
+    destinationWorkspaceId: z.string().openapi({ example: "org_finance" }),
+    requiresApproval: z.boolean().openapi({ example: true }),
+    holdReason: z.enum(["second-approval", "not-source-administrator"]).nullable(),
+    gains: z.array(MovePreviewPerson),
+    losses: z.array(MovePreviewPerson),
+  })
+  .openapi("MoveFormPreview");
+
 export const WorkspaceView = z
   .object({
     workspaceId: z.string().openapi({ example: "org_default_workspace" }),
