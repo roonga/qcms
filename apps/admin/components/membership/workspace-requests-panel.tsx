@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 
 import { HelpTip } from "@/components/help-tip";
 import { Alert, Button } from "@/components/kit";
-import { t, tPlural } from "@/lib/i18n/en";
+import { t, tPlural, type MessageKey } from "@/lib/i18n/en";
 import {
   askedSentence,
   decidedSentence,
@@ -13,6 +13,29 @@ import {
   type HeldRequest,
 } from "@/lib/membership/approval-wording";
 import type { MembershipActionState } from "@/lib/membership/types";
+
+/** Several requests can wait at once, so each button's accessible name carries its own request. */
+function DecisionLabel({
+  visible,
+  named,
+}: {
+  readonly visible: MessageKey;
+  readonly named: string;
+}) {
+  return (
+    <>
+      <span aria-hidden="true">{t(visible)}</span>
+      <span className="qcms-visually-hidden">
+        {t(
+          visible === "membership.requests.approve"
+            ? "membership.requests.approveFor"
+            : "membership.requests.rejectFor",
+          { request: named },
+        )}
+      </span>
+    </>
+  );
+}
 
 /* The API decides every request: hiding Approve from the person who asked is a courtesy, not the check. */
 export function WorkspaceRequestsPanel({
@@ -106,25 +129,19 @@ export function WorkspaceRequestsPanel({
                         <div className="flex flex-wrap gap-2">
                           <Button
                             isDisabled={pending}
-                            aria-label={t("membership.requests.approveFor", { request: asked })}
                             onPress={() => {
                               startTransition(async () => {
                                 setState(
-                                  await decide(
-                                    workspaceId,
-                                    entry.request.requestId,
-                                    "approve",
-                                  ),
+                                  await decide(workspaceId, entry.request.requestId, "approve"),
                                 );
                               });
                             }}
                           >
-                            {t("membership.requests.approve")}
+                            <DecisionLabel visible="membership.requests.approve" named={asked} />
                           </Button>
                           <Button
                             variant="secondary"
                             isDisabled={pending}
-                            aria-label={t("membership.requests.rejectFor", { request: asked })}
                             onPress={() => {
                               startTransition(async () => {
                                 setState(
@@ -133,17 +150,14 @@ export function WorkspaceRequestsPanel({
                               });
                             }}
                           >
-                            {t("membership.requests.reject")}
+                            <DecisionLabel visible="membership.requests.reject" named={asked} />
                           </Button>
                         </div>
                       )}
                     </>
                   ) : (
                     <p className="text-sm text-(--color-text-muted)">
-                      {decidedSentence(
-                        entry.request,
-                        personLabel(entry.request.decidedBy, people),
-                      )}
+                      {decidedSentence(entry.request, personLabel(entry.request.decidedBy, people))}
                     </p>
                   )}
                 </li>

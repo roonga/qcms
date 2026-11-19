@@ -161,6 +161,7 @@ const SCREEN_LABELS: Readonly<Record<AgentScreen, MessageKey>> = {
   "/workspaces/[workspaceId]/settings": "membership.settings.heading",
   "/workspaces/[workspaceId]/audit": "membership.audit.heading",
   "/workspaces/[workspaceId]/assistant-actions": "membership.agentAudit.heading",
+  "/workspaces/[workspaceId]/archive": "membership.archive.heading",
 };
 
 /** One assistant act in words; an unfamiliar wire value is shown as it arrived. */

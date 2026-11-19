@@ -17,7 +17,21 @@ const AUDIT_KINDS: Readonly<Record<string, MessageKey>> = {
   grant: "membership.audit.kind.grant",
   revoke: "membership.audit.kind.revoke",
   setting: "membership.audit.kind.setting",
+  derive: "membership.audit.kind.derive",
+  group: "membership.audit.kind.group",
+  administrator: "membership.audit.kind.administrator",
+  approval: "membership.audit.kind.approval",
+  account: "membership.audit.kind.account",
+  link: "membership.audit.kind.link",
 };
+
+/**
+ * `account` is the workspace audit's one mirror-only kind: a site-level act on an account that
+ * held something here (`docs/WORKSPACE_ACCESS.md` section 11).
+ */
+export function isMirroredSiteAct(kind: string): boolean {
+  return kind === "account";
+}
 
 /** One access-audit act in words; an unfamiliar wire value is shown as it arrived rather than hidden. */
 export function auditKindLabel(kind: string): string {
@@ -147,6 +161,7 @@ const SCREEN_LABELS: Readonly<Record<AgentScreen, MessageKey>> = {
   "/workspaces/[workspaceId]/settings": "membership.settings.heading",
   "/workspaces/[workspaceId]/audit": "membership.audit.heading",
   "/workspaces/[workspaceId]/assistant-actions": "membership.agentAudit.heading",
+  "/workspaces/[workspaceId]/archive": "membership.archive.heading",
 };
 
 /** One assistant act in words; an unfamiliar wire value is shown as it arrived. */

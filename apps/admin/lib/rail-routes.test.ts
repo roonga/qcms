@@ -98,6 +98,7 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
       "/workspaces/[workspaceId]/settings",
       "/workspaces/[workspaceId]/audit",
       "/workspaces/[workspaceId]/assistant-actions",
+      "/workspaces/[workspaceId]/archive",
     ];
     expect(sorted([...withRail, ...NO_SECTION])).toEqual(sorted(shellScreens()));
   });

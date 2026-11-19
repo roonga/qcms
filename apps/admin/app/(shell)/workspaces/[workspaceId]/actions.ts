@@ -186,9 +186,7 @@ export async function renameWorkspaceAction(
   };
 }
 
-export async function archiveWorkspaceAction(
-  workspaceId: string,
-): Promise<MembershipActionState> {
+export async function archiveWorkspaceAction(workspaceId: string): Promise<MembershipActionState> {
   const session = await requireAdminSession();
   const result = await archiveWorkspace(session, workspaceId);
   if (!result.ok) {

@@ -38,9 +38,42 @@ export interface AccessGroupList {
   readonly groups: readonly AccessGroup[];
 }
 
+export interface SecondApprovalShortfall {
+  readonly administrator: boolean;
+  readonly publisher: boolean;
+}
+
 export interface WorkspaceSettings {
   readonly workspaceId: string;
   readonly requireSecondApprover: boolean;
+  /** Read from the caller's seat: the warning while the rule is on, the refusal to turn it on while it is off. */
+  readonly nobodyElseCouldApprove: boolean;
+  readonly missingApprover: SecondApprovalShortfall;
+}
+
+export const APPROVAL_STATUSES = ["pending", "approved", "rejected", "expired", "lapsed"] as const;
+
+export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
+
+/** A workspace act held for an Approver. `lapsed` ends one whose subject moved before it was applied. */
+export interface ApprovalRequest {
+  readonly requestId: string;
+  readonly kind: string;
+  readonly target: string;
+  readonly payload: Readonly<Record<string, unknown>>;
+  readonly requestedBy: string;
+  readonly requestedAt: string;
+  readonly expiresAt: string;
+  readonly status: ApprovalStatus;
+  readonly decidedBy: string | null;
+  readonly decidedAt: string | null;
+}
+
+export interface ApprovalRequestPage {
+  readonly workspaceId: string;
+  readonly requests: readonly ApprovalRequest[];
+  readonly page: number;
+  readonly total: number;
 }
 
 export interface AuditRow {
@@ -135,5 +168,7 @@ export type MembershipActionState =
       readonly role?: string;
       readonly userId?: string;
       readonly requireSecondApprover?: boolean;
+      /** The request a held act is waiting on, so the screen shows the hold rather than a change. */
+      readonly request?: ApprovalRequest;
     }
   | { readonly status: "error"; readonly message: string };

@@ -31,6 +31,7 @@ export const AGENT_SCREENS = [
   "/workspaces/[workspaceId]/settings",
   "/workspaces/[workspaceId]/audit",
   "/workspaces/[workspaceId]/assistant-actions",
+  "/workspaces/[workspaceId]/archive",
 ] as const;
 
 export type AgentScreen = (typeof AGENT_SCREENS)[number];

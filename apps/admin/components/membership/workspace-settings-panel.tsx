@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { HeadingMarker } from "@/components/agent/heading-marker";
-import { HelpTip } from "@/components/help-tip";
 import { Alert, Button, Checkbox, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import {
@@ -116,12 +115,9 @@ export function WorkspaceSettingsPanel({
       </div>
 
       <div className="flex min-w-0 flex-col gap-3">
-        <div className="qcms-help-head">
-          <h2 className="text-lg font-semibold text-(--color-text)">
-            {t("membership.settings.secondApproval")}
-          </h2>
-          <HelpTip>{t("membership.settings.twoPersonHelp")}</HelpTip>
-        </div>
+        <h2 className="text-lg font-semibold text-(--color-text)">
+          {t("membership.settings.secondApproval")}
+        </h2>
 
         {state.status === "error" && <Alert variant="error">{state.message}</Alert>}
         {state.status === "done" && <Alert variant="success">{state.message}</Alert>}

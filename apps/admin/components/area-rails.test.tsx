@@ -88,6 +88,7 @@ describe("an area's rail", () => {
       "section:settings",
       "section:audit",
       "section:assistant-actions",
+      "section:archive",
     ]);
   });
 

@@ -30,11 +30,7 @@ export function heldRequests(
 export function expiryWording(expiresInDays: number): string {
   return expiresInDays === 0
     ? t("membership.requests.expiresToday")
-    : tPlural(
-        "membership.requests.expiresInOne",
-        "membership.requests.expiresIn",
-        expiresInDays,
-      );
+    : tPlural("membership.requests.expiresInOne", "membership.requests.expiresIn", expiresInDays);
 }
 
 const ASKED: Readonly<Record<string, MessageKey>> = {

@@ -77,6 +77,7 @@ function screens(sessionId: string): readonly Screen[] {
     { path: `/workspaces/${WORKSPACE_ID}/settings`, cap: "log" },
     { path: `/workspaces/${WORKSPACE_ID}/audit`, cap: "log" },
     { path: `/workspaces/${WORKSPACE_ID}/assistant-actions`, cap: "log" },
+    { path: `/workspaces/${WORKSPACE_ID}/archive`, cap: "log" },
   ];
 }
 
@@ -338,5 +339,7 @@ test("657 leaves every screen the same width at 390, because a cap is fluid belo
     expect.soft(measured.width, `${screen.path} is fluid at 390`).toBe(measured.available);
     widths.set(screen.path, measured.width);
   }
-  expect(new Set(widths.values()).size, "all thirty-two screens measure one width at 390").toBe(1);
+  expect(new Set(widths.values()).size, "all thirty-three screens measure one width at 390").toBe(
+    1,
+  );
 });

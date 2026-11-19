@@ -51,11 +51,14 @@ export function AuditPanel({
             </p>
             {narrowed && (
               <p className="text-xs text-(--color-text-muted)" data-testid="qcms-audit-narrowed">
-                {t(rows.length === 0 ? "membership.audit.noneOnPage" : "membership.audit.narrowed", {
-                  shown: rows.length,
-                  rows: audit.rows.length,
-                  person: filters.person ?? "",
-                })}
+                {t(
+                  rows.length === 0 ? "membership.audit.noneOnPage" : "membership.audit.narrowed",
+                  {
+                    shown: rows.length,
+                    rows: audit.rows.length,
+                    person: filters.person ?? "",
+                  },
+                )}
               </p>
             )}
             {rows.length > 0 && (

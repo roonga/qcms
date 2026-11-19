@@ -1664,6 +1664,7 @@ export const messages = {
   "agent.context.workspace.settings": "Workspace {subject}: settings",
   "agent.context.workspace.audit": "Workspace {subject}: access audit",
   "agent.context.workspace.assistantActions": "Workspace {subject}: assistant actions",
+  "agent.context.workspace.archive": "Workspace {subject}: archive",
   "agent.empty": "Ask about this screen. The assistant explains what is here and takes you to it.",
   "agent.composer": "Ask the assistant",
   "agent.conversationLabel": "Conversation with the assistant",
@@ -2653,7 +2654,6 @@ export const messages = {
   "membership.archive.intro":
     "Archiving is the last step for a workspace: it keeps every question and audit row, takes no further change, and cannot be undone. There is no unarchive.",
   "membership.archive.cannotUndo": "Archiving {name} cannot be undone.",
-  "membership.archive.loadFailed": "The workspace could not be read: {message}",
   "membership.archive.blocked": "Cannot archive yet",
   "membership.archive.blocker.formsOne":
     "1 form is still in this workspace, closed and never-published ones included. Move it to another workspace first.",
@@ -2691,7 +2691,8 @@ export const messages = {
     "Nothing was applied: the access group this request names no longer exists.",
   "membership.error.workspaceNotEmpty":
     "This workspace still owns forms, or it is the shared question library, so it cannot be archived yet.",
-  "membership.error.workspaceArchived": "That workspace is archived, so it takes no further change.",
+  "membership.error.workspaceArchived":
+    "That workspace is archived, so it takes no further change.",
 
   "membership.agentAudit.heading": "Assistant actions",
   "membership.agentAudit.intro":
