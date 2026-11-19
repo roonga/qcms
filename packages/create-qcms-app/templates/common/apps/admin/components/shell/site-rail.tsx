@@ -14,24 +14,21 @@ export function SiteRail({
   readonly current: "shared-library";
   readonly offersLibrary: boolean;
 }) {
+  if (!offersLibrary) return <RailFrame subject={t("site.title")} testId="qcms-site-rail" />;
   return (
     <RailFrame
       subject={t("site.title")}
       testId="qcms-site-rail"
       sections={
         <RailTree
-          items={
-            offersLibrary
-              ? [
-                  {
-                    key: "section:shared-library",
-                    href: SHARED_LIBRARY_PATH,
-                    label: t("site.library.title"),
-                    current: current === "shared-library",
-                  },
-                ]
-              : []
-          }
+          items={[
+            {
+              key: "section:shared-library",
+              href: SHARED_LIBRARY_PATH,
+              label: t("site.library.title"),
+              current: current === "shared-library",
+            },
+          ]}
         />
       }
     />
