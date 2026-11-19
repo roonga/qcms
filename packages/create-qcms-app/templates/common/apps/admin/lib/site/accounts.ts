@@ -240,6 +240,17 @@ export function accountErrorMessage(code: string): string {
   return t(ACCOUNT_ERRORS[code] ?? "site.accounts.error.other");
 }
 
+const CREATE_ERRORS: Readonly<Record<string, MessageKey>> = {
+  MAIL_NOT_CONFIGURED: "site.accounts.create.mailNotConfigured",
+  ACCOUNT_EXISTS: "site.accounts.create.exists",
+};
+
+/** Catalog copy for a refused account create; falls back to the shared refusal copy. */
+export function createAccountErrorMessage(code: string): string {
+  const key = CREATE_ERRORS[code];
+  return key === undefined ? accountErrorMessage(code) : t(key);
+}
+
 export type AccountActState =
   | { readonly status: "idle" }
   | { readonly status: "done"; readonly message: string }

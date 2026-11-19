@@ -17,6 +17,7 @@ import { requireAdminSession, type AdminSession } from "@/lib/server/session";
 import {
   ACCOUNTS_PATH,
   accountErrorMessage,
+  createAccountErrorMessage,
   accountHref,
   type AccountActState,
   type CreateAccountState,
@@ -79,10 +80,7 @@ export async function createAccountAction(
     return {
       status: "error",
       code: result.code,
-      message:
-        result.code === "MAIL_NOT_CONFIGURED"
-          ? t("site.accounts.create.mailNotConfigured")
-          : accountErrorMessage(result.code),
+      message: createAccountErrorMessage(result.code),
       submitted: { email, name },
     };
   }

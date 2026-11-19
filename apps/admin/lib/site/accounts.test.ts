@@ -6,6 +6,7 @@ import {
   accountDirectoryQuery,
   accountErrorMessage,
   accountsPageHref,
+  createAccountErrorMessage,
   heldGroupLabel,
   holdingsByWorkspace,
   lastAdministratorWorkspaces,
@@ -182,5 +183,15 @@ describe("refusals", () => {
     );
     expect(accountErrorMessage("STEP_UP_FAILED")).toBe(t("site.accounts.error.stepUpFailed"));
     expect(accountErrorMessage("SOMETHING_NEW")).toBe(t("site.accounts.error.other"));
+  });
+
+  it("names a duplicate address on create, and falls back to the shared copy", () => {
+    expect(createAccountErrorMessage("ACCOUNT_EXISTS")).toBe(
+      "An account already uses that address.",
+    );
+    expect(createAccountErrorMessage("MAIL_NOT_CONFIGURED")).toBe(
+      t("site.accounts.create.mailNotConfigured"),
+    );
+    expect(createAccountErrorMessage("ACCOUNT_BUSY")).toBe(t("site.accounts.error.busy"));
   });
 });
