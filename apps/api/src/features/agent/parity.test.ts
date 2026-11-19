@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ROLE_NAMES, type HeldGrant, type RoleName } from "../membership/policy.js";
 import { policyForRequest, ROUTE_POLICIES } from "../membership/route-policy.js";
-import {
-  ACTION_KIND_NAMES,
-  BUILDER_ACTION_KINDS,
-  actionKind,
-} from "./actions/registry.js";
+import { ACTION_KIND_NAMES, BUILDER_ACTION_KINDS, actionKind } from "./actions/registry.js";
 import { BUILDER_SCREEN, DRAFT_EDIT_KINDS, EDIT_OPS, UNDO_KIND } from "./edit-token.js";
 import { offeredActionKinds } from "./grant-filter.js";
 import { SCREEN_IDS, type ScreenId } from "./screens.js";
@@ -194,9 +190,9 @@ describe("what each role is offered, for each environment", () => {
 
   it("offers the environment-independent acts whatever environment the switcher names", () => {
     for (const current of ENVIRONMENTS) {
-      expect(offeredFor({ role: "forms.editor", environments: [], current, screen: "/forms" })).toEqual(
-        BY_ROLE["forms.editor"],
-      );
+      expect(
+        offeredFor({ role: "forms.editor", environments: [], current, screen: "/forms" }),
+      ).toEqual(BY_ROLE["forms.editor"]);
     }
   });
 
@@ -257,7 +253,12 @@ describe("the agent builder's own key sets", () => {
 
   it("narrows the builder's reads to the form, its versions and the library", () => {
     for (const name of BUILDER_READ_TOOLS) expect(AGENT_READ_TOOL_NAMES).toContain(name);
-    for (const name of ["list_responses", "list_links", "list_webhooks", "list_erasures"] as const) {
+    for (const name of [
+      "list_responses",
+      "list_links",
+      "list_webhooks",
+      "list_erasures",
+    ] as const) {
       expect(BUILDER_READ_TOOLS).not.toContain(name);
     }
   });
