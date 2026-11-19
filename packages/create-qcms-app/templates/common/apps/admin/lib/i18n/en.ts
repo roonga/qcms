@@ -2692,7 +2692,6 @@ export const messages = {
     "QCMS could not deliver the sign-in link to {email}. The account was created. Resend the link.",
   "site.accounts.create.mailNotConfigured":
     "Accounts cannot be created until email is set up for this site. The first account, made at install, is the only exception.",
-  "site.accounts.create.exists": "An account already uses that address.",
   "site.accounts.create.open": "Open the account page for {name}",
   "site.accounts.resend.act": "Resend link",
   "site.accounts.resend.working": "Sending",

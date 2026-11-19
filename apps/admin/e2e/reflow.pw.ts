@@ -6,7 +6,7 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
-import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { accountIdOf, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { submitResponse } from "./support/ops.js";
 
@@ -36,7 +36,7 @@ function routePatternsUnder(directory: string, prefix: string): string[] {
   return patterns;
 }
 
-function livePath(pattern: string, sessionId: string): string {
+function livePath(pattern: string, sessionId: string, accountId: string): string {
   const fills: Record<string, string> = {
     "[formId]": FORM_ID,
     "[questionId]": QUESTION_ID,
@@ -44,7 +44,7 @@ function livePath(pattern: string, sessionId: string): string {
     "[version]": "1",
 
     "[workspaceId]": WORKSPACE_ID,
-    "[accountId]": "usr_reflow_missing",
+    "[accountId]": accountId,
   };
   return pattern
     .split("/")
@@ -64,6 +64,7 @@ function livePath(pattern: string, sessionId: string): string {
 
 let totpSecret = "";
 let sessionId = "";
+let accountId = "";
 
 // Measure the document scrollport; overflow inside a table's own scroll container is allowed.
 async function documentWidth(page: Page, path: string, width: number): Promise<number> {
@@ -71,12 +72,18 @@ async function documentWidth(page: Page, path: string, width: number): Promise<n
   await setScreenEnvironment(page, path);
   await page.goto(path);
   await expect(page.locator("main#main-content"), `${path} renders the shell`).toHaveCount(1);
+  await expect(
+    page.getByTestId("qcms-denied-recovery"),
+    `${path} is reached by this account, not refused`,
+  ).toHaveCount(0);
   return page.evaluate(() => document.documentElement.scrollWidth);
 }
 
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(300_000);
-  await createTestAdmin(EMAIL);
+  // A Site administrator, or the Site configuration routes sweep the denied recovery instead.
+  await createTestAdmin(EMAIL, { siteAdministrator: true });
+  accountId = await accountIdOf(EMAIL);
   const page = await browser.newPage();
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
@@ -94,7 +101,7 @@ async function sweep(page: Page, width: number): Promise<void> {
   for (const pattern of patterns) {
     expect
       .soft(
-        await documentWidth(page, livePath(pattern, sessionId), width),
+        await documentWidth(page, livePath(pattern, sessionId, accountId), width),
         `${pattern} fits ${String(width)} (SC 1.4.10)`,
       )
       .toBeLessThanOrEqual(width);

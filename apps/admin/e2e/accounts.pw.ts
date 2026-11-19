@@ -259,7 +259,7 @@ test("the last active Site administrator's Disable is disabled with the reason, 
     );
     expect(response.status).toBe(409);
     const body = (await response.json()) as { error?: { code?: string } };
-    expect(["LAST_SITE_ADMINISTRATOR", "OWN_ACCOUNT"]).toContain(body.error?.code);
+    expect(body.error?.code).toBe("LAST_SITE_ADMINISTRATOR");
     const [row] = await query<{ disabledAt: Date | null }>(
       `select "disabledAt" from "user" where id = $1`,
       [viewerId],

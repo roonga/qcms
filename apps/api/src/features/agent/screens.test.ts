@@ -130,6 +130,12 @@ describe("the screen registry", () => {
     }
     expect(isScreenId("/workspaces/[workspaceId]")).toBe(false);
   });
+
+  it("holds a row for each Site configuration screen, so a turn on one is not an unknown screen", () => {
+    for (const id of ["/site/accounts", "/site/accounts/new", "/site/accounts/[accountId]"]) {
+      expect(isScreenId(id), id).toBe(true);
+    }
+  });
 });
 
 describe("one door, by grant and registry", () => {

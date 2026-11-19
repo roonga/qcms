@@ -242,7 +242,7 @@ export function accountErrorMessage(code: string): string {
 
 const CREATE_ERRORS: Readonly<Record<string, MessageKey>> = {
   MAIL_NOT_CONFIGURED: "site.accounts.create.mailNotConfigured",
-  ACCOUNT_EXISTS: "site.accounts.create.exists",
+  ACCOUNT_EXISTS: "site.accounts.error.exists",
 };
 
 /** Catalog copy for a refused account create; falls back to the shared refusal copy. */
