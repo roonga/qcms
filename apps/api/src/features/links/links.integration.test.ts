@@ -6,6 +6,7 @@ import {
   createForm,
   insertFormRelease,
   insertFormVersion,
+  setRequireSecondApprover,
 } from "@roonga/qcms-db";
 import {
   CONTAINER_BOOT_TIMEOUT_MS,
@@ -602,5 +603,23 @@ describe("link mints and revokes are audited in the workspace audit (#1272)", ()
       expect(res.status).toBe(500);
       expect((await listStates(app))[linkId]).toBe("active");
     });
+  });
+});
+
+describe("second approval does not cover links (criterion 29)", () => {
+  it("mints and revokes in prod with the rule on", async () => {
+    await setRequireSecondApprover(testDb.db, SEED_WORKSPACE_ID, true);
+    try {
+      const minted = await mint(app, { expiresAt: FUTURE });
+      expect(minted.status, await minted.clone().text()).toBe(201);
+      const { links } = (await minted.json()) as { links: Array<{ linkId: string }> };
+      const linkId = links[0]!.linkId;
+
+      const revoked = await revoke(FORM_ID, linkId);
+      expect(revoked.status, await revoked.clone().text()).toBe(200);
+      expect((await revoked.json()) as { state: string }).toMatchObject({ state: "revoked" });
+    } finally {
+      await setRequireSecondApprover(testDb.db, SEED_WORKSPACE_ID, false);
+    }
   });
 });

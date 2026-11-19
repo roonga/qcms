@@ -7,6 +7,8 @@ import {
   SITE_AUDIT_KINDS,
 } from "@roonga/qcms-db";
 
+import { ApprovalRequestView } from "../site-admins/schema.js";
+
 // No `externalGroupId` on a request body: it is the directory sync join key, and
 // `z.strictObject` refuses it.
 
@@ -127,6 +129,29 @@ export const WorkspaceMemberResponse = z
 export const WorkspaceSettingsResponse = z
   .object({ workspaceId: z.string(), requireSecondApprover: z.boolean() })
   .openapi("WorkspaceSettingsResponse");
+
+export const WorkspaceSettingsHeldResponse = z
+  .object({
+    workspaceId: z.string(),
+    requireSecondApprover: z.boolean(),
+    request: ApprovalRequestView,
+  })
+  .openapi("WorkspaceSettingsHeldResponse");
+
+export const WorkspaceSettingsReadResponse = z
+  .object({
+    workspaceId: z.string(),
+    requireSecondApprover: z.boolean(),
+    // Read from the caller's seat, whether the switch is on or off: the warning while it is
+    // on, and the turn-on refusal while it is off.
+    nobodyElseCouldApprove: z.boolean(),
+    missingApprover: z.object({ administrator: z.boolean(), publisher: z.boolean() }),
+  })
+  .openapi("WorkspaceSettingsReadResponse");
+
+export const AccessGroupHeldResponse = z
+  .object({ group: AccessGroupView, request: ApprovalRequestView })
+  .openapi("AccessGroupHeldResponse");
 
 // The caller's own grants and nobody else's, which is why the route takes no parameter
 // naming a person.

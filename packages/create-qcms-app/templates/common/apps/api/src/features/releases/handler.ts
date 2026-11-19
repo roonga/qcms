@@ -42,6 +42,7 @@ import {
   enforcedRules,
   evidenceFor,
   isRollback,
+  nonProductionEnvironments,
   prerequisiteCode,
   productionFloorApplies,
   readWorkflow,
@@ -340,6 +341,7 @@ export function makeReleaseReviewHandler(
           releases,
           workflow,
           requiresSecond: workspace?.requireSecondApprover ?? false,
+          prodOnly: nonProductionEnvironments(served).length === 0,
           isDraft: source.kind === "draft",
           version: candidate?.version,
           author: candidate?.publishedBy ?? null,
@@ -381,6 +383,7 @@ function reviewTarget(input: {
   readonly releases: readonly FormReleaseHistoryRow[];
   readonly workflow: EffectiveWorkflow;
   readonly requiresSecond: boolean;
+  readonly prodOnly: boolean;
   readonly isDraft: boolean;
   readonly version: number | undefined;
   readonly author: string | null;
@@ -392,7 +395,7 @@ function reviewTarget(input: {
   closed: boolean;
   evidence: { environment: string; version: number; sequence: number; releasedAt: string }[];
   blockers: Blocker[];
-  twoPerson: { applies: boolean; refusedAsAuthor: boolean };
+  twoPerson: { applies: boolean; refusedAsAuthor: boolean; heldForApproval: boolean };
   protected: boolean;
 } {
   const { environment, releases, version } = input;
@@ -405,11 +408,16 @@ function reviewTarget(input: {
     version === undefined ? [] : evidenceFor(releases, { version, environment, rule });
 
   const applies = environment === PRODUCTION_ENVIRONMENT && input.requiresSecond;
+  // On a site whose only environment is prod a draft publish is held for another holder's
+  // approval rather than refused.
+  const heldForApproval = applies && input.isDraft && input.prodOnly;
   // A draft freezes its snapshot in the same confirmation, so the publisher is this caller
   // and `approvalForRelease` refuses the destination at commit (ADR-41). Reported here too,
   // because a destination certain to be refused belongs in the review that says why.
   const refusedAsAuthor =
-    applies && (input.isDraft || (input.author !== null && input.author === input.caller));
+    applies &&
+    !heldForApproval &&
+    (input.isDraft || (input.author !== null && input.author === input.caller));
   const blockers = blockersFor({
     prerequisite: rule.requiresPriorReleaseIn,
     prerequisiteCode: prerequisiteCode(input.workflow),
@@ -435,7 +443,7 @@ function reviewTarget(input: {
       releasedAt: release.releasedAt.toISOString(),
     })),
     blockers,
-    twoPerson: { applies, refusedAsAuthor },
+    twoPerson: { applies, refusedAsAuthor, heldForApproval },
     protected: environment === PRODUCTION_ENVIRONMENT,
   };
 }

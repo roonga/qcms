@@ -133,6 +133,8 @@ export const ReleaseReviewResponse = z
           applies: z.boolean(),
 
           refusedAsAuthor: z.boolean(),
+          // A draft publish here is held as a request until another holder approves it.
+          heldForApproval: z.boolean(),
         }),
         protected: z.boolean(),
       }),

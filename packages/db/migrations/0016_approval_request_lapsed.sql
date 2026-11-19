@@ -1,0 +1,4 @@
+ALTER TABLE "control"."approval_requests" DROP CONSTRAINT "approval_requests_status";--> statement-breakpoint
+ALTER TABLE "control"."approval_requests" DROP CONSTRAINT "approval_requests_decision";--> statement-breakpoint
+ALTER TABLE "control"."approval_requests" ADD CONSTRAINT "approval_requests_status" CHECK ("control"."approval_requests"."status" in ('pending', 'approved', 'rejected', 'expired', 'lapsed'));--> statement-breakpoint
+ALTER TABLE "control"."approval_requests" ADD CONSTRAINT "approval_requests_decision" CHECK (("control"."approval_requests"."status" = 'pending') = ("control"."approval_requests"."decided_at" is null) and ("control"."approval_requests"."status" in ('approved', 'rejected', 'lapsed')) = ("control"."approval_requests"."decided_by" is not null));
