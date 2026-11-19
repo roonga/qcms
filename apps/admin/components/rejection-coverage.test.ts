@@ -10,6 +10,9 @@ const COMPONENTS_ROOT = dirname(fileURLToPath(import.meta.url));
 
 const HANDLERS: Readonly<Record<string, readonly string[]>> = {
   "forms/draft-preview.tsx": ["preview projection (forms/draft-preview-rejects.test.tsx)"],
+  "forms/form-builder.tsx": [
+    "read the stored draft a replayed accept left (forms/form-builder.test.tsx)",
+  ],
   "forms/release-panel.tsx": ["release (forms/release-panel-rejects.test.tsx)"],
   "forms/publish-wizard.tsx": [
     "read the review (forms/publish-wizard-rejects.test.tsx)",
@@ -74,13 +77,13 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     expect(found).toStrictEqual(declared);
   });
 
-  it("number nineteen, of which sixteen are action rejections (nine at issue #352)", () => {
+  it("number twenty, of which seventeen are action rejections (nine at issue #352)", () => {
     const entries = Object.values(HANDLERS).flat();
-    expect(entries).toHaveLength(19);
+    expect(entries).toHaveLength(20);
 
     const clipboard = entries.filter((entry) => entry.startsWith("copy"));
     expect(clipboard).toHaveLength(3);
 
-    expect(entries.length - clipboard.length).toBe(16);
+    expect(entries.length - clipboard.length).toBe(17);
   });
 });

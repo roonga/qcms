@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import type {
+  AgentEditState,
   CreateFormCardState,
   CreateFormState,
   DraftPreviewState,
@@ -16,6 +17,7 @@ import type {
   SaveDraftState,
   SettingsState,
   StartDraftState,
+  StoredDraftState,
   ValidateDraftState,
 } from "@/lib/forms/builder-state";
 import { blankDraft, formIdFromSlug } from "@/lib/forms/draft";
@@ -30,15 +32,19 @@ import type {
 } from "@/lib/forms/release-candidate";
 import type { DraftForm, FormIssue, FormVersionSnapshot } from "@/lib/forms/types";
 import {
+  applyAgentEdit,
   createForm,
   getForm,
   getFormVersion,
   previewCondition,
   previewDraft,
+  readStoredDraft,
   saveDraft,
   setFormStatus,
   updateSettings,
   validateDraft,
+  type AgentAccept,
+  type AgentAdopt,
 } from "@/lib/server/forms";
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
 import type { AgentProposalRef } from "@/lib/server/agent-proposal";
@@ -178,9 +184,9 @@ async function createFormIdentity(
 export async function saveDraftAction(
   formId: string,
   draft: DraftForm,
-  agentAssisted?: boolean,
-  newQuestions?: readonly unknown[],
+  accept?: AgentAccept,
   proposal?: AgentProposalRef,
+  adopt?: AgentAdopt,
 ): Promise<SaveDraftState> {
   const session = await requireAdminSession();
   if (!withinCap(draft)) {
@@ -193,7 +199,7 @@ export async function saveDraftAction(
     };
   }
 
-  const result = await saveDraft(session, formId, draft, agentAssisted, newQuestions, proposal);
+  const result = await saveDraft(session, formId, draft, accept, proposal, adopt);
   if (!result.ok) {
     return {
       status: "error",
@@ -214,6 +220,29 @@ export async function saveDraftAction(
     agentAssisted: result.data.agentAssisted,
     updatedAt: result.data.updatedAt,
   };
+}
+
+/* The definition is passed through untouched: its edit token binds that exact post-state. */
+export async function applyAgentEditAction(
+  formId: string,
+  definition: unknown,
+  token: string,
+): Promise<AgentEditState> {
+  const session = await requireAdminSession();
+  if (!withinCap(definition) || token === "") {
+    return { status: "error", code: MALFORMED_CODE, message: messageForFormCode(MALFORMED_CODE) };
+  }
+  const result = await applyAgentEdit(session, formId, definition, token);
+  if (!result.ok) return { status: "error", code: result.code, message: result.message };
+  revalidatePath(`/forms/${formId}`, "layout");
+  return { status: "saved", undoToken: result.data.undoToken };
+}
+
+export async function readStoredDraftAction(formId: string): Promise<StoredDraftState> {
+  const session = await requireAdminSession();
+  const result = await readStoredDraft(session, formId);
+  if (!result.ok) return { status: "error", message: result.message };
+  return { status: "read", definition: result.data };
 }
 
 /** Store the newest version's seeded copy as the open draft the agent builder edits. */

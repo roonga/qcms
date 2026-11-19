@@ -748,9 +748,6 @@
           "definition": {
             "$ref": "#/components/schemas/FormDefinitionInput"
           },
-          "agentAssisted": {
-            "type": "boolean"
-          },
           "appearance": {
             "$ref": "#/components/schemas/AppearanceInput"
           }
@@ -6897,7 +6894,7 @@
     "/admin/forms/{id}/draft": {
       "put": {
         "summary": "Replace the draft definition; returns advisory publish issues (admin)",
-        "description": "The single draft save path. With the agent flag on, a card-less builder edit or its Undo carries a server-minted token in `x-qcms-agent-edit`, bound to the user, the form, the turn and the draft: an edit to the revision it was minted for, an Undo to the states on either side of its edit. A stale, replayed, foreign or over-cap token is refused and never saved as an ordinary edit. Each accepted edit and Undo writes one `control.agent_actions` row in the save's transaction, and an edit's response carries the token that undoes it. The body's `agentAssisted` is never taken as provenance.",
+        "description": "The single draft save path. With the agent flag on, a card-less builder edit or its Undo carries a server-minted token in `x-qcms-agent-edit`, bound to the user, the form, the turn and the draft: an edit to the revision it was minted for, an Undo to the states on either side of its edit. A stale, replayed, foreign or over-cap token is refused and never saved as an ordinary edit. Each accepted edit and Undo writes one `control.agent_actions` row in the save's transaction, and an edit's response carries the token that undoes it. A proposal whose accept this route's sibling refused may be kept as the user's own edit instead: that save carries the refused accept token in `x-qcms-agent-adopt`, which records one `apply-draft.adopted` row, once per proposal, and changes nothing about what the save stores. Either agent header alone, never both, and neither alongside a card's step. The body carries no provenance mark: only a verified token does.",
         "tags": [
           "forms"
         ],
@@ -6927,6 +6924,17 @@
             "required": false,
             "description": "An agent edit or Undo token; flag-gated, refused with 400 when the flag is off.",
             "name": "x-qcms-agent-edit",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "The accept token of a proposal the user chose to keep as their own edit after the accept was refused; attribution only, flag-gated, refused with 400 when the flag is off, and refused alongside either other agent header."
+            },
+            "required": false,
+            "description": "The accept token of a proposal the user chose to keep as their own edit after the accept was refused; attribution only, flag-gated, refused with 400 when the flag is off, and refused alongside either other agent header.",
+            "name": "x-qcms-agent-adopt",
             "in": "header"
           }
         ],
@@ -8235,7 +8243,7 @@
     "/admin/forms/{id}/draft/agent-changes": {
       "get": {
         "summary": "What the agent changed in the draft since the last publish (admin)",
-        "description": "The cumulative agent change since the last human-reviewed revision, which is the newest published version: that version and the open draft for the publish wizard to diff, and one entry per recorded agent change. Read from `control.agent_actions` alone, never from the draft's client-supplied `agentAssisted` mark.",
+        "description": "The cumulative agent change since the last human-reviewed revision, which is the newest published version: that version and the open draft for the publish wizard to diff, and one entry per recorded agent change. Read from `control.agent_actions` alone, never from the draft row's `agentAssisted` flag.",
         "tags": [
           "forms"
         ],

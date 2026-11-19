@@ -29,8 +29,9 @@ vi.mock("@/lib/agent/builder-assist-bridge", () => ({
     canPropose: true,
     draft: DRAFT,
     draftUpdatedAt: "2026-11-02T09:00:00.000Z",
-    accept: (...args: readonly unknown[]): void => {
+    accept: (...args: readonly unknown[]): Promise<{ saved: true }> => {
       accept(...args);
+      return Promise.resolve({ saved: true });
     },
   }),
   nextDraftSaved: (): Promise<string | undefined> => nextDraftSaved(),
@@ -62,6 +63,7 @@ const APPLY_DRAFT_PROPOSAL = {
         newQuestions: [{ questionId: "q_given_name", type: "shortText", label: { en: "Given" } }],
         issues: [],
         warnings: [],
+        acceptToken: "acc.tok",
       },
       card: { titleKey: "agent.card.apply-draft.title", consequenceKeys: [] },
       resultAllowlist: ["changes", "newQuestions"],
@@ -109,8 +111,9 @@ function mount(): void {
         canPropose: true,
         draft: DRAFT,
         draftUpdatedAt: "2026-11-02T09:00:00.000Z",
-        accept: (...args: readonly unknown[]): void => {
+        accept: (...args: readonly unknown[]): Promise<{ saved: true }> => {
           accept(...args);
+          return Promise.resolve({ saved: true });
         },
       }}
       composerRef={{ current: null }}

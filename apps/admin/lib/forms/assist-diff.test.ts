@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   acceptedDraft,
+  changesSincePublish,
   isPendingNewQuestionPin,
   pendingNewQuestionPins,
   proposalDiff,
@@ -371,6 +372,44 @@ describe("a proposal carrying a repeating group", () => {
 
     expect(acceptedDraft(BASE, proposed).steps[1]?.items).toEqual([
       { questionId: "q_purpose", version: 1 },
+    ]);
+  });
+});
+
+describe("every change since the last publish", () => {
+  it("lists additions, changes and removals across the title, steps, questions and rules", () => {
+    const draft: DraftForm = {
+      ...BASE,
+      title: { en: "Renamed" },
+      steps: [
+        {
+          stepId: "stp_new",
+          title: { en: "New" },
+          items: [{ questionId: "q_new", version: 2 }],
+        },
+      ],
+      rules: [],
+    };
+    expect(changesSincePublish(BASE, draft)).toEqual([
+      { kind: "title", change: "changed", id: "title", label: "Renamed" },
+      { kind: "step", change: "added", id: "stp_new", label: "New" },
+      { kind: "question", change: "added", id: "q_new", label: "q_new" },
+      { kind: "step", change: "removed", id: "stp_basics", label: "Basics" },
+      { kind: "question", change: "removed", id: "q_name", label: "q_name" },
+      { kind: "rule", change: "removed", id: "rul_existing", label: "rul_existing" },
+    ]);
+  });
+
+  it("is empty when the draft matches the publish", () => {
+    expect(changesSincePublish(BASE, BASE)).toEqual([]);
+  });
+
+  it("counts everything as added before the first publish", () => {
+    expect(changesSincePublish(null, BASE).map((change) => change.change)).toEqual([
+      "added",
+      "added",
+      "added",
+      "added",
     ]);
   });
 });
