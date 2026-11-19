@@ -238,9 +238,11 @@ describe("task 073: a Server Action carries the belt too (R-B2)", () => {
     });
     expect(unbelted).toEqual([
       "apps/admin/app/(shell)/assist/titles.ts",
+      "apps/admin/app/(shell)/forms/[formId]/move/actions.ts",
       "apps/admin/app/(shell)/forms/actions.ts",
       "apps/admin/app/(shell)/questions/actions.ts",
       "apps/admin/app/(shell)/responses/actions.ts",
+      "apps/admin/app/(shell)/site/shared-library/actions.ts",
       "apps/admin/app/(shell)/webhooks/actions.ts",
       "apps/admin/app/(shell)/workspaces/[workspaceId]/actions.ts",
     ]);
@@ -250,9 +252,11 @@ describe("task 073: a Server Action carries the belt too (R-B2)", () => {
     // Keep an exact action list: the origin belt does not automatically guard new action entry points.
     expect(SERVER_ACTIONS).toEqual([
       "apps/admin/app/(shell)/assist/titles.ts",
+      "apps/admin/app/(shell)/forms/[formId]/move/actions.ts",
       "apps/admin/app/(shell)/forms/actions.ts",
       "apps/admin/app/(shell)/questions/actions.ts",
       "apps/admin/app/(shell)/responses/actions.ts",
+      "apps/admin/app/(shell)/site/shared-library/actions.ts",
       "apps/admin/app/(shell)/webhooks/actions.ts",
       "apps/admin/app/(shell)/workspaces/[workspaceId]/actions.ts",
       "apps/portal/app/s/[sessionId]/roster-action.ts",
