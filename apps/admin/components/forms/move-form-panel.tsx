@@ -155,8 +155,8 @@ function People({
         {label}
       </p>
       <ul className="text-sm">
-        {people.map((person) => (
-          <li key={person.userId}>{describeMovedPerson(person, locale)}</li>
+        {people.map((person, index) => (
+          <li key={`${String(index)}-${person.name}`}>{describeMovedPerson(person, locale)}</li>
         ))}
       </ul>
     </div>

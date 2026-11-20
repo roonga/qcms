@@ -9,9 +9,8 @@ export interface MovedAct {
   readonly environments: readonly string[];
 }
 
+/** Named only: the API sends the display name, or the address where the name is blank. */
 export interface MovePreviewPerson {
-  readonly userId: string;
-  readonly email: string;
   readonly name: string;
   readonly acts: readonly MovedAct[];
 }
@@ -77,7 +76,7 @@ export function describeMovedAct(act: MovedAct, locale: string): string {
 
 export function describeMovedPerson(person: MovePreviewPerson, locale: string): string {
   return t("forms.move.person", {
-    person: person.name.trim() === "" ? person.email : person.name,
+    person: person.name,
     acts: formatList(
       person.acts.map((act) => describeMovedAct(act, locale)),
       locale,

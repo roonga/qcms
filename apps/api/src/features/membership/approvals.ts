@@ -21,7 +21,7 @@ import { errorResponses, withScopes, type ApiEnv } from "../../openapi.js";
 import { parseFormId } from "@roonga/qcms-core";
 
 import { ApprovalRequestView, HeldResponse, requestView } from "../site-admins/schema.js";
-import { applyFormMove, moveLapse } from "../workspaces/move.js";
+import { applyFormMove, moveFail, moveLapse } from "../workspaces/move.js";
 import { requireOpenWorkspace } from "../workspaces/resolve.js";
 import {
   applyGrant,
@@ -228,7 +228,10 @@ async function heldLapse(
 ): Promise<ApiError | undefined> {
   if (request.kind === "self-grant") return selfGrantLapse(tx, request);
   if (request.kind === "move-form") {
+    const parsed = parseFormId(request.target);
+    if (!parsed.ok) return moveFail.formLeftSource();
     return moveLapse(tx, {
+      formId: parsed.value,
       moverId: request.requestedBy,
       sourceWorkspaceId: workspaceId,
       destinationWorkspaceId: destinationOf(request),

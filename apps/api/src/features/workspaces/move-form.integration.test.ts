@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { FormId } from "@roonga/qcms-core";
@@ -5,11 +6,13 @@ import type { FormDefinition } from "@roonga/qcms-core";
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import {
   archiveWorkspace,
+  authUser,
   createForm,
   getForm,
   insertFormVersion,
   listAccessAudit,
   listSiteAudit,
+  listWorkspaces,
   removeAccessGroupHolder,
   setMemberRole,
   setRequireSecondApprover,
@@ -47,11 +50,16 @@ interface ErrorBody {
   error: { code: string; message: string };
 }
 
+interface PreviewPerson {
+  name: string;
+  acts: { act: string; environments: string[] }[];
+}
+
 interface PreviewBody {
   requiresApproval: boolean;
   holdReason: string | null;
-  gains: { userId: string; email: string; acts: { act: string; environments: string[] }[] }[];
-  losses: { userId: string; email: string; acts: { act: string; environments: string[] }[] }[];
+  gains: PreviewPerson[];
+  losses: PreviewPerson[];
 }
 
 let testDb: TestDb;
@@ -248,6 +256,18 @@ describe("Move form, applied or held (criteria 16, 99, 100, 102, 103)", () => {
     expect(await workspaceOf(formId)).toBe(source);
   });
 
+  it("refuses a move to the form's own workspace", async () => {
+    const source = await newWorkspace();
+    const formId = await seedForm(source);
+    const mover = await editor("same-workspace", [source], { administers: [source] });
+
+    const refused = await move(mover, formId, source);
+    expect(refused.status).toBe(409);
+    expect(await codeOf(refused)).toBe("MOVE_SAME_WORKSPACE");
+    expect(await workspaceOf(formId)).toBe(source);
+    expect(await settingDetails(source)).toEqual([]);
+  });
+
   it("applies a source administrator's move at once, auditing both sides (criteria 16, 103)", async () => {
     const source = await newWorkspace();
     const destination = await newWorkspace();
@@ -412,6 +432,63 @@ describe("the re-check when a held request is applied (criterion 48)", () => {
     expect(await requestStatus(source, requestId)).toBe("lapsed");
   });
 
+  it("refuses the approval once the mover no longer holds Edit forms in the source", async () => {
+    const source = await newWorkspace();
+    const destination = await newWorkspace();
+    const formId = await seedForm(source);
+    const mover = await editor("lost-source", [source, destination]);
+    const sourceAdministrator = await administrator(source);
+
+    const held = await move(mover, formId, destination);
+    expect(held.status, await held.clone().text()).toBe(202);
+    const requestId = await requestIdOf(held);
+    await removeAccessGroupHolder(testDb.db, await editorGroupOf(source, mover), mover.userId);
+
+    const refused = await decide(sourceAdministrator, source, requestId, "approve");
+    expect(refused.status).toBe(409);
+    expect(await codeOf(refused)).toBe("MOVER_LOST_EDIT_FORMS");
+    expect(await workspaceOf(formId)).toBe(source);
+    expect(await requestStatus(source, requestId)).toBe("lapsed");
+  });
+
+  it("lapses a held move once the form has left the source, leaving it where it went", async () => {
+    const source = await newWorkspace();
+    const destination = await newWorkspace();
+    const elsewhere = await newWorkspace();
+    const formId = await seedForm(source);
+    const asker = await editor("stale-asker", [source, destination]);
+    const sourceAdministrator = await editor("stale-admin", [source, elsewhere], {
+      administers: [source],
+    });
+
+    const held = await move(asker, formId, destination);
+    expect(held.status, await held.clone().text()).toBe(202);
+    const requestId = await requestIdOf(held);
+
+    const direct = await move(sourceAdministrator, formId, elsewhere);
+    expect(direct.status, await direct.clone().text()).toBe(200);
+    expect(await workspaceOf(formId)).toBe(elsewhere);
+
+    const stale = await decide(site, source, requestId, "approve");
+    expect(stale.status).toBe(409);
+    expect(await codeOf(stale)).toBe("MOVE_FORM_LEFT_SOURCE");
+    expect(await workspaceOf(formId)).toBe(elsewhere);
+    expect(await requestStatus(source, requestId)).toBe("lapsed");
+
+    const movedOut = (await settingDetails(source)).filter((detail) =>
+      detail.startsWith("setting=form-moved-out"),
+    );
+    expect(movedOut).toEqual([`setting=form-moved-out to=${elsewhere}`]);
+    expect(
+      (await settingDetails(elsewhere)).filter((detail) => detail.startsWith("setting=form-moved")),
+    ).toEqual([`setting=form-moved-in from=${source}`]);
+    expect(
+      (await settingDetails(destination)).filter((detail) =>
+        detail.startsWith("setting=form-moved"),
+      ),
+    ).toEqual([]);
+  });
+
   it("refuses the approval once the destination was archived", async () => {
     const source = await newWorkspace();
     const destination = await newWorkspace();
@@ -449,7 +526,7 @@ describe("the Move form preview (criterion 101)", () => {
       owner: false,
       grants: ["responses.viewer"],
     });
-    const stranger = await seedAdminSession(testDb.db, {
+    await seedAdminSession(testDb.db, {
       label: "stranger",
       workspaceId: elsewhere,
       owner: false,
@@ -464,18 +541,59 @@ describe("the Move form preview (criterion 101)", () => {
     expect(res.status, await res.clone().text()).toBe(200);
     const body = (await res.json()) as PreviewBody;
 
-    expect(body.gains.map((person) => person.userId)).toContain(gains.userId);
-    expect(body.losses.map((person) => person.userId)).toContain(loses.userId);
-    const named = [...body.gains, ...body.losses].map((person) => person.userId);
-    expect(named).not.toContain(stranger.userId);
+    expect(body.gains.map((person) => person.name)).toContain("Test gains");
+    expect(body.losses.map((person) => person.name)).toContain("Test loses");
+    const named = [...body.gains, ...body.losses];
+    expect(named.map((person) => person.name)).not.toContain("Test stranger");
+    for (const person of named) expect(Object.keys(person).sort()).toEqual(["acts", "name"]);
+    expect(JSON.stringify(body)).not.toContain(gains.userId);
+    expect(JSON.stringify(body)).not.toContain(gains.email);
+    expect(JSON.stringify(body)).not.toContain(loses.userId);
 
-    const gained = body.gains.find((person) => person.userId === gains.userId);
+    const gained = body.gains.find((person) => person.name === "Test gains");
     expect(gained?.acts.map((entry) => entry.act)).toContain("response.read");
     expect(gained?.acts.find((entry) => entry.act === "response.read")?.environments).toContain(
       "prod",
     );
     expect(body.requiresApproval).toBe(false);
     expect(body.holdReason).toBeNull();
+  });
+
+  it("names a person whose display name is blank by their email address", async () => {
+    const source = await newWorkspace();
+    const destination = await newWorkspace();
+    const formId = await seedForm(source);
+    const mover = await editor("preview-blank", [source, destination], { administers: [source] });
+    const unnamed = await seedAdminSession(testDb.db, {
+      label: "unnamed",
+      workspaceId: destination,
+      owner: false,
+      grants: ["responses.viewer"],
+    });
+    await testDb.db.update(authUser).set({ name: "" }).where(eq(authUser.id, unnamed.userId));
+
+    const res = await as(
+      mover,
+      "GET",
+      `/forms/${formId}/workspace/preview?workspaceId=${destination}`,
+    );
+    expect(res.status, await res.clone().text()).toBe(200);
+    const body = (await res.json()) as PreviewBody;
+    expect(body.gains.map((person) => person.name)).toContain(unnamed.email);
+  });
+
+  it("refuses the preview of a move to the form's own workspace", async () => {
+    const source = await newWorkspace();
+    const formId = await seedForm(source);
+    const mover = await editor("preview-same", [source], { administers: [source] });
+
+    const refused = await as(
+      mover,
+      "GET",
+      `/forms/${formId}/workspace/preview?workspaceId=${source}`,
+    );
+    expect(refused.status).toBe(409);
+    expect(await codeOf(refused)).toBe("MOVE_SAME_WORKSPACE");
   });
 
   it("says when the move needs an approver and why", async () => {
@@ -554,6 +672,39 @@ describe("responses after the move", () => {
 });
 
 describe("the shared question library (criterion 109)", () => {
+  it("hands the library on in one act, auditing the unmarking and the marking", async () => {
+    const holder = await newWorkspace();
+    const next = await newWorkspace();
+    expect((await as(site, "PUT", `/workspaces/${holder}/shared`, { shared: true })).status).toBe(
+      200,
+    );
+
+    const refused = await as(site, "PUT", `/workspaces/${next}/shared`, { shared: true });
+    expect(refused.status).toBe(409);
+    expect(await codeOf(refused)).toBe("SHARED_WORKSPACE_EXISTS");
+
+    const handed = await as(site, "PUT", `/workspaces/${next}/shared`, {
+      shared: true,
+      handOn: true,
+    });
+    expect(handed.status, await handed.clone().text()).toBe(200);
+    const shared = (await listWorkspaces(testDb.db)).filter((row) => row.isShared);
+    expect(shared.map((row) => row.id)).toEqual([next]);
+
+    const { rows } = await listSiteAudit(testDb.db, { kind: "library", limit: 100 });
+    const details = (workspaceId: string): string[] =>
+      rows
+        .filter((row) => row.workspaceId === workspaceId)
+        .map((row) => row.detail ?? "")
+        .sort();
+    expect(details(holder)).toEqual(["library=marked", "library=unmarked"]);
+    expect(details(next)).toEqual(["library=marked"]);
+
+    expect((await as(site, "PUT", `/workspaces/${next}/shared`, { shared: false })).status).toBe(
+      200,
+    );
+  });
+
   it("writes a site row and a mirrored workspace row on marking and on unmarking", async () => {
     const library = await newWorkspace();
 

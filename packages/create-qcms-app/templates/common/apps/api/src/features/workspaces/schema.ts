@@ -35,6 +35,15 @@ export const RenameWorkspaceBody = z
 export const SharedWorkspaceBody = z
   .strictObject({
     shared: z.boolean().openapi({ example: true }),
+    handOn: z
+      .boolean()
+      .optional()
+      .openapi({
+        description:
+          "With `shared: true`, unmark whichever workspace holds the library in the same act " +
+          "rather than refusing",
+        example: true,
+      }),
   })
   .openapi("SharedWorkspaceBody");
 
@@ -153,9 +162,10 @@ const MovedAct = z
 
 const MovePreviewPerson = z
   .object({
-    userId: z.string(),
-    email: z.email(),
-    name: z.string(),
+    name: z.string().openapi({
+      description: "The display name, or the email address where the name is blank",
+      example: "Priya Shah",
+    }),
     acts: z.array(MovedAct),
   })
   .openapi("MovePreviewPerson");

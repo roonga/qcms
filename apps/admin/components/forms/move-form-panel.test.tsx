@@ -23,16 +23,12 @@ function preview(over: Partial<MovePreview> = {}): MovePreview {
     holdReason: null,
     gains: [
       {
-        userId: "au_priya",
-        email: "priya@qcms.test",
         name: "Priya Shah",
         acts: [{ act: "response.read", environments: ["prod"] }],
       },
     ],
     losses: [
       {
-        userId: "au_grace",
-        email: "grace@qcms.test",
         name: "Grace Mensah",
         acts: [{ act: "form.write", environments: [] }],
       },

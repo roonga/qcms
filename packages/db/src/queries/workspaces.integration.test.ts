@@ -175,7 +175,8 @@ describe("the installation-wide form slug (criterion 3)", () => {
     const formId = await seedForm("slug_move", from);
     const before = await getFormVersion(testDb.db, formId, 1);
 
-    const moved = await moveFormToWorkspace(testDb.db, formId, to);
+    expect(await moveFormToWorkspace(testDb.db, formId, { from: to, to: from })).toBe(undefined);
+    const moved = await moveFormToWorkspace(testDb.db, formId, { from, to });
     expect(moved?.workspaceId).toBe(to);
     expect(moved?.slug).toBe("slug_move-slug");
 
@@ -249,9 +250,12 @@ describe("moving a question between workspaces (Q14)", () => {
 
   it("answers `undefined` for a form or question that does not exist", async () => {
     const workspaceId = await makeWorkspace("move-nothing");
-    expect(await moveFormToWorkspace(testDb.db, FormId.parse("frm_absent"), workspaceId)).toBe(
-      undefined,
-    );
+    expect(
+      await moveFormToWorkspace(testDb.db, FormId.parse("frm_absent"), {
+        from: workspaceId,
+        to: workspaceId,
+      }),
+    ).toBe(undefined);
     expect(
       await moveQuestionToWorkspace(testDb.db, QuestionId.parse("q_absent"), workspaceId),
     ).toBe(undefined);
@@ -278,8 +282,8 @@ describe("archiving a workspace (Q15, criteria 4 and 5)", () => {
     expect(blockers.shared).toBe(false);
 
     const elsewhere = await makeWorkspace("archive-elsewhere");
-    await moveFormToWorkspace(testDb.db, openForm, elsewhere);
-    await moveFormToWorkspace(testDb.db, releasedForm, elsewhere);
+    await moveFormToWorkspace(testDb.db, openForm, { from: workspaceId, to: elsewhere });
+    await moveFormToWorkspace(testDb.db, releasedForm, { from: workspaceId, to: elsewhere });
     const cleared = await findArchiveBlockers(testDb.db, workspaceId);
     expect(cleared).toEqual({ forms: [], openForms: [], releasedForms: [], shared: false });
   });

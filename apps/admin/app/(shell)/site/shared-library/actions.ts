@@ -18,20 +18,17 @@ export interface SharedLibraryChoice {
   readonly holder: string | null;
 }
 
-/* Marking one workspace unmarks the one that held the library, so the two writes are one act. */
+/* One API call: marking hands the library on, so no failure leaves it half moved. */
 export async function setSharedLibraryAction(next: SharedLibraryChoice): Promise<LibraryState> {
   const session = await requireAdminSession();
-  if (next.holder !== null && next.holder !== next.workspaceId) {
-    const cleared = await setSharedWorkspace(session, next.holder, false);
-    if (!cleared.ok) {
-      return { status: "error", message: t("site.library.failed", { message: cleared.message }) };
-    }
-  }
+  let result: Awaited<ReturnType<typeof setSharedWorkspace>> | undefined;
   if (next.workspaceId !== null) {
-    const marked = await setSharedWorkspace(session, next.workspaceId, true);
-    if (!marked.ok) {
-      return { status: "error", message: t("site.library.failed", { message: marked.message }) };
-    }
+    result = await setSharedWorkspace(session, next.workspaceId, true, { handOn: true });
+  } else if (next.holder !== null) {
+    result = await setSharedWorkspace(session, next.holder, false);
+  }
+  if (result !== undefined && !result.ok) {
+    return { status: "error", message: t("site.library.failed", { message: result.message }) };
   }
   revalidatePath(SHARED_LIBRARY_PATH);
   revalidatePath("/questions");

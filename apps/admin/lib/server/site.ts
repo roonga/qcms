@@ -8,11 +8,12 @@ export async function setSharedWorkspace(
   session: AdminSession,
   workspaceId: string,
   shared: boolean,
+  options: { readonly handOn?: boolean } = {},
 ): Promise<ApiResult<{ readonly workspaceId: string; readonly isShared: boolean }>> {
   const result = await readResult<{ workspace?: { workspaceId?: unknown; isShared?: unknown } }>(
     await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/shared`, {
       method: "PUT",
-      body: { shared },
+      body: options.handOn === true ? { shared, handOn: true } : { shared },
     }),
   );
   if (!result.ok) return result;

@@ -3,6 +3,7 @@ import {
   listEnvironmentNames,
   listWorkspaceAdministrators,
   listWorkspaceMembers,
+  lockForm,
   moveFormToWorkspace,
   writeAccessAuditRow,
 } from "@roonga/qcms-db";
@@ -33,6 +34,14 @@ export const moveFail = {
       "The person who asked no longer holds Edit forms in both workspaces, so nothing is " +
         "applied and this request has ended",
     ),
+  formLeftSource: (): ApiError =>
+    new ApiError(
+      "MOVE_FORM_LEFT_SOURCE",
+      409,
+      "The form is no longer in the workspace this move was asked from, so nothing is applied",
+    ),
+  sameWorkspace: (): ApiError =>
+    new ApiError("MOVE_SAME_WORKSPACE", 409, "The form is already in that workspace"),
   destinationArchived: (): ApiError =>
     new ApiError(
       "MOVE_DESTINATION_ARCHIVED",
@@ -58,9 +67,8 @@ export interface MovedAct {
   readonly environments: readonly string[];
 }
 
+/** Named only: the address stands in for a blank display name and is never sent beside it. */
 export interface MovePreviewPerson {
-  readonly userId: string;
-  readonly email: string;
   readonly name: string;
   readonly acts: readonly MovedAct[];
 }
@@ -143,14 +151,15 @@ export async function moveAccessPreview(
     listWorkspaceMembers(exec, input.destinationWorkspaceId),
   ]);
 
-  const people = new Map<string, { readonly email: string; readonly name: string }>();
+  const people = new Map<string, string>();
   for (const member of [...sourceMembers, ...destinationMembers]) {
-    people.set(member.userId, { email: member.email, name: member.name });
+    people.set(member.userId, member.name.trim() === "" ? member.email : member.name);
   }
 
-  const gains: MovePreviewPerson[] = [];
-  const losses: MovePreviewPerson[] = [];
-  for (const [userId, person] of people) {
+  type Ranked = MovePreviewPerson & { readonly userId: string };
+  const gains: Ranked[] = [];
+  const losses: Ranked[] = [];
+  for (const [userId, name] of people) {
     const [before, after] = await Promise.all([
       cellsHeld(exec, { userId, workspaceId: input.sourceWorkspaceId, environments }),
       cellsHeld(exec, { userId, workspaceId: input.destinationWorkspaceId, environments }),
@@ -158,15 +167,20 @@ export async function moveAccessPreview(
     const gained = [...after].filter((key) => !before.has(key));
     const lost = [...before].filter((key) => !after.has(key));
     if (gained.length > 0) {
-      gains.push({ userId, ...person, acts: actsFrom(gained, environments) });
+      gains.push({ userId, name, acts: actsFrom(gained, environments) });
     }
     if (lost.length > 0) {
-      losses.push({ userId, ...person, acts: actsFrom(lost, environments) });
+      losses.push({ userId, name, acts: actsFrom(lost, environments) });
     }
   }
-  const byName = (left: MovePreviewPerson, right: MovePreviewPerson): number =>
-    left.name.localeCompare(right.name) || left.userId.localeCompare(right.userId);
-  return { gains: [...gains].sort(byName), losses: [...losses].sort(byName) };
+  const named = (ranked: readonly Ranked[]): readonly MovePreviewPerson[] =>
+    [...ranked]
+      .sort(
+        (left, right) =>
+          left.name.localeCompare(right.name) || left.userId.localeCompare(right.userId),
+      )
+      .map(({ name, acts }) => ({ name, acts }));
+  return { gains: named(gains), losses: named(losses) };
 }
 
 /**
@@ -198,15 +212,30 @@ async function holdsEditForms(
   }).allowed;
 }
 
+/**
+ * The form, locked until the transaction ends, or the refusal when it has left the source:
+ * a move is asked from one workspace and must not carry the form out of another.
+ */
+export async function lockFormInSource(
+  tx: Executor,
+  input: { readonly formId: FormId; readonly sourceWorkspaceId: string },
+): Promise<ApiError | undefined> {
+  const form = await lockForm(tx, input.formId);
+  return form?.workspaceId === input.sourceWorkspaceId ? undefined : moveFail.formLeftSource();
+}
+
 /** The refusal a held move can no longer avoid, or `undefined` when it still applies. */
 export async function moveLapse(
   tx: Executor,
   input: {
+    readonly formId: FormId;
     readonly moverId: string;
     readonly sourceWorkspaceId: string;
     readonly destinationWorkspaceId: string;
   },
 ): Promise<ApiError | undefined> {
+  const leftSource = await lockFormInSource(tx, input);
+  if (leftSource !== undefined) return leftSource;
   const destination = await getWorkspace(tx, input.destinationWorkspaceId);
   if (destination === undefined || destination.archivedAt !== null) {
     return moveFail.destinationArchived();
@@ -231,8 +260,11 @@ export async function applyFormMove(
     readonly approval?: string;
   },
 ): Promise<string> {
-  const moved = await moveFormToWorkspace(tx, input.formId, input.destinationWorkspaceId);
-  if (moved === undefined) throw moveFail.formNotFound();
+  const moved = await moveFormToWorkspace(tx, input.formId, {
+    from: input.sourceWorkspaceId,
+    to: input.destinationWorkspaceId,
+  });
+  if (moved === undefined) throw moveFail.formLeftSource();
   const occurredAt = deps.clock.now();
   const approval = input.approval === undefined ? "" : ` ${input.approval}`;
   await writeAccessAuditRow(tx, {

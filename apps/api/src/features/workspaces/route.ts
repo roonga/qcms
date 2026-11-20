@@ -112,7 +112,9 @@ export const setSharedWorkspaceRoute = createRoute({
   summary: "Mark a workspace as the installation's shared question library, or unmark it (admin)",
   description:
     "At most one workspace is shared. Every workspace's editors may pin a shared " +
-    "question; only the shared workspace's own members may edit one.",
+    "question; only the shared workspace's own members may edit one. Marking refuses " +
+    "while another workspace holds the library unless `handOn` is true, which unmarks " +
+    "the holder in the same transaction, auditing both.",
   tags,
   request: { params: WorkspaceIdParam, body: jsonBody(SharedWorkspaceBody) },
   responses: {
@@ -301,7 +303,9 @@ export const moveFormRoute = createRoute({
     "Workspace administrator of the source with second approval off there; every other " +
     "move, and every move at all while the rule is on, answers 202 with a held workspace " +
     "approval request, approved in the source by a Workspace administrator of it or a Site " +
-    "administrator who is not the mover. Refused when the destination is archived.",
+    "administrator who is not the mover. Refused when the destination is archived or is " +
+    "the form's own workspace, and when the form has left the source by the time the " +
+    "move or its approval is applied.",
   tags,
   request: { params: WorkspaceIdParam, body: jsonBody(MoveToWorkspaceBody) },
   responses: {
@@ -325,7 +329,9 @@ export const moveFormPreviewRoute = createRoute({
   description:
     "The same cells the policy evaluator decides every screen act by, read against the " +
     "source's groups and then the destination's, and whether the move needs an approver. " +
-    "Only the two workspaces' own members are considered, so nobody outside them is named.",
+    "Only the two workspaces' own members are considered, so nobody outside them is named. " +
+    "Each person is named by display name, or by email address where the name is blank, " +
+    "and by nothing else.",
   tags,
   request: { params: WorkspaceIdParam, query: MovePreviewQuery },
   responses: {

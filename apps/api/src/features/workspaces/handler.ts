@@ -9,12 +9,13 @@ import {
   getWorkspaceBySlug,
   isAccountActive,
   listWorkspaces,
+  lockWorkspaceMembership,
   renameWorkspace,
   setWorkspaceShared,
   writeAccessAuditRow,
   writeSiteAuditWithMirror,
 } from "@roonga/qcms-db";
-import type { ArchiveBlockers, WorkspaceRow } from "@roonga/qcms-db";
+import type { ArchiveBlockers, Executor, WorkspaceRow } from "@roonga/qcms-db";
 
 import { parseFormId, type FormId } from "@roonga/qcms-core";
 
@@ -28,6 +29,7 @@ import { requestView } from "../site-admins/schema.js";
 import { createWorkspaceWithStarterGroups } from "./create.js";
 import {
   applyFormMove,
+  lockFormInSource,
   moveAccessPreview,
   moveFail,
   moveHoldReason,
@@ -263,7 +265,7 @@ export function makeSetSharedWorkspaceHandler(
 ): RouteHandler<typeof setSharedWorkspaceRoute, ApiEnv> {
   return async (c) => {
     const workspaceId = c.req.valid("param").id;
-    const { shared } = c.req.valid("json");
+    const { shared, handOn = false } = c.req.valid("json");
     const principal = c.get("adminPrincipal");
     if (principal === undefined) throw fail.noPrincipal();
     // Unmarking does not require an open workspace: one archived while it held the
@@ -272,33 +274,51 @@ export function makeSetSharedWorkspaceHandler(
       ? await requireOpenWorkspace(deps.databases.control, workspaceId)
       : await requireWorkspace(deps.databases.control, workspaceId);
 
-    if (shared && !workspace.isShared) {
+    const holderOf = async (exec: Executor): Promise<WorkspaceRow | undefined> =>
+      (await listWorkspaces(exec)).find((row) => row.isShared && row.id !== workspaceId);
+
+    if (shared && !workspace.isShared && !handOn) {
       // Read for the refusal's sake: the unique index would refuse the write anyway, and
       // would name no workspace in doing so.
-      const rows = await listWorkspaces(deps.databases.control);
-      const holder = rows.find((row) => row.isShared);
+      const holder = await holderOf(deps.databases.control);
       if (holder !== undefined) throw fail.alreadyShared(holder);
     }
 
-    const updated = await deps.databases.control.transaction(async (tx) => {
-      const row = await setWorkspaceShared(tx, workspaceId, shared);
-      if (row === undefined) throw new ApiError("WORKSPACE_NOT_FOUND", 404, "No such workspace");
-      if (row.isShared !== workspace.isShared) {
-        await writeSiteAuditWithMirror(
-          tx,
-          {
-            actor: principal.userId,
-            subject: workspaceId,
-            workspaceId,
-            kind: "library",
-            detail: `library=${shared ? "marked" : "unmarked"}`,
-            occurredAt: deps.clock.now(),
-          },
-          [workspaceId],
-        );
-      }
-      return row;
-    });
+    const audit = async (tx: Executor, subject: string, marked: boolean): Promise<void> => {
+      await writeSiteAuditWithMirror(
+        tx,
+        {
+          actor: principal.userId,
+          subject,
+          workspaceId: subject,
+          kind: "library",
+          detail: `library=${marked ? "marked" : "unmarked"}`,
+          occurredAt: deps.clock.now(),
+        },
+        [subject],
+      );
+    };
+
+    let updated: WorkspaceRow;
+    try {
+      updated = await deps.databases.control.transaction(async (tx) => {
+        const holder = shared && handOn ? await holderOf(tx) : undefined;
+        if (holder !== undefined) {
+          await setWorkspaceShared(tx, holder.id, false);
+          await audit(tx, holder.id, false);
+        }
+        const row = await setWorkspaceShared(tx, workspaceId, shared);
+        if (row === undefined) throw workspaceFail.notFound();
+        if (row.isShared !== workspace.isShared) await audit(tx, workspaceId, shared);
+        return row;
+      });
+    } catch (err: unknown) {
+      // Another marking committed between the read and the write.
+      if (!isUniqueViolation(err)) throw err;
+      const holder = await holderOf(deps.databases.control);
+      if (holder === undefined) throw err;
+      throw fail.alreadyShared(holder);
+    }
     return c.json({ workspace: await workspaceView(deps, updated) }, 200);
   };
 }
@@ -373,6 +393,7 @@ async function moveContext(
 
   const form = await getForm(exec, parsed.value);
   if (form === undefined) throw moveFail.formNotFound();
+  if (form.workspaceId === destination.id) throw moveFail.sameWorkspace();
   const source = await requireWorkspace(exec, form.workspaceId);
 
   const inDestination = await decideInWorkspace(exec, {
@@ -395,7 +416,9 @@ async function moveContext(
 /**
  * One `UPDATE` on the identity row: the slug is unique installation-wide, so an ownership
  * change re-points no public address. A held move stores the destination in the request's
- * payload and moves nothing until it is approved.
+ * payload and moves nothing until it is approved. The hold is decided and the move applied
+ * under the source's membership lock with the form row locked, as an approval applies one,
+ * so a switch, a role change or another move in between is seen.
  */
 export function makeMoveFormHandler(deps: Deps): RouteHandler<typeof moveFormRoute, ApiEnv> {
   return async (c) => {
@@ -405,41 +428,47 @@ export function makeMoveFormHandler(deps: Deps): RouteHandler<typeof moveFormRou
       destinationWorkspaceId: c.req.valid("json").workspaceId,
     });
 
-    if (move.hold !== undefined) {
-      const held = await deps.databases.control.transaction(async (tx) =>
-        holdWorkspaceRequest(tx, deps.clock.now(), {
-          kind: "move-form",
-          workspaceId: move.source.id,
-          target: move.formId,
-          requester: move.moverId,
-          payload: { destinationWorkspaceId: move.destination.id },
-          formId: move.formId,
-        }),
-      );
-      return c.json({ request: requestView(held) }, 202);
-    }
-
-    const workspaceId = await deps.databases.control.transaction(async (tx) =>
-      applyFormMove(tx, deps, {
+    const outcome = await deps.databases.control.transaction(async (tx) => {
+      await lockWorkspaceMembership(tx, move.source.id);
+      const leftSource = await lockFormInSource(tx, {
         formId: move.formId,
         sourceWorkspaceId: move.source.id,
-        destinationWorkspaceId: move.destination.id,
+      });
+      if (leftSource !== undefined) throw leftSource;
+      const destination = await requireOpenWorkspace(tx, move.destination.id);
+      const source = await requireWorkspace(tx, move.source.id);
+      const hold = await moveHoldReason(tx, { source, moverId: move.moverId });
+
+      if (hold !== undefined) {
+        const held = await holdWorkspaceRequest(tx, deps.clock.now(), {
+          kind: "move-form",
+          workspaceId: source.id,
+          target: move.formId,
+          requester: move.moverId,
+          payload: { destinationWorkspaceId: destination.id },
+          formId: move.formId,
+        });
+        return { held } as const;
+      }
+      const workspaceId = await applyFormMove(tx, deps, {
+        formId: move.formId,
+        sourceWorkspaceId: source.id,
+        destinationWorkspaceId: destination.id,
         actorId: move.moverId,
-      }),
-    );
-    return c.json({ id: move.formId, workspaceId }, 200);
+      });
+      return { workspaceId } as const;
+    });
+
+    if ("held" in outcome) return c.json({ request: requestView(outcome.held) }, 202);
+    return c.json({ id: move.formId, workspaceId: outcome.workspaceId }, 200);
   };
 }
 
 function previewPeople(people: readonly MovePreviewPerson[]): {
-  userId: string;
-  email: string;
   name: string;
   acts: { act: string; environments: string[] }[];
 }[] {
   return people.map((person) => ({
-    userId: person.userId,
-    email: person.email,
     name: person.name,
     acts: person.acts.map((entry) => ({
       act: entry.act,
