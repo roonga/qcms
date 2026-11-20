@@ -146,7 +146,9 @@ export function SiteAdministratorsPanel({
         <h2 id="qcms-promote-heading" className="text-lg font-semibold text-(--color-text)">
           {t("site.administrators.promote.heading")}
         </h2>
-        <p className="text-sm text-(--color-text-muted)">{t("site.administrators.promote.intro")}</p>
+        <p className="text-sm text-(--color-text-muted)">
+          {t("site.administrators.promote.intro")}
+        </p>
         <form
           method="get"
           role="search"

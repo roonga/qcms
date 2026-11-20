@@ -316,6 +316,10 @@ const SCREENS: readonly ScreenRow[] = [
     "app/(shell)/@rail/site/accounts/page.tsx",
     "app/(shell)/@rail/site/accounts/new/page.tsx",
     "app/(shell)/@rail/site/accounts/[accountId]/page.tsx",
+    "app/(shell)/@rail/site/administrators/page.tsx",
+    "app/(shell)/@rail/site/approval-requests/page.tsx",
+    "app/(shell)/@rail/site/audit/page.tsx",
+    "app/(shell)/@rail/workspaces/new/page.tsx",
   ].map((route) => ({
     route,
     model: "readonly" as const,
@@ -335,6 +339,26 @@ const SCREENS: readonly ScreenRow[] = [
     route: "app/(shell)/site/accounts/[accountId]/page.tsx",
     model: "action",
     why: "Resend, reset, disable and reactivate: each a confirmed act reported as an outcome and written to the site audit.",
+  },
+  {
+    route: "app/(shell)/site/administrators/page.tsx",
+    model: "action",
+    why: "Promote and demote: each confirmed with a step-up, reported as done or as a request held for another Site administrator, and written to the site audit.",
+  },
+  {
+    route: "app/(shell)/site/approval-requests/page.tsx",
+    model: "action",
+    why: "Approve and reject: each one decision on a held request, reported as an outcome; approving a site request is confirmed with a step-up.",
+  },
+  {
+    route: "app/(shell)/site/audit/page.tsx",
+    model: "readonly",
+    why: "The site audit, read only: its rows cannot be changed or deleted, and its filters only shape a read.",
+  },
+  {
+    route: "app/(shell)/workspaces/new/page.tsx",
+    model: "action",
+    why: "Create workspace: one deliberate act that makes the workspace, its first Workspace administrator and the four starter groups together, reported as an outcome.",
   },
   ...[
     "app/(shell)/@rail/workspaces/page.tsx",

@@ -3,12 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({
   findAccountById: vi.fn(),
   listAccountDirectory: vi.fn(),
+  listApprovalRequests: vi.fn(),
+  listSiteAudit: vi.fn(),
 }));
 
 vi.mock("@roonga/qcms-db", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@roonga/qcms-db")>()),
   findAccountById: db.findAccountById,
   listAccountDirectory: db.listAccountDirectory,
+  listApprovalRequests: db.listApprovalRequests,
+  listSiteAudit: db.listSiteAudit,
 }));
 
 import { administrationContexts } from "./administration.js";
@@ -100,5 +104,74 @@ describe("the Site accounts screens", () => {
     await expect(
       administrationContexts.siteAccountDetail.build(inputWith(true, { accountId: "usr_x" })),
     ).rejects.toMatchObject({ code: "ACCOUNT_NOT_FOUND", status: 404 });
+  });
+});
+
+describe("the Site administrators, Approval requests and Site audit screens", () => {
+  const request = {
+    requestId: "apr_1",
+    scope: "workspace",
+    workspaceId: "org_1",
+    kind: "second-approval-off",
+    target: "org_1",
+    payload: {},
+    requestedBy: "usr_2",
+    requestedAt: new Date("2026-01-01T00:00:00.000Z"),
+    expiresAt: new Date("2026-01-08T00:00:00.000Z"),
+    status: "pending",
+    decidedBy: null,
+    decidedAt: null,
+  };
+  const auditRow = {
+    id: "1",
+    actor: "system",
+    subject: "apr_1",
+    workspaceId: null,
+    kind: "approval",
+    occurredAt: new Date("2026-01-08T00:00:00.000Z"),
+    detail: "act=expire kind=promote target=usr_3 requester=usr_2",
+  };
+
+  beforeEach(() => {
+    db.listApprovalRequests.mockReset();
+    db.listSiteAudit.mockReset();
+    db.listApprovalRequests.mockResolvedValue({ rows: [request], total: 1 });
+    db.listSiteAudit.mockResolvedValue({ rows: [auditRow], total: 1 });
+  });
+
+  it.each([
+    ["/site/approval-requests", administrationContexts.siteApprovalRequests],
+    ["/site/audit", administrationContexts.siteAudit],
+  ] as const)(
+    "refuses a caller without the installation claim on %s, unread",
+    async (_id, context) => {
+      await expect(context.build(inputWith(false))).rejects.toMatchObject({
+        code: "FORBIDDEN",
+        status: 403,
+      });
+      expect(db.listApprovalRequests).not.toHaveBeenCalled();
+      expect(db.listSiteAudit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("lists requests without the held publishes, which are decided on their forms", async () => {
+    const facts = await administrationContexts.siteApprovalRequests.build(inputWith(true));
+    expect(db.listApprovalRequests).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ excludeKinds: ["draft-publish"] }),
+    );
+    expect(facts).toMatchObject({
+      total: 1,
+      requests: [
+        { requestId: "apr_1", scope: "workspace", requestedAt: "2026-01-01T00:00:00.000Z" },
+      ],
+    });
+    expect(administrationContexts.siteApprovalRequests.facts.safeParse(facts).success).toBe(true);
+  });
+
+  it("gives the site audit's rows, the system's own among them", async () => {
+    const facts = await administrationContexts.siteAudit.build(inputWith(true));
+    expect(facts).toMatchObject({ total: 1, rows: [{ actor: "system", kind: "approval" }] });
+    expect(administrationContexts.siteAudit.facts.safeParse(facts).success).toBe(true);
   });
 });

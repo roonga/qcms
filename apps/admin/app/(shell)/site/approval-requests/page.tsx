@@ -64,14 +64,16 @@ export default async function ApprovalRequestsPage({
   const held = heldRequests(requests, now);
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6" data-testid="qcms-approval-requests-screen">
       <div className="qcms-help-head">
         <h1 className="text-xl font-semibold text-(--color-text)">{t("site.requests.title")}</h1>
         <HelpTip>{t("site.requests.intro")}</HelpTip>
       </div>
 
       {!result.ok && (
-        <Alert variant="error">{t("membership.requests.loadFailed", { message: result.message })}</Alert>
+        <Alert variant="error">
+          {t("membership.requests.loadFailed", { message: result.message })}
+        </Alert>
       )}
 
       {result.ok && requests.length === 0 && (

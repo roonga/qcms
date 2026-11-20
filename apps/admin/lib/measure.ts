@@ -64,6 +64,12 @@ export const MEASURE_BY_ROUTE = {
   "/site/accounts": "list",
   "/site/accounts/new": "prose",
   "/site/accounts/[accountId]": "ops",
+  /** Site-Admins and Approval-Requests are drawn as lists, Site-Audit as the audit log. */
+  "/site/administrators": "list",
+  "/site/approval-requests": "list",
+  "/site/audit": "log",
+  /** Screens-E draws New workspace as a form beside its starter panel, the creation-screen cap. */
+  "/workspaces/new": "prose",
   /** No dedicated membership drawings exist; choose caps by the analogous list and detail surfaces until those designs are supplied. */
   "/workspaces": "ops",
   "/workspaces/all": "list",

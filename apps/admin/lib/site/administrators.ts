@@ -70,9 +70,7 @@ export function readPromoteSearch(params: SearchParams): PromoteSearch {
 
 /** The accounts a promote search offers: every match that is not already a Site administrator. */
 export function promoteCandidates(accounts: readonly Account[]): readonly Account[] {
-  return accounts
-    .filter((account) => !account.siteAdministrator)
-    .slice(0, PROMOTE_CANDIDATE_LIMIT);
+  return accounts.filter((account) => !account.siteAdministrator).slice(0, PROMOTE_CANDIDATE_LIMIT);
 }
 
 export type RoleActState =

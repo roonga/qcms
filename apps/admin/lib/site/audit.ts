@@ -8,7 +8,13 @@ import { t, type MessageKey } from "../i18n/en.ts";
 export const SITE_AUDIT_PATH = "/site/audit";
 export const SITE_AUDIT_PAGE_SIZE = 25;
 
-export const SITE_AUDIT_KINDS = ["account", "administrator", "approval", "library", "logo"] as const;
+export const SITE_AUDIT_KINDS = [
+  "account",
+  "administrator",
+  "approval",
+  "library",
+  "logo",
+] as const;
 export type SiteAuditKind = (typeof SITE_AUDIT_KINDS)[number];
 
 /** The actor a row names when no person did the act, such as the sweep that expires a request. */
@@ -124,31 +130,41 @@ const REQUEST_KINDS: Readonly<Record<string, MessageKey>> = {
   reset: "site.audit.request.reset",
 };
 
+function accountActLabel(fields: ReadonlyMap<string, string>): string | undefined {
+  const act = fields.get("act") ?? "";
+  if (act === "reset") return t(RESETS[fields.get("reset") ?? ""] ?? "site.audit.act.reset");
+  const key = ACCOUNT_ACTS[act];
+  return key === undefined ? undefined : t(key);
+}
+
+function requestActLabel(fields: ReadonlyMap<string, string>): string | undefined {
+  const key = REQUEST_ACTS[fields.get("act") ?? ""];
+  if (key === undefined) return undefined;
+  const raw = fields.get("kind") ?? "";
+  const kind = REQUEST_KINDS[raw];
+  return t(key, { request: kind === undefined ? raw : t(kind) });
+}
+
+function actLabel(row: SiteAuditRow, fields: ReadonlyMap<string, string>): string | undefined {
+  switch (row.kind) {
+    case "account":
+      return accountActLabel(fields);
+    case "administrator": {
+      const key = ROLE_ACTS[fields.get("act") ?? ""];
+      return key === undefined ? undefined : t(key);
+    }
+    case "approval":
+      return requestActLabel(fields);
+    case "logo":
+      return fields.get("logo") === "takedown" ? t("site.audit.act.logoTakedown") : undefined;
+    default:
+      return undefined;
+  }
+}
+
 /** What a row records, in words; a row this screen does not recognise reads as its kind. */
 export function siteAuditActLabel(row: SiteAuditRow): string {
-  const fields = detailFields(row.detail);
-  const act = fields.get("act") ?? "";
-  if (row.kind === "account") {
-    if (act === "reset") {
-      const key = RESETS[fields.get("reset") ?? ""];
-      return t(key ?? "site.audit.act.reset");
-    }
-    const key = ACCOUNT_ACTS[act];
-    if (key !== undefined) return t(key);
-  }
-  if (row.kind === "administrator") {
-    const key = ROLE_ACTS[act];
-    if (key !== undefined) return t(key);
-  }
-  if (row.kind === "approval") {
-    const key = REQUEST_ACTS[act];
-    const kind = REQUEST_KINDS[fields.get("kind") ?? ""];
-    if (key !== undefined) {
-      return t(key, { request: kind === undefined ? (fields.get("kind") ?? "") : t(kind) });
-    }
-  }
-  if (row.kind === "logo" && fields.get("logo") === "takedown") return t("site.audit.act.logoTakedown");
-  return siteAuditKindLabel(row.kind);
+  return actLabel(row, detailFields(row.detail)) ?? siteAuditKindLabel(row.kind);
 }
 
 /** The system is named as itself, never as an account or a removed one. */
@@ -175,7 +191,10 @@ export function siteAuditPeople(rows: readonly SiteAuditRow[]): readonly string[
 /** What a row's act was on: an account by its address, a workspace by its name. */
 export function siteAuditSubject(
   row: SiteAuditRow,
-  names: { readonly people: ReadonlyMap<string, string>; readonly workspaces: ReadonlyMap<string, string> },
+  names: {
+    readonly people: ReadonlyMap<string, string>;
+    readonly workspaces: ReadonlyMap<string, string>;
+  },
 ): string {
   if (row.kind === "logo") return t("membership.audit.empty");
   const id =

@@ -14,12 +14,12 @@ export const SLUG_ATTEMPTS = 5;
 export function workspaceSlugFrom(name: string): string {
   const base = name
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/gu, "")
+    .replace(/\p{M}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/gu, "-")
-    .replace(/^-+|-+$/gu, "")
+    .replace(/^-/u, "")
     .slice(0, WORKSPACE_SLUG_MAX_LENGTH)
-    .replace(/-+$/u, "");
+    .replace(/-$/u, "");
   return base === "" ? "workspace" : base;
 }
 
@@ -29,7 +29,7 @@ export function slugCandidates(name: string): readonly string[] {
   const candidates = [base];
   for (let n = 2; n <= SLUG_ATTEMPTS; n += 1) {
     const suffix = `-${String(n)}`;
-    const stem = base.slice(0, WORKSPACE_SLUG_MAX_LENGTH - suffix.length).replace(/-+$/u, "");
+    const stem = base.slice(0, WORKSPACE_SLUG_MAX_LENGTH - suffix.length).replace(/-$/u, "");
     candidates.push(`${stem}${suffix}`);
   }
   return candidates;

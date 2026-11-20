@@ -17,7 +17,11 @@ import {
 } from "@/lib/site/workspaces";
 
 /** After a create: the four starter groups it opened with, and what to do next. */
-function CreatedPanel({ state }: { readonly state: Extract<CreateWorkspaceState, { status: "created" }> }) {
+function CreatedPanel({
+  state,
+}: {
+  readonly state: Extract<CreateWorkspaceState, { status: "created" }>;
+}) {
   const locale = useAppLocale();
   return (
     <section
@@ -35,7 +39,9 @@ function CreatedPanel({ state }: { readonly state: Extract<CreateWorkspaceState,
       ) : (
         <div className="qcms-table">
           <table data-testid="qcms-starter-groups">
-            <caption className="qcms-visually-hidden">{t("site.workspaces.starter.heading")}</caption>
+            <caption className="qcms-visually-hidden">
+              {t("site.workspaces.starter.heading")}
+            </caption>
             <thead>
               <tr>
                 <th scope="col">{t("site.workspaces.starter.group")}</th>
@@ -58,9 +64,15 @@ function CreatedPanel({ state }: { readonly state: Extract<CreateWorkspaceState,
       <h3 className="text-base font-semibold text-(--color-text)">
         {t("site.workspaces.checklist.heading")}
       </h3>
-      <ol className="flex list-decimal flex-col gap-2 pl-6 text-sm" data-testid="qcms-workspace-checklist">
+      <ol
+        className="flex list-decimal flex-col gap-2 pl-6 text-sm"
+        data-testid="qcms-workspace-checklist"
+      >
         <li>
-          <Link className="qcms-text-link" href={workspaceSectionHref(state.workspaceId, "members")}>
+          <Link
+            className="qcms-text-link"
+            href={workspaceSectionHref(state.workspaceId, "members")}
+          >
             {t("site.workspaces.checklist.members")}
           </Link>
         </li>
@@ -73,7 +85,10 @@ function CreatedPanel({ state }: { readonly state: Extract<CreateWorkspaceState,
           </Link>
         </li>
         <li>
-          <Link className="qcms-text-link" href={workspaceSectionHref(state.workspaceId, "settings")}>
+          <Link
+            className="qcms-text-link"
+            href={workspaceSectionHref(state.workspaceId, "settings")}
+          >
             {t("site.workspaces.checklist.settings")}
           </Link>
         </li>
@@ -98,14 +113,14 @@ export function NewWorkspaceForm({
   const submitted =
     state.status === "error" ? state.submitted : { name: "", firstAdministrator: viewerEmail };
 
+  let formKey = "fresh";
+  if (state.status === "error") formKey = `${submitted.name}|${submitted.firstAdministrator}`;
+  if (state.status === "created") formKey = state.workspaceId;
+
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {state.status === "error" && <Alert variant="error">{state.message}</Alert>}
-      <form
-        key={state.status === "error" ? `${submitted.name}|${submitted.firstAdministrator}` : state.status === "created" ? state.workspaceId : "fresh"}
-        action={formAction}
-        className="flex max-w-xl flex-col gap-4"
-      >
+      <form key={formKey} action={formAction} className="flex max-w-xl flex-col gap-4">
         <TextField
           name="name"
           label={t("site.workspaces.name")}

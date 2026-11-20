@@ -132,7 +132,15 @@ describe("the screen registry", () => {
   });
 
   it("holds a row for each Site configuration screen, so a turn on one is not an unknown screen", () => {
-    for (const id of ["/site/accounts", "/site/accounts/new", "/site/accounts/[accountId]"]) {
+    for (const id of [
+      "/site/accounts",
+      "/site/accounts/new",
+      "/site/accounts/[accountId]",
+      "/site/administrators",
+      "/site/approval-requests",
+      "/site/audit",
+      "/workspaces/new",
+    ]) {
       expect(isScreenId(id), id).toBe(true);
     }
   });

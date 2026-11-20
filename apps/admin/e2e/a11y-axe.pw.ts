@@ -265,6 +265,12 @@ test("the authenticated shell states have zero violations", async ({ page }) => 
     "/site/accounts",
     "/site/accounts/new",
     `/site/accounts/${await accountIdOf(EMAIL)}`,
+    "/site/administrators",
+    "/site/administrators?q=e2e",
+    "/site/approval-requests",
+    "/site/approval-requests?status=all",
+    "/site/audit",
+    "/workspaces/new",
   ]) {
     await page.goto(path);
     await expectNoViolations(page, `shell ${path}`);

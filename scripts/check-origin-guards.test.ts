@@ -242,6 +242,7 @@ describe("task 073: a Server Action carries the belt too (R-B2)", () => {
       "apps/admin/app/(shell)/questions/actions.ts",
       "apps/admin/app/(shell)/responses/actions.ts",
       "apps/admin/app/(shell)/site/accounts/actions.ts",
+      "apps/admin/app/(shell)/site/actions.ts",
       "apps/admin/app/(shell)/webhooks/actions.ts",
       "apps/admin/app/(shell)/workspaces/[workspaceId]/actions.ts",
     ]);
@@ -255,6 +256,7 @@ describe("task 073: a Server Action carries the belt too (R-B2)", () => {
       "apps/admin/app/(shell)/questions/actions.ts",
       "apps/admin/app/(shell)/responses/actions.ts",
       "apps/admin/app/(shell)/site/accounts/actions.ts",
+      "apps/admin/app/(shell)/site/actions.ts",
       "apps/admin/app/(shell)/webhooks/actions.ts",
       "apps/admin/app/(shell)/workspaces/[workspaceId]/actions.ts",
       "apps/portal/app/s/[sessionId]/roster-action.ts",

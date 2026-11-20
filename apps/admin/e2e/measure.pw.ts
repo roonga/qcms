@@ -74,6 +74,17 @@ function screens(sessionId: string, accountId: string): readonly Screen[] {
       cap: "ops",
       marker: '[data-testid="qcms-account-details"]',
     },
+    {
+      path: "/site/administrators",
+      cap: "list",
+      marker: '[data-testid="qcms-site-administrators-table"]',
+    },
+    {
+      path: "/site/approval-requests",
+      cap: "list",
+      marker: '[data-testid="qcms-approval-requests-screen"]',
+    },
+    { path: "/site/audit", cap: "log", marker: '[data-testid="qcms-site-audit-screen"]' },
     { path: "/webhooks", cap: "wide" },
 
     /* Both routes redirect to the current workspace, so the cap read here is that landing's and
@@ -86,6 +97,7 @@ function screens(sessionId: string, accountId: string): readonly Screen[] {
     { path: `/workspaces/${WORKSPACE_ID}/audit`, cap: "log" },
     { path: `/workspaces/${WORKSPACE_ID}/assistant-actions`, cap: "log" },
     { path: `/workspaces/${WORKSPACE_ID}/archive`, cap: "log" },
+    { path: "/workspaces/new", cap: "prose", marker: 'form input[name="firstAdministrator"]' },
   ];
 }
 
@@ -136,7 +148,7 @@ let sessionId = "";
 let accountId = "";
 
 test.beforeAll(async () => {
-  // A Site administrator, or the three Site configuration rows measure the denied recovery instead.
+  // A Site administrator, or the Site configuration rows measure the denied recovery instead.
   await createTestAdmin(EMAIL, { siteAdministrator: true });
   accountId = await accountIdOf(EMAIL);
 });
@@ -358,5 +370,5 @@ test("657 leaves every screen the same width at 390, because a cap is fluid belo
     expect.soft(measured.width, `${screen.path} is fluid at 390`).toBe(measured.available);
     widths.set(screen.path, measured.width);
   }
-  expect(new Set(widths.values()).size, "all thirty-six screens measure one width at 390").toBe(1);
+  expect(new Set(widths.values()).size, "all forty screens measure one width at 390").toBe(1);
 });

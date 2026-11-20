@@ -34,21 +34,34 @@ const STATUS_TONE: Readonly<Record<string, string>> = {
 function endedText(row: ApprovalRow, expiredOn: string): string {
   const { request } = row;
   if (request.status === "expired") return decisionBlockText("expired", expiredOn);
-  if (request.status === "approved") return t("membership.requests.status.approved", { person: row.decidedBy });
-  if (request.status === "rejected") return t("membership.requests.status.rejected", { person: row.decidedBy });
+  if (request.status === "approved")
+    return t("membership.requests.status.approved", { person: row.decidedBy });
+  if (request.status === "rejected")
+    return t("membership.requests.status.rejected", { person: row.decidedBy });
   return t("membership.requests.status.lapsed", { person: row.decidedBy });
 }
 
-function DecisionLabel({ visible, named }: { readonly visible: "approve" | "reject"; readonly named: string }) {
+function DecisionLabel({
+  visible,
+  named,
+}: {
+  readonly visible: "approve" | "reject";
+  readonly named: string;
+}) {
   return (
     <>
       <span aria-hidden="true">
         {t(visible === "approve" ? "membership.requests.approve" : "membership.requests.reject")}
       </span>
       <span className="qcms-visually-hidden">
-        {t(visible === "approve" ? "membership.requests.approveFor" : "membership.requests.rejectFor", {
-          request: named,
-        })}
+        {t(
+          visible === "approve"
+            ? "membership.requests.approveFor"
+            : "membership.requests.rejectFor",
+          {
+            request: named,
+          },
+        )}
       </span>
     </>
   );
@@ -145,7 +158,10 @@ export function ApprovalRequestsPanel({
                 </p>
               )}
               {control.kind === "blocked" && (
-                <p className="text-sm text-(--color-text-muted)" data-decision-blocked={control.reason}>
+                <p
+                  className="text-sm text-(--color-text-muted)"
+                  data-decision-blocked={control.reason}
+                >
                   {decisionBlockText(control.reason, day(request.expiresAt, ""))}
                 </p>
               )}
@@ -154,7 +170,11 @@ export function ApprovalRequestsPanel({
                   <Button isDisabled={pending} onPress={() => decide(row, "approve")}>
                     <DecisionLabel visible="approve" named={row.asked} />
                   </Button>
-                  <Button variant="secondary" isDisabled={pending} onPress={() => decide(row, "reject")}>
+                  <Button
+                    variant="secondary"
+                    isDisabled={pending}
+                    onPress={() => decide(row, "reject")}
+                  >
                     <DecisionLabel visible="reject" named={row.asked} />
                   </Button>
                 </div>

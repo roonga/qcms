@@ -46,7 +46,7 @@ export default async function SiteAuditPage({
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6" data-testid="qcms-site-audit-screen">
       <div className="qcms-help-head">
         <h1 className="text-xl font-semibold text-(--color-text)">{t("site.audit.title")}</h1>
         <HelpTip>{t("site.audit.intro")}</HelpTip>

@@ -2,7 +2,11 @@ import { Select } from "@/components/kit";
 import { RailFilters } from "@/components/rail-filters";
 import { t } from "@/lib/i18n/en";
 import { APPROVAL_STATUSES } from "@/lib/membership/types";
-import { APPROVAL_REQUESTS_PATH, approvalStatusLabel, type ApprovalFilters } from "@/lib/site/approvals";
+import {
+  APPROVAL_REQUESTS_PATH,
+  approvalStatusLabel,
+  type ApprovalFilters,
+} from "@/lib/site/approvals";
 import {
   SITE_AUDIT_KINDS,
   SITE_AUDIT_PATH,

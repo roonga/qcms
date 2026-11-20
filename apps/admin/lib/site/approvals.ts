@@ -1,5 +1,9 @@
 import { t, type MessageKey } from "../i18n/en.ts";
-import { APPROVAL_STATUSES, type ApprovalRequest, type ApprovalStatus } from "../membership/types.ts";
+import {
+  APPROVAL_STATUSES,
+  type ApprovalRequest,
+  type ApprovalStatus,
+} from "../membership/types.ts";
 
 import { accountErrorMessage } from "./accounts.ts";
 
