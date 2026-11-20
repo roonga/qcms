@@ -8,11 +8,7 @@ import { demoteAccount, promoteAccount, stepUp, type ActOutcome } from "@/lib/se
 import type { ApiResult } from "@/lib/server/api-result";
 import { approveWorkspaceRequest, rejectWorkspaceRequest } from "@/lib/server/membership";
 import { requireAdminSession, type AdminSession } from "@/lib/server/session";
-import {
-  createWorkspace,
-  decideSiteRequest,
-  readStarterGroups,
-} from "@/lib/server/site-admin";
+import { createWorkspace, decideSiteRequest, readStarterGroups } from "@/lib/server/site-admin";
 import { accountErrorMessage, ACCOUNTS_PATH } from "@/lib/site/accounts";
 import { SITE_ADMINISTRATORS_PATH, type RoleActState } from "@/lib/site/administrators";
 import { APPROVAL_REQUESTS_PATH, decisionErrorMessage } from "@/lib/site/approvals";
@@ -95,7 +91,9 @@ export async function decideSiteRequestAction(
   return {
     status: "done",
     message:
-      decision === "approve" ? t("membership.requests.approved") : t("membership.requests.rejected"),
+      decision === "approve"
+        ? t("membership.requests.approved")
+        : t("membership.requests.rejected"),
   };
 }
 
@@ -116,7 +114,9 @@ export async function decideWorkspaceRequestAction(
   return {
     status: "done",
     message:
-      decision === "approve" ? t("membership.requests.approved") : t("membership.requests.rejected"),
+      decision === "approve"
+        ? t("membership.requests.approved")
+        : t("membership.requests.rejected"),
   };
 }
 

@@ -14,7 +14,10 @@ export default async function SiteAuditRailSlot({
   return (
     <SiteRail
       current="siteAudit"
-      screenFilters={{ activeCount: filters.activeCount, node: <SiteAuditFilters filters={filters} /> }}
+      screenFilters={{
+        activeCount: filters.activeCount,
+        node: <SiteAuditFilters filters={filters} />,
+      }}
     />
   );
 }

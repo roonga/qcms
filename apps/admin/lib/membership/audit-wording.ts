@@ -33,6 +33,18 @@ export function isMirroredSiteAct(kind: string): boolean {
   return kind === "account";
 }
 
+/** The actor a row names when no person did the act, such as the sweep that expires a request. */
+export const SYSTEM_ACTOR = "system";
+
+/** Who did an audited act: the system as itself, never as an account or a removed one. */
+export function auditActorLabel(row: {
+  readonly actor: string;
+  readonly actorEmail: string | null;
+}): string {
+  if (row.actor === SYSTEM_ACTOR) return t("site.audit.system");
+  return row.actorEmail ?? t("membership.audit.unknownActor", { actor: row.actor });
+}
+
 /** One access-audit act in words; an unfamiliar wire value is shown as it arrived rather than hidden. */
 export function auditKindLabel(kind: string): string {
   const key = AUDIT_KINDS[kind];

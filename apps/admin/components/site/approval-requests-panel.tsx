@@ -127,62 +127,64 @@ export function ApprovalRequestsPanel({
       {state.status === "error" && <Alert variant="error">{state.message}</Alert>}
       {state.status === "done" && <Alert variant="success">{state.message}</Alert>}
 
-      <ul className="flex min-w-0 flex-col gap-3">
-        {rows.map((row) => {
-          const { request, control } = row;
-          return (
-            <li
-              key={request.requestId}
-              data-request={request.requestId}
-              data-request-status={request.status}
-              className="flex min-w-0 flex-col gap-2 rounded-(--radius-card) border border-(--color-border) px-4 py-3"
-            >
-              <p className="text-sm font-medium">{row.asked}</p>
-              <p className="flex flex-wrap items-center gap-2 text-sm text-(--color-text-muted)">
-                <span className={STATUS_TONE[request.status] ?? "qcms-tag"}>
-                  {approvalStatusLabel(request.status)}
-                </span>
-                <span className="qcms-tag qcms-tag--draft">
-                  {row.workspace === undefined
-                    ? t("site.requests.scope.site")
-                    : t("site.requests.scope.workspaceNamed", { workspace: row.workspace })}
-                </span>
-                <span>
-                  {t("site.requests.requestedAt")} <OperatorDateTime iso={request.requestedAt} />
-                </span>
-                {control.kind === "decide" && <span>{expiryWording(row.expiresInDays)}</span>}
-              </p>
-              {control.kind === "decided" && (
-                <p className="text-sm text-(--color-text-muted)">
-                  {endedText(row, day(request.expiresAt, ""))}
+      {rows.length > 0 && (
+        <ul className="flex min-w-0 flex-col gap-3">
+          {rows.map((row) => {
+            const { request, control } = row;
+            return (
+              <li
+                key={request.requestId}
+                data-request={request.requestId}
+                data-request-status={request.status}
+                className="flex min-w-0 flex-col gap-2 rounded-(--radius-card) border border-(--color-border) px-4 py-3"
+              >
+                <p className="text-sm font-medium">{row.asked}</p>
+                <p className="flex flex-wrap items-center gap-2 text-sm text-(--color-text-muted)">
+                  <span className={STATUS_TONE[request.status] ?? "qcms-tag"}>
+                    {approvalStatusLabel(request.status)}
+                  </span>
+                  <span className="qcms-tag qcms-tag--draft">
+                    {row.workspace === undefined
+                      ? t("site.requests.scope.site")
+                      : t("site.requests.scope.workspaceNamed", { workspace: row.workspace })}
+                  </span>
+                  <span>
+                    {t("site.requests.requestedAt")} <OperatorDateTime iso={request.requestedAt} />
+                  </span>
+                  {control.kind === "decide" && <span>{expiryWording(row.expiresInDays)}</span>}
                 </p>
-              )}
-              {control.kind === "blocked" && (
-                <p
-                  className="text-sm text-(--color-text-muted)"
-                  data-decision-blocked={control.reason}
-                >
-                  {decisionBlockText(control.reason, day(request.expiresAt, ""))}
-                </p>
-              )}
-              {control.kind === "decide" && (
-                <div className="flex flex-wrap gap-2">
-                  <Button isDisabled={pending} onPress={() => decide(row, "approve")}>
-                    <DecisionLabel visible="approve" named={row.asked} />
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    isDisabled={pending}
-                    onPress={() => decide(row, "reject")}
+                {control.kind === "decided" && (
+                  <p className="text-sm text-(--color-text-muted)">
+                    {endedText(row, day(request.expiresAt, ""))}
+                  </p>
+                )}
+                {control.kind === "blocked" && (
+                  <p
+                    className="text-sm text-(--color-text-muted)"
+                    data-decision-blocked={control.reason}
                   >
-                    <DecisionLabel visible="reject" named={row.asked} />
-                  </Button>
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+                    {decisionBlockText(control.reason, day(request.expiresAt, ""))}
+                  </p>
+                )}
+                {control.kind === "decide" && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button isDisabled={pending} onPress={() => decide(row, "approve")}>
+                      <DecisionLabel visible="approve" named={row.asked} />
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      isDisabled={pending}
+                      onPress={() => decide(row, "reject")}
+                    >
+                      <DecisionLabel visible="reject" named={row.asked} />
+                    </Button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {approving !== undefined && (
         <StepUpDialog

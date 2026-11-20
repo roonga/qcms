@@ -37,8 +37,12 @@ export const SCREEN_IDS = [
   "/site/accounts",
   "/site/accounts/new",
   "/site/accounts/[accountId]",
+  "/site/administrators",
+  "/site/approval-requests",
+  "/site/audit",
   "/webhooks",
   "/workspaces",
+  "/workspaces/new",
   "/workspaces/[workspaceId]/members",
   "/workspaces/[workspaceId]/access-groups",
   "/workspaces/[workspaceId]/settings",
@@ -100,8 +104,13 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/site/accounts": screen(administrationContexts.siteAccounts),
   "/site/accounts/new": screen(administrationContexts.siteAccounts),
   "/site/accounts/[accountId]": screen(administrationContexts.siteAccountDetail),
+  // The directory carries each account's Site administrator flag, which is what this screen reads.
+  "/site/administrators": screen(administrationContexts.siteAccounts),
+  "/site/approval-requests": screen(administrationContexts.siteApprovalRequests),
+  "/site/audit": screen(administrationContexts.siteAudit),
   "/webhooks": screen(operationsContexts.deadLetters),
   "/workspaces": screen(administrationContexts.workspaces),
+  "/workspaces/new": screen(administrationContexts.workspaces),
   // One workspace's sections share one set of facts. Which kinds each offers is the
   // caller's own grants now, so every section is the same context builder.
   "/workspaces/[workspaceId]/members": screen(administrationContexts.workspaceDetail),

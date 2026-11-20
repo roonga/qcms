@@ -33,7 +33,7 @@ function strings(value: unknown): readonly string[] {
     : [];
 }
 
-function parseAccount(value: unknown): Account {
+export function parseAccount(value: unknown): Account {
   const row = record(value);
   return {
     userId: str(row["userId"]),
@@ -187,6 +187,14 @@ export function disableAccount(session: AdminSession, userId: string) {
 
 export function reactivateAccount(session: AdminSession, userId: string) {
   return act(session, accountPath(userId, "/reactivate"), {});
+}
+
+export function promoteAccount(session: AdminSession, userId: string) {
+  return act(session, accountPath(userId, "/promote"), {});
+}
+
+export function demoteAccount(session: AdminSession, userId: string) {
+  return act(session, accountPath(userId, "/demote"), {});
 }
 
 export function resetAccount(session: AdminSession, userId: string, choice: ResetChoice) {

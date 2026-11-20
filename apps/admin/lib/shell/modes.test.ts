@@ -329,3 +329,13 @@ describe("Site configuration", () => {
     expect(rememberableMode("/site/accounts", capabilities({ workspaces: true }))).toBeUndefined();
   });
 });
+
+describe("New workspace", () => {
+  it("sits in Site configuration, so only a Site administrator reaches it", () => {
+    expect(declaredMode("/workspaces/new")).toBe("site");
+    expect(declaredMode("/workspaces/all")).toBe("workspaces");
+    expect(declaredMode("/workspaces/org_new/members")).toBe("workspaces");
+    expect(permitsPath(capabilities({ siteConfiguration: true }), "/workspaces/new")).toBe(true);
+    expect(permitsPath(capabilities({ workspaces: true }), "/workspaces/new")).toBe(false);
+  });
+});

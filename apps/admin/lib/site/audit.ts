@@ -4,6 +4,7 @@
  */
 
 import { t, type MessageKey } from "../i18n/en.ts";
+import { auditActorLabel } from "../membership/audit-wording.ts";
 
 export const SITE_AUDIT_PATH = "/site/audit";
 export const SITE_AUDIT_PAGE_SIZE = 25;
@@ -17,8 +18,7 @@ export const SITE_AUDIT_KINDS = [
 ] as const;
 export type SiteAuditKind = (typeof SITE_AUDIT_KINDS)[number];
 
-/** The actor a row names when no person did the act, such as the sweep that expires a request. */
-export const SYSTEM_ACTOR = "system";
+export { SYSTEM_ACTOR } from "../membership/audit-wording.ts";
 
 export interface SiteAuditRow {
   readonly id: string;
@@ -169,8 +169,7 @@ export function siteAuditActLabel(row: SiteAuditRow): string {
 
 /** The system is named as itself, never as an account or a removed one. */
 export function siteAuditActor(row: Pick<SiteAuditRow, "actor" | "actorEmail">): string {
-  if (row.actor === SYSTEM_ACTOR) return t("site.audit.system");
-  return row.actorEmail ?? t("membership.audit.unknownActor", { actor: row.actor });
+  return auditActorLabel(row);
 }
 
 /** The account a row is about, where it names one, for its person lookup. */

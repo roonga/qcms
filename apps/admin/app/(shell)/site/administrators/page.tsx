@@ -54,9 +54,7 @@ export default async function SiteAdministratorsPage({
         </Alert>
       )}
       {matches !== undefined && !matches.ok && (
-        <Alert variant="error">
-          {t("site.accounts.loadFailed", { message: matches.message })}
-        </Alert>
+        <Alert variant="error">{t("site.accounts.loadFailed", { message: matches.message })}</Alert>
       )}
 
       <SiteAdministratorsPanel

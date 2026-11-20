@@ -26,6 +26,7 @@ export const WORKSPACES_PATH = "/workspaces";
 export const AUTHORING_PATH = "/questions";
 export const SITE_CONFIGURATION_PATH = "/site";
 export const SITE_CONFIGURATION_LANDING = "/site/accounts";
+export const NEW_WORKSPACE_PATH = "/workspaces/new";
 
 interface ModeDefinition {
   readonly mode: ShellMode;
@@ -60,7 +61,8 @@ const DEFINITIONS: readonly ModeDefinition[] = [
     landing: SITE_CONFIGURATION_LANDING,
     focused: false,
     capabilities: ["siteConfiguration"],
-    routes: [SITE_CONFIGURATION_PATH],
+    /** Creating a workspace is a Site administrator act, so its address belongs to this area. */
+    routes: [SITE_CONFIGURATION_PATH, NEW_WORKSPACE_PATH],
   },
   {
     mode: "normal",

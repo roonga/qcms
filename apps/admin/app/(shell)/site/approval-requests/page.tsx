@@ -87,31 +87,28 @@ export default async function ApprovalRequestsPage({
         />
       )}
 
-      {requests.length > 0 && (
-        <>
-          <ApprovalRequestsPanel
-            rows={requests.map((request, index) => ({
-              request,
-              asked: requestSentence(request, names),
-              workspace:
-                request.workspaceId === null ? undefined : names.workspace(request.workspaceId),
-              decidedBy: request.decidedBy === null ? "" : names.person(request.decidedBy),
-              expiresInDays: held[index]?.expiresInDays ?? 0,
-              control: decisionControl(request, session.userId, now),
-            }))}
-            decideSite={decideSiteRequestAction}
-            decideWorkspace={decideWorkspaceRequestAction}
-          />
-          {result.ok && (
-            <ResultPager
-              page={result.data.page}
-              pageSize={result.data.pageSize}
-              total={result.data.total}
-              locale={appLocale()}
-              pageHref={(page) => approvalRequestsHref(filters, page)}
-            />
-          )}
-        </>
+      {/* Rendered while empty too, so the outcome of the last decision stays on screen. */}
+      <ApprovalRequestsPanel
+        rows={requests.map((request, index) => ({
+          request,
+          asked: requestSentence(request, names),
+          workspace:
+            request.workspaceId === null ? undefined : names.workspace(request.workspaceId),
+          decidedBy: request.decidedBy === null ? "" : names.person(request.decidedBy),
+          expiresInDays: held[index]?.expiresInDays ?? 0,
+          control: decisionControl(request, session.userId, now),
+        }))}
+        decideSite={decideSiteRequestAction}
+        decideWorkspace={decideWorkspaceRequestAction}
+      />
+      {result.ok && requests.length > 0 && (
+        <ResultPager
+          page={result.data.page}
+          pageSize={result.data.pageSize}
+          total={result.data.total}
+          locale={appLocale()}
+          pageHref={(page) => approvalRequestsHref(filters, page)}
+        />
       )}
     </div>
   );

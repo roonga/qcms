@@ -5,7 +5,7 @@ import { OperatorDateTime } from "@/components/operator-time";
 import { ResultPager } from "@/components/access/access-filters";
 import { t } from "@/lib/i18n/en";
 import { auditHref, type AuditFilters } from "@/lib/membership/audit-filters";
-import { auditKindLabel, isMirroredSiteAct } from "@/lib/membership/audit-wording";
+import { auditActorLabel, auditKindLabel, isMirroredSiteAct } from "@/lib/membership/audit-wording";
 import type { AuditPage } from "@/lib/membership/types";
 
 /* Audit rows must contain acts only, with no answer values, respondent identifiers, or question text. */
@@ -66,9 +66,7 @@ export function AuditPanel({
                       <td>
                         <OperatorDateTime iso={row.occurredAt} />
                       </td>
-                      <td>
-                        {row.actorEmail ?? t("membership.audit.unknownActor", { actor: row.actor })}
-                      </td>
+                      <td>{auditActorLabel(row)}</td>
                       <td>
                         <span className="flex flex-wrap items-center gap-2">
                           {auditKindLabel(row.kind)}
