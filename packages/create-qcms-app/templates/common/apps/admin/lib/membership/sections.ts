@@ -14,9 +14,18 @@ export const WORKSPACE_SECTIONS = [
   "settings",
   "audit",
   "assistant-actions",
+  "archive",
 ] as const;
 
 export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number];
+
+/**
+ * The sections a site with one workspace has: archiving is refused while the workspace owns a
+ * form, and one workspace has nowhere to move its forms to.
+ */
+export const WORKSPACE_SECTIONS_AT_ONE: readonly WorkspaceSection[] = WORKSPACE_SECTIONS.filter(
+  (entry) => entry !== "archive",
+);
 
 export const FIRST_WORKSPACE_SECTION: WorkspaceSection = "members";
 
@@ -31,6 +40,7 @@ export const WORKSPACE_SECTION_LABELS: Readonly<Record<WorkspaceSection, Message
   settings: "membership.settings.heading",
   audit: "membership.audit.heading",
   "assistant-actions": "membership.agentAudit.heading",
+  archive: "membership.archive.heading",
 };
 
 export function workspaceSectionHref(workspaceId: string, section: WorkspaceSection): string {

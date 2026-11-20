@@ -855,6 +855,29 @@ describe("concurrent acts on one workspace", () => {
     );
   });
 
+  it("refuses a direct move once the mover lost the source Edit forms grant while it waited", async () => {
+    const source = await newWorkspace();
+    const destination = await newWorkspace();
+    const formId = await seedForm(source);
+    const mover = await editor("racing-source-mover", [source, destination], {
+      administers: [source],
+    });
+    const group = await editorGroupOf(source, mover);
+
+    const refused = await whileHolding(
+      async (tx) => {
+        await lockWorkspaceMembership(tx, source);
+        await removeAccessGroupHolder(tx, group, mover.userId);
+      },
+      () => move(mover, formId, destination),
+    );
+    expect(refused.status).toBe(403);
+    expect(await workspaceOf(formId)).toBe(source);
+    expect(await settingDetails(destination)).not.toContainEqual(
+      expect.stringContaining("form-moved-in"),
+    );
+  });
+
   it("refuses a direct move into a workspace archived while it waited", async () => {
     const source = await newWorkspace();
     const destination = await newWorkspace();

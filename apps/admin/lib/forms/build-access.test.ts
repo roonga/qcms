@@ -33,6 +33,7 @@ function access(...workspaces: MyAccessWorkspace[]): MyAccess {
     },
     workspaces,
     siteAdministrators: [],
+    multipleWorkspaces: false,
   };
 }
 

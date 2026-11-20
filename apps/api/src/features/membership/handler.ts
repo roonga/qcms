@@ -19,10 +19,12 @@ import {
   liftHoldMarkers,
   liftMarkersOfDeletedGroup,
   listAccessAudit,
+  listAccessAuditActors,
   listAccessGroupHolders,
   listAccessGroups,
   listAccessGroupsHeldIn,
   listActiveAdministratorsFor,
+  listActiveWorkspaces,
   listActiveSiteAdministrators,
   listAgentActions,
   listEnvironmentNames,
@@ -402,10 +404,8 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
     }
 
     const claim = holdsInstallationClaim(principal.role);
-    const holdsNothing =
-      !claim &&
-      grants.length === 0 &&
-      memberships.every((membership) => membership.role !== OWNER_MEMBER_ROLE);
+    const administers = memberships.some((membership) => membership.role === OWNER_MEMBER_ROLE);
+    const holdsNothing = !claim && grants.length === 0 && !administers;
     return c.json(
       {
         userId: principal.userId,
@@ -416,6 +416,7 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
           ...workspace,
           environments: environmentsHeld(workspace.grants, live),
         })),
+        multipleWorkspaces: (claim || administers) && (await listActiveWorkspaces(exec)).length > 1,
       },
       200,
     );
@@ -1278,14 +1279,20 @@ export function makeAuditHandler(deps: Deps): RouteHandler<typeof auditRoute, Ap
     const { page, pageSize } = auditWindow(query);
 
     const exec = deps.databases.control;
-    const { rows, total } = await listAccessAudit(exec, workspaceId, {
-      limit: pageSize,
-      offset: (page - 1) * pageSize,
-      ...(query.kind === undefined ? {} : { kind: query.kind }),
-    });
+    const [{ rows, total }, named] = await Promise.all([
+      listAccessAudit(exec, workspaceId, {
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+        ...(query.kind === undefined ? {} : { kind: query.kind }),
+        ...(query.actor === undefined ? {} : { actor: query.actor }),
+      }),
+      listAccessAuditActors(exec, workspaceId, { limit: AUDIT_ACTORS_LIMIT }),
+    ]);
 
-    const actors = await findUsersByIds(exec, [...new Set(rows.map((row) => row.actor))]);
-    const addresses = new Map(actors.map((actor) => [actor.userId, actor.email]));
+    const accounts = await findUsersByIds(exec, [
+      ...new Set([...rows.map((row) => row.actor), ...named]),
+    ]);
+    const addresses = new Map(accounts.map((account) => [account.userId, account.email]));
 
     return c.json(
       {
@@ -1303,11 +1310,14 @@ export function makeAuditHandler(deps: Deps): RouteHandler<typeof auditRoute, Ap
         page,
         pageSize,
         total,
+        actors: named.map((actor) => ({ actor, actorEmail: addresses.get(actor) ?? null })),
       },
       200,
     );
   };
 }
+
+const AUDIT_ACTORS_LIMIT = 100;
 
 /**
  * The site audit, which names no workspace: the route row is `installationOnly`, so the

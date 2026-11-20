@@ -344,6 +344,7 @@ const SCREENS: readonly ScreenRow[] = [
     "app/(shell)/@rail/workspaces/[workspaceId]/settings/page.tsx",
     "app/(shell)/@rail/workspaces/[workspaceId]/audit/page.tsx",
     "app/(shell)/@rail/workspaces/[workspaceId]/assistant-actions/page.tsx",
+    "app/(shell)/@rail/workspaces/[workspaceId]/archive/page.tsx",
   ].map((route) => ({
     route,
     model: "readonly" as const,
@@ -393,6 +394,11 @@ const SCREENS: readonly ScreenRow[] = [
     route: "app/(shell)/@rail/site/shared-library/page.tsx",
     model: "readonly",
     why: "Site configuration's rail beside the screen.",
+  },
+  {
+    route: "app/(shell)/workspaces/[workspaceId]/archive/page.tsx",
+    model: "action",
+    why: "One irreversible act, held behind the typed workspace name: nothing on the screen is stored until it is pressed.",
   },
   {
     route: "app/(shell)/workspaces/[workspaceId]/audit/page.tsx",

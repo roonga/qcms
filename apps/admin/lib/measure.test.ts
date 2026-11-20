@@ -47,9 +47,9 @@ describe("the route-to-cap table", () => {
     expect(count("list")).toBe(6);
 
     expect(count("ops")).toBe(2);
-    expect(count("log")).toBe(6);
+    expect(count("log")).toBe(7);
     expect(count("full")).toBe(2);
-    expect(measures).toHaveLength(37);
+    expect(measures).toHaveLength(38);
   });
 
   it("offers no cap that no route can take, which is what issue 668 left behind", () => {

@@ -8,6 +8,7 @@ import { messages } from "../i18n/en.ts";
 import {
   WORKSPACE_SECTION_LABELS,
   WORKSPACE_SECTIONS,
+  WORKSPACE_SECTIONS_AT_ONE,
   workspaceHref,
   workspaceSectionHref,
 } from "./sections.ts";
@@ -15,14 +16,20 @@ import {
 const APP = fileURLToPath(new URL("../../", import.meta.url));
 
 describe("the workspace sections", () => {
-  it("are the five ruled screens, in the rail's order", () => {
+  it("are the ruled screens, in the rail's order", () => {
     expect(WORKSPACE_SECTIONS).toEqual([
       "members",
       "access-groups",
       "settings",
       "audit",
       "assistant-actions",
+      "archive",
     ]);
+  });
+
+  it("leave Archive out at one workspace, where no other workspace could take its forms", () => {
+    expect(WORKSPACE_SECTIONS_AT_ONE).not.toContain("archive");
+    expect(WORKSPACE_SECTIONS_AT_ONE).toHaveLength(WORKSPACE_SECTIONS.length - 1);
   });
 
   it("each have a route page of their own", () => {

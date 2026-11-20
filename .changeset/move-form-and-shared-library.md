@@ -27,3 +27,7 @@ Move form and the shared question library screen (task 095).
   that library owns.
 - New screens: Move form on the form rail, drawn where the caller holds Edit forms in
   another workspace, and Shared question library in Site configuration.
+- A publish held for second approval lapses with `PUBLISH_FORM_LEFT_WORKSPACE` when its form
+  has been moved out of the workspace before the approval is applied.
+- Archiving a workspace now serializes with a move into it: an archive that waited on a move
+  sees the form arrive and refuses with `WORKSPACE_NOT_EMPTY`.

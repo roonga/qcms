@@ -89,6 +89,7 @@ describe("every route titles its own browser tab", () => {
 
       "/workspaces",
       "/workspaces/[workspaceId]/access-groups",
+      "/workspaces/[workspaceId]/archive",
       "/workspaces/[workspaceId]/assistant-actions",
       "/workspaces/[workspaceId]/audit",
       "/workspaces/[workspaceId]/members",

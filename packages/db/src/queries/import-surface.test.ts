@@ -186,6 +186,7 @@ describe("query helper import surface", () => {
     "findUsersByIds",
     "writeAccessAuditRow",
     "listAccessAudit",
+    "listAccessAuditActors",
     "countAccessAuditByKind",
     "writeSiteAuditRow",
     "writeSiteAuditWithMirror",

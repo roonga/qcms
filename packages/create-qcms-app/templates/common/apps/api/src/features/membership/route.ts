@@ -74,7 +74,8 @@ export const myAccessRoute = createRoute({
     "some grant, with `all` expanded against the live set. `capabilities` says which " +
     "areas of the admin the caller has at all, derived from the same policy decision " +
     "that gates each area's routes, so a navigation contract cannot offer a mode whose " +
-    "routes refuse. It is a projection and authorises nothing.",
+    "routes refuse. It is a projection and authorises nothing. `multipleWorkspaces` says " +
+    "the installation holds two or more workspaces not archived, to an administrator.",
   tags,
   request: {},
   responses: {
@@ -379,7 +380,10 @@ export const auditRoute = createRoute({
     "to the seed setting, newest first. Readable by the workspace's owners and by the " +
     "installation administrator: an audit only the operator can see does not answer a " +
     "department's own question about its own data. It carries no answer value, no " +
-    "respondent identifier and no question text - the act, not its subject matter.",
+    "respondent identifier and no question text - the act, not its subject matter. " +
+    "`actor` narrows to one account's acts, by its stored id. `actors` names the accounts " +
+    "the whole audit carries, most recently active first and at most 100, whatever the " +
+    "filters, so a person filter can offer them.",
   tags,
   request: { params: WorkspaceIdParam, query: AuditQuery },
   responses: {

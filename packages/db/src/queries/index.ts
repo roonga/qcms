@@ -164,6 +164,7 @@ export {
   type AccessAuditRow,
   countAccessAuditByKind,
   listAccessAudit,
+  listAccessAuditActors,
   writeAccessAuditRow,
 } from "./access-audit.js";
 

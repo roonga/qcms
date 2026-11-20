@@ -1751,6 +1751,7 @@ export const messages = {
   "agent.context.workspace.settings": "Workspace {subject}: settings",
   "agent.context.workspace.audit": "Workspace {subject}: access audit",
   "agent.context.workspace.assistantActions": "Workspace {subject}: assistant actions",
+  "agent.context.workspace.archive": "Workspace {subject}: archive",
   "agent.empty": "Ask about this screen. The assistant explains what is here and takes you to it.",
   "agent.composer": "Ask the assistant",
   "agent.conversationLabel": "Conversation with the assistant",
@@ -2075,6 +2076,8 @@ export const messages = {
   "agent.card.note.acceptUndecided":
     "The builder is waiting for a decision about the assistant's last change.",
   "agent.card.note.stale": "This proposal is more than ten minutes old.",
+  "agent.card.note.heldForApprover":
+    "Nothing has changed yet. An Approver has to approve this before it takes effect.",
   "agent.card.note.draftMoved":
     "This form's saved draft has changed since the plan was proposed. Ask the assistant again.",
   "agent.card.note.notWired": "This screen's control is not wired to the assistant yet.",
@@ -2733,6 +2736,35 @@ export const messages = {
   "membership.settings.save": "Save settings",
   "membership.settings.saved": "The settings were saved, and the change is on the access audit.",
   "membership.settings.saveFailed": "The settings were not saved: {message}",
+  "membership.settings.name": "Workspace name",
+  "membership.settings.nameSave": "Save the name",
+  "membership.settings.nameDiscard": "Discard",
+  "membership.settings.nameEmpty": "Enter a name.",
+  "membership.settings.renamed": "Renamed to {name}. The stored identifier does not change.",
+  "membership.settings.renameFailed": "The workspace was not renamed: {message}",
+  "membership.settings.identifier": "Stored identifier {slug}. It cannot change.",
+  "membership.settings.secondApproval": "Second approval",
+  /** Turning the rule on is refused where nobody else could approve, so the screen says so before the attempt. */
+  "membership.settings.cannotTurnOn": "Second approval cannot be turned on here.",
+  "membership.settings.cause.administrator":
+    "No other Workspace administrator or Site administrator could approve.",
+  "membership.settings.cause.publisher":
+    "No other person with Publish forms in production could approve.",
+  "membership.settings.cause.note": "An unclaimed or disabled account does not count.",
+  "membership.settings.warning": "Second approval is on and nobody else could approve.",
+  "membership.settings.warning.addAdministrator": "Appoint a Workspace administrator",
+  "membership.settings.warning.addPublisher": "Add somebody to an access group with Publish forms",
+  "membership.settings.held":
+    "Turning Second approval off is waiting for an Approver: another Workspace administrator of this workspace, or a Site administrator. Nothing has changed yet.",
+  "membership.settings.heldOwn": "You asked for this, so somebody else decides it.",
+  "membership.settings.decided.approved":
+    "Approved by {person}. Second approval is off, and the change is on the access audit.",
+  "membership.settings.decided.rejected": "Rejected by {person}. Second approval stays on.",
+  "membership.settings.decided.expired":
+    "The last request to turn it off expired. Turn it off again to ask again.",
+  "membership.settings.decided.lapsed":
+    "The last request to turn it off ended undecided, because what it asked for had moved. Turn it off again to ask again.",
+  "membership.settings.requestsLink": "Requests, on the Audit screen",
 
   "membership.audit.heading": "Access audit",
   "membership.audit.intro":
@@ -2752,9 +2784,99 @@ export const messages = {
   "membership.audit.kind.grant": "Granted",
   "membership.audit.kind.revoke": "Revoked",
   "membership.audit.kind.setting": "Changed a setting",
+  "membership.audit.kind.derive": "Derived a theme from a website",
+  "membership.audit.kind.group": "Changed an access group",
+  "membership.audit.kind.administrator": "Changed a Workspace administrator",
+  "membership.audit.kind.approval": "An approval request",
+  /** The workspace audit's mirror of a site-level act on an account that held something here. */
+  "membership.audit.kind.account": "An act on an account",
+  "membership.audit.kind.link": "Respondent links",
+  "membership.audit.mirrored": "From Site audit",
+  "membership.audit.filter.kind": "Act",
+  "membership.audit.filter.kindAll": "All acts",
+  "membership.audit.filter.person": "Person",
+  "membership.audit.filter.personAny": "Anyone",
+  "membership.audit.noneMatching": "No row in this workspace's audit matches these filters.",
   "membership.audit.total": "{total} row(s)",
   /** Audit records must survive account deletion and fall back to account IDs rather than cascading away. */
   "membership.audit.unknownActor": "{actor} (account removed)",
+
+  "membership.requests.heading": "Requests",
+  "membership.requests.intro":
+    "Changes held for an Approver in this workspace: turning Second approval off, a grant somebody made to themselves, and a form moved out. A held publish to production is approved on its form, not here.",
+  "membership.requests.none": "Nothing is waiting for an Approver.",
+  "membership.requests.loadFailed": "The approval requests could not be read: {message}",
+  "membership.requests.pendingOne": "1 pending",
+  "membership.requests.pending": "{count} pending",
+  "membership.requests.waiting": "Needs an Approver",
+  "membership.requests.expiresInOne": "Expires in 1 day.",
+  "membership.requests.expiresIn": "Expires in {count} days.",
+  "membership.requests.expiresToday": "Expires today.",
+  "membership.requests.asked.secondApprovalOff": "{person} asked to turn Second approval off.",
+  "membership.requests.asked.selfGrant":
+    "{person} asked to give themselves access through {group}.",
+  "membership.requests.asked.moveForm": "{person} asked to move a form out of this workspace.",
+  "membership.requests.asked.other": "{person} asked for a change this screen does not name yet.",
+  "membership.requests.group": "an access group",
+  "membership.requests.approve": "Approve",
+  "membership.requests.reject": "Reject",
+  "membership.requests.approveFor": "Approve: {request}",
+  "membership.requests.rejectFor": "Reject: {request}",
+  "membership.requests.ownRequest": "You asked for this, so somebody else decides it.",
+  "membership.requests.status.approved": "Approved by {person}.",
+  "membership.requests.status.rejected": "Rejected by {person}.",
+  "membership.requests.status.expired": "Expired, and can no longer be approved.",
+  "membership.requests.status.lapsed":
+    "Ended undecided by {person}: what the request asked for had moved, so nothing was applied. The person who asked can ask again.",
+  "membership.requests.approved": "The request was approved and applied.",
+  "membership.requests.rejected": "The request was rejected, and nothing was applied.",
+  "membership.requests.approveFailed": "The request was not approved: {message}",
+  "membership.requests.rejectFailed": "The request was not rejected: {message}",
+  "membership.requests.unknownPerson": "{actor} (account removed)",
+
+  "membership.archive.heading": "Archive workspace",
+  "membership.archive.intro":
+    "Archiving is the last step for a workspace: it keeps every question and audit row, takes no further change, and cannot be undone. There is no unarchive.",
+  "membership.archive.cannotUndo": "Archiving {name} cannot be undone.",
+  "membership.archive.blocked": "Cannot archive yet",
+  "membership.archive.blocker.formsOne":
+    "1 form is still in this workspace, closed and never-published ones included. Move it to another workspace first.",
+  "membership.archive.blocker.forms":
+    "{count} forms are still in this workspace, closed and never-published ones included. Move each to another workspace first.",
+  "membership.archive.blocker.shared":
+    "This is the shared question library. Unmark it, or hand the library on to another workspace, first.",
+  "membership.archive.openForms": "Open Forms",
+  "membership.archive.act": "Archive {name}",
+  "membership.archive.working": "Archiving",
+  "membership.archive.typedHint": "The button stays off until the typed name matches.",
+  "membership.archive.archived":
+    "{name} is archived. Nothing was deleted, and there is no unarchive.",
+  "membership.archive.already": "This workspace is archived. There is no unarchive.",
+  "membership.archive.failed": "The workspace was not archived: {message}",
+
+  "membership.error.noApprover":
+    "Second approval cannot be turned on here, because nobody else could approve: it needs another active Workspace administrator or Site administrator, and two active people with Publish forms in production.",
+  "membership.error.requestPending":
+    "You already have a request of this kind waiting for an Approver. It has to be decided first.",
+  "membership.error.requestNotFound": "No such approval request.",
+  "membership.error.requestNotPending": "That request has already been decided.",
+  "membership.error.requestExpired":
+    "That request is more than 7 days old and can no longer be approved.",
+  "membership.error.ownRequest": "You cannot decide your own request.",
+  "membership.error.notApprover":
+    "Only another Workspace administrator of this workspace, or a Site administrator, decides this request.",
+  "membership.error.requesterGone":
+    "Nothing was applied: the person who asked is no longer a Workspace administrator of this workspace or a Site administrator.",
+  "membership.error.groupChanged":
+    "Nothing was applied: the access group's roles or environments changed after this was requested. The request has ended, and the person who asked can ask again.",
+  "membership.error.groupNameTaken":
+    "Nothing was applied: another access group now has the name this edit asked for. The request has ended, and the person who asked can ask again with another name.",
+  "membership.error.groupGone":
+    "Nothing was applied: the access group this request names no longer exists.",
+  "membership.error.workspaceNotEmpty":
+    "This workspace still owns forms, or it is the shared question library, so it cannot be archived yet.",
+  "membership.error.workspaceArchived":
+    "That workspace is archived, so it takes no further change.",
 
   "membership.agentAudit.heading": "Assistant actions",
   "membership.agentAudit.intro":

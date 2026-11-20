@@ -25,6 +25,7 @@ function access(overrides: Partial<MyAccess> = {}): MyAccess {
     capabilities: NO_CAPABILITIES,
     workspaces: [],
     siteAdministrators: [],
+    multipleWorkspaces: false,
     ...overrides,
   };
 }
