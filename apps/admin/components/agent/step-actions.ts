@@ -252,8 +252,8 @@ const releaseStep: StepRunner = async ({ step, tokenStep, args, agentProposal })
   return publishOutcome(state, step.environment);
 };
 
-/* A 202 is neither done nor failed: the act is stored as a request, so the card holds the
-   plan at this step exactly as a held endpoint change does. */
+/* A held act is neither done nor failed: it is stored as a request, so the card holds the plan
+   at this step. */
 function membershipOutcome(
   state: MembershipActionState,
   result: Readonly<Record<string, unknown>>,
@@ -262,7 +262,7 @@ function membershipOutcome(
     return { outcome: "pending-approval", message: t(HELD_FOR_APPROVER), result };
   }
   if (state.status !== "done") {
-    return { outcome: "failed", message: state.status === "error" ? state.message : "" };
+    return { outcome: "failed", message: state.status === "idle" ? "" : state.message };
   }
   return { outcome: "done", result };
 }

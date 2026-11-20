@@ -11,6 +11,7 @@ function access(workspaces: MyAccess["workspaces"]): MyAccess {
     capabilities: NO_CAPABILITIES,
     workspaces,
     siteAdministrators: [],
+    multipleWorkspaces: false,
   };
 }
 

@@ -56,6 +56,8 @@ export const AccountView = z
   })
   .openapi("AccountView");
 
+export const AccountResponse = z.object({ account: AccountView }).openapi("AccountResponse");
+
 export const AccountListResponse = z
   .object({
     accounts: z.array(AccountView),

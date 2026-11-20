@@ -3916,6 +3916,9 @@
                 "environments"
               ]
             }
+          },
+          "multipleWorkspaces": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -3923,7 +3926,8 @@
           "installationAdmin",
           "capabilities",
           "siteAdministrators",
-          "workspaces"
+          "workspaces",
+          "multipleWorkspaces"
         ]
       },
       "WorkspaceMemberListResponse": {
@@ -3949,6 +3953,14 @@
                 "role": {
                   "type": "string"
                 },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "unclaimed",
+                    "disabled"
+                  ]
+                },
                 "groups": {
                   "type": "array",
                   "items": {
@@ -3961,6 +3973,7 @@
                 "email",
                 "name",
                 "role",
+                "status",
                 "groups"
               ]
             }
@@ -4046,11 +4059,15 @@
                       },
                       "email": {
                         "type": "string"
+                      },
+                      "suspended": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
                       "userId",
-                      "email"
+                      "email",
+                      "suspended"
                     ]
                   }
                 }
@@ -4109,11 +4126,15 @@
                     },
                     "email": {
                       "type": "string"
+                    },
+                    "suspended": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "userId",
-                    "email"
+                    "email",
+                    "suspended"
                   ]
                 }
               }
@@ -4217,11 +4238,15 @@
                     },
                     "email": {
                       "type": "string"
+                    },
+                    "suspended": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "userId",
-                    "email"
+                    "email",
+                    "suspended"
                   ]
                 }
               }
@@ -4490,6 +4515,25 @@
           },
           "total": {
             "type": "integer"
+          },
+          "actors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "actor": {
+                  "type": "string"
+                },
+                "actorEmail": {
+                  "type": "string",
+                  "nullable": true
+                }
+              },
+              "required": [
+                "actor",
+                "actorEmail"
+              ]
+            }
           }
         },
         "required": [
@@ -4497,7 +4541,8 @@
           "rows",
           "page",
           "pageSize",
-          "total"
+          "total",
+          "actors"
         ]
       },
       "SiteAuditListResponse": {
@@ -4786,6 +4831,17 @@
           "email"
         ],
         "additionalProperties": false
+      },
+      "AccountResponse": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountView"
+          }
+        },
+        "required": [
+          "account"
+        ]
       },
       "SignInLinkResponse": {
         "type": "object",
@@ -10893,7 +10949,7 @@
     "/admin/me/access": {
       "get": {
         "summary": "Which workspaces, roles, environments and forms the caller holds (admin)",
-        "description": "Every caller's own grants and nobody else's. It is how everybody who is not an owner or the installation administrator learns what they hold, since the membership list itself is theirs alone to see. `environments` per workspace is what the environment switcher offers: only the environments the caller holds in some grant, with `all` expanded against the live set. `capabilities` says which areas of the admin the caller has at all, derived from the same policy decision that gates each area's routes, so a navigation contract cannot offer a mode whose routes refuse. It is a projection and authorises nothing.",
+        "description": "Every caller's own grants and nobody else's. It is how everybody who is not an owner or the installation administrator learns what they hold, since the membership list itself is theirs alone to see. `environments` per workspace is what the environment switcher offers: only the environments the caller holds in some grant, with `all` expanded against the live set. `capabilities` says which areas of the admin the caller has at all, derived from the same policy decision that gates each area's routes, so a navigation contract cannot offer a mode whose routes refuse. It is a projection and authorises nothing. `multipleWorkspaces` says the installation holds two or more workspaces not archived, to an administrator.",
         "tags": [
           "membership"
         ],
@@ -12298,7 +12354,7 @@
     "/admin/workspaces/{id}/audit": {
       "get": {
         "summary": "The access audit for this workspace (admin)",
-        "description": "Every response read, export and erasure, every grant and revoke, and every change to the seed setting, newest first. Readable by the workspace's owners and by the installation administrator: an audit only the operator can see does not answer a department's own question about its own data. It carries no answer value, no respondent identifier and no question text - the act, not its subject matter.",
+        "description": "Every response read, export and erasure, every grant and revoke, and every change to the seed setting, newest first. Readable by the workspace's owners and by the installation administrator: an audit only the operator can see does not answer a department's own question about its own data. It carries no answer value, no respondent identifier and no question text - the act, not its subject matter. `actor` narrows to one account's acts, by its stored id. `actors` names the accounts the whole audit carries, most recently active first and at most 100, whatever the filters, so a person filter can offer them.",
         "tags": [
           "membership"
         ],
@@ -12339,6 +12395,16 @@
             },
             "required": false,
             "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "actor",
             "in": "query"
           },
           {
@@ -12793,6 +12859,76 @@
           },
           "422": {
             "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/accounts/{id}": {
+      "get": {
+        "summary": "One account (Site administrator)",
+        "description": "The account page's header: address, name, role and status. It carries no credential and no sign-in link.",
+        "tags": [
+          "accounts"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "usr_7m2"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {

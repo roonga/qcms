@@ -404,6 +404,26 @@ async function suspendedBy(group: string, userId: string): Promise<string | null
   return hold?.suspendedAt === null ? null : hold?.suspendedBy;
 }
 
+/** Whether the administration list reports this hold as suspended. */
+async function holdSeen(group: string, userId: string): Promise<boolean | undefined> {
+  const response = await adminGet(
+    `/admin/workspaces/${workspaceId}/access-groups`,
+    workspaceAdminToken,
+  );
+  const body = (await response.json()) as {
+    groups: { teamId: string; holders: { userId: string; suspended: boolean }[] }[];
+  };
+  return body.groups
+    .find((entry) => entry.teamId === group)
+    ?.holders.find((holder) => holder.userId === userId)?.suspended;
+}
+
+async function memberStatusSeen(userId: string): Promise<string | undefined> {
+  const response = await adminGet(`/admin/workspaces/${workspaceId}/members`, workspaceAdminToken);
+  const body = (await response.json()) as { members: { userId: string; status: string }[] };
+  return body.members.find((member) => member.userId === userId)?.status;
+}
+
 async function reconfirm(token: string, group: string, userId: string, workspace = workspaceId) {
   return adminSend(
     "POST",
@@ -641,6 +661,7 @@ describe("reactivating an account (criteria 64, 68, 69, 71)", () => {
         (await adminSend("POST", `/admin/accounts/${person.userId}/disable`, siteAdminToken))
           .status,
       ).toBe(200);
+      expect(await memberStatusSeen(person.userId)).toBe("disabled");
       const refusedUnlessDisabled = await adminSend(
         "POST",
         `/admin/accounts/${workspaceAdminId}/reactivate`,
@@ -686,8 +707,19 @@ describe("reactivating an account (criteria 64, 68, 69, 71)", () => {
         `subject=${person.userId} act=reactivate suspended=1`,
       ]);
 
+      expect(await holdSeen(viewersGroupId, person.userId)).toBe(true);
+      expect(await holdSeen(editorsGroupId, person.userId)).toBe(false);
+      expect(await memberStatusSeen(person.userId)).toBe("active");
+
       const confirmed = await reconfirm(workspaceAdminToken, viewersGroupId, person.userId);
       expect(confirmed.status, await confirmed.clone().text()).toBe(200);
+      expect(
+        (
+          (await confirmed.json()) as {
+            group: { holders: { userId: string; suspended: boolean }[] };
+          }
+        ).group.holders.find((holder) => holder.userId === person.userId)?.suspended,
+      ).toBe(false);
       expect((await myAccess(person.session)).workspaces.get(workspaceId)?.groups).toEqual([
         "Lifecycle editors",
         "Lifecycle viewers",

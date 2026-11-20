@@ -3,8 +3,12 @@ import { cache } from "react";
 import type {
   AccessGroup,
   AccessGroupList,
+  MemberStatus,
   AgentAuditPage,
   AgentAuditRow,
+  ApprovalRequest,
+  ApprovalRequestPage,
+  ApprovalStatus,
   AuditPage,
   AuditRow,
   MyAccess,
@@ -12,6 +16,7 @@ import type {
   WorkspaceMember,
   WorkspaceSettings,
 } from "../membership/types.ts";
+import { APPROVAL_STATUSES } from "../membership/types.ts";
 import type { ShellCapabilities } from "../shell/modes.ts";
 
 import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
@@ -43,6 +48,13 @@ function bool(value: unknown): boolean {
 
 function num(value: unknown): number {
   return typeof value === "number" ? value : 0;
+}
+
+const MEMBER_STATUSES: readonly MemberStatus[] = ["active", "unclaimed", "disabled"];
+
+// An unknown or absent status reads as active: the API still refuses whatever the account cannot do.
+function memberStatus(value: unknown): MemberStatus {
+  return MEMBER_STATUSES.find((status) => status === value) ?? "active";
 }
 
 function strings(value: unknown): readonly string[] {
@@ -81,7 +93,13 @@ export const listWorkspaces: (
   },
 );
 
-export async function listMembers(
+/** Shared by the page and its rail within one request. */
+export const listMembers: (
+  session: AdminSession,
+  workspaceId: string,
+) => Promise<ApiResult<readonly WorkspaceMember[]>> = cache(fetchMembers);
+
+async function fetchMembers(
   session: AdminSession,
   workspaceId: string,
 ): Promise<ApiResult<readonly WorkspaceMember[]>> {
@@ -96,6 +114,7 @@ export async function listMembers(
       email: str(row["email"]),
       name: str(row["name"]),
       role: str(row["role"]),
+      status: memberStatus(row["status"]),
       groups: strings(row["groups"]),
     })),
   };
@@ -111,11 +130,18 @@ function parseGroup(row: Record<string, unknown>): AccessGroup {
     holders: rows(row["holders"]).map((holder) => ({
       userId: str(holder["userId"]),
       email: str(holder["email"]),
+      suspended: bool(holder["suspended"]),
     })),
   };
 }
 
-export async function listAccessGroups(
+/** Shared by the page and its rail within one request. */
+export const listAccessGroups: (
+  session: AdminSession,
+  workspaceId: string,
+) => Promise<ApiResult<AccessGroupList>> = cache(fetchAccessGroups);
+
+async function fetchAccessGroups(
   session: AdminSession,
   workspaceId: string,
 ): Promise<ApiResult<AccessGroupList>> {
@@ -124,6 +150,68 @@ export async function listAccessGroups(
   );
   if (!result.ok) return result;
   return { ok: true, data: { workspaceId, groups: rows(result.data.groups).map(parseGroup) } };
+}
+
+function groupOf(value: unknown): AccessGroup {
+  return parseGroup(
+    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {},
+  );
+}
+
+export async function updateAccessGroup(
+  session: AdminSession,
+  workspaceId: string,
+  teamId: string,
+  body: {
+    readonly name: string;
+    readonly roles: readonly string[];
+    readonly environments: readonly string[];
+  },
+): Promise<ApiResult<AccessGroup>> {
+  const result = await readResult<{ group?: unknown }>(
+    await adminApiFetch(
+      session,
+      `/workspaces/${encodeURIComponent(workspaceId)}/access-groups/${encodeURIComponent(teamId)}`,
+      { method: "PUT", body },
+    ),
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: groupOf(result.data.group),
+    ...(result.held === true ? { held: true as const } : {}),
+  };
+}
+
+export async function reconfirmHolder(
+  session: AdminSession,
+  workspaceId: string,
+  teamId: string,
+  userId: string,
+): Promise<ApiResult<AccessGroup>> {
+  const result = await readResult<{ group?: unknown }>(
+    await adminApiFetch(
+      session,
+      `/workspaces/${encodeURIComponent(workspaceId)}/access-groups/${encodeURIComponent(teamId)}/holders/${encodeURIComponent(userId)}/reconfirm`,
+      { method: "POST" },
+    ),
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: groupOf(result.data.group) };
+}
+
+export async function removeMember(
+  session: AdminSession,
+  workspaceId: string,
+  userId: string,
+): Promise<ApiResult<null>> {
+  return readNoContent(
+    await adminApiFetch(
+      session,
+      `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`,
+      { method: "DELETE" },
+    ),
+  );
 }
 
 export async function createAccessGroup(
@@ -189,7 +277,6 @@ export async function addHolder(
     data: parseGroup(
       typeof group === "object" && group !== null ? (group as Record<string, unknown>) : {},
     ),
-    // A self-grant under second approval answers 202: the group is unchanged until approved.
     ...(result.held === true ? { held: true as const } : {}),
   };
 }
@@ -228,16 +315,19 @@ export async function setMemberRole(
   return { ok: true, data: { userId: str(result.data.userId), role: str(result.data.role) } };
 }
 
+/** What a settings write answers with: the switch as it now stands. */
+export interface WorkspaceSettingsOutcome {
+  readonly workspaceId: string;
+  readonly requireSecondApprover: boolean;
+}
+
 export async function setWorkspaceSettings(
   session: AdminSession,
   workspaceId: string,
   body: { readonly requireSecondApprover: boolean },
   proposal?: AgentProposalRef,
-): Promise<ApiResult<WorkspaceSettings>> {
-  const result = await readResult<{
-    workspaceId?: unknown;
-    requireSecondApprover?: unknown;
-  }>(
+): Promise<ApiResult<WorkspaceSettingsOutcome>> {
+  const result = await readResult<{ workspaceId?: unknown; requireSecondApprover?: unknown }>(
     await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/settings`, {
       method: "PUT",
       body,
@@ -251,18 +341,181 @@ export async function setWorkspaceSettings(
       workspaceId: str(result.data.workspaceId),
       requireSecondApprover: bool(result.data.requireSecondApprover),
     },
-    // Turning the switch off answers 202: it stays on until an Approver approves.
     ...(result.held === true ? { held: true as const } : {}),
   };
+}
+
+function approvalStatus(value: unknown): ApprovalStatus {
+  const found = APPROVAL_STATUSES.find((entry) => entry === value);
+  // An unfamiliar status is read as pending's opposite: never offer a decision on a row the
+  // API did not call pending.
+  return found ?? "expired";
+}
+
+function parseApprovalRequest(row: Record<string, unknown>): ApprovalRequest {
+  const payload = row["payload"];
+  return {
+    requestId: str(row["requestId"]),
+    kind: str(row["kind"]),
+    target: str(row["target"]),
+    payload:
+      typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {},
+    requestedBy: str(row["requestedBy"]),
+    requestedAt: str(row["requestedAt"]),
+    expiresAt: str(row["expiresAt"]),
+    status: approvalStatus(row["status"]),
+    decidedBy: strOrNull(row["decidedBy"]),
+    decidedAt: strOrNull(row["decidedAt"]),
+  };
+}
+
+/** The switch, and whether anybody other than the caller could approve under it. */
+export async function readWorkspaceSettings(
+  session: AdminSession,
+  workspaceId: string,
+): Promise<ApiResult<WorkspaceSettings>> {
+  const result = await readResult<{
+    workspaceId?: unknown;
+    requireSecondApprover?: unknown;
+    nobodyElseCouldApprove?: unknown;
+    missingApprover?: unknown;
+  }>(await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/settings`));
+  if (!result.ok) return result;
+  const missing = result.data.missingApprover;
+  const shortfall =
+    typeof missing === "object" && missing !== null ? (missing as Record<string, unknown>) : {};
+  return {
+    ok: true,
+    data: {
+      workspaceId: str(result.data.workspaceId),
+      requireSecondApprover: bool(result.data.requireSecondApprover),
+      nobodyElseCouldApprove: bool(result.data.nobodyElseCouldApprove),
+      missingApprover: {
+        administrator: bool(shortfall["administrator"]),
+        publisher: bool(shortfall["publisher"]),
+      },
+    },
+  };
+}
+
+/** The Requests row: this workspace's held acts. A held publish is decided on its form, so the API leaves it out. */
+export async function listWorkspaceRequests(
+  session: AdminSession,
+  workspaceId: string,
+): Promise<ApiResult<ApprovalRequestPage>> {
+  const result = await readResult<{
+    requests?: unknown;
+    page?: unknown;
+    total?: unknown;
+  }>(
+    await adminApiFetch(
+      session,
+      `/workspaces/${encodeURIComponent(workspaceId)}/approval-requests`,
+    ),
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: {
+      workspaceId,
+      requests: rows(result.data.requests).map(parseApprovalRequest),
+      page: num(result.data.page),
+      total: num(result.data.total),
+    },
+  };
+}
+
+async function decideWorkspaceRequest(
+  session: AdminSession,
+  workspaceId: string,
+  requestId: string,
+  decision: "approve" | "reject",
+): Promise<ApiResult<ApprovalRequest>> {
+  const result = await readResult<{ request?: unknown }>(
+    await adminApiFetch(
+      session,
+      `/workspaces/${encodeURIComponent(workspaceId)}/approval-requests/${encodeURIComponent(requestId)}/${decision}`,
+      { method: "POST" },
+    ),
+  );
+  if (!result.ok) return result;
+  const request = result.data.request;
+  return {
+    ok: true,
+    data: parseApprovalRequest(
+      typeof request === "object" && request !== null ? (request as Record<string, unknown>) : {},
+    ),
+  };
+}
+
+export function approveWorkspaceRequest(
+  session: AdminSession,
+  workspaceId: string,
+  requestId: string,
+): Promise<ApiResult<ApprovalRequest>> {
+  return decideWorkspaceRequest(session, workspaceId, requestId, "approve");
+}
+
+export function rejectWorkspaceRequest(
+  session: AdminSession,
+  workspaceId: string,
+  requestId: string,
+): Promise<ApiResult<ApprovalRequest>> {
+  return decideWorkspaceRequest(session, workspaceId, requestId, "reject");
+}
+
+function parseWorkspace(value: unknown): WorkspaceListItem {
+  const row = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  return {
+    workspaceId: str(row["workspaceId"]),
+    name: str(row["name"]),
+    slug: str(row["slug"]),
+    archivedAt: strOrNull(row["archivedAt"]),
+    isShared: typeof row["isShared"] === "boolean" ? row["isShared"] : undefined,
+    requireSecondApprover:
+      typeof row["requireSecondApprover"] === "boolean" ? row["requireSecondApprover"] : undefined,
+    forms: typeof row["forms"] === "number" ? row["forms"] : undefined,
+    questions: typeof row["questions"] === "number" ? row["questions"] : undefined,
+  };
+}
+
+/** The name only: the slug is the stored identifier and never changes. */
+export async function renameWorkspace(
+  session: AdminSession,
+  workspaceId: string,
+  name: string,
+): Promise<ApiResult<WorkspaceListItem>> {
+  const result = await readResult<{ workspace?: unknown }>(
+    await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/name`, {
+      method: "PUT",
+      body: { name },
+    }),
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: parseWorkspace(result.data.workspace) };
+}
+
+export async function archiveWorkspace(
+  session: AdminSession,
+  workspaceId: string,
+): Promise<ApiResult<WorkspaceListItem>> {
+  const result = await readResult<{ workspace?: unknown }>(
+    await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/archive`, {
+      method: "POST",
+    }),
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: parseWorkspace(result.data.workspace) };
 }
 
 export async function readAudit(
   session: AdminSession,
   workspaceId: string,
-  options: { readonly kind?: string; readonly page?: number } = {},
+  options: { readonly kind?: string; readonly actor?: string; readonly page?: number } = {},
 ): Promise<ApiResult<AuditPage>> {
   const query = new URLSearchParams();
   if (options.kind !== undefined) query.set("kind", options.kind);
+  if (options.actor !== undefined) query.set("actor", options.actor);
   if (options.page !== undefined) query.set("page", String(options.page));
   const suffix = query.size === 0 ? "" : `?${query.toString()}`;
   const result = await readResult<{
@@ -270,6 +523,7 @@ export async function readAudit(
     page?: unknown;
     pageSize?: unknown;
     total?: unknown;
+    actors?: unknown;
   }>(await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/audit${suffix}`));
   if (!result.ok) return result;
   const parsed: readonly AuditRow[] = rows(result.data.rows).map((row) => ({
@@ -290,9 +544,35 @@ export async function readAudit(
       page: num(result.data.page),
       pageSize: num(result.data.pageSize),
       total: num(result.data.total),
+      actors: rows(result.data.actors).map((row) => ({
+        actor: str(row["actor"]),
+        actorEmail: strOrNull(row["actorEmail"]),
+      })),
     },
   };
 }
+
+/** One audit page, shared between the screen and the rail that filters it within a request. */
+export const readAuditPage: (
+  session: AdminSession,
+  workspaceId: string,
+  kind: string | undefined,
+  actor: string | undefined,
+  page: number,
+) => Promise<ApiResult<AuditPage>> = cache(
+  async (
+    session: AdminSession,
+    workspaceId: string,
+    kind: string | undefined,
+    actor: string | undefined,
+    page: number,
+  ): Promise<ApiResult<AuditPage>> =>
+    readAudit(session, workspaceId, {
+      ...(kind === undefined ? {} : { kind }),
+      ...(actor === undefined ? {} : { actor }),
+      page,
+    }),
+);
 
 export async function readAgentAudit(
   session: AdminSession,
@@ -358,6 +638,7 @@ export const readMyAccess: (session: AdminSession) => Promise<ApiResult<MyAccess
       capabilities?: unknown;
       workspaces?: unknown;
       siteAdministrators?: unknown;
+      multipleWorkspaces?: unknown;
     }>(await adminApiFetch(session, "/me/access"));
     if (!result.ok) return result;
     return {
@@ -383,6 +664,7 @@ export const readMyAccess: (session: AdminSession) => Promise<ApiResult<MyAccess
           name: str(row["name"]),
           email: str(row["email"]),
         })),
+        multipleWorkspaces: bool(result.data.multipleWorkspaces),
       },
     };
   },

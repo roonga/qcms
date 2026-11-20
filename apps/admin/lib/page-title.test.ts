@@ -76,6 +76,9 @@ describe("every route titles its own browser tab", () => {
       "/responses/erasures",
       "/settings",
       "/sign-in",
+      "/site/accounts",
+      "/site/accounts/[accountId]",
+      "/site/accounts/new",
       "/two-factor/challenge",
       "/two-factor/enroll",
       "/two-factor/recovery",
@@ -84,6 +87,7 @@ describe("every route titles its own browser tab", () => {
 
       "/workspaces",
       "/workspaces/[workspaceId]/access-groups",
+      "/workspaces/[workspaceId]/archive",
       "/workspaces/[workspaceId]/assistant-actions",
       "/workspaces/[workspaceId]/audit",
       "/workspaces/[workspaceId]/members",

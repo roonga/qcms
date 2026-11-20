@@ -1707,11 +1707,15 @@ export const messages = {
   "agent.context.webhooks": "Endpoints and delivery state, no payloads",
   "agent.context.workspaces": "Workspaces you can read",
   "agent.context.workspaces.all": "Every workspace you can open",
+  "agent.context.site.accounts": "The account directory",
+  "agent.context.site.newAccount": "A new account",
+  "agent.context.site.account": "One account",
   "agent.context.workspace.members": "Workspace {subject}: members",
   "agent.context.workspace.accessGroups": "Workspace {subject}: access groups",
   "agent.context.workspace.settings": "Workspace {subject}: settings",
   "agent.context.workspace.audit": "Workspace {subject}: access audit",
   "agent.context.workspace.assistantActions": "Workspace {subject}: assistant actions",
+  "agent.context.workspace.archive": "Workspace {subject}: archive",
   "agent.empty": "Ask about this screen. The assistant explains what is here and takes you to it.",
   "agent.composer": "Ask the assistant",
   "agent.conversationLabel": "Conversation with the assistant",
@@ -2538,35 +2542,101 @@ export const messages = {
   "membership.members.intro":
     "Who is a member of this workspace, and which access groups each one holds. Only this workspace's Workspace administrators and a Site administrator can read this list.",
   "membership.members.loadFailed": "The membership list could not be read: {message}",
-  "membership.members.none": "This workspace has no members yet.",
 
   "membership.members.table": "Members of this workspace and the access groups each holds",
   "membership.audit.table": "The access audit for this workspace, newest first",
-  "membership.members.columnEmail": "Account",
-  "membership.members.columnRole": "Role",
   "membership.members.columnGroups": "Access groups",
   "membership.members.noGroups": "None",
 
-  "membership.members.emptyRole": "No access",
-  "membership.members.ownerRole": "Workspace administrator",
-  "membership.members.makeOwner": "Make a Workspace administrator",
-  "membership.members.removeOwner": "Remove Workspace administrator",
-  "membership.members.roleChanged": "The member row is now {role}.",
   "membership.members.roleFailed": "The member row was not changed: {message}",
+  "membership.members.none": "Nobody has access yet.",
+  "membership.members.noneHint":
+    "Add a person by exact email address. Accounts are created by a Site administrator.",
+  "membership.members.noMatch": "No member matches these filters.",
+  "membership.members.columnPerson": "Person",
+  "membership.members.columnAdministrator": "Workspace administrator",
+  "membership.members.columnStatus": "Status",
+  "membership.members.administratorYes": "Yes",
+  "membership.members.administratorNo": "No",
+  "membership.members.open": "Open {person}",
+  "membership.members.appointed": "Appointed as Workspace administrator.",
+  "membership.members.administratorRemoved":
+    "Removed as Workspace administrator. Their access groups stay.",
+  "membership.suspended.tag": "Suspended",
+  "membership.suspended.more": ", needs re-confirmation",
+  "membership.person.administrator": "Workspace administrator",
+  "membership.person.appoint": "Appoint",
+  "membership.person.appointFor": "Appoint {person} as Workspace administrator",
+  "membership.person.appointTitle": "Appoint {person} as Workspace administrator?",
+  "membership.person.appointBody":
+    "They can manage people, groups, settings, audit and archive. They still read no forms or responses unless a group gives that.",
+  "membership.person.appointAct": "Appoint {person}",
+  "membership.person.removeAdminTitle": "Remove {person} as Workspace administrator?",
+  "membership.person.removeAdminBody": "Their access groups stay.",
+  "membership.person.groups": "Access groups",
+  "membership.person.noGroups": "Not in any access group.",
+  "membership.person.addToGroup": "Add to group",
+  "membership.person.reconfirm": "Re-confirm",
+  "membership.person.reconfirmFor": "Re-confirm {person} in {group}",
+  "membership.person.reconfirmTitle": "Re-confirm {person} in {group}?",
+  "membership.person.reconfirmOwn":
+    "A Workspace administrator re-confirms this. You cannot re-confirm your own membership.",
+  "membership.person.reconfirmed": "Re-confirmed {person} in {group}.",
+  "membership.person.reconfirmFailed": "The membership was not re-confirmed: {message}",
+  "membership.person.revokeFor": "Revoke {group} from {person}",
+  "membership.person.revokeTitle": "Revoke {group} from {person}?",
+  "membership.person.revokeAct": "Revoke {group}",
+  "membership.person.removeFromWorkspace": "Remove from workspace",
+  "membership.person.removeNote":
+    "Removes {person} from every group in {workspace}. The last Workspace administrator cannot be removed.",
+  "membership.person.removeTitle": "Remove {person} from {workspace}?",
+  "membership.person.removeAct": "Remove {person}",
+  "membership.person.adminLoses": "Also ends their Workspace administrator role.",
+  "membership.person.removed": "{person} was removed from this workspace.",
+  "membership.person.removeFailed": "{message}",
+  "membership.grant.heading": "Grant",
+  "membership.grant.railName": "Grant access",
+  "membership.grant.intro":
+    "Add a person to an access group by their exact email address. Workspace administrators cannot browse the account directory.",
+  "membership.grant.email": "Email address",
+  "membership.grant.emailHint": "Exact address only.",
+  "membership.grant.emailInvalid": "Enter an email address.",
+  "membership.grant.group": "Access group",
+  "membership.grant.groupChoose": "Choose an access group",
+  "membership.grant.groupMissing": "Choose an access group.",
+  "membership.grant.noGroups": "This workspace has no access groups yet.",
+  "membership.grant.submit": "Grant",
+  "membership.grant.working": "Granting",
+  "membership.grant.selfApproval":
+    "This gives you a response role. With Second approval on, it needs an Approver: another Workspace administrator or a Site administrator. The request lasts 7 days.",
+  "membership.held.requested":
+    "Request sent. It waits for an Approver: another Workspace administrator or a Site administrator. The request lasts 7 days.",
+  "membership.held.refused":
+    "This gives you a response role while Second approval is on, so it needs an Approver: another Workspace administrator, or a Site administrator, makes this change.",
+  "membership.refusal.notAddable":
+    "No active account can be added with that address. Check it or ask a Site administrator.",
+  "membership.refusal.lastAdministrator":
+    "This is the last Workspace administrator of this workspace. Appoint another one first. A Site administrator cannot remove the last one either.",
+  "membership.refusal.reconfirmOwn":
+    "Nobody re-confirms their own membership. Another Workspace administrator or a Site administrator does.",
+  "membership.refusal.reconfirmByPerformer":
+    "You reset or reactivated this account, so another administrator re-confirms its memberships.",
+  "membership.refusal.notSuspended": "That membership is not suspended any more.",
+  "membership.refusal.nameTaken": "This workspace already has an access group with that name.",
+  "membership.refusal.alreadyGranted": "That person is already in this group.",
+  "membership.refusal.accountBusy":
+    "Another change to this account is in progress. Try again in a moment.",
 
   "membership.groups.heading": "Access groups",
   "membership.groups.intro":
     "Being in a group is the grant, so a group with nobody in it grants nobody anything.",
   "membership.groups.loadFailed": "The access groups could not be read: {message}",
-  "membership.groups.none": "This workspace has no access groups yet.",
   "membership.groups.scope": "{roles}, in {environments}",
   "membership.groups.everyEnvironment": "every environment",
   "membership.groups.columnRoles": "Roles",
   "membership.groups.columnEnvironments": "Environments",
   "membership.groups.columnHolders": "People in this group",
-  "membership.groups.create": "Create an access group",
   "membership.groups.createName": "Name",
-  "membership.groups.createRole": "Role",
   "membership.groups.createEnvironments": "Environments",
   "membership.groups.environmentsHelp":
     "Name every environment this group applies in. There is no value meaning all of them, so an environment added later is covered by no group until somebody adds it to one.",
@@ -2576,17 +2646,10 @@ export const messages = {
   "membership.groups.created":
     "The access group {name} was created. It grants nobody anything until somebody is in it.",
   "membership.groups.createFailed": "The access group was not created: {message}",
-  "membership.groups.remove": "Remove group",
   "membership.groups.removed":
     "The group and every grant it carried were removed, and each removal is on the access audit.",
   "membership.groups.removeFailed": "The group was not removed: {message}",
-  "membership.groups.addHolderMember": "Member",
-  "membership.groups.addHolderChoose": "Choose a member",
-  "membership.groups.addHolderNone": "Everybody in this workspace is already in this group.",
-  "membership.groups.addHolderSubmit": "Grant",
   "membership.groups.holderAdded": "{email} is now in {name}.",
-  "membership.groups.holderHeld":
-    "Nothing has changed yet. {email} joins {name} once an Approver approves the request.",
   "membership.groups.holderFailed": "The grant was not written: {message}",
   "membership.groups.removeHolder": "Revoke",
   /** The accessible revoke name includes its visible word and the person's email; keep the email out of the painted button to preserve narrow layouts. */
@@ -2594,6 +2657,41 @@ export const messages = {
   "membership.groups.holderRemoved":
     "The grant was revoked, and the revoke is on the access audit.",
   "membership.groups.noHolders": "Nobody",
+  "membership.groups.none": "No access groups",
+  "membership.groups.noneHint": "Create a group to give people roles in chosen environments.",
+  "membership.groups.table": "The access groups of this workspace, their roles and their people",
+  "membership.groups.columnGroup": "Access group",
+  "membership.groups.open": "Open {name}",
+  "membership.groups.new": "New access group",
+  "membership.rail.new": "New",
+  "membership.groups.openCreated": "Open it",
+  "membership.groups.editTitle": "Change {name}",
+  "membership.groups.change": "Change",
+  "membership.groups.addPerson": "Add person",
+  "membership.groups.delete": "Delete group",
+  "membership.groups.save": "Save group",
+  "membership.groups.saved": "Saved {name}.",
+  "membership.groups.updateFailed": "The access group was not changed: {message}",
+  "membership.groups.formForms": "Forms",
+  "membership.groups.formResponses": "Responses",
+  "membership.groups.needsName": "Enter a name.",
+  "membership.groups.needsRole": "Choose at least one role.",
+  "membership.groups.needsEnvironment":
+    "Choose at least one environment for Publish forms, View responses or Erase responses.",
+  "membership.groups.previewFor": "People in this group: {count}. They gain and lose:",
+  "membership.groups.selfApproval":
+    "You are in this group and the change gives you a response role, or a new environment for one. With Second approval on, another Workspace administrator or a Site administrator approves it. The request lasts 7 days.",
+  "membership.groups.selfApprovalNote":
+    "The request is tied to the roles and environments as they are now. Approving it never grants anything added later.",
+  "membership.groups.deleteTitle": "Delete {name}?",
+  "membership.groups.deleteAct": "Delete {name}",
+  "membership.groups.deleteEmpty": "Nobody is in this group.",
+  "membership.groups.deletePeople":
+    "People in this group: {count}. They lose what this group gives them. Their other groups stay.",
+  "membership.groups.deleteUncoveredRole":
+    "Nobody will hold {role} through any group. Access groups will show that no group covers it.",
+  "membership.groups.deleteUncoveredEnvironment":
+    "Environment {environment} will be covered by no group.",
 
   "membership.settings.heading": "Workspace settings",
   "membership.settings.twoPerson": "Second approval in production",
@@ -2601,10 +2699,36 @@ export const messages = {
     "One switch, three effects. A publish to production is refused for the account that froze the version; a production endpoint change takes an Approver's confirmation; and nobody can give themselves a response role, or a new environment for one - a second Workspace administrator, or a Site administrator, has to make that change. Off by default, because a site with one account cannot satisfy the rule at all.",
   "membership.settings.save": "Save settings",
   "membership.settings.saved": "The settings were saved, and the change is on the access audit.",
-  "membership.settings.held":
-    "Nothing has changed yet. Second approval stays on until an Approver approves turning it " +
-    "off.",
   "membership.settings.saveFailed": "The settings were not saved: {message}",
+  "membership.settings.name": "Workspace name",
+  "membership.settings.nameSave": "Save the name",
+  "membership.settings.nameDiscard": "Discard",
+  "membership.settings.nameEmpty": "Enter a name.",
+  "membership.settings.renamed": "Renamed to {name}. The stored identifier does not change.",
+  "membership.settings.renameFailed": "The workspace was not renamed: {message}",
+  "membership.settings.identifier": "Stored identifier {slug}. It cannot change.",
+  "membership.settings.secondApproval": "Second approval",
+  /** Turning the rule on is refused where nobody else could approve, so the screen says so before the attempt. */
+  "membership.settings.cannotTurnOn": "Second approval cannot be turned on here.",
+  "membership.settings.cause.administrator":
+    "No other Workspace administrator or Site administrator could approve.",
+  "membership.settings.cause.publisher":
+    "No other person with Publish forms in production could approve.",
+  "membership.settings.cause.note": "An unclaimed or disabled account does not count.",
+  "membership.settings.warning": "Second approval is on and nobody else could approve.",
+  "membership.settings.warning.addAdministrator": "Appoint a Workspace administrator",
+  "membership.settings.warning.addPublisher": "Add somebody to an access group with Publish forms",
+  "membership.settings.held":
+    "Turning Second approval off is waiting for an Approver: another Workspace administrator of this workspace, or a Site administrator. Nothing has changed yet.",
+  "membership.settings.heldOwn": "You asked for this, so somebody else decides it.",
+  "membership.settings.decided.approved":
+    "Approved by {person}. Second approval is off, and the change is on the access audit.",
+  "membership.settings.decided.rejected": "Rejected by {person}. Second approval stays on.",
+  "membership.settings.decided.expired":
+    "The last request to turn it off expired. Turn it off again to ask again.",
+  "membership.settings.decided.lapsed":
+    "The last request to turn it off ended undecided, because what it asked for had moved. Turn it off again to ask again.",
+  "membership.settings.requestsLink": "Requests, on the Audit screen",
 
   "membership.audit.heading": "Access audit",
   "membership.audit.intro":
@@ -2624,9 +2748,99 @@ export const messages = {
   "membership.audit.kind.grant": "Granted",
   "membership.audit.kind.revoke": "Revoked",
   "membership.audit.kind.setting": "Changed a setting",
+  "membership.audit.kind.derive": "Derived a theme from a website",
+  "membership.audit.kind.group": "Changed an access group",
+  "membership.audit.kind.administrator": "Changed a Workspace administrator",
+  "membership.audit.kind.approval": "An approval request",
+  /** The workspace audit's mirror of a site-level act on an account that held something here. */
+  "membership.audit.kind.account": "An act on an account",
+  "membership.audit.kind.link": "Respondent links",
+  "membership.audit.mirrored": "From Site audit",
+  "membership.audit.filter.kind": "Act",
+  "membership.audit.filter.kindAll": "All acts",
+  "membership.audit.filter.person": "Person",
+  "membership.audit.filter.personAny": "Anyone",
+  "membership.audit.noneMatching": "No row in this workspace's audit matches these filters.",
   "membership.audit.total": "{total} row(s)",
   /** Audit records must survive account deletion and fall back to account IDs rather than cascading away. */
   "membership.audit.unknownActor": "{actor} (account removed)",
+
+  "membership.requests.heading": "Requests",
+  "membership.requests.intro":
+    "Changes held for an Approver in this workspace: turning Second approval off, a grant somebody made to themselves, and a form moved out. A held publish to production is approved on its form, not here.",
+  "membership.requests.none": "Nothing is waiting for an Approver.",
+  "membership.requests.loadFailed": "The approval requests could not be read: {message}",
+  "membership.requests.pendingOne": "1 pending",
+  "membership.requests.pending": "{count} pending",
+  "membership.requests.waiting": "Needs an Approver",
+  "membership.requests.expiresInOne": "Expires in 1 day.",
+  "membership.requests.expiresIn": "Expires in {count} days.",
+  "membership.requests.expiresToday": "Expires today.",
+  "membership.requests.asked.secondApprovalOff": "{person} asked to turn Second approval off.",
+  "membership.requests.asked.selfGrant":
+    "{person} asked to give themselves access through {group}.",
+  "membership.requests.asked.moveForm": "{person} asked to move a form out of this workspace.",
+  "membership.requests.asked.other": "{person} asked for a change this screen does not name yet.",
+  "membership.requests.group": "an access group",
+  "membership.requests.approve": "Approve",
+  "membership.requests.reject": "Reject",
+  "membership.requests.approveFor": "Approve: {request}",
+  "membership.requests.rejectFor": "Reject: {request}",
+  "membership.requests.ownRequest": "You asked for this, so somebody else decides it.",
+  "membership.requests.status.approved": "Approved by {person}.",
+  "membership.requests.status.rejected": "Rejected by {person}.",
+  "membership.requests.status.expired": "Expired, and can no longer be approved.",
+  "membership.requests.status.lapsed":
+    "Ended undecided by {person}: what the request asked for had moved, so nothing was applied. The person who asked can ask again.",
+  "membership.requests.approved": "The request was approved and applied.",
+  "membership.requests.rejected": "The request was rejected, and nothing was applied.",
+  "membership.requests.approveFailed": "The request was not approved: {message}",
+  "membership.requests.rejectFailed": "The request was not rejected: {message}",
+  "membership.requests.unknownPerson": "{actor} (account removed)",
+
+  "membership.archive.heading": "Archive workspace",
+  "membership.archive.intro":
+    "Archiving is the last step for a workspace: it keeps every question and audit row, takes no further change, and cannot be undone. There is no unarchive.",
+  "membership.archive.cannotUndo": "Archiving {name} cannot be undone.",
+  "membership.archive.blocked": "Cannot archive yet",
+  "membership.archive.blocker.formsOne":
+    "1 form is still in this workspace, closed and never-published ones included. Move it to another workspace first.",
+  "membership.archive.blocker.forms":
+    "{count} forms are still in this workspace, closed and never-published ones included. Move each to another workspace first.",
+  "membership.archive.blocker.shared":
+    "This is the shared question library. Unmark it, or hand the library on to another workspace, first.",
+  "membership.archive.openForms": "Open Forms",
+  "membership.archive.act": "Archive {name}",
+  "membership.archive.working": "Archiving",
+  "membership.archive.typedHint": "The button stays off until the typed name matches.",
+  "membership.archive.archived":
+    "{name} is archived. Nothing was deleted, and there is no unarchive.",
+  "membership.archive.already": "This workspace is archived. There is no unarchive.",
+  "membership.archive.failed": "The workspace was not archived: {message}",
+
+  "membership.error.noApprover":
+    "Second approval cannot be turned on here, because nobody else could approve: it needs another active Workspace administrator or Site administrator, and two active people with Publish forms in production.",
+  "membership.error.requestPending":
+    "You already have a request of this kind waiting for an Approver. It has to be decided first.",
+  "membership.error.requestNotFound": "No such approval request.",
+  "membership.error.requestNotPending": "That request has already been decided.",
+  "membership.error.requestExpired":
+    "That request is more than 7 days old and can no longer be approved.",
+  "membership.error.ownRequest": "You cannot decide your own request.",
+  "membership.error.notApprover":
+    "Only another Workspace administrator of this workspace, or a Site administrator, decides this request.",
+  "membership.error.requesterGone":
+    "Nothing was applied: the person who asked is no longer a Workspace administrator of this workspace or a Site administrator.",
+  "membership.error.groupChanged":
+    "Nothing was applied: the access group's roles or environments changed after this was requested. The request has ended, and the person who asked can ask again.",
+  "membership.error.groupNameTaken":
+    "Nothing was applied: another access group now has the name this edit asked for. The request has ended, and the person who asked can ask again with another name.",
+  "membership.error.groupGone":
+    "Nothing was applied: the access group this request names no longer exists.",
+  "membership.error.workspaceNotEmpty":
+    "This workspace still owns forms, or it is the shared question library, so it cannot be archived yet.",
+  "membership.error.workspaceArchived":
+    "That workspace is archived, so it takes no further change.",
 
   "membership.agentAudit.heading": "Assistant actions",
   "membership.agentAudit.intro":
@@ -2750,6 +2964,130 @@ export const messages = {
   "access.results.none": "No results",
   "access.results.previous": "Previous",
   "access.results.next": "Next",
+
+  "site.title": "Site configuration",
+  /** A level-2 rail row's visible text; its accessible name is the full label. */
+  "site.rail.new": "New",
+  "site.accounts.title": "Accounts",
+  "site.accounts.new": "New account",
+  "site.accounts.account": "Account",
+  "site.accounts.intro":
+    "Every account on this site. Site administrators only. A name opens the account page. Accounts are never deleted, only disabled, so the audit keeps their names.",
+  "site.accounts.loadFailed": "The accounts could not be read: {message}",
+  "site.accounts.empty": "No accounts yet.",
+  "site.accounts.emptyFiltered": "No account matches these filters.",
+  "site.accounts.table": "Accounts",
+  "site.accounts.column.name": "Name",
+  "site.accounts.column.email": "Email",
+  "site.accounts.column.status": "Status",
+  "site.accounts.column.siteAdministrator": "Site administrator",
+  "site.accounts.yes": "Yes",
+  "site.accounts.no": "No",
+  "site.accounts.status.unclaimed": "Unclaimed: link sent",
+  "site.accounts.siteAdministrator": "Site administrator",
+  "site.accounts.filter.siteAdministrators": "Site administrators only",
+  "site.accounts.back": "Back to Accounts",
+  "site.accounts.holds.heading": "Holds",
+  "site.accounts.holds.loadFailed": "What this account holds could not be read: {message}",
+  "site.accounts.holds.none": "Holds nothing in any workspace.",
+  "site.accounts.holds.administrator": "Workspace administrator",
+  "site.accounts.holds.lastAdministrator": "(the last one)",
+  "site.accounts.holds.groupIn": "{group} ({environments})",
+  "site.accounts.holds.line": "{workspace}: {holds}",
+  "site.accounts.holds.suspendedName": "Suspended, needs re-confirmation",
+  "site.accounts.create.email": "Email",
+  "site.accounts.create.name": "Name",
+  "site.accounts.create.nameHint":
+    "Shown in member lists and the audit. Left empty, the address is used.",
+  "site.accounts.create.note":
+    "QCMS emails a single-use sign-in link that lasts 72 hours. You never see it. At first sign-in the person sets a password and enrols a second factor. The account starts with no access.",
+  "site.accounts.create.act": "Create account",
+  "site.accounts.create.working": "Creating",
+  "site.accounts.create.sent":
+    "Sign-in link sent to {email}. It lasts 72 hours; you can resend it from the account page.",
+  "site.accounts.create.undeliverable":
+    "QCMS could not deliver the sign-in link to {email}. The account was created. Resend the link.",
+  "site.accounts.create.mailNotConfigured":
+    "Accounts cannot be created until email is set up for this site. The first account, made at install, is the only exception.",
+  "site.accounts.create.open": "Open the account page for {name}",
+  "site.accounts.resend.act": "Resend link",
+  "site.accounts.resend.working": "Sending",
+  "site.accounts.resend.title": "Resend the sign-in link to {name}?",
+  "site.accounts.resend.body": "The earlier link stops working.",
+  "site.accounts.resend.done": "Sign-in link sent. The earlier link no longer works.",
+  "site.accounts.reset.open": "Reset sign-in",
+  "site.accounts.reset.title": "Reset sign-in for {name}?",
+  "site.accounts.reset.choice": "What to reset",
+  "site.accounts.reset.password": "Password",
+  "site.accounts.reset.passwordHint":
+    "Emails a single-use link, valid 72 hours. A new password is set at sign-in.",
+  "site.accounts.reset.factor": "Second factor",
+  "site.accounts.reset.factorHint":
+    "Emails a single-use link, valid 72 hours. A new second factor is enrolled at sign-in. The password stays.",
+  "site.accounts.reset.effect":
+    "Ends all of this account's sessions now. Its places in groups with a response role are suspended until a Workspace administrator of each workspace, or a Site administrator other than you, re-confirms them. If there is no other administrator, you can re-confirm and the audit records it.",
+  "site.accounts.reset.actPassword": "Reset password",
+  "site.accounts.reset.actFactor": "Reset second factor",
+  "site.accounts.reset.donePassword":
+    "Password reset. Every session has ended and a sign-in link was emailed.",
+  "site.accounts.reset.doneFactor":
+    "Second factor reset. Every session has ended and a sign-in link was emailed.",
+  "site.accounts.reactivate.act": "Reactivate account",
+  "site.accounts.reactivate.title": "Reactivate {name}?",
+  "site.accounts.reactivate.body":
+    "A new sign-in link, valid 72 hours, is emailed to set a password and enrol a second factor. The account is not a Site administrator, even if it was one.",
+  "site.accounts.reactivate.suspended":
+    "Places in groups with a response role stay suspended until a Workspace administrator of each workspace, or a Site administrator, re-confirms them.",
+  "site.accounts.reactivate.done": "Account reactivated. A sign-in link was emailed.",
+  "site.accounts.disable.act": "Disable account",
+  "site.accounts.disable.title": "Disable {name}?",
+  "site.accounts.disable.body":
+    "Ends every session now. Groups are kept. Disabling removes Site administrator, and reactivating does not restore it.",
+  "site.accounts.disable.lastAdministrator":
+    "This account is the last Workspace administrator of {workspaces}. Appoint another there.",
+  "site.accounts.disable.done": "Account disabled. Every session has ended.",
+  "site.accounts.act.held":
+    "Request sent. Waiting for another Site administrator. The request lasts 7 days.",
+  "site.accounts.act.undeliverable":
+    "Done, but QCMS could not deliver the sign-in link. Resend the link from this page.",
+  "site.accounts.act.working": "Working",
+  "site.accounts.blocked.lastDisable":
+    "{person} is the last active Site administrator, who cannot be disabled.",
+  "site.accounts.blocked.lastReset":
+    "{person} is the last active Site administrator, whose sign-in cannot be reset here.",
+  "site.accounts.blocked.own":
+    "This is your own account. Change your password and second factor from My account.",
+  "site.accounts.error.mailNotConfigured":
+    "Email is not set up for this site, so no sign-in link can be sent.",
+  "site.accounts.error.exists": "An account already uses that address.",
+  "site.accounts.error.notFound": "No such account.",
+  "site.accounts.error.busy":
+    "Another change to this account is in progress. Try again in a moment.",
+  "site.accounts.error.ownAccount": "You cannot do this to your own account.",
+  "site.accounts.error.disabled": "That account is disabled. Reactivate it instead.",
+  "site.accounts.error.notDisabled": "That account is not disabled.",
+  "site.accounts.error.unclaimed":
+    "That account has not been claimed yet, so there is nothing to reset. Resend the link instead.",
+  "site.accounts.error.claimed": "That account is already claimed, so there is no link to resend.",
+  "site.accounts.error.lastSiteAdministrator":
+    "This is the last active Site administrator, and a site needs one.",
+  "site.accounts.error.stepUpRequired": "Confirm your password and second factor first.",
+  "site.accounts.error.stepUpFailed": "That password and code did not confirm you.",
+  "site.accounts.error.stepUpLocked": "Too many attempts. Sign in again to try once more.",
+  "site.accounts.error.requestPending":
+    "A request for this is already waiting for another Site administrator.",
+  "site.accounts.error.siteAdministratorsChanged":
+    "The Site administrators changed while this was in progress. Try again.",
+  "site.accounts.error.invalid": "Check the address and name, then try again.",
+  "site.accounts.error.forbidden": "Only a Site administrator can do this.",
+  "site.accounts.error.other": "That did not work. Try again.",
+  "site.stepUp.intro": "Your password and a code from your second factor confirm that it is you.",
+  "site.stepUp.needsApprover":
+    "Needs another Site administrator's approval. The request lasts 7 days.",
+  "site.stepUp.alone": "Your password and second factor are enough. The audit records it.",
+  "site.stepUp.password": "Password",
+  "site.stepUp.code": "Second factor code",
+  "site.stepUp.codeHint": "6 digits",
 } as const;
 
 export type MessageKey = keyof typeof messages;

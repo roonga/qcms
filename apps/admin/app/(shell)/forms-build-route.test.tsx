@@ -71,6 +71,7 @@ function myAccess(roles: readonly string[], workspaceId = "org_default_workspace
         },
       ],
       siteAdministrators: [],
+      multipleWorkspaces: false,
     },
   };
 }

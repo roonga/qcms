@@ -34,6 +34,9 @@ export const SCREEN_IDS = [
   "/responses",
   "/responses/erasures",
   "/settings",
+  "/site/accounts",
+  "/site/accounts/new",
+  "/site/accounts/[accountId]",
   "/webhooks",
   "/workspaces",
   "/workspaces/[workspaceId]/members",
@@ -41,6 +44,7 @@ export const SCREEN_IDS = [
   "/workspaces/[workspaceId]/settings",
   "/workspaces/[workspaceId]/audit",
   "/workspaces/[workspaceId]/assistant-actions",
+  "/workspaces/[workspaceId]/archive",
 ] as const;
 
 export type ScreenId = (typeof SCREEN_IDS)[number];
@@ -92,6 +96,10 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/responses": screen(operationsContexts.responsePicker),
   "/responses/erasures": screen(operationsContexts.erasures),
   "/settings": screen(administrationContexts.settings),
+  // The directory is what all three read; the detail route's id names one account inside it.
+  "/site/accounts": screen(administrationContexts.siteAccounts),
+  "/site/accounts/new": screen(administrationContexts.siteAccounts),
+  "/site/accounts/[accountId]": screen(administrationContexts.siteAccountDetail),
   "/webhooks": screen(operationsContexts.deadLetters),
   "/workspaces": screen(administrationContexts.workspaces),
   // One workspace's sections share one set of facts. Which kinds each offers is the
@@ -101,6 +109,7 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/workspaces/[workspaceId]/settings": screen(administrationContexts.workspaceDetail),
   "/workspaces/[workspaceId]/audit": screen(administrationContexts.workspaceDetail),
   "/workspaces/[workspaceId]/assistant-actions": screen(administrationContexts.workspaceDetail),
+  "/workspaces/[workspaceId]/archive": screen(administrationContexts.workspaceDetail),
 });
 
 /** One form's authoring screens: the editor's own subtree. */

@@ -14,13 +14,24 @@ export interface WorkspaceListItem {
   readonly questions: number | undefined;
 }
 
+/** The account's own state, as the members list reports it. */
+export type MemberStatus = "active" | "unclaimed" | "disabled";
+
 export interface WorkspaceMember {
   readonly userId: string;
   readonly email: string;
   readonly name: string;
 
   readonly role: string;
+  readonly status: MemberStatus;
   readonly groups: readonly string[];
+}
+
+export interface AccessGroupHolder {
+  readonly userId: string;
+  readonly email: string;
+  /** Held until another administrator re-confirms it, so it grants nothing yet. */
+  readonly suspended: boolean;
 }
 
 export interface AccessGroup {
@@ -30,7 +41,7 @@ export interface AccessGroup {
   readonly roles: readonly string[];
   readonly environments: readonly string[];
   readonly externalGroupId: string | null;
-  readonly holders: readonly { readonly userId: string; readonly email: string }[];
+  readonly holders: readonly AccessGroupHolder[];
 }
 
 export interface AccessGroupList {
@@ -38,9 +49,42 @@ export interface AccessGroupList {
   readonly groups: readonly AccessGroup[];
 }
 
+export interface SecondApprovalShortfall {
+  readonly administrator: boolean;
+  readonly publisher: boolean;
+}
+
 export interface WorkspaceSettings {
   readonly workspaceId: string;
   readonly requireSecondApprover: boolean;
+  /** Read from the caller's seat: the warning while the rule is on, the refusal to turn it on while it is off. */
+  readonly nobodyElseCouldApprove: boolean;
+  readonly missingApprover: SecondApprovalShortfall;
+}
+
+export const APPROVAL_STATUSES = ["pending", "approved", "rejected", "expired", "lapsed"] as const;
+
+export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
+
+/** A workspace act held for an Approver. `lapsed` ends one whose subject moved before it was applied. */
+export interface ApprovalRequest {
+  readonly requestId: string;
+  readonly kind: string;
+  readonly target: string;
+  readonly payload: Readonly<Record<string, unknown>>;
+  readonly requestedBy: string;
+  readonly requestedAt: string;
+  readonly expiresAt: string;
+  readonly status: ApprovalStatus;
+  readonly decidedBy: string | null;
+  readonly decidedAt: string | null;
+}
+
+export interface ApprovalRequestPage {
+  readonly workspaceId: string;
+  readonly requests: readonly ApprovalRequest[];
+  readonly page: number;
+  readonly total: number;
 }
 
 export interface AuditRow {
@@ -55,12 +99,20 @@ export interface AuditRow {
   readonly detail: string | null;
 }
 
+/** One account the audit names, for the Person filter. */
+export interface AuditActor {
+  readonly actor: string;
+  readonly actorEmail: string | null;
+}
+
 export interface AuditPage {
   readonly workspaceId: string;
   readonly rows: readonly AuditRow[];
   readonly page: number;
   readonly pageSize: number;
   readonly total: number;
+  /** The accounts the whole audit names, capped by the API, whatever the filters narrow. */
+  readonly actors: readonly AuditActor[];
 }
 
 export interface AgentAuditRow {
@@ -113,6 +165,8 @@ export interface MyAccess {
   readonly workspaces: readonly MyAccessWorkspace[];
   /** Who to ask for access; the API sends it only to an account that holds nothing. */
   readonly siteAdministrators: readonly { readonly name: string; readonly email: string }[];
+  /** Two or more workspaces not archived on the installation; sent to an administrator only. */
+  readonly multipleWorkspaces: boolean;
 }
 
 export const RESPONSES_ERASER_ROLE = "responses.eraser";
@@ -135,7 +189,9 @@ export type MembershipActionState =
       readonly role?: string;
       readonly userId?: string;
       readonly requireSecondApprover?: boolean;
+      /** The request a decision was made on. */
+      readonly request?: ApprovalRequest;
     }
-  /** The API stored the act as a request: nothing changed until an Approver approves it. */
-  | { readonly status: "held"; readonly message: string }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: "error"; readonly message: string }
+  /** The API took the act as a request, or refused it until an Approver makes it: never a success. */
+  | { readonly status: "held"; readonly message: string };

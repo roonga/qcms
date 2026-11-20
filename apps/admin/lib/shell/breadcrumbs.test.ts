@@ -93,3 +93,22 @@ describe("the breadcrumb", () => {
     }
   });
 });
+
+describe("the Site configuration trail", () => {
+  it("names the area, then Accounts, then the account or the new one", () => {
+    expect(breadcrumbTrail("/site/accounts")).toEqual([
+      { label: "Site configuration" },
+      { label: "Accounts" },
+    ]);
+    expect(breadcrumbTrail("/site/accounts/new")).toEqual([
+      { label: "Site configuration" },
+      { label: "Accounts", href: "/site/accounts" },
+      { label: "New account" },
+    ]);
+    expect(labels(breadcrumbTrail("/site/accounts/usr_a", { account: "Grace Mensah" }))).toEqual([
+      "Site configuration",
+      "Accounts",
+      "Grace Mensah",
+    ]);
+  });
+});

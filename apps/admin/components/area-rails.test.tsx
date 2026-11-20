@@ -84,10 +84,13 @@ describe("an area's rail", () => {
     ).toEqual([
       null,
       "section:members",
+      "section:members:grant",
       "section:access-groups",
+      "section:access-groups:new",
       "section:settings",
       "section:audit",
       "section:assistant-actions",
+      "section:archive",
     ]);
   });
 
@@ -113,5 +116,31 @@ describe("an area's rail", () => {
     );
     expect(screen.getByTestId("qcms-workspaces-rail").getAttribute("aria-label")).toBe("Workspace");
     expect(screen.queryByTestId("qcms-rail-context")).toBeNull();
+  });
+
+  it("offers Archive by the installation's workspaces, not by how many the caller can open", () => {
+    render(
+      <WorkspacesRail
+        workspace={{ workspaceId: "org_a", name: "Alpha" }}
+        section="audit"
+        multiple={false}
+        archivable
+      />,
+    );
+    const rail = screen.getByTestId("qcms-workspaces-rail");
+    expect(rail.getAttribute("aria-label")).toBe("Workspace");
+    expect(rail.querySelector('[data-rail-item="section:archive"]')).not.toBeNull();
+  });
+
+  it("offers no Archive on an installation with one workspace", () => {
+    render(
+      <WorkspacesRail
+        workspace={{ workspaceId: "org_a", name: "Alpha" }}
+        section="audit"
+        archivable={false}
+      />,
+    );
+    const rail = screen.getByTestId("qcms-workspaces-rail");
+    expect(rail.querySelector('[data-rail-item="section:archive"]')).toBeNull();
   });
 });

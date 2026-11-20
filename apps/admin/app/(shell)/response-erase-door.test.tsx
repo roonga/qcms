@@ -39,6 +39,7 @@ const NO_NAMED_GRANT: MyAccess = {
     siteConfiguration: false,
   },
   siteAdministrators: [],
+  multipleWorkspaces: false,
   workspaces: [
     {
       workspaceId: "ws_1",

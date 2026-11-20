@@ -217,6 +217,9 @@ export interface WorkspaceMemberRow {
   readonly name: string;
   readonly role: string;
   readonly createdAt: Date;
+  readonly disabledAt: Date | null;
+  /** `null` while the account is unclaimed. */
+  readonly claimedAt: Date | null;
 }
 
 /**
@@ -234,6 +237,8 @@ export async function listWorkspaceMembers(
       name: authUser.name,
       role: authMember.role,
       createdAt: authMember.createdAt,
+      disabledAt: authUser.disabledAt,
+      claimedAt: authUser.claimedAt,
     })
     .from(authMember)
     .innerJoin(authUser, eq(authUser.id, authMember.userId))
@@ -289,6 +294,8 @@ export interface AccessGroupHolderRow {
   readonly email: string;
   readonly name: string;
   readonly createdAt: Date;
+  /** Set while a credential reset or a reactivation holds the grant until re-confirmed. */
+  readonly suspendedAt: Date | null;
 }
 
 /** Who holds one access group's grant. */
@@ -302,6 +309,7 @@ export async function listAccessGroupHolders(
       email: authUser.email,
       name: authUser.name,
       createdAt: authTeamMember.createdAt,
+      suspendedAt: authTeamMember.suspendedAt,
     })
     .from(authTeamMember)
     .innerJoin(authUser, eq(authUser.id, authTeamMember.userId))

@@ -91,6 +91,9 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
       "/responses",
       "/responses/erasures",
       "/webhooks",
+      "/site/accounts",
+      "/site/accounts/new",
+      "/site/accounts/[accountId]",
       "/workspaces",
       "/workspaces/all",
       "/workspaces/[workspaceId]/members",
@@ -98,6 +101,7 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
       "/workspaces/[workspaceId]/settings",
       "/workspaces/[workspaceId]/audit",
       "/workspaces/[workspaceId]/assistant-actions",
+      "/workspaces/[workspaceId]/archive",
     ];
     expect(sorted([...withRail, ...NO_SECTION])).toEqual(sorted(shellScreens()));
   });
@@ -141,6 +145,7 @@ describe("which screens carry the form-subtree section", () => {
       "questions",
       "responses",
       "settings",
+      "site",
       "webhooks",
       "workspaces",
     ]);

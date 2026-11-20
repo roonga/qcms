@@ -64,6 +64,21 @@ export async function markProvisional(email: string): Promise<void> {
   }
 }
 
+/** The id the account routes take, for a spec that has to reach a real account's page. */
+export async function accountIdOf(email: string): Promise<string> {
+  const handle = openDbHandle(readFixtures().databaseUrl);
+  try {
+    const { rows } = await handle.query<{ id: string }>(`select id from "user" where email = $1`, [
+      email,
+    ]);
+    const [row] = rows;
+    if (row === undefined) throw new Error(`accountIdOf matched no account for ${email}`);
+    return row.id;
+  } finally {
+    await handle.close();
+  }
+}
+
 /** Forget the newest TOTP time step the account spent, so its next code need not wait for the clock. */
 export async function rewindTotpStep(email: string): Promise<void> {
   const handle = openDbHandle(readFixtures().databaseUrl);

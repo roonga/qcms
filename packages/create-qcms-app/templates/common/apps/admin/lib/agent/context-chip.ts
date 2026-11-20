@@ -26,6 +26,9 @@ const CHIPS: Readonly<Record<AgentScreen, MessageKey>> = {
   "/responses": "agent.context.responses",
   "/responses/erasures": "agent.context.erasures",
   "/settings": "agent.context.settings",
+  "/site/accounts": "agent.context.site.accounts",
+  "/site/accounts/new": "agent.context.site.newAccount",
+  "/site/accounts/[accountId]": "agent.context.site.account",
   "/webhooks": "agent.context.webhooks",
   "/workspaces": "agent.context.workspaces",
   "/workspaces/all": "agent.context.workspaces.all",
@@ -34,6 +37,7 @@ const CHIPS: Readonly<Record<AgentScreen, MessageKey>> = {
   "/workspaces/[workspaceId]/settings": "agent.context.workspace.settings",
   "/workspaces/[workspaceId]/audit": "agent.context.workspace.audit",
   "/workspaces/[workspaceId]/assistant-actions": "agent.context.workspace.assistantActions",
+  "/workspaces/[workspaceId]/archive": "agent.context.workspace.archive",
 };
 
 export function contextChipKey(screen: AgentScreen): MessageKey {

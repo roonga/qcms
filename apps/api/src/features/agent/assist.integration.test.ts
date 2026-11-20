@@ -1149,6 +1149,7 @@ describe("every screen's context, with a sentinel in the database", () => {
     if (screen.includes("[version]")) params.version = 1;
     if (screen.includes("[questionId]")) params.questionId = "q_sentinel";
     if (screen.includes("[workspaceId]")) params.workspaceId = SEED_WORKSPACE_ID;
+    if (screen.includes("[accountId]")) params.accountId = adminUserId;
     return params;
   }
 
