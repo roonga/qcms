@@ -19,6 +19,7 @@ import { resolveCallerWorkspaces } from "../../membership/resolver.js";
 import {
   FACT_ROW_LIMIT,
   Instant,
+  fail,
   forbidden,
   iso,
   requireCell,
@@ -258,14 +259,15 @@ async function namedAccount(
 }
 
 /** The installation claim alone, as `features/membership/route-policy.ts` gives the account routes: no workspace grant reaches Site configuration. */
-async function buildSiteAccounts(
+async function siteAccountsFor(
   input: ScreenBuildInput,
+  accountId: string | undefined,
 ): Promise<z.infer<typeof siteAccountsFacts>> {
   if (!input.principal.claim) throw forbidden("Site configuration is for Site administrators");
   const exec = input.deps.databases.control;
   const [directory, named] = await Promise.all([
     listAccountDirectory(exec, { limit: FACT_ROW_LIMIT, offset: 0 }),
-    namedAccount(exec, input.params.accountId),
+    namedAccount(exec, accountId),
   ]);
   return {
     accounts: directory.rows.map(accountFact),
@@ -274,9 +276,23 @@ async function buildSiteAccounts(
   };
 }
 
+function buildSiteAccounts(input: ScreenBuildInput): Promise<z.infer<typeof siteAccountsFacts>> {
+  return siteAccountsFor(input, undefined);
+}
+
+async function buildSiteAccountDetail(
+  input: ScreenBuildInput,
+): Promise<z.infer<typeof siteAccountsFacts>> {
+  if (!input.principal.claim) throw forbidden("Site configuration is for Site administrators");
+  const accountId = input.params.accountId;
+  if (accountId === undefined || accountId === "") throw fail.missing("account");
+  return siteAccountsFor(input, accountId);
+}
+
 export const administrationContexts = {
   workspaces: { facts: workspacesFacts, build: buildWorkspaces },
   siteAccounts: { facts: siteAccountsFacts, build: buildSiteAccounts },
+  siteAccountDetail: { facts: siteAccountsFacts, build: buildSiteAccountDetail },
   workspaceDetail: { facts: workspaceDetailFacts, build: buildWorkspaceDetail },
   myAccess: { facts: myAccessFacts, build: buildMyAccess },
   settings: { facts: settingsFacts, build: buildSettings },

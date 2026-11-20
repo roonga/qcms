@@ -98,7 +98,7 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   // The directory is what all three read; the detail route's id names one account inside it.
   "/site/accounts": screen(administrationContexts.siteAccounts),
   "/site/accounts/new": screen(administrationContexts.siteAccounts),
-  "/site/accounts/[accountId]": screen(administrationContexts.siteAccounts),
+  "/site/accounts/[accountId]": screen(administrationContexts.siteAccountDetail),
   "/webhooks": screen(operationsContexts.deadLetters),
   "/workspaces": screen(administrationContexts.workspaces),
   // One workspace's sections share one set of facts. Which kinds each offers is the
