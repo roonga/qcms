@@ -14,8 +14,6 @@ function isOff(button: HTMLElement): boolean {
   return button.hasAttribute("disabled") || button.getAttribute("aria-disabled") === "true";
 }
 
-const NOW = new Date("2026-11-12T09:00:00.000Z");
-
 function request(overrides: Partial<SiteApprovalRequest>): SiteApprovalRequest {
   return {
     requestId: "apr_1",
@@ -41,7 +39,7 @@ function row(value: SiteApprovalRequest, viewer: string): ApprovalRow {
     workspace: value.workspaceId === null ? undefined : "Clinical",
     decidedBy: "Grace Mensah",
     expiresInDays: 5,
-    control: decisionControl(value, viewer, NOW),
+    control: decisionControl(value, viewer),
   };
 }
 

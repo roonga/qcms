@@ -306,7 +306,9 @@ test("a Workspace administrator's switch-off is held for an approver", async ({ 
   await open(page, `/workspaces/${workspaceId}/settings`);
   await page.getByText("Second approval in production", { exact: true }).click();
   await page.getByRole("button", { name: "Save settings" }).click();
-  await expect(page.getByText("waiting for an Approver", { exact: false })).toBeVisible();
+  await expect(page.getByTestId("qcms-second-approval-held")).toContainText(
+    "waiting for an Approver",
+  );
 });
 
 test("a pending workspace request shows in its workspace's Requests row and under Approval requests", async ({

@@ -96,7 +96,7 @@ export default async function ApprovalRequestsPage({
             request.workspaceId === null ? undefined : names.workspace(request.workspaceId),
           decidedBy: request.decidedBy === null ? "" : names.person(request.decidedBy),
           expiresInDays: held[index]?.expiresInDays ?? 0,
-          control: decisionControl(request, session.userId, now),
+          control: decisionControl(request, session.userId),
         }))}
         decideSite={decideSiteRequestAction}
         decideWorkspace={decideWorkspaceRequestAction}

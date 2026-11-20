@@ -85,19 +85,12 @@ export type DecisionControl =
   | { readonly kind: "decided" };
 
 /**
- * Whether the viewer may decide a request here. A site request needs a step-up to approve;
- * the API refuses the requester, the target and a lapsed window regardless.
+ * Whether the viewer may decide a request here. A site request needs a step-up to approve.
+ * The window is the API's to judge on its own clock, so a pending row is never called
+ * expired here; the API refuses the requester, the target and a closed window regardless.
  */
-export function decisionControl(
-  request: SiteApprovalRequest,
-  viewerId: string,
-  now: Date,
-): DecisionControl {
+export function decisionControl(request: SiteApprovalRequest, viewerId: string): DecisionControl {
   if (request.status !== "pending") return { kind: "decided" };
-  const expires = Date.parse(request.expiresAt);
-  if (!Number.isNaN(expires) && expires <= now.getTime()) {
-    return { kind: "blocked", reason: "expired" };
-  }
   if (request.requestedBy === viewerId) return { kind: "blocked", reason: "ownRequest" };
   if (request.scope === "site" && request.target === viewerId) {
     return { kind: "blocked", reason: "target" };

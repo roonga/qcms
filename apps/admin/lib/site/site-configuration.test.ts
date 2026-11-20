@@ -90,42 +90,38 @@ const request = (overrides: Partial<SiteApprovalRequest>): SiteApprovalRequest =
 });
 
 describe("approval request decisions", () => {
-  const now = new Date("2026-11-12T09:00:00.000Z");
-
   it("never offers the requester an Approve, whatever the scope", () => {
-    expect(decisionControl(request({}), "usr_asker", now)).toEqual({
+    expect(decisionControl(request({}), "usr_asker")).toEqual({
       kind: "blocked",
       reason: "ownRequest",
     });
     expect(
-      decisionControl(request({ scope: "workspace", workspaceId: "org_1" }), "usr_asker", now),
+      decisionControl(request({ scope: "workspace", workspaceId: "org_1" }), "usr_asker"),
     ).toEqual({ kind: "blocked", reason: "ownRequest" });
   });
 
   it("never lets the target decide a site request about them", () => {
-    expect(decisionControl(request({}), "usr_target", now)).toEqual({
+    expect(decisionControl(request({}), "usr_target")).toEqual({
       kind: "blocked",
       reason: "target",
     });
   });
 
   it("asks a step-up to approve a site request, and none for a workspace one", () => {
-    expect(decisionControl(request({}), "usr_other", now)).toEqual({
+    expect(decisionControl(request({}), "usr_other")).toEqual({
       kind: "decide",
       stepUp: true,
     });
     expect(
-      decisionControl(request({ scope: "workspace", workspaceId: "org_1" }), "usr_other", now),
+      decisionControl(request({ scope: "workspace", workspaceId: "org_1" }), "usr_other"),
     ).toEqual({ kind: "decide", stepUp: false });
   });
 
-  it("offers nothing once the window has closed or the request was decided", () => {
-    const late = new Date("2026-11-18T09:00:00.000Z");
-    expect(decisionControl(request({}), "usr_other", late)).toEqual({
-      kind: "blocked",
-      reason: "expired",
+  it("offers nothing once the request was decided or the sweep expired it", () => {
+    expect(decisionControl(request({ status: "expired" }), "usr_other")).toEqual({
+      kind: "decided",
     });
-    expect(decisionControl(request({ status: "rejected" }), "usr_other", now)).toEqual({
+    expect(decisionControl(request({ status: "rejected" }), "usr_other")).toEqual({
       kind: "decided",
     });
   });
