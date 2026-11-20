@@ -414,11 +414,9 @@ async function moveContext(
 }
 
 /**
- * One `UPDATE` on the identity row: the slug is unique installation-wide, so an ownership
- * change re-points no public address. A held move stores the destination in the request's
- * payload and moves nothing until it is approved. The hold is decided and the move applied
- * under the source's membership lock with the form row locked, as an approval applies one,
- * so a switch, a role change or another move in between is seen.
+ * One `UPDATE` on the identity row, so no public address moves; a held move moves nothing
+ * until approved. Hold and apply run under the source's membership lock with the form row
+ * locked, as an approval does, so a switch, role change or other move in between is seen.
  */
 export function makeMoveFormHandler(deps: Deps): RouteHandler<typeof moveFormRoute, ApiEnv> {
   return async (c) => {
