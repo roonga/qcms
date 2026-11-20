@@ -4234,11 +4234,15 @@
                     },
                     "email": {
                       "type": "string"
+                    },
+                    "suspended": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "userId",
-                    "email"
+                    "email",
+                    "suspended"
                   ]
                 }
               }
