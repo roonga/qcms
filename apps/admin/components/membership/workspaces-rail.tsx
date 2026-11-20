@@ -92,36 +92,38 @@ export function WorkspacesRail({
         : {
             sections: (
               <RailTree
-                items={(archivable ? WORKSPACE_SECTIONS : WORKSPACE_SECTIONS_AT_ONE).map((entry) => {
-                  const row = SUB_ROWS[entry];
-                  const onSub = entry === section && row !== undefined && sub === row.view;
-                  return {
-                    key: `section:${entry}`,
-                    href: workspaceSectionHref(workspace.workspaceId, entry),
-                    label: t(WORKSPACE_SECTION_LABELS[entry]),
-                    current: entry === section && !onSub,
-                    ...(row === undefined
-                      ? {}
-                      : {
-                          expanded: true,
-                          children: (
-                            <ul className="qcms-rail__group">
-                              <li>
-                                <Link
-                                  href={row.href(workspace.workspaceId)}
-                                  className="qcms-rail__link"
-                                  data-rail-item={`section:${entry}:${row.view}`}
-                                  aria-label={t(row.name)}
-                                  {...(onSub ? { "aria-current": "page" as const } : {})}
-                                >
-                                  {t(row.label)}
-                                </Link>
-                              </li>
-                            </ul>
-                          ),
-                        }),
-                  };
-                })}
+                items={(archivable ? WORKSPACE_SECTIONS : WORKSPACE_SECTIONS_AT_ONE).map(
+                  (entry) => {
+                    const row = SUB_ROWS[entry];
+                    const onSub = entry === section && row !== undefined && sub === row.view;
+                    return {
+                      key: `section:${entry}`,
+                      href: workspaceSectionHref(workspace.workspaceId, entry),
+                      label: t(WORKSPACE_SECTION_LABELS[entry]),
+                      current: entry === section && !onSub,
+                      ...(row === undefined
+                        ? {}
+                        : {
+                            expanded: true,
+                            children: (
+                              <ul className="qcms-rail__group">
+                                <li>
+                                  <Link
+                                    href={row.href(workspace.workspaceId)}
+                                    className="qcms-rail__link"
+                                    data-rail-item={`section:${entry}:${row.view}`}
+                                    aria-label={t(row.name)}
+                                    {...(onSub ? { "aria-current": "page" as const } : {})}
+                                  >
+                                    {t(row.label)}
+                                  </Link>
+                                </li>
+                              </ul>
+                            ),
+                          }),
+                    };
+                  },
+                )}
               />
             ),
           })}
