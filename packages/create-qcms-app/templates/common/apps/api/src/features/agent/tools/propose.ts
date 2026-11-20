@@ -43,8 +43,6 @@ const CREATE_QUESTION_KIND = "question.create";
 
 const SAVE_QUESTION_KIND = "question.saveDraft";
 
-const CREATE_FORM_KIND = "form.create";
-
 /**
  * The id a draft is validated under when its form is an earlier step's result. Nothing
  * depends on the value: the validation resolves pinned question versions, and the real id
@@ -94,6 +92,18 @@ export interface PlanStep {
    */
   readonly resultAllowlist: readonly string[];
 }
+
+/**
+ * The subject a step acts on, as the propose-time reachability check asks about it. A subject
+ * an earlier step creates has no workspace of its own yet, so the question becomes whether
+ * this caller may act in the workspace that step targets: undefined where the create names
+ * none, which is then resolved as the create's own route resolves it.
+ */
+export type StepSubject =
+  | { readonly formId: string }
+  | { readonly questionId: string }
+  | { readonly workspaceId: string }
+  | { readonly createdInWorkspace: string | undefined };
 
 /** Display context, never an argument: the card names a workspace, and the digest binds its id. */
 export interface WorkspaceName {
@@ -150,14 +160,16 @@ export interface ProposeInput {
   readonly workspaceNames?:
     ((workspaceIds: readonly string[]) => Promise<readonly WorkspaceName[]>) | undefined;
   /**
-   * Whether this caller may write the draft of the form a step names, asked before that
-   * draft is read or validated. A step whose form an earlier step creates asks about that
-   * step's own target workspace, since the form does not exist yet.
+   * Whether this caller holds a step's own cells on the subject it names, in the environment
+   * that step binds, asked before that subject is read or validated. Absent, the offer's own
+   * "holds the cell somewhere" is all that was asked.
    */
-  readonly canWriteDraft?:
-    | ((
-        subject: { readonly formId: string } | { readonly createdInWorkspace: string | undefined },
-      ) => Promise<boolean>)
+  readonly subjectAllows?:
+    | ((request: {
+        readonly cells: readonly { readonly resource: string; readonly action: string }[];
+        readonly environment: string;
+        readonly subject: StepSubject;
+      }) => Promise<boolean>)
     | undefined;
   /** Whether a questionId is already taken, which the create route refuses (R6). */
   readonly questionIdTaken?: ((questionId: string) => Promise<boolean>) | undefined;
@@ -288,55 +300,71 @@ async function takenQuestionIdRefusal(
   );
 }
 
-/**
- * Whether this caller may write the draft a step saves, asked before the draft is read or
- * validated. A step whose form an earlier step creates asks about that step's own target
- * workspace, since the form does not exist yet.
- */
-async function draftWriteRefusal(
-  input: ProposeInput,
-  steps: readonly ProposedStep[],
-  step: ProposedStep,
-  index: number,
-): Promise<string | undefined> {
-  const allowed = input.canWriteDraft;
-  if (allowed === undefined) return undefined;
-  const named = step.args["formId"];
-  if (typeof named === "string" && named !== "") {
-    if (await allowed({ formId: named })) return undefined;
-    return (
-      `Step ${String(index + 1)} saves a draft to ${named}, which this user may not write. ` +
-      'This needs a grant carrying "form: write" in the workspace that owns it.'
-    );
-  }
-  if (!isStepReference(named)) return undefined;
-  const creator = steps[named.fromStep]?.args["workspaceId"];
-  const createdInWorkspace = typeof creator === "string" ? creator : undefined;
-  if (await allowed({ createdInWorkspace })) return undefined;
-  return (
-    `Step ${String(index + 1)} saves a draft to the form step ${String(named.fromStep + 1)} ` +
-    'creates, and this user may not write a draft there. This needs a grant carrying "form: ' +
-    'write" in that workspace.'
-  );
+/** The members a step names its subject by, in the order the registry's kinds use them. */
+const SUBJECT_MEMBERS = ["workspaceId", "formId", "questionId"] as const;
+
+function namedSubject(member: (typeof SUBJECT_MEMBERS)[number], id: string): StepSubject {
+  if (member === "workspaceId") return { workspaceId: id };
+  if (member === "formId") return { formId: id };
+  return { questionId: id };
+}
+
+function subjectId(subject: StepSubject): string {
+  if ("workspaceId" in subject) return subject.workspaceId;
+  if ("formId" in subject) return subject.formId;
+  if ("questionId" in subject) return subject.questionId;
+  return "that workspace";
 }
 
 /**
- * A create names the workspace the form lands in, and the card shows that workspace's name, so a
- * workspace this caller may not create a form in is refused before either is resolved.
+ * The subject a step names, with the earlier step that creates it where it names one. A step
+ * naming none acts on the screen's own subject, which the turn was already authorised for.
  */
-async function formCreateRefusal(
+function subjectOf(
+  steps: readonly ProposedStep[],
+  step: ProposedStep,
+): { readonly subject: StepSubject; readonly fromStep?: number } | undefined {
+  for (const member of SUBJECT_MEMBERS) {
+    const named = step.args[member];
+    if (typeof named === "string" && named !== "") {
+      return { subject: namedSubject(member, named) };
+    }
+    if (!isStepReference(named)) continue;
+    const creator = steps[named.fromStep]?.args["workspaceId"];
+    return {
+      subject: { createdInWorkspace: typeof creator === "string" ? creator : undefined },
+      fromStep: named.fromStep,
+    };
+  }
+  return undefined;
+}
+
+/**
+ * The question the route will ask, asked before this step's subject is read or validated.
+ * The offer is "holds the cell in some workspace", so without this a card could name a
+ * workspace, form or question this caller cannot reach and be refused only at Confirm.
+ */
+async function subjectRefusal(
   input: ProposeInput,
   step: ProposedStep,
+  def: ActionKindDef,
   index: number,
+  environment: string,
 ): Promise<string | undefined> {
-  const allowed = input.canWriteDraft;
-  if (allowed === undefined || step.kind !== CREATE_FORM_KIND) return undefined;
-  const named = step.args["workspaceId"];
-  const createdInWorkspace = typeof named === "string" && named !== "" ? named : undefined;
-  if (await allowed({ createdInWorkspace })) return undefined;
+  const allows = input.subjectAllows;
+  if (allows === undefined) return undefined;
+  const named = subjectOf(input.steps.map(defaultedStep(input)), step);
+  if (named === undefined) return undefined;
+  const cells = [def.cell, ...(def.alsoCells ?? [])];
+  if (await allows({ cells, environment, subject: named.subject })) return undefined;
+  const needs = cells.map((cell) => `"${cell.resource}: ${cell.action}"`).join(" and ");
+  const where =
+    named.fromStep === undefined
+      ? subjectId(named.subject)
+      : `what step ${String(named.fromStep + 1)} creates`;
   return (
-    `Step ${String(index + 1)} creates a form in a workspace this user may not create forms ` +
-    'in. This needs a grant carrying "form: write" in that workspace.'
+    `Step ${String(index + 1)} acts on ${where}, which this user may not reach. This needs a ` +
+    `grant carrying ${needs} in that workspace.`
   );
 }
 
@@ -501,23 +529,12 @@ function withScreenDefaults(
   return { ...step, args: def.screenDefaults(step.args, { workspaceId: input.screenWorkspaceId }) };
 }
 
-/**
- * Each asks a question the route will ask anyway, before this step's draft is read or
- * validated, so no card offers a step the route would refuse on its subject alone.
- */
-async function subjectRefusal(
-  input: ProposeInput,
-  def: ActionKindDef,
-  step: ProposedStep,
-  index: number,
-): Promise<string | undefined> {
-  const taken = await takenQuestionIdRefusal(input, step, index);
-  if (taken !== undefined) return taken;
-  if (def.carriesDraftArgument === true) {
-    const unwritable = await draftWriteRefusal(input, input.steps, step, index);
-    if (unwritable !== undefined) return unwritable;
-  }
-  return formCreateRefusal(input, step, index);
+/** Each step as it will run, so a later step's subject sees where an earlier one creates. */
+function defaultedStep(input: ProposeInput): (step: ProposedStep) => ProposedStep {
+  return (step) => {
+    const def = actionKind(step.kind);
+    return def === undefined ? step : withScreenDefaults(input, def, step);
+  };
 }
 
 async function stepRefusal(
@@ -574,8 +591,12 @@ async function stepRefusal(
   const descriptorIssue = kindRefusal(input, def, step, index, pinned, pinChecked);
   if (descriptorIssue !== undefined) return { reason: descriptorIssue };
 
-  const subjectIssue = await subjectRefusal(input, def, step, index);
-  if (subjectIssue !== undefined) return { reason: subjectIssue };
+  // Both ask a question the route will ask anyway, before this step's draft is read or
+  // validated, so no card offers a step the route would refuse on its subject alone.
+  const unreachable = await subjectRefusal(input, step, def, index, environment);
+  if (unreachable !== undefined) return { reason: unreachable };
+  const taken = await takenQuestionIdRefusal(input, step, index);
+  if (taken !== undefined) return { reason: taken };
 
   return {
     step: {

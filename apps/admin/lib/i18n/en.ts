@@ -1439,6 +1439,8 @@ export const messages = {
     "The confirmation was sent and no answer arrived, so it may or may not have committed. " +
     "Look the result up before trying anything else: retrying would never create a second " +
     "version, but the answer is already recorded if it committed.",
+  "forms.publish.held":
+    "Nothing was published. This draft is published once an Approver approves the request.",
   "forms.publish.lookup": "Look the result up",
   "forms.publish.lookupNothing":
     "Nothing was committed under that confirmation. You can confirm again.",

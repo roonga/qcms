@@ -19,8 +19,6 @@ import type {
 import { APPROVAL_STATUSES } from "../membership/types.ts";
 import type { ShellCapabilities } from "../shell/modes.ts";
 
-import { APPROVAL_REQUESTED } from "../membership/refusals.ts";
-
 import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
 import type { ApiResult } from "./api-result.ts";
@@ -57,14 +55,6 @@ const MEMBER_STATUSES: readonly MemberStatus[] = ["active", "unclaimed", "disabl
 // An unknown or absent status reads as active: the API still refuses whatever the account cannot do.
 function memberStatus(value: unknown): MemberStatus {
   return MEMBER_STATUSES.find((status) => status === value) ?? "active";
-}
-
-/** A 202 is a held request, not the change itself, so it is never read as the act's success. */
-async function readHeldOrResult<T>(response: Response): Promise<ApiResult<T>> {
-  if (response.status === 202) {
-    return { ok: false, code: APPROVAL_REQUESTED, message: "", issues: [] };
-  }
-  return readResult<T>(response);
 }
 
 function strings(value: unknown): readonly string[] {
@@ -178,7 +168,7 @@ export async function updateAccessGroup(
     readonly environments: readonly string[];
   },
 ): Promise<ApiResult<AccessGroup>> {
-  const result = await readHeldOrResult<{ group?: unknown }>(
+  const result = await readResult<{ group?: unknown }>(
     await adminApiFetch(
       session,
       `/workspaces/${encodeURIComponent(workspaceId)}/access-groups/${encodeURIComponent(teamId)}`,
@@ -186,7 +176,11 @@ export async function updateAccessGroup(
     ),
   );
   if (!result.ok) return result;
-  return { ok: true, data: groupOf(result.data.group) };
+  return {
+    ok: true,
+    data: groupOf(result.data.group),
+    ...(result.held === true ? { held: true as const } : {}),
+  };
 }
 
 export async function reconfirmHolder(
@@ -269,7 +263,7 @@ export async function addHolder(
   email: string,
   proposal?: AgentProposalRef,
 ): Promise<ApiResult<AccessGroup>> {
-  const result = await readHeldOrResult<{ group?: unknown }>(
+  const result = await readResult<{ group?: unknown }>(
     await adminApiFetch(
       session,
       `/workspaces/${encodeURIComponent(workspaceId)}/access-groups/${encodeURIComponent(teamId)}/holders`,
@@ -283,6 +277,7 @@ export async function addHolder(
     data: parseGroup(
       typeof group === "object" && group !== null ? (group as Record<string, unknown>) : {},
     ),
+    ...(result.held === true ? { held: true as const } : {}),
   };
 }
 
@@ -320,11 +315,10 @@ export async function setMemberRole(
   return { ok: true, data: { userId: str(result.data.userId), role: str(result.data.role) } };
 }
 
-/** What a settings write answers with: the switch as it now stands, and the request a hold waits on. */
+/** What a settings write answers with: the switch as it now stands. */
 export interface WorkspaceSettingsOutcome {
   readonly workspaceId: string;
   readonly requireSecondApprover: boolean;
-  readonly request: ApprovalRequest | undefined;
 }
 
 export async function setWorkspaceSettings(
@@ -333,11 +327,7 @@ export async function setWorkspaceSettings(
   body: { readonly requireSecondApprover: boolean },
   proposal?: AgentProposalRef,
 ): Promise<ApiResult<WorkspaceSettingsOutcome>> {
-  const result = await readResult<{
-    workspaceId?: unknown;
-    requireSecondApprover?: unknown;
-    request?: unknown;
-  }>(
+  const result = await readResult<{ workspaceId?: unknown; requireSecondApprover?: unknown }>(
     await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/settings`, {
       method: "PUT",
       body,
@@ -345,17 +335,13 @@ export async function setWorkspaceSettings(
     }),
   );
   if (!result.ok) return result;
-  const held = result.data.request;
   return {
     ok: true,
     data: {
       workspaceId: str(result.data.workspaceId),
       requireSecondApprover: bool(result.data.requireSecondApprover),
-      request:
-        typeof held === "object" && held !== null
-          ? parseApprovalRequest(held as Record<string, unknown>)
-          : undefined,
     },
+    ...(result.held === true ? { held: true as const } : {}),
   };
 }
 

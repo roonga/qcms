@@ -67,19 +67,53 @@ describe("the access group write clients", () => {
     expect(result.data.holders.map((holder) => holder.suspended)).toEqual([true, false]);
   });
 
-  it("reads a 202 as a held request, never as the change itself", async () => {
+  it("reads a 202 as held, with the group as it still stands", async () => {
     status = 202;
-    body = { request: { id: "req_1" } };
+    body = { group: GROUP, request: { requestId: "apr_1" } };
     const { addHolder, updateAccessGroup } = await import("./membership.ts");
-    const { APPROVAL_REQUESTED } = await import("../membership/refusals.ts");
     const granted = await addHolder(SESSION, "org_a", "tm_1", "me@example.test");
     const changed = await updateAccessGroup(SESSION, "org_a", "tm_1", {
       name: "Authors",
       roles: ["responses.viewer"],
       environments: ["prod"],
     });
-    expect(granted).toMatchObject({ ok: false, code: APPROVAL_REQUESTED });
-    expect(changed).toMatchObject({ ok: false, code: APPROVAL_REQUESTED });
+    for (const result of [granted, changed]) {
+      expect(result).toMatchObject({ ok: true, held: true, data: { name: "Authors" } });
+    }
+  });
+
+  it("reads a 200 as done, never as held", async () => {
+    body = { group: GROUP };
+    const { addHolder, updateAccessGroup } = await import("./membership.ts");
+    const granted = await addHolder(SESSION, "org_a", "tm_1", "me@example.test");
+    const changed = await updateAccessGroup(SESSION, "org_a", "tm_1", {
+      name: "Authors",
+      roles: ["forms.editor"],
+      environments: ["test"],
+    });
+    for (const result of [granted, changed]) {
+      expect(result.ok && "held" in result).toBe(false);
+    }
+  });
+
+  it("reads a held settings change as held, with the switch still on", async () => {
+    status = 202;
+    body = { workspaceId: "org_a", requireSecondApprover: true, request: { requestId: "apr_2" } };
+    const { setWorkspaceSettings } = await import("./membership.ts");
+    const held = await setWorkspaceSettings(SESSION, "org_a", { requireSecondApprover: false });
+    expect(held).toEqual({
+      ok: true,
+      held: true,
+      data: { workspaceId: "org_a", requireSecondApprover: true },
+    });
+
+    status = 200;
+    body = { workspaceId: "org_a", requireSecondApprover: true };
+    const done = await setWorkspaceSettings(SESSION, "org_a", { requireSecondApprover: true });
+    expect(done).toEqual({
+      ok: true,
+      data: { workspaceId: "org_a", requireSecondApprover: true },
+    });
   });
 
   it("re-confirms one hold and takes a person out of the workspace", async () => {

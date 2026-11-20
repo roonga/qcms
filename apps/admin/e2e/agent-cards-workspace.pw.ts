@@ -10,7 +10,9 @@ import {
   auditTally,
   cancel,
   card,
+  cardChip,
   confirm,
+  confirmButton,
   expectAxeClean,
   expectStepChips,
   expectWaitingStepStates,
@@ -19,6 +21,7 @@ import {
 } from "./support/agent-card.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
+import { t } from "../lib/i18n/en.js";
 
 // Use an existing second account: the two-person rule can refuse a responses self-grant.
 // The fake may fall back to the first visible member when facts reach their row limit.
@@ -232,5 +235,37 @@ test("confirms the second-approver switch on its own screen", async ({ page }) =
   expect(auditDelta(before, await auditTally())).toEqual({
     "workspace.settings": 1,
   });
+  await clearSecondApprover();
+});
+
+// Criterion 91: turning the rule off is held for an Approver, so the card holds the plan at
+// that step rather than reporting a switch that has not moved.
+test("holds the card when turning the switch off waits for an Approver", async ({ page }) => {
+  test.setTimeout(600_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await openWorkspace(page, "settings");
+
+  const before = await auditTally();
+  await propose(page, "propose-workspace-settings", `turn it on ${naming(ALONE)}`);
+  await confirm(page, /^Done\./u);
+  await openWorkspace(page, "settings");
+  await expect(twoPerson(page)).toBeChecked();
+
+  await propose(page, "propose-workspace-settings", `turn it off again ${naming(ALONE)}`);
+  await confirmButton(page).click();
+
+  await expect(cardChip(page)).toHaveText("Pending approval", { timeout: 60_000 });
+  await expectStepChips(page, ["Pending approval"]);
+  await expect(card(page).locator(".qcms-acard__result")).toHaveText(
+    /^Held at step 1 for an Approver\./u,
+  );
+  await expect(card(page)).toContainText(t("agent.card.note.heldForApprover"));
+  await expectAxeClean(page, "held for an approver");
+
+  // The request is stored and the switch is untouched, so the screen still reads as on.
+  await openWorkspace(page, "settings");
+  await expect(twoPerson(page)).toBeChecked();
+
+  expect(auditDelta(before, await auditTally())).toEqual({ "workspace.settings": 2 });
   await clearSecondApprover();
 });

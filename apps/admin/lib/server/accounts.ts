@@ -170,10 +170,11 @@ async function act(
   path: `/${string}`,
   body: unknown,
 ): Promise<ApiResult<ActOutcome>> {
-  const response = await adminApiFetch(session, path, { method: "POST", body });
-  const result = await readResult<Record<string, unknown>>(response);
+  const result = await readResult<Record<string, unknown>>(
+    await adminApiFetch(session, path, { method: "POST", body }),
+  );
   if (!result.ok) return result;
-  if (response.status === 202) return { ok: true, data: { held: true } };
+  if (result.held === true) return { ok: true, data: { held: true } };
   const sent = result.data["delivery"];
   return {
     ok: true,

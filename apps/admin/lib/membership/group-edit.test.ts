@@ -150,8 +150,7 @@ describe("a group's change and deletion", () => {
 });
 
 describe("a refused membership write", () => {
-  it("reads a held request and the interim self-grant refusal as a wait, never a success", () => {
-    expect(membershipRefusal({ code: "APPROVAL_REQUESTED", message: "" }).kind).toBe("held");
+  it("reads the self-grant refusal as a wait, never a success", () => {
     expect(membershipRefusal({ code: "SELF_GRANT_REFUSED", message: "x" }).kind).toBe("held");
   });
 

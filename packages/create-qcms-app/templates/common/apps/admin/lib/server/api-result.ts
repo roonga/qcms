@@ -5,7 +5,8 @@ import type { FormIssue } from "../forms/types.ts";
 /** Normalise presentation envelopes only; the API remains the authority on success and refusal. */
 
 export type ApiResult<T> =
-  | { readonly ok: true; readonly data: T }
+  /** `held` is a 202: the API stored the act as a request an Approver has to approve. */
+  | { readonly ok: true; readonly data: T; readonly held?: true }
   | {
       readonly ok: false;
       readonly code: string;
@@ -42,11 +43,17 @@ function firstIssueMessage(issues: unknown): string | undefined {
 
 export async function readResult<T>(response: Response): Promise<ApiResult<T>> {
   if (!response.ok) return readFailure(response);
-  return { ok: true, data: (await response.json()) as T };
+  return {
+    ok: true,
+    data: (await response.json()) as T,
+    ...(response.status === HELD ? { held: true as const } : {}),
+  };
 }
 
 /** A 204 has no JSON body; parsing it would report failure after the API performed the action. */
 export async function readNoContent(response: Response): Promise<ApiResult<null>> {
   if (!response.ok) return readFailure(response);
-  return { ok: true, data: null };
+  return { ok: true, data: null, ...(response.status === HELD ? { held: true as const } : {}) };
 }
+
+const HELD = 202;

@@ -149,7 +149,16 @@ export interface PublishBatchRelease {
 
 // Resolve uncertain results by the same idempotency key; never offer a second publish. A stale review requires another read and confirmation.
 export interface PublishBatchState {
-  readonly status: "idle" | "done" | "rejected" | "stale" | "uncertain" | "not-committed" | "error";
+  readonly status:
+    | "idle"
+    | "done"
+    /** A 202: the publish is a request an Approver has to approve, and nothing was frozen. */
+    | "held"
+    | "rejected"
+    | "stale"
+    | "uncertain"
+    | "not-committed"
+    | "error";
   readonly version?: number;
 
   readonly froze?: boolean;
