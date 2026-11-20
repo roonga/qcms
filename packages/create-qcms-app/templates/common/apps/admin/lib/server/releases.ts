@@ -67,6 +67,11 @@ export async function reviewRelease(
   return { ok: true, data: review };
 }
 
+/** A 202 from the batch route: the publish is a request, and nothing was frozen. */
+export interface HeldPublish {
+  readonly held: true;
+}
+
 export interface BatchOutcome {
   readonly version: number;
   readonly releases: readonly ReleaseRecord[];
@@ -76,14 +81,20 @@ export interface BatchOutcome {
   readonly froze: boolean;
 }
 
-function readBatch(
-  result: ApiResult<{
-    version?: unknown;
-    releases?: unknown;
-    replayed?: unknown;
-    froze?: unknown;
-  }>,
-): ApiResult<BatchOutcome> {
+type BatchBody = ApiResult<{
+  version?: unknown;
+  releases?: unknown;
+  replayed?: unknown;
+  froze?: unknown;
+}>;
+
+/* A held publish carries a request and no version, so it is read before the version is. */
+function readBatchOrHeld(result: BatchBody): ApiResult<BatchOutcome | HeldPublish> {
+  if (result.ok && result.held === true) return { ok: true, data: { held: true } };
+  return readBatch(result);
+}
+
+function readBatch(result: BatchBody): ApiResult<BatchOutcome> {
   if (!result.ok) return result;
   if (typeof result.data.version !== "number") {
     return { ok: false, code: "internal", message: "", issues: [] };
@@ -111,8 +122,8 @@ export async function releaseBatch(
   formId: string,
   request: BatchRequest & { readonly version: number },
   proposal?: AgentProposalRef,
-): Promise<ApiResult<BatchOutcome>> {
-  return readBatch(
+): Promise<ApiResult<BatchOutcome | HeldPublish>> {
+  return readBatchOrHeld(
     await readResult(
       await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/release-batch`, {
         method: "POST",
@@ -134,8 +145,8 @@ export async function publishBatch(
   formId: string,
   request: BatchRequest & { readonly draftRevision: number },
   proposal?: AgentProposalRef,
-): Promise<ApiResult<BatchOutcome>> {
-  const result = readBatch(
+): Promise<ApiResult<BatchOutcome | HeldPublish>> {
+  const result = readBatchOrHeld(
     await readResult(
       await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/publish-batch`, {
         method: "POST",

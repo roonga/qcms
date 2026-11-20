@@ -165,12 +165,14 @@ This reaches only a card that publishes what your draft pins; an ordinary plan i
 
 Each proposal arrives as a **card**: the act, every argument in full, the consequence sentence the screen's own dialog uses, and Confirm and Cancel. A plan's card lists every step. Nothing happens until you press Confirm.
 
+**An act your workspace holds for an Approver reads as held, never as done.** A self-grant of a response role, turning second approval off, a production endpoint change, and a draft publish to `prod` on a site whose only environment is `prod` are all stored as requests rather than applied (`docs/WORKSPACE_ACCESS.md` section 6). The step says so and the plan stops there, because the steps after it would run against a state nobody has approved yet.
+
 ### Cannot
 
 Not "is instructed not to". **Cannot**, structurally.
 
 - **Run anything.** The turn holds no executor for any act. Confirm, in your browser, calls the screen's own server action under your own session, carrying a signed token the API checks against you, the step list, that step's arguments and that step's environment. A token that does not verify is refused and never degrades into an ordinary act of yours.
-- **Do anything you could not do by hand.** Every step goes through the same route, the same permission check and the same rules as the screen's control, the two-person rule for production included. Acts you do not hold are not even offered to the model: a read-only account is offered no write at all, and the agent adds no right.
+- **Do anything you could not do by hand.** Every step goes through the same route, the same permission check and the same rules as the screen's control, the two-person rule for production included. Acts you do not hold are not even offered to the model: a read-only account is offered no write at all, and the agent adds no right. A step naming a workspace, form or question your grants do not reach is refused while the turn is still running, so no card offers you an act the route would refuse.
 - **Read responses, answers, submissions or exports.** No read tool and no screen context can return an answer value, the answer ledger or a webhook payload. Response metadata is a projection with no answer column.
 - **Write its own card.** The title, the consequence lines and the argument lines are rendered by the admin from the act's kind and its structured arguments. The model's words appear only as a visibly quoted reason, so an injected instruction cannot label a production release "Release to test" or hide a step.
 - **Keep a secret.** A webhook secret, a minted link URL and an export's bytes reach your screen and stop there; the next turn is told only an allowlisted summary ("rotated the endpoint's secret", never the secret). An act that needs you to type a secret opens the screen's own control instead, and may only be the last step of a plan.

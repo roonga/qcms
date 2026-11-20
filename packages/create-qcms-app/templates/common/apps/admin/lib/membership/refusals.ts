@@ -1,8 +1,5 @@
 import { t, type MessageKey } from "../i18n/en.ts";
 
-/** The code a write answers with when the API stored it as a request for an Approver. */
-export const APPROVAL_REQUESTED = "APPROVAL_REQUESTED";
-
 const SELF_GRANT_REFUSED = "SELF_GRANT_REFUSED";
 
 // Catalog copy for the membership routes' own refusals; anything else keeps the shared reading.
@@ -23,16 +20,13 @@ export type MembershipOutcome =
   | { readonly kind: "refused"; readonly message: string };
 
 /**
- * A refused write in the screen's words. A held request, and the self-grant refusal that means the
- * same thing until the API stores requests, are a wait for an Approver and never a success.
+ * A refused write in the screen's words. The self-grant refusal is a wait for an Approver, never a
+ * success.
  */
 export function membershipRefusal(result: {
   readonly code: string;
   readonly message: string;
 }): MembershipOutcome {
-  if (result.code === APPROVAL_REQUESTED) {
-    return { kind: "held", message: t("membership.held.requested") };
-  }
   if (result.code === SELF_GRANT_REFUSED) {
     return { kind: "held", message: t("membership.held.refused") };
   }
