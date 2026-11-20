@@ -34,13 +34,12 @@ export async function moveFormToWorkspace(
     method: "POST",
     body: { workspaceId: destinationWorkspaceId },
   });
-  const held = response.status === 202;
   const result = await readResult<Record<string, unknown>>(response);
   if (!result.ok) return result;
   return {
     ok: true,
     data: {
-      held,
+      held: result.held === true,
       workspaceId:
         typeof result.data["workspaceId"] === "string"
           ? result.data["workspaceId"]
