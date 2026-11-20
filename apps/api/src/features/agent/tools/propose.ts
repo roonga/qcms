@@ -96,7 +96,8 @@ export interface PlanStep {
 /**
  * The subject a step acts on, as the propose-time reachability check asks about it. A subject
  * an earlier step creates has no workspace of its own yet, so the question becomes whether
- * this caller may act in the workspace that step targets.
+ * this caller may act in the workspace that step targets: undefined where the create names
+ * none, which is then resolved as the create's own route resolves it.
  */
 export type StepSubject =
   | { readonly formId: string }
@@ -352,7 +353,7 @@ async function subjectRefusal(
 ): Promise<string | undefined> {
   const allows = input.subjectAllows;
   if (allows === undefined) return undefined;
-  const named = subjectOf(input.steps, step);
+  const named = subjectOf(input.steps.map(defaultedStep(input)), step);
   if (named === undefined) return undefined;
   const cells = [def.cell, ...(def.alsoCells ?? [])];
   if (await allows({ cells, environment, subject: named.subject })) return undefined;
@@ -526,6 +527,14 @@ function withScreenDefaults(
 ): ProposedStep {
   if (def.screenDefaults === undefined) return step;
   return { ...step, args: def.screenDefaults(step.args, { workspaceId: input.screenWorkspaceId }) };
+}
+
+/** Each step as it will run, so a later step's subject sees where an earlier one creates. */
+function defaultedStep(input: ProposeInput): (step: ProposedStep) => ProposedStep {
+  return (step) => {
+    const def = actionKind(step.kind);
+    return def === undefined ? step : withScreenDefaults(input, def, step);
+  };
 }
 
 async function stepRefusal(

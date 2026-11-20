@@ -28,6 +28,14 @@ function cellsOf(resource: string, action: string): string {
   return `${resource}: ${action}`;
 }
 
+/** The route a route-less kind's Confirm ends at: the builder's accept, or the screen's own download. */
+const CONFIRMED_THROUGH: Readonly<
+  Record<string, { readonly method: string; readonly path: string }>
+> = {
+  "apply-draft": { method: "POST", path: "/admin/forms/{id}/draft/assist/accept" },
+  "response.export": { method: "GET", path: "/admin/forms/{id}/export" },
+};
+
 describe("every action kind asks for exactly what its own route asks for (criterion 90)", () => {
   it("covers the whole registry", () => {
     expect(ACTION_KIND_NAMES.length).toBeGreaterThan(25);
@@ -38,12 +46,12 @@ describe("every action kind asks for exactly what its own route asks for (criter
       const def = actionKind(name);
       if (def === undefined) throw new Error(name);
       if (def.route === undefined) {
-        // A hand-off and a local step reach no route: the screen's own save authorises them.
         expect(def.handOff === true || def.local === true).toBe(true);
-        return;
       }
-      const policy = policyForRequest(def.route.method, def.route.path);
-      expect(policy?.path, name).toBe(def.route.path);
+      const route = def.route ?? CONFIRMED_THROUGH[name];
+      if (route === undefined) throw new Error(`${name} names no route its Confirm ends at`);
+      const policy = policyForRequest(route.method, route.path);
+      expect(policy?.path, name).toBe(route.path);
       if (policy === undefined) throw new Error(name);
       const want = [policy, ...(policy.also ?? [])].map((cell) =>
         cellsOf(cell.resource, cell.action),

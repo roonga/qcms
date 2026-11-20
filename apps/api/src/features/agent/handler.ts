@@ -48,6 +48,7 @@ import {
   toolCell,
   type AgentToolName,
 } from "./tools/registry.js";
+import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
 import { readPorts } from "./contexts/reads.js";
 import {
   allowsCellIn,
@@ -362,7 +363,7 @@ async function workspaceNamesFor(
  * resolve-then-evaluate pair every read port uses. A subject an earlier step creates has no
  * workspace of its own yet, so the question becomes that step's own target workspace.
  */
-async function subjectAllows(
+export async function subjectAllows(
   build: ScreenBuildInput,
   request: {
     readonly cells: readonly { readonly resource: string; readonly action: string }[];
@@ -376,16 +377,14 @@ async function subjectAllows(
   }));
   const subject = request.subject;
   if ("createdInWorkspace" in subject) {
+    const target = await createdInWorkspace(build, subject.createdInWorkspace);
+    if (target === undefined) return false;
     for (const cell of cells) {
       const held = await workspacesHoldingOrNone(build, {
         ...cell,
         environment: request.environment,
       });
-      const reaches =
-        subject.createdInWorkspace === undefined
-          ? held.length > 0
-          : held.includes(subject.createdInWorkspace);
-      if (!reaches) return false;
+      if (!held.includes(target)) return false;
     }
     return true;
   }
@@ -402,6 +401,19 @@ async function subjectAllows(
     return true;
   } catch {
     return false;
+  }
+}
+
+/** The workspace a create lands in, resolved as its route resolves one it does not name. */
+async function createdInWorkspace(
+  build: ScreenBuildInput,
+  named: string | undefined,
+): Promise<string | undefined> {
+  if (named !== undefined) return named;
+  try {
+    return await resolveWorkspaceForNewObject(build.deps.databases.control, undefined);
+  } catch {
+    return undefined;
   }
 }
 

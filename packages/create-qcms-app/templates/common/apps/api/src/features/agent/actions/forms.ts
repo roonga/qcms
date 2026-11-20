@@ -81,6 +81,7 @@ export const applyDraft: ActionKindDef = {
   kind: "apply-draft",
   screen: "/forms/[formId]",
   cell: { resource: "form", action: "write" },
+  alsoCells: [{ resource: "question", action: "write" }],
   environmentFrom: "switcher",
   args: z.strictObject({ formId: FormIdArg }),
   recomputeArgs: (facts) => ({ formId: facts.params.id ?? "" }),

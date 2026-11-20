@@ -29,6 +29,7 @@ function propose(args: {
   readonly workspaceNames?: ProposeInput["workspaceNames"];
   readonly subjectAllows?: ProposeInput["subjectAllows"];
   readonly questionIdTaken?: ProposeInput["questionIdTaken"];
+  readonly screenWorkspaceId?: string;
   /** The builder by default, which is the one screen that may run a local kind. */
   readonly screen?: string;
 }) {
@@ -40,6 +41,7 @@ function propose(args: {
     ...(args.workspaceNames === undefined ? {} : { workspaceNames: args.workspaceNames }),
     ...(args.subjectAllows === undefined ? {} : { subjectAllows: args.subjectAllows }),
     ...(args.questionIdTaken === undefined ? {} : { questionIdTaken: args.questionIdTaken }),
+    ...(args.screenWorkspaceId === undefined ? {} : { screenWorkspaceId: args.screenWorkspaceId }),
     ...(args.proposedDraft === undefined ? {} : { proposedDraft: args.proposedDraft }),
     validate: args.validate ?? (() => Promise.resolve({ issues: [], warnings: [] })),
     subject: "user_1",
@@ -1280,6 +1282,48 @@ describe("buildProposal: the subject a step names is checked before its draft is
     expect(asked).toEqual([{ workspaceId: "wsp_b" }]);
     expect(outcome.reason).toContain("Step 1 acts on wsp_b");
     expect(outcome.reason).toContain("form: write");
+  });
+
+  const createThenPublish: readonly ProposedStep[] = [
+    { kind: "form.create", args: { slug: "new-one", defaultLocale: "en" } },
+    {
+      kind: "form.publish",
+      args: { formId: { fromStep: 0, field: "formId" }, environment: "test" },
+    },
+  ];
+
+  it("asks about the screen's workspace for a form created there", async () => {
+    const asked: unknown[] = [];
+    const outcome = await propose({
+      steps: createThenPublish,
+      screen: "/forms",
+      screenWorkspaceId: "wsp_screen",
+      subjectAllows: (request) => {
+        asked.push(request.subject);
+        return Promise.resolve(true);
+      },
+    });
+    expect(outcome.ok).toBe(true);
+    expect(asked).toEqual([{ workspaceId: "wsp_screen" }, { createdInWorkspace: "wsp_screen" }]);
+  });
+
+  it("refuses publishing a form created in a screen workspace the caller may not publish in", async () => {
+    const outcome = await propose({
+      steps: createThenPublish,
+      screen: "/forms",
+      screenWorkspaceId: "wsp_screen",
+      subjectAllows: (request) =>
+        Promise.resolve(
+          !(
+            "createdInWorkspace" in request.subject &&
+            request.cells.some((cell) => cell.action === "publish")
+          ),
+        ),
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("Step 2 acts on what step 1 creates");
+    expect(outcome.reason).toContain("form: publish");
   });
 
   it("refuses a create whose questionId has been used before (R6)", async () => {
