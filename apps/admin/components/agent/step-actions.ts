@@ -253,7 +253,7 @@ function membershipOutcome(
   result: Readonly<Record<string, unknown>>,
 ): AgentStepResult {
   if (state.status !== "done") {
-    return { outcome: "failed", message: state.status === "error" ? state.message : "" };
+    return { outcome: "failed", message: state.status === "idle" ? "" : state.message };
   }
   return { outcome: "done", result };
 }
