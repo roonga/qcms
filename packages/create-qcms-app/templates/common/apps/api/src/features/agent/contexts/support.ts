@@ -76,7 +76,7 @@ export const FACT_ROW_LIMIT = 50;
 
 export const forbidden = (reason: string): ApiError => new ApiError("FORBIDDEN", 403, reason);
 
-const fail = {
+export const fail = {
   malformed: (what: string): ApiError =>
     new ApiError("INVALID_ID", 400, `Malformed ${what} id for this screen`),
   missing: (what: string): ApiError =>
