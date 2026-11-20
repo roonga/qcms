@@ -1097,6 +1097,26 @@ describe("the directory (criterion 57)", { timeout: CLAIM_TIMEOUT_MS }, () => {
     expect(siteAdmins.every((account) => account.role === "site-administrator")).toBe(true);
   });
 
+  it("reads one account by id to a Site administrator only", async () => {
+    const target = await createAccount("one.account@example.test");
+    const read = await adminGet(`/admin/accounts/${target.userId}`, siteAdminToken);
+    expect(read.status).toBe(200);
+    const { account } = (await read.json()) as { account: Record<string, unknown> };
+    expect(account).toMatchObject({
+      userId: target.userId,
+      email: "one.account@example.test",
+      role: "member",
+      status: "unclaimed",
+    });
+    expect(JSON.stringify(account)).not.toContain(target.token);
+    expect((await adminGet(`/admin/accounts/${target.userId}`, workspaceAdminToken)).status).toBe(
+      403,
+    );
+    const missing = await adminGet("/admin/accounts/au_nobody", siteAdminToken);
+    expect(missing.status).toBe(404);
+    expect(await errorCodeOf(missing)).toBe("ACCOUNT_NOT_FOUND");
+  });
+
   it("refuses a page window that is not a positive integer, or is past the last page", async () => {
     expect((await adminGet("/admin/accounts?page=0", siteAdminToken)).status).toBe(400);
     expect((await adminGet("/admin/accounts?page=10001", siteAdminToken)).status).toBe(400);

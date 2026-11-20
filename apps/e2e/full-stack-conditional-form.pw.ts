@@ -401,6 +401,35 @@ test.describe.serial("conditional form journey", () => {
       await expect(page).toHaveURL(/\/done/);
     });
 
+    // The stack's API sends through the Compose Mailpit relay, so "sent" is the relay's own acceptance.
+    test("creates an account whose sign-in link the relay accepts", async ({ page }) => {
+      const email = `full-stack-e2e-account-${RUN}@qcms.test`;
+      await page.goto("/site/accounts/new");
+      await waitForAdminHydration(page);
+      await page.getByRole("textbox", { name: /^Email/ }).fill(email);
+      await page.getByRole("textbox", { name: /^Name/ }).fill("Full Stack Account");
+      await page.getByRole("button", { name: "Create account" }).click();
+      await expect(page.getByTestId("qcms-account-created")).toContainText(
+        `Sign-in link sent to ${email}. It lasts 72 hours; you can resend it from the account page.`,
+      );
+      await page
+        .getByRole("link", { name: "Open the account page for Full Stack Account" })
+        .click();
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Full Stack Account" }),
+      ).toBeVisible();
+      await expect(page.getByText("Unclaimed: link sent")).toBeVisible();
+      await waitForAdminHydration(page);
+      await page.getByRole("button", { name: "Resend link" }).click();
+      await page
+        .getByRole("dialog", { name: "Resend the sign-in link to Full Stack Account?" })
+        .getByRole("button", { name: "Resend link" })
+        .click();
+      await expect(
+        page.getByText("Sign-in link sent. The earlier link no longer works."),
+      ).toBeVisible();
+    });
+
     test("completes the negative respondent route", async ({ page }) => {
       await page.goto(`${PORTAL_URL}/f/${FORM_SLUG}`);
       await startPortalSession(page, FORM_SLUG);

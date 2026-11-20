@@ -112,6 +112,7 @@ const ScreenParamsBody = z.strictObject({
   questionId: z.string().max(200).optional(),
   workspaceId: z.string().max(200).optional(),
   sessionId: z.string().max(200).optional(),
+  accountId: z.string().max(200).optional(),
   version: z.number().int().min(1).max(1_000_000).optional(),
   /** The response list's own four filters, none of which takes an answer value. */
   filters: z

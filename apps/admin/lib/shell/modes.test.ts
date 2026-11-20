@@ -318,3 +318,14 @@ describe("the agent builder mode", () => {
     expect(rememberableMode("/forms/new/build", EVERYTHING)).toBe("normal");
   });
 });
+
+describe("Site configuration", () => {
+  it("is its own unfocused area, admitted by the site claim alone", () => {
+    expect(declaredMode("/site/accounts")).toBe("site");
+    expect(declaredMode("/site/accounts/usr_a")).toBe("site");
+    expect(focusedMode("site")).toBeUndefined();
+    expect(permitsPath(capabilities({ siteConfiguration: true }), "/site/accounts")).toBe(true);
+    expect(permitsPath(capabilities({ workspaces: true }), "/site/accounts")).toBe(false);
+    expect(rememberableMode("/site/accounts", capabilities({ workspaces: true }))).toBeUndefined();
+  });
+});

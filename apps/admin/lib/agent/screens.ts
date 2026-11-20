@@ -23,6 +23,9 @@ export const AGENT_SCREENS = [
   "/responses",
   "/responses/erasures",
   "/settings",
+  "/site/accounts",
+  "/site/accounts/new",
+  "/site/accounts/[accountId]",
   "/webhooks",
   "/workspaces",
   "/workspaces/all",
@@ -70,6 +73,7 @@ const PLACEHOLDERS: Readonly<Record<string, keyof AgentScreenParams>> = {
   "[workspaceId]": "workspaceId",
   "[sessionId]": "sessionId",
   "[version]": "version",
+  "[accountId]": "accountId",
 };
 
 function segmentsOf(path: string): readonly string[] {

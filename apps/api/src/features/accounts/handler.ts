@@ -19,7 +19,12 @@ import type { ApiEnv } from "../../openapi.js";
 import { adminAuthFor } from "../auth/route.js";
 import { createUnclaimedAccount } from "./credential.js";
 import { issueAndSendSignInLink } from "./links.js";
-import type { createAccountRoute, listAccountsRoute, resendSignInLinkRoute } from "./route.js";
+import type {
+  accountRoute,
+  createAccountRoute,
+  listAccountsRoute,
+  resendSignInLinkRoute,
+} from "./route.js";
 
 // Site administrators only: every route here carries `installationOnly` in
 // `features/membership/route-policy.ts`, so no workspace grant reaches one and the
@@ -118,6 +123,15 @@ export function makeListAccountsHandler(
       offset: (page - 1) * pageSize,
     });
     return c.json({ accounts: rows.map(accountView), page, pageSize, total }, 200);
+  };
+}
+
+export function makeAccountHandler(deps: Deps): RouteHandler<typeof accountRoute, ApiEnv> {
+  return async (c) => {
+    const { id } = c.req.valid("param");
+    const row = await findAccountById(deps.databases.control, id);
+    if (row === undefined) throw fail.notFound();
+    return c.json({ account: accountView(row) }, 200);
   };
 }
 
