@@ -24,11 +24,13 @@ import {
   getSharedWorkspace,
   getWorkspace,
   getWorkspaceBySlug,
+  getWorkspaceForUpdate,
   insertFormRelease,
   insertFormVersion,
   listActiveWorkspaces,
   listQuestionOwnership,
   listWorkspaces,
+  lockSharedAndWorkspace,
   moveFormToWorkspace,
   moveQuestionToWorkspace,
   publishQuestionVersion,
@@ -200,6 +202,23 @@ describe("the shared workspace", () => {
 
     await setWorkspaceShared(testDb.db, second, false);
     expect(await getSharedWorkspace(testDb.db)).toBeUndefined();
+  });
+
+  it("locks the holder and the named workspace in id order, and the named one alone with no holder", async () => {
+    const holder = await makeWorkspace("lock-holder");
+    const target = await makeWorkspace("lock-target");
+    expect((await lockSharedAndWorkspace(testDb.db, target)).map((row) => row.id)).toEqual([
+      target,
+    ]);
+    await setWorkspaceShared(testDb.db, holder, true);
+    const locked = await testDb.db.transaction((tx) => lockSharedAndWorkspace(tx, target));
+    expect(locked.map((row) => row.id)).toEqual([holder, target].sort());
+    expect((await lockSharedAndWorkspace(testDb.db, holder)).map((row) => row.id)).toEqual([
+      holder,
+    ]);
+    await setWorkspaceShared(testDb.db, holder, false);
+    expect((await getWorkspaceForUpdate(testDb.db, target))?.id).toBe(target);
+    expect(await getWorkspaceForUpdate(testDb.db, "org_lock_missing")).toBeUndefined();
   });
 
   it("reports a question's owning workspace and whether that workspace is shared", async () => {
