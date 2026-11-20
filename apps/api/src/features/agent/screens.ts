@@ -44,6 +44,7 @@ export const SCREEN_IDS = [
   "/workspaces/[workspaceId]/settings",
   "/workspaces/[workspaceId]/audit",
   "/workspaces/[workspaceId]/assistant-actions",
+  "/workspaces/[workspaceId]/archive",
 ] as const;
 
 export type ScreenId = (typeof SCREEN_IDS)[number];
@@ -108,6 +109,7 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/workspaces/[workspaceId]/settings": screen(administrationContexts.workspaceDetail),
   "/workspaces/[workspaceId]/audit": screen(administrationContexts.workspaceDetail),
   "/workspaces/[workspaceId]/assistant-actions": screen(administrationContexts.workspaceDetail),
+  "/workspaces/[workspaceId]/archive": screen(administrationContexts.workspaceDetail),
 });
 
 /** One form's authoring screens: the editor's own subtree. */

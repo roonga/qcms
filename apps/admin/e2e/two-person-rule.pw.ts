@@ -38,6 +38,10 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   const handle = openDbHandle(readFixtures().databaseUrl);
   try {
+    await handle.query(
+      `delete from control."approval_requests" where workspace_id = $1 and status = 'pending'`,
+      [WORKSPACE_ID],
+    );
     const updated = await handle.query(
       `update control."organization" set "requireSecondApprover" = false where id = $1`,
       [WORKSPACE_ID],
@@ -99,13 +103,24 @@ async function setTwoPersonSwitch(page: Page, on: boolean): Promise<void> {
   await waitForHydration(page);
   const control = twoPersonControl(page);
   // Click the label: React Aria hides the checkbox input, so input-targeted actions cannot reach it.
-  if ((await control.isChecked()) !== on) {
-    await page.getByText("Second approval in production", { exact: true }).click();
-  }
+  if ((await control.isChecked()) === on) return;
+  await page.getByText("Second approval in production", { exact: true }).click();
   await expect(control).toBeChecked({ checked: on });
   await page.getByRole("button", { name: "Save settings" }).click();
 
   await expect(page.getByText("the change is on the access audit", { exact: false })).toBeVisible();
+}
+
+async function clearPendingRequests(): Promise<void> {
+  const handle = openDbHandle(readFixtures().databaseUrl);
+  try {
+    await handle.query(
+      `delete from control."approval_requests" where workspace_id = $1 and status = 'pending'`,
+      [WORKSPACE_ID],
+    );
+  } finally {
+    await handle.close();
+  }
 }
 
 function twoPersonControl(page: Page) {
@@ -286,6 +301,63 @@ async function clearTwoPersonSwitch(): Promise<void> {
     await handle.close();
   }
 }
+
+test("the requester's own switch-off waits for an Approver, and they cannot decide it", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, APPROVER, approverSecret);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
+  await waitForHydration(page);
+  await expect(twoPersonControl(page)).toBeChecked();
+
+  await page.getByText("Second approval in production", { exact: true }).click();
+  await page.getByRole("button", { name: "Save settings" }).click();
+  await expect(page.getByText("waiting for an Approver", { exact: false })).toBeVisible();
+  await expect(twoPersonControl(page)).toBeChecked();
+  await expect(twoPersonControl(page)).toBeDisabled();
+
+  // Reload rather than trust the transition: the hold has to survive as stored state.
+  await page.reload();
+  await waitForHydration(page);
+  const held = page.getByTestId("qcms-second-approval-held");
+  await expect(held).toContainText("Needs an Approver");
+  await expect(held).toContainText("You asked for this, so somebody else decides it.");
+  await expect(twoPersonControl(page)).toBeChecked();
+  await expect(twoPersonControl(page)).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Save settings" })).toBeDisabled();
+  await expect(held.getByRole("button", { name: /^Approve/u })).toHaveCount(0);
+
+  await expectAxeClean(page, "the held switch-off");
+  await expectNoHorizontalScroll(page, "the held switch-off");
+
+  await page.goto(`/workspaces/${WORKSPACE_ID}/audit`);
+  await waitForHydration(page);
+  const requests = page.getByTestId("qcms-workspace-requests");
+  await expect(requests).toContainText("1 pending");
+  await expect(requests).toContainText("asked to turn Second approval off.");
+  await expect(requests).toContainText("You asked for this, so somebody else decides it.");
+  await expect(requests.getByRole("button", { name: /^Approve/u })).toHaveCount(0);
+
+  await clearPendingRequests();
+});
+
+test("archiving is refused inline while the workspace still owns forms", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, APPROVER, approverSecret);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/archive`);
+  await waitForHydration(page);
+
+  const blockers = page.getByTestId("qcms-archive-blockers");
+  await expect(blockers).toContainText("Cannot archive yet");
+  await expect(blockers).toContainText("still in this workspace");
+  await expect(blockers).toContainText("closed and never-published ones included");
+  await expect(page.getByRole("button", { name: /^Archive / })).toBeDisabled();
+  await expect(page.getByRole("textbox", { name: /^Type / })).toBeDisabled();
+
+  await expectAxeClean(page, "the refused archive");
+  await expectNoHorizontalScroll(page, "the refused archive");
+});
 
 test("the publish wizard says nothing about the rule once the switch is off", async ({ page }) => {
   test.setTimeout(300_000);

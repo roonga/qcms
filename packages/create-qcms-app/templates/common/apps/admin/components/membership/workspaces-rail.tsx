@@ -8,6 +8,7 @@ import {
   workspaceAreaLabel,
   WORKSPACE_SECTION_LABELS,
   WORKSPACE_SECTIONS,
+  WORKSPACE_SECTIONS_AT_ONE,
   workspaceSectionHref,
   type WorkspaceSection,
 } from "@/lib/membership/sections";
@@ -58,12 +59,17 @@ export function WorkspacesRail({
   section,
   sub,
   multiple = true,
+  archivable = multiple,
   filters,
 }: {
   readonly workspace?: WorkspaceRailRow;
   readonly section?: WorkspaceSection;
-  readonly sub?: WorkspaceSubView | undefined;
+  /** The caller can open more than one workspace. */
   readonly multiple?: boolean;
+  /** The installation holds two or more workspaces, however many of them the caller can open. */
+  readonly archivable?: boolean;
+  readonly sub?: WorkspaceSubView | undefined;
+  /** The current screen's own Filters form, where it has one. */
   readonly filters?: ReactNode;
 }) {
   const subject = t(workspaceAreaLabel(multiple));
@@ -86,36 +92,38 @@ export function WorkspacesRail({
         : {
             sections: (
               <RailTree
-                items={WORKSPACE_SECTIONS.map((entry) => {
-                  const row = SUB_ROWS[entry];
-                  const onSub = entry === section && row !== undefined && sub === row.view;
-                  return {
-                    key: `section:${entry}`,
-                    href: workspaceSectionHref(workspace.workspaceId, entry),
-                    label: t(WORKSPACE_SECTION_LABELS[entry]),
-                    current: entry === section && !onSub,
-                    ...(row === undefined
-                      ? {}
-                      : {
-                          expanded: true,
-                          children: (
-                            <ul className="qcms-rail__group">
-                              <li>
-                                <Link
-                                  href={row.href(workspace.workspaceId)}
-                                  className="qcms-rail__link"
-                                  data-rail-item={`section:${entry}:${row.view}`}
-                                  aria-label={t(row.name)}
-                                  {...(onSub ? { "aria-current": "page" as const } : {})}
-                                >
-                                  {t(row.label)}
-                                </Link>
-                              </li>
-                            </ul>
-                          ),
-                        }),
-                  };
-                })}
+                items={(archivable ? WORKSPACE_SECTIONS : WORKSPACE_SECTIONS_AT_ONE).map(
+                  (entry) => {
+                    const row = SUB_ROWS[entry];
+                    const onSub = entry === section && row !== undefined && sub === row.view;
+                    return {
+                      key: `section:${entry}`,
+                      href: workspaceSectionHref(workspace.workspaceId, entry),
+                      label: t(WORKSPACE_SECTION_LABELS[entry]),
+                      current: entry === section && !onSub,
+                      ...(row === undefined
+                        ? {}
+                        : {
+                            expanded: true,
+                            children: (
+                              <ul className="qcms-rail__group">
+                                <li>
+                                  <Link
+                                    href={row.href(workspace.workspaceId)}
+                                    className="qcms-rail__link"
+                                    data-rail-item={`section:${entry}:${row.view}`}
+                                    aria-label={t(row.name)}
+                                    {...(onSub ? { "aria-current": "page" as const } : {})}
+                                  >
+                                    {t(row.label)}
+                                  </Link>
+                                </li>
+                              </ul>
+                            ),
+                          }),
+                    };
+                  },
+                )}
               />
             ),
           })}

@@ -2,17 +2,25 @@ import { HelpTip } from "@/components/help-tip";
 import { EntityId } from "@/components/entity-id";
 import { Alert } from "@/components/kit";
 import { OperatorDateTime } from "@/components/operator-time";
+import { ResultPager } from "@/components/access/access-filters";
 import { t } from "@/lib/i18n/en";
-import { auditKindLabel } from "@/lib/membership/audit-wording";
+import { auditHref, type AuditFilters } from "@/lib/membership/audit-filters";
+import { auditKindLabel, isMirroredSiteAct } from "@/lib/membership/audit-wording";
 import type { AuditPage } from "@/lib/membership/types";
 
 /* Audit rows must contain acts only, with no answer values, respondent identifiers, or question text. */
 export function AuditPanel({
   audit,
   message,
+  filters,
+  basePath,
+  locale,
 }: {
   readonly audit: AuditPage | undefined;
   readonly message: string | undefined;
+  readonly filters: AuditFilters;
+  readonly basePath: string;
+  readonly locale: string;
 }) {
   return (
     <section aria-labelledby="qcms-audit-heading" className="flex min-w-0 flex-col gap-3">
@@ -31,7 +39,9 @@ export function AuditPanel({
 
       {audit !== undefined &&
         (audit.rows.length === 0 ? (
-          <p className="text-sm text-(--color-text-muted)">{t("membership.audit.none")}</p>
+          <p className="text-sm text-(--color-text-muted)">
+            {t(filters.activeCount > 0 ? "membership.audit.noneMatching" : "membership.audit.none")}
+          </p>
         ) : (
           <>
             <p className="text-xs text-(--color-text-muted)">
@@ -59,7 +69,16 @@ export function AuditPanel({
                       <td>
                         {row.actorEmail ?? t("membership.audit.unknownActor", { actor: row.actor })}
                       </td>
-                      <td>{auditKindLabel(row.kind)}</td>
+                      <td>
+                        <span className="flex flex-wrap items-center gap-2">
+                          {auditKindLabel(row.kind)}
+                          {isMirroredSiteAct(row.kind) && (
+                            <span className="qcms-tag qcms-tag--draft">
+                              {t("membership.audit.mirrored")}
+                            </span>
+                          )}
+                        </span>
+                      </td>
                       <td>{row.environment ?? t("membership.audit.empty")}</td>
                       <td>
                         {row.formId === null ? (
@@ -74,6 +93,13 @@ export function AuditPanel({
                 </tbody>
               </table>
             </div>
+            <ResultPager
+              page={audit.page}
+              pageSize={audit.pageSize}
+              total={audit.total}
+              locale={locale}
+              pageHref={(page) => auditHref(basePath, filters, { page })}
+            />
           </>
         ))}
     </section>

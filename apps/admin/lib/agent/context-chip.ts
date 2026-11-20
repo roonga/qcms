@@ -37,6 +37,7 @@ const CHIPS: Readonly<Record<AgentScreen, MessageKey>> = {
   "/workspaces/[workspaceId]/settings": "agent.context.workspace.settings",
   "/workspaces/[workspaceId]/audit": "agent.context.workspace.audit",
   "/workspaces/[workspaceId]/assistant-actions": "agent.context.workspace.assistantActions",
+  "/workspaces/[workspaceId]/archive": "agent.context.workspace.archive",
 };
 
 export function contextChipKey(screen: AgentScreen): MessageKey {

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { WorkspacesRail } from "@/components/membership/workspaces-rail";
 import type { WorkspaceSection } from "@/lib/membership/sections";
 import type { WorkspaceSubView } from "@/lib/membership/workspace-views";
+import { readMyAccess } from "@/lib/server/membership";
 import { requireAdminSession } from "@/lib/server/session";
 import { currentWorkspaceContext } from "@/lib/server/workspace-context";
 import { offersWorkspaceChoice } from "@/lib/shell/workspace-context";
@@ -18,12 +19,16 @@ export async function WorkspacesRailSlot({
   readonly filters?: ReactNode;
 }) {
   const session = await requireAdminSession();
-  const context = await currentWorkspaceContext(session);
+  const [context, access] = await Promise.all([
+    currentWorkspaceContext(session),
+    readMyAccess(session),
+  ]);
   const workspaceId = selected?.workspaceId ?? context.current?.workspaceId;
   const found = context.choices.find((entry) => entry.workspaceId === workspaceId);
   return (
     <WorkspacesRail
       multiple={offersWorkspaceChoice(context)}
+      archivable={access.ok && access.data.multipleWorkspaces}
       {...(found === undefined ? {} : { workspace: found })}
       {...(selected === undefined ? {} : { section: selected.section })}
       sub={sub}

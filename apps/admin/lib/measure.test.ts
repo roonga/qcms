@@ -36,7 +36,7 @@ describe("the route-to-cap table", () => {
     expect(Object.values(MEASURE_BY_ROUTE)).not.toContain("default");
   });
 
-  it("counts the drawings: twelve at 1600, seven at 40rem, six at 1080", () => {
+  it("counts the drawings: twelve at 1600, seven at 40rem, seven at 1080", () => {
     const measures = Object.values(MEASURE_BY_ROUTE);
     const count = (measure: string) => measures.filter((value) => value === measure).length;
 
@@ -47,9 +47,9 @@ describe("the route-to-cap table", () => {
     expect(count("list")).toBe(6);
 
     expect(count("ops")).toBe(2);
-    expect(count("log")).toBe(6);
+    expect(count("log")).toBe(7);
     expect(count("full")).toBe(2);
-    expect(measures).toHaveLength(35);
+    expect(measures).toHaveLength(36);
   });
 
   it("offers no cap that no route can take, which is what issue 668 left behind", () => {

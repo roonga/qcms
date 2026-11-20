@@ -344,6 +344,7 @@ const SCREENS: readonly ScreenRow[] = [
     "app/(shell)/@rail/workspaces/[workspaceId]/settings/page.tsx",
     "app/(shell)/@rail/workspaces/[workspaceId]/audit/page.tsx",
     "app/(shell)/@rail/workspaces/[workspaceId]/assistant-actions/page.tsx",
+    "app/(shell)/@rail/workspaces/[workspaceId]/archive/page.tsx",
   ].map((route) => ({
     route,
     model: "readonly" as const,
@@ -373,6 +374,11 @@ const SCREENS: readonly ScreenRow[] = [
     route: "app/(shell)/workspaces/[workspaceId]/settings/page.tsx",
     model: "action",
     why: "The two workspace settings, saved together by one press: a switch that saved on every toggle would put a row in the audit for a change nobody finished making.",
+  },
+  {
+    route: "app/(shell)/workspaces/[workspaceId]/archive/page.tsx",
+    model: "action",
+    why: "One irreversible act, held behind the typed workspace name: nothing on the screen is stored until it is pressed.",
   },
   {
     route: "app/(shell)/workspaces/[workspaceId]/audit/page.tsx",

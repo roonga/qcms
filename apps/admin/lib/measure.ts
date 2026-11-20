@@ -72,6 +72,7 @@ export const MEASURE_BY_ROUTE = {
   "/workspaces/[workspaceId]/settings": "log",
   "/workspaces/[workspaceId]/audit": "log",
   "/workspaces/[workspaceId]/assistant-actions": "log",
+  "/workspaces/[workspaceId]/archive": "log",
 } as const satisfies Record<string, Measure>;
 
 function segmentsOf(value: string): string[] {

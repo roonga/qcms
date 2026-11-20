@@ -60,12 +60,18 @@ const auditColumns = {
 export async function listAccessAudit(
   exec: Executor,
   workspaceId: string,
-  options: { readonly limit?: number; readonly offset?: number; readonly kind?: string } = {},
+  options: {
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly kind?: string;
+    readonly actor?: string;
+  } = {},
 ): Promise<{ readonly rows: readonly AccessAuditRow[]; readonly total: number }> {
-  const where =
-    options.kind === undefined
-      ? eq(accessAudit.workspaceId, workspaceId)
-      : and(eq(accessAudit.workspaceId, workspaceId), eq(accessAudit.kind, options.kind));
+  const where = and(
+    eq(accessAudit.workspaceId, workspaceId),
+    options.kind === undefined ? undefined : eq(accessAudit.kind, options.kind),
+    options.actor === undefined ? undefined : eq(accessAudit.actor, options.actor),
+  );
 
   const rows = await exec
     .select(auditColumns)
@@ -81,6 +87,22 @@ export async function listAccessAudit(
     .where(where);
 
   return { rows, total: counted[0]?.total ?? 0 };
+}
+
+/** The accounts one workspace's audit names, each once, most recently active first, at most `limit`. */
+export async function listAccessAuditActors(
+  exec: Executor,
+  workspaceId: string,
+  options: { readonly limit?: number } = {},
+): Promise<readonly string[]> {
+  const rows = await exec
+    .select({ actor: accessAudit.actor })
+    .from(accessAudit)
+    .where(eq(accessAudit.workspaceId, workspaceId))
+    .groupBy(accessAudit.actor)
+    .orderBy(desc(sql`max(${accessAudit.occurredAt})`), accessAudit.actor)
+    .limit(options.limit ?? 100);
+  return rows.map((row) => row.actor);
 }
 
 /** How many rows one workspace's audit holds, by kind. */
