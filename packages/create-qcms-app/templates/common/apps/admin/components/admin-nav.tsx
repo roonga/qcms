@@ -10,6 +10,8 @@ import {
   AUTHORING_PATH,
   OPERATIONS_PATH,
   permitsMode,
+  SITE_CONFIGURATION_LANDING,
+  SITE_CONFIGURATION_PATH,
   WORKSPACES_PATH,
   type ShellCapabilities,
 } from "@/lib/shell/modes";
@@ -34,12 +36,15 @@ function NavLink({
   href,
   label,
   pathname,
+  area = href,
 }: {
   readonly href: string;
   readonly label: string;
   readonly pathname: string;
+  /** The address prefix the item stands for, where it lands somewhere beneath it. */
+  readonly area?: string;
 }) {
-  const active = isActive(pathname, href);
+  const active = isActive(pathname, area);
   return (
     <Link href={href} aria-current={active ? "page" : undefined} className="qcms-nav__link">
       {label}
@@ -73,6 +78,16 @@ export function AdminNav({
             <NavLink
               href={WORKSPACES_PATH}
               label={t(workspaceAreaLabel(multipleWorkspaces))}
+              pathname={pathname}
+            />
+          </li>
+        )}
+        {capabilities.siteConfiguration && (
+          <li>
+            <NavLink
+              href={SITE_CONFIGURATION_LANDING}
+              area={SITE_CONFIGURATION_PATH}
+              label={t("site.title")}
               pathname={pathname}
             />
           </li>

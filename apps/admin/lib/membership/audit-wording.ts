@@ -52,6 +52,7 @@ interface ActionWording {
 const ACTIONS: Readonly<Record<string, ActionWording>> = {
   "form.create": { act: "membership.agentAudit.act.form.create", detail: "formId" },
   "apply-draft": { act: "membership.agentAudit.act.apply-draft" },
+  "apply-draft.adopted": { act: "membership.agentAudit.act.apply-draft.adopted" },
   "form.saveDraft": { act: "membership.agentAudit.act.form.saveDraft", detail: "formId" },
   "form.publish": { act: "membership.agentAudit.act.form.publish", detail: "version" },
   "form.release": { act: "membership.agentAudit.act.form.release", detail: "version" },
@@ -140,6 +141,9 @@ const SCREEN_LABELS: Readonly<Record<AgentScreen, MessageKey>> = {
   "/responses": "nav.operations",
   "/responses/erasures": "operations.queue.erasureLog",
   "/settings": "settings.title",
+  "/site/accounts": "site.accounts.title",
+  "/site/accounts/new": "site.accounts.new",
+  "/site/accounts/[accountId]": "site.accounts.account",
   "/site/shared-library": "site.library.title",
   "/webhooks": "operations.queue.deliveryFailures",
   "/workspaces": "membership.area.title",

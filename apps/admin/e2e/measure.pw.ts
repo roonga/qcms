@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
-import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { accountIdOf, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { submitResponse } from "./support/ops.js";
 
@@ -35,9 +35,10 @@ const CAP_PX = {
 
 type Cap = keyof typeof CAP_PX;
 
-type Screen = { readonly path: string; readonly cap: Cap };
+/** `marker` is a selector only the screen itself renders, so a refusal cannot be measured as the screen. */
+type Screen = { readonly path: string; readonly cap: Cap; readonly marker?: string };
 
-function screens(sessionId: string): readonly Screen[] {
+function screens(sessionId: string, accountId: string): readonly Screen[] {
   return [
     { path: "/forms", cap: "list" },
     { path: "/forms/new", cap: "prose" },
@@ -67,6 +68,13 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/responses", cap: "list" },
     { path: "/responses/erasures", cap: "log" },
     { path: "/settings", cap: "prose" },
+    { path: "/site/accounts", cap: "list", marker: '[data-testid="qcms-accounts-table"]' },
+    { path: "/site/accounts/new", cap: "prose", marker: 'form input[name="email"]' },
+    {
+      path: `/site/accounts/${accountId}`,
+      cap: "ops",
+      marker: '[data-testid="qcms-account-details"]',
+    },
     { path: "/site/shared-library", cap: "prose" },
     { path: "/webhooks", cap: "wide" },
 
@@ -92,11 +100,19 @@ type Measured = {
   readonly className: string;
 };
 
-async function measure(page: Page, path: string): Promise<Measured> {
+async function measure(page: Page, screen: Screen): Promise<Measured> {
+  const { path } = screen;
   await setScreenEnvironment(page, path);
   await page.goto(path);
   const main = page.locator("main#main-content");
   await expect(main, `${path} renders the authenticated shell`).toHaveCount(1);
+  await expect(
+    page.getByTestId("qcms-denied-recovery"),
+    `${path} is reached by this account, not refused`,
+  ).toHaveCount(0);
+  if (screen.marker !== undefined) {
+    await expect(page.locator(screen.marker), `${path} renders its own content`).toBeVisible();
+  }
   return main.evaluate((element) => {
     const box = element.getBoundingClientRect();
     // Subtract the measured rail only when it sits beside the column; below the breakpoint it consumes height instead.
@@ -118,9 +134,12 @@ async function measure(page: Page, path: string): Promise<Measured> {
 
 let totpSecret = "";
 let sessionId = "";
+let accountId = "";
 
 test.beforeAll(async () => {
+  // A Site administrator, or the three Site configuration rows measure the denied recovery instead.
   await createTestAdmin(EMAIL, { siteAdministrator: true });
+  accountId = await accountIdOf(EMAIL);
 });
 
 test("657 caps each screen at the width its own POC draws, at 1280", async ({ page }) => {
@@ -133,8 +152,8 @@ test("657 caps each screen at the width its own POC draws, at 1280", async ({ pa
   ]);
 
   await page.setViewportSize({ width: 1280, height: 900 });
-  for (const screen of screens(sessionId)) {
-    const measured = await measure(page, screen.path);
+  for (const screen of screens(sessionId, accountId)) {
+    const measured = await measure(page, screen);
 
     expect
       .soft(measured.cap, `${screen.path} caps at the ${screen.cap} measure`)
@@ -335,10 +354,10 @@ test("657 leaves every screen the same width at 390, because a cap is fluid belo
   await page.setViewportSize({ width: 390, height: 900 });
 
   const widths = new Map<string, number>();
-  for (const screen of screens(sessionId)) {
-    const measured = await measure(page, screen.path);
+  for (const screen of screens(sessionId, accountId)) {
+    const measured = await measure(page, screen);
     expect.soft(measured.width, `${screen.path} is fluid at 390`).toBe(measured.available);
     widths.set(screen.path, measured.width);
   }
-  expect(new Set(widths.values()).size, "all thirty-four screens measure one width at 390").toBe(1);
+  expect(new Set(widths.values()).size, "all thirty-seven screens measure one width at 390").toBe(1);
 });

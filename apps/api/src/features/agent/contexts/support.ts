@@ -38,6 +38,7 @@ export const ScreenParams = z.strictObject({
   questionId: z.string().max(200).optional(),
   workspaceId: z.string().max(200).optional(),
   sessionId: z.string().max(200).optional(),
+  accountId: z.string().max(200).optional(),
   version: z.number().int().min(1).max(1_000_000).optional(),
   /** The response list's own four filters, which take no answer value. */
   filters: z
@@ -75,7 +76,7 @@ export const FACT_ROW_LIMIT = 50;
 
 export const forbidden = (reason: string): ApiError => new ApiError("FORBIDDEN", 403, reason);
 
-const fail = {
+export const fail = {
   malformed: (what: string): ApiError =>
     new ApiError("INVALID_ID", 400, `Malformed ${what} id for this screen`),
   missing: (what: string): ApiError =>

@@ -96,7 +96,8 @@ const AccessGroupView = z.object({
   roles: z.array(z.string()),
   environments: z.array(z.string()),
   externalGroupId: z.string().nullable(),
-  holders: z.array(z.object({ userId: z.string(), email: z.string() })),
+  // `suspended`: held until another administrator re-confirms it, so it grants nothing yet.
+  holders: z.array(z.object({ userId: z.string(), email: z.string(), suspended: z.boolean() })),
 });
 
 export const AccessGroupListResponse = z
@@ -116,6 +117,7 @@ export const WorkspaceMemberListResponse = z
         email: z.string(),
         name: z.string(),
         role: z.string(),
+        status: z.enum(["active", "unclaimed", "disabled"]),
         groups: z.array(z.string()),
       }),
     ),

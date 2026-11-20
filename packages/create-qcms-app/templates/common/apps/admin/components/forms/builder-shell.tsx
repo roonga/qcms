@@ -15,16 +15,19 @@ import {
 import { Alert, Button, Tab, TabList, TabPanel, Tabs } from "@/components/kit";
 import { BuilderPreview, type BuilderPreviewSource } from "@/components/forms/builder-preview";
 import { SelectedQuestion } from "@/components/forms/selected-question";
-import { isProseTurn, ConversationProvider, useConversation } from "@/lib/agent/conversation";
+import { ConversationProvider } from "@/lib/agent/conversation";
 import { clearBuilderFacts } from "@/lib/agent/builder-facts-store";
 import { builderConversationKey } from "@/lib/agent/conversation-state";
 import { BUILDER_PANE_WIDTH, BUILDER_TABS_QUERY } from "@/lib/agent/panel";
 import { builderPublishHref, editByHandHref, sharePreviewHref } from "@/lib/forms/build-return";
 import type { StartDraftState } from "@/lib/forms/builder-state";
+import type { DraftForm } from "@/lib/forms/types";
 import { useIsHydrated } from "@/lib/hydrated";
 import { t } from "@/lib/i18n/en";
 import { setBuilderSubjectName } from "@/lib/shell/builder-subject";
 import { NEW_FORM_BUILD_PATH, builderPath } from "@/lib/shell/modes";
+
+import { BuilderAssistant, type BuilderEditActions } from "./builder-assistant";
 
 type PaneKey = "assistant" | "preview";
 
@@ -44,40 +47,36 @@ function notNarrowOnServer(): boolean {
   return false;
 }
 
-function AssistantPane({
-  formId,
-  name,
-}: {
+/** What the assistant pane works on: the form, if one exists yet, and how its edits are saved. */
+interface AssistantSubject {
   readonly formId: string | null;
   readonly name: string;
-}) {
-  const conversation = useConversation();
-  const turns = conversation.turns.filter(isProseTurn);
-  const subject = useRef<HTMLParagraphElement>(null);
+  readonly workspaceId: string;
+  readonly draft: DraftForm | null;
+  readonly edits: BuilderEditActions | undefined;
+}
+
+function AssistantPane({ subject }: { readonly subject: AssistantSubject }) {
+  const heading = useRef<HTMLParagraphElement>(null);
   return (
     <div className="qcms-builder__pane-body" data-testid="qcms-builder-assistant">
       <p
-        ref={subject}
+        ref={heading}
         tabIndex={-1}
         className="text-sm text-(--color-text-muted)"
         data-testid="qcms-builder-assistant-subject"
       >
-        {formId === null
+        {subject.formId === null
           ? t("builder.assistant.subjectNew")
-          : t("builder.assistant.subject", { name })}
+          : t("builder.assistant.subject", { name: subject.name })}
       </p>
-      <SelectedQuestion returnFocusTo={subject} />
-      {turns.length === 0 ? (
-        <p data-testid="qcms-builder-assistant-empty">{t("builder.assistant.empty")}</p>
-      ) : (
-        <ol className="qcms-builder__turns" data-testid="qcms-builder-turns">
-          {turns.map((turn, index) => (
-            <li key={`${String(index)}:${turn.role}`} data-role={turn.role}>
-              {turn.content}
-            </li>
-          ))}
-        </ol>
-      )}
+      <SelectedQuestion returnFocusTo={heading} />
+      <BuilderAssistant
+        formId={subject.formId}
+        workspaceId={subject.workspaceId}
+        draft={subject.draft}
+        actions={subject.edits}
+      />
     </div>
   );
 }
@@ -109,14 +108,13 @@ function PreviewPane({
 }
 
 function Panes({
-  formId,
-  name,
+  subject,
   source,
 }: {
-  readonly formId: string | null;
-  readonly name: string;
+  readonly subject: AssistantSubject;
   readonly source: BuilderPreviewSource | undefined;
 }) {
+  const formId = subject.formId;
   const narrow = useSyncExternalStore(subscribeNarrow, isNarrow, notNarrowOnServer);
   const [selected, setSelected] = useState<PaneKey>("assistant");
   const style: CSSProperties & Record<"--qcms-builder-pane-w", string> = {
@@ -141,7 +139,7 @@ function Panes({
           </Tab>
         </TabList>
         <TabPanel id="assistant" className="qcms-builder__tabpanel">
-          <AssistantPane formId={formId} name={name} />
+          <AssistantPane subject={subject} />
         </TabPanel>
         <TabPanel id="preview" className="qcms-builder__tabpanel">
           <PreviewPane formId={formId} source={source} />
@@ -159,7 +157,7 @@ function Panes({
         <h2 id="qcms-builder-assistant-heading" className="qcms-builder__pane-heading">
           {t("builder.pane.assistant")}
         </h2>
-        <AssistantPane formId={formId} name={name} />
+        <AssistantPane subject={subject} />
       </section>
       <section
         className="qcms-builder__pane qcms-builder__pane--preview"
@@ -285,6 +283,8 @@ export function BuilderShell({
   canPublish,
   preview,
   startDraft,
+  draft = null,
+  edits,
 }: {
   readonly formId: string | null;
   readonly name: string;
@@ -295,6 +295,10 @@ export function BuilderShell({
   readonly preview?: BuilderPreviewSource;
   /** Present when the form has no open draft, which has to be started before the builder edits it. */
   readonly startDraft?: () => Promise<StartDraftState>;
+  /** The open draft, which names the form on a card. */
+  readonly draft?: DraftForm | null;
+  /** Present for an existing form: the builder's edits and their Undo save through these. */
+  readonly edits?: BuilderEditActions;
 }): ReactNode {
   useEffect(() => {
     setBuilderSubjectName(name);
@@ -316,7 +320,7 @@ export function BuilderShell({
           userId={userId}
           storageKey={builderConversationKey(userId, workspaceId, formId)}
         >
-          <Panes formId={formId} name={name} source={preview} />
+          <Panes subject={{ formId, name, workspaceId, draft, edits }} source={preview} />
         </ConversationProvider>
       ) : (
         <StartDraft start={startDraft} />

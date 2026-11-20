@@ -24,6 +24,9 @@ export const AGENT_SCREENS = [
   "/responses",
   "/responses/erasures",
   "/settings",
+  "/site/accounts",
+  "/site/accounts/new",
+  "/site/accounts/[accountId]",
   "/site/shared-library",
   "/webhooks",
   "/workspaces",
@@ -60,12 +63,19 @@ export interface ResolvedScreen {
   readonly params: AgentScreenParams;
 }
 
+/** The screen a turn names: a dock screen, or the agent builder's own, which the dock never resolves. */
+export interface ConversationScreen {
+  readonly screen: string;
+  readonly params: AgentScreenParams;
+}
+
 const PLACEHOLDERS: Readonly<Record<string, keyof AgentScreenParams>> = {
   "[formId]": "formId",
   "[questionId]": "questionId",
   "[workspaceId]": "workspaceId",
   "[sessionId]": "sessionId",
   "[version]": "version",
+  "[accountId]": "accountId",
 };
 
 function segmentsOf(path: string): readonly string[] {
@@ -117,7 +127,7 @@ export function conversationSubject(resolved: ResolvedScreen | undefined): strin
 const IDENTITY_IDS = ["formId", "questionId", "workspaceId", "sessionId", "version"] as const;
 
 /** One screen as a waiting card's binding reads it: the route and its own ids, not its filters. */
-export function screenIdentity(resolved: ResolvedScreen | undefined): string {
+export function screenIdentity(resolved: ConversationScreen | undefined): string {
   if (resolved === undefined) return "none";
   const ids = IDENTITY_IDS.map((key) => `${key}=${String(resolved.params[key] ?? "")}`);
   return [resolved.screen, ...ids].join("|");

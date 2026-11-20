@@ -35,6 +35,9 @@ export const SCREEN_IDS = [
   "/responses",
   "/responses/erasures",
   "/settings",
+  "/site/accounts",
+  "/site/accounts/new",
+  "/site/accounts/[accountId]",
   "/site/shared-library",
   "/webhooks",
   "/workspaces",
@@ -97,6 +100,10 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/responses": screen(operationsContexts.responsePicker),
   "/responses/erasures": screen(operationsContexts.erasures),
   "/settings": screen(administrationContexts.settings),
+  // The directory is what all three read; the detail route's id names one account inside it.
+  "/site/accounts": screen(administrationContexts.siteAccounts),
+  "/site/accounts/new": screen(administrationContexts.siteAccounts),
+  "/site/accounts/[accountId]": screen(administrationContexts.siteAccountDetail),
   // The shared question library is chosen from the workspace list, which is its facts.
   "/site/shared-library": screen(administrationContexts.workspaces),
   "/webhooks": screen(operationsContexts.deadLetters),

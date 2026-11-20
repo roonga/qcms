@@ -6,7 +6,12 @@ import { rulesNotRun } from "@roonga/qcms-e2e-support/axe";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
-import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import {
+  TEST_PASSWORD,
+  accountIdOf,
+  createTestAdmin,
+  uniqueAdminEmail,
+} from "./support/admin-account.js";
 import {
   accountTrigger,
   activeElementId,
@@ -257,6 +262,9 @@ test("the authenticated shell states have zero violations", async ({ page }) => 
     "/workspaces",
     "/workspaces/all",
     "/settings",
+    "/site/accounts",
+    "/site/accounts/new",
+    `/site/accounts/${await accountIdOf(EMAIL)}`,
     "/site/shared-library",
   ]) {
     await page.goto(path);

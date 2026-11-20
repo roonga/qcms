@@ -437,6 +437,14 @@ export const SURFACES: readonly Surface[] = [
   // An account no probe can find, so a caller the gate admits reaches a 404 and never
   // disables, reactivates or resets an account a later probe depends on.
   {
+    name: "GET /admin/accounts/{id}",
+    row: "membership",
+    group: "admin",
+    method: "GET",
+    path: () => "/admin/accounts/au_matrix_missing",
+    anonymousReachable: false,
+  },
+  {
     name: "GET /admin/accounts/{id}/holdings",
     row: "membership",
     group: "admin",

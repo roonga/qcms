@@ -124,10 +124,9 @@ test("confirms all six kinds one card at a time, each read back by its own panel
   await propose(page, "propose-member-role", `make that account an owner ${naming(ALONE)}`);
   const toOwner = ((await card(page).textContent()) ?? "").includes("to forms.owner");
   await confirm(page, /^Done\./u);
-  await expect(members(page).getByRole("row").filter({ hasText: holder })).toContainText(
-    toOwner ? "Workspace administrator" : "No access",
-    { timeout: 30_000 },
-  );
+  await expect(
+    members(page).getByRole("row").filter({ hasText: holder }).getByRole("cell").nth(1),
+  ).toHaveText(toOwner ? "Yes" : "No", { timeout: 30_000 });
 
   await openWorkspace(page);
   await propose(page, "propose-access-revoke", `take the group back again ${naming(ALONE)}`);

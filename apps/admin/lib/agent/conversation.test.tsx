@@ -11,6 +11,12 @@ import {
   type AgentTurnRecord,
 } from "./conversation";
 
+function turnLabel(turn: AgentTurnRecord): string {
+  if (isProseTurn(turn)) return turn.content;
+  if (turn.role === "edit-result") return "edits";
+  return turn.proposalId;
+}
+
 function Probe({ append }: { readonly append?: readonly AgentTurnRecord[] }) {
   const conversation = useConversation();
   return (
@@ -19,11 +25,7 @@ function Probe({ append }: { readonly append?: readonly AgentTurnRecord[] }) {
       <span data-testid="id">{conversation.id}</span>
       <span data-testid="visit">{conversation.visitId}</span>
       <span data-testid="dropped">{conversation.dropped}</span>
-      <span data-testid="turns">
-        {conversation.turns
-          .map((turn) => (isProseTurn(turn) ? turn.content : turn.proposalId))
-          .join("|")}
-      </span>
+      <span data-testid="turns">{conversation.turns.map(turnLabel).join("|")}</span>
       <button
         type="button"
         data-testid="append"

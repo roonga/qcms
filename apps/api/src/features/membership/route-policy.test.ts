@@ -292,6 +292,7 @@ describe("every row names an action the policy declares", () => {
     ).toEqual([
       "GET /admin/accounts",
       "POST /admin/accounts",
+      "GET /admin/accounts/{id}",
       "POST /admin/accounts/{id}/demote",
       "POST /admin/accounts/{id}/disable",
       "GET /admin/accounts/{id}/holdings",

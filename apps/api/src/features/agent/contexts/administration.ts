@@ -1,11 +1,17 @@
 import { z } from "zod";
 
 import {
+  accountStatusOf,
+  findAccountById,
   findAdminById,
   listAccessAudit,
   listAccessGroups,
+  listAccountDirectory,
   listWorkspaceMembers,
   listWorkspaces,
+  SITE_ADMINISTRATOR_ROLE,
+  type AccountDirectoryRow,
+  type Executor,
 } from "@roonga/qcms-db";
 
 import { ApiError } from "../../../errors.js";
@@ -13,6 +19,8 @@ import { resolveCallerWorkspaces } from "../../membership/resolver.js";
 import {
   FACT_ROW_LIMIT,
   Instant,
+  fail,
+  forbidden,
   iso,
   requireCell,
   requireWorkspaceId,
@@ -209,8 +217,82 @@ async function buildSettings(input: ScreenBuildInput): Promise<z.infer<typeof se
   };
 }
 
+const AccountFact = z.strictObject({
+  accountId: z.string(),
+  email: z.string(),
+  name: z.string(),
+  siteAdministrator: z.boolean(),
+  status: z.string(),
+  createdAt: Instant,
+  claimedAt: Instant,
+  disabledAt: Instant,
+});
+
+export const siteAccountsFacts = z.strictObject({
+  accounts: z.array(AccountFact),
+  total: z.number(),
+  /** The account the detail route names, and `null` on the two screens that name none. */
+  account: AccountFact.nullable(),
+});
+
+function accountFact(row: AccountDirectoryRow): z.infer<typeof AccountFact> {
+  return {
+    accountId: row.userId,
+    email: row.email,
+    name: row.name,
+    siteAdministrator: row.role === SITE_ADMINISTRATOR_ROLE,
+    status: accountStatusOf(row),
+    createdAt: iso(row.createdAt),
+    claimedAt: iso(row.claimedAt),
+    disabledAt: iso(row.disabledAt),
+  };
+}
+
+async function namedAccount(
+  exec: Executor,
+  accountId: string | undefined,
+): Promise<AccountDirectoryRow | undefined> {
+  if (accountId === undefined || accountId === "") return undefined;
+  const row = await findAccountById(exec, accountId);
+  if (row === undefined) throw new ApiError("ACCOUNT_NOT_FOUND", 404, "No such account");
+  return row;
+}
+
+/** The installation claim alone, as `features/membership/route-policy.ts` gives the account routes: no workspace grant reaches Site configuration. */
+async function siteAccountsFor(
+  input: ScreenBuildInput,
+  accountId: string | undefined,
+): Promise<z.infer<typeof siteAccountsFacts>> {
+  if (!input.principal.claim) throw forbidden("Site configuration is for Site administrators");
+  const exec = input.deps.databases.control;
+  const [directory, named] = await Promise.all([
+    listAccountDirectory(exec, { limit: FACT_ROW_LIMIT, offset: 0 }),
+    namedAccount(exec, accountId),
+  ]);
+  return {
+    accounts: directory.rows.map(accountFact),
+    total: directory.total,
+    account: named === undefined ? null : accountFact(named),
+  };
+}
+
+function buildSiteAccounts(input: ScreenBuildInput): Promise<z.infer<typeof siteAccountsFacts>> {
+  return siteAccountsFor(input, undefined);
+}
+
+async function buildSiteAccountDetail(
+  input: ScreenBuildInput,
+): Promise<z.infer<typeof siteAccountsFacts>> {
+  if (!input.principal.claim) throw forbidden("Site configuration is for Site administrators");
+  const accountId = input.params.accountId;
+  if (accountId === undefined || accountId === "") throw fail.missing("account");
+  return siteAccountsFor(input, accountId);
+}
+
 export const administrationContexts = {
   workspaces: { facts: workspacesFacts, build: buildWorkspaces },
+  siteAccounts: { facts: siteAccountsFacts, build: buildSiteAccounts },
+  siteAccountDetail: { facts: siteAccountsFacts, build: buildSiteAccountDetail },
   workspaceDetail: { facts: workspaceDetailFacts, build: buildWorkspaceDetail },
   myAccess: { facts: myAccessFacts, build: buildMyAccess },
   settings: { facts: settingsFacts, build: buildSettings },

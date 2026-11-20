@@ -1,5 +1,4 @@
 import { t, type MessageKey } from "../i18n/en.ts";
-import { SHARED_LIBRARY_PATH } from "../membership/site.ts";
 import {
   ALL_WORKSPACES_SEGMENT,
   WORKSPACE_SECTION_LABELS,
@@ -23,6 +22,7 @@ export interface CrumbNames {
   readonly workspace?: string;
   /** The Workspaces area's own name, which follows from how many workspaces the caller may open. */
   readonly workspaceArea?: string;
+  readonly account?: string;
 }
 
 const FORM_SECTIONS: Readonly<Record<string, MessageKey>> = {
@@ -112,6 +112,17 @@ function workspaces(rest: readonly string[], names: CrumbNames): Crumb[] {
   return [area, workspace, { label: t(WORKSPACE_SECTION_LABELS[section]) }];
 }
 
+function site(rest: readonly string[], names: CrumbNames): Crumb[] {
+  const area: Crumb = { label: t("site.title") };
+  const [section, item] = rest;
+  if (section === "shared-library") return [area, { label: t("site.library.title") }];
+  if (section !== "accounts") return [area];
+  const accounts: Crumb = { label: t("site.accounts.title"), href: "/site/accounts" };
+  if (item === undefined) return [area, accounts];
+  if (item === "new") return [area, accounts, { label: t("site.accounts.new") }];
+  return [area, accounts, { label: names.account ?? decode(item) }];
+}
+
 /**
  * The breadcrumb for an address: area, then section, then item. Every crumb but the last
  * links; the last is the page itself.
@@ -140,10 +151,7 @@ export function breadcrumbTrail(pathname: string, names: CrumbNames = {}): reado
       trail = workspaces(rest, names);
       break;
     case "site":
-      trail = [
-        { label: t("site.title"), href: SHARED_LIBRARY_PATH },
-        { label: t("site.library.title") },
-      ];
+      trail = site(rest, names);
       break;
     case "settings":
       trail = [{ label: t("settings.title") }];
