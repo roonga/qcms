@@ -3136,7 +3136,8 @@ export const messages = {
   "site.requests.scope.site": "Site",
   "site.requests.scope.workspace": "Workspace",
   "site.requests.scope.workspaceNamed": "Workspace: {workspace}",
-  "site.requests.blocked.own": "You made this request, so another Site administrator must approve it.",
+  "site.requests.blocked.own":
+    "You made this request, so another Site administrator must approve it.",
   "site.requests.blocked.target":
     "You are the person this request is about, so another Site administrator approves it.",
   "site.requests.blocked.expired": "This request expired on {date} and can no longer be approved.",
@@ -3154,7 +3155,8 @@ export const messages = {
   "site.requests.status.rejected": "Rejected",
   "site.requests.status.expired": "Expired",
   "site.requests.status.lapsed": "Ended undecided",
-  "site.requests.error.expired": "That request is more than 7 days old and can no longer be approved.",
+  "site.requests.error.expired":
+    "That request is more than 7 days old and can no longer be approved.",
   "site.requests.error.decided": "That request has already been decided.",
   "site.requests.error.notFound": "No such request.",
 

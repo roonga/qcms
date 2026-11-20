@@ -448,5 +448,17 @@ test.describe.serial("conditional form journey", () => {
       await continueOrSubmit(page);
       await expect(page).toHaveURL(/\/done/);
     });
+
+    // Last, because a second workspace changes the area's name and adds the switcher.
+    test("creates a workspace that opens with the four starter groups", async ({ page }) => {
+      const name = `Full stack workspace ${RUN}`;
+      await page.goto("/workspaces/new");
+      await waitForAdminHydration(page);
+      await page.getByRole("textbox", { name: /^Workspace name/ }).fill(name);
+      await page.getByRole("button", { name: "Create workspace" }).click();
+      const created = page.getByTestId("qcms-workspace-created");
+      await expect(created).toContainText(`Workspace ${name} created.`);
+      await expect(created.getByTestId("qcms-starter-groups").getByRole("row")).toHaveCount(5);
+    });
   });
 });
