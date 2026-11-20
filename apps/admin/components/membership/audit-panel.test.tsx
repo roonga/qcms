@@ -23,7 +23,15 @@ function row(overrides: Partial<AuditRow> = {}): AuditRow {
 }
 
 function page(rows: readonly AuditRow[], overrides: Partial<AuditPage> = {}): AuditPage {
-  return { workspaceId: "ws_1", rows, page: 1, pageSize: 50, total: rows.length, ...overrides };
+  return {
+    workspaceId: "ws_1",
+    rows,
+    page: 1,
+    pageSize: 50,
+    total: rows.length,
+    actors: [],
+    ...overrides,
+  };
 }
 
 function renderPanel(
@@ -71,29 +79,24 @@ describe("the workspace audit panel", () => {
     expect(screen.getByText("An act on an account")).toBeTruthy();
   });
 
-  it("narrows the page to one account and says how many rows that left", () => {
-    renderPanel(page([row(), row({ id: "aa_2", actorEmail: "sam@qcms.test" })]), {
-      person: "sam@qcms.test",
-    });
-    expect(screen.getByTestId("qcms-audit-narrowed").textContent).toBe(
-      "1 of the 2 rows on this page are sam@qcms.test.",
-    );
-    expect(screen.getAllByRole("row")).toHaveLength(2);
-    expect(screen.queryByText("grace@qcms.test")).toBeNull();
+  it("draws every row the API sent, because the API did the narrowing", () => {
+    renderPanel(page([row(), row({ id: "aa_2" })], { total: 2 }), { actor: "usr_1" });
+    expect(screen.getAllByRole("row")).toHaveLength(3);
+    expect(screen.queryByText(/on this page/u)).toBeNull();
   });
 
-  it("says so when the chosen account has no row on this page", () => {
-    renderPanel(page([row()]), { person: "nobody@qcms.test" });
-    expect(screen.getByTestId("qcms-audit-narrowed").textContent).toBe(
-      "No row on this page is nobody@qcms.test.",
-    );
-    expect(screen.queryByRole("table")).toBeNull();
+  it("says nothing matches, rather than nothing recorded, over a filtered empty audit", () => {
+    renderPanel(page([]), { actor: "usr_9" });
+    expect(
+      screen.getByText("No row in this workspace's audit matches these filters."),
+    ).toBeTruthy();
+    expect(screen.queryByText("Nothing has been recorded in this workspace yet.")).toBeNull();
   });
 
   it("pages the audit, keeping the filters on the next page's address", () => {
-    renderPanel(page([row()], { total: 120, pageSize: 50 }), { kind: "grant" });
+    renderPanel(page([row()], { total: 120, pageSize: 50 }), { kind: "grant", actor: "usr_1" });
     const next = screen.getByRole("link", { name: "Next" });
-    expect(next.getAttribute("href")).toBe(`${BASE}?kind=grant&page=2`);
+    expect(next.getAttribute("href")).toBe(`${BASE}?kind=grant&actor=usr_1&page=2`);
     expect(screen.getByText("1 to 50 of 120")).toBeTruthy();
   });
 

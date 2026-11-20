@@ -314,6 +314,8 @@ test("the requester's own switch-off waits for an Approver, and they cannot deci
   await page.getByText("Second approval in production", { exact: true }).click();
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(page.getByText("waiting for an Approver", { exact: false })).toBeVisible();
+  await expect(twoPersonControl(page)).toBeChecked();
+  await expect(twoPersonControl(page)).toBeDisabled();
 
   // Reload rather than trust the transition: the hold has to survive as stored state.
   await page.reload();

@@ -49,12 +49,20 @@ export function WorkspaceSettingsPanel({
 }) {
   const [name, setName] = useState(workspace.name);
   const [renameState, setRenameState] = useState<MembershipActionState>({ status: "idle" });
-  const [twoPerson, setTwoPerson] = useState(settings.requireSecondApprover);
+  const on = settings.requireSecondApprover;
+  const [twoPerson, setTwoPerson] = useState(on);
+  // Follow the stored rule whenever a refresh brings a new rule or a new hold, so the box never
+  // outlives either.
+  const stored = `${String(on)}:${held?.request.requestId ?? ""}`;
+  const [shown, setShown] = useState(stored);
+  if (shown !== stored) {
+    setShown(stored);
+    setTwoPerson(on);
+  }
   const [state, setState] = useState<MembershipActionState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
 
   const { workspaceId } = settings;
-  const on = settings.requireSecondApprover;
   const refusedTurnOn = !on && settings.nobodyElseCouldApprove;
   const ownHold = held !== undefined && held.request.requestedBy === viewerId;
   const empty = name.trim() === "";
@@ -120,6 +128,7 @@ export function WorkspaceSettingsPanel({
         </h2>
 
         {state.status === "error" && <Alert variant="error">{state.message}</Alert>}
+        {state.status === "held" && <Alert variant="info">{state.message}</Alert>}
         {state.status === "done" && <Alert variant="success">{state.message}</Alert>}
 
         {on && settings.nobodyElseCouldApprove && (
@@ -252,7 +261,14 @@ export function WorkspaceSettingsPanel({
             isDisabled={pending || held !== undefined || twoPerson === on}
             onPress={() => {
               startTransition(async () => {
-                setState(await save(workspaceId, { requireSecondApprover: twoPerson }));
+                const next = await save(workspaceId, { requireSecondApprover: twoPerson });
+                setState(next);
+                // A held or refused change leaves the stored rule as it was.
+                setTwoPerson(
+                  next.status === "done" && next.requireSecondApprover !== undefined
+                    ? next.requireSecondApprover
+                    : on,
+                );
               });
             }}
           >

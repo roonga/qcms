@@ -1987,6 +1987,8 @@ export const messages = {
   "agent.card.note.unresolvedReference": "This step needed a value an earlier step did not report.",
   "agent.card.note.unreachable": "The request did not reach the server.",
   "agent.card.note.stale": "This proposal is more than ten minutes old.",
+  "agent.card.note.heldForApprover":
+    "Nothing has changed yet. An Approver has to approve this before it takes effect.",
   "agent.card.note.draftMoved":
     "This form's saved draft has changed since the plan was proposed. Ask the assistant again.",
   "agent.card.note.notWired": "This screen's control is not wired to the assistant yet.",
@@ -2609,10 +2611,7 @@ export const messages = {
   "membership.audit.filter.kindAll": "All acts",
   "membership.audit.filter.person": "Person",
   "membership.audit.filter.personAny": "Anyone",
-  "membership.audit.filter.scope":
-    "The act filter narrows the whole audit. The person filter narrows the rows on this page.",
-  "membership.audit.narrowed": "{shown} of the {rows} rows on this page are {person}.",
-  "membership.audit.noneOnPage": "No row on this page is {person}.",
+  "membership.audit.noneMatching": "No row in this workspace's audit matches these filters.",
   "membership.audit.total": "{total} row(s)",
   /** Audit records must survive account deletion and fall back to account IDs rather than cascading away. */
   "membership.audit.unknownActor": "{actor} (account removed)",

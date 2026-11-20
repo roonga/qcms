@@ -11,6 +11,7 @@ import {
   listWorkspaceMembers,
   setMemberRole,
   setRequireSecondApprover,
+  writeAccessAuditRow,
   writeAgentActionRow,
   writeSiteAuditRow,
   writeSiteAuditWithMirror,
@@ -2044,5 +2045,97 @@ describe("every group act writes one `group` row (section 11)", () => {
       1,
     );
     expect(details).toHaveLength(3);
+  });
+});
+
+interface AuditBody {
+  rows: { actor: string; kind: string }[];
+  page: number;
+  total: number;
+  actors: { actor: string; actorEmail: string | null }[];
+}
+
+describe("the Person filter narrows the whole workspace audit", () => {
+  let workspaceId: string;
+  const ALICE = "usr_audit_alice";
+  const BOB = "usr_audit_bob";
+
+  beforeAll(async () => {
+    workspaceId = await createWorkspace("Audit actors", "audit-actors");
+    const at = Date.parse("2026-08-01T00:00:00.000Z");
+    const acts: readonly [string, number][] = [
+      [ALICE, 0],
+      [BOB, 1],
+      [ALICE, 2],
+      [BOB, 3],
+      [ALICE, 4],
+    ];
+    for (const [actor, offset] of acts) {
+      await writeAccessAuditRow(testDb.db, {
+        actor,
+        workspaceId,
+        kind: "setting",
+        detail: "requireSecondApprover=false",
+        occurredAt: new Date(at + offset * 1_000),
+      });
+    }
+  });
+
+  async function audit(query: string): Promise<AuditBody> {
+    const res = await send("GET", `/workspaces/${workspaceId}/audit?${query}`);
+    expect(res.status, await res.clone().text()).toBe(200);
+    return (await res.json()) as AuditBody;
+  }
+
+  it("counts and pages one account's acts across the whole audit, not one page", async () => {
+    const first = await audit(`actor=${ALICE}&pageSize=2`);
+    expect(first.total).toBe(3);
+    expect(first.rows.map((row) => row.actor)).toEqual([ALICE, ALICE]);
+    const second = await audit(`actor=${ALICE}&pageSize=2&page=2`);
+    expect(second.rows.map((row) => row.actor)).toEqual([ALICE]);
+  });
+
+  it("combines with the act filter", async () => {
+    expect((await audit(`actor=${BOB}&kind=setting`)).total).toBe(2);
+    expect((await audit(`actor=${BOB}&kind=grant`)).total).toBe(0);
+  });
+
+  it("names every account the audit carries whatever the filters, most recent first", async () => {
+    const narrowed = await audit(`actor=${BOB}&pageSize=1`);
+    const named = narrowed.actors.map((entry) => entry.actor);
+    expect(named).toContain(ALICE);
+    expect(named).toContain(BOB);
+    expect(named.indexOf(ALICE)).toBeLessThan(named.indexOf(BOB));
+    expect(narrowed.actors.find((entry) => entry.actor === ALICE)?.actorEmail).toBeNull();
+  });
+
+  it("refuses an empty account", async () => {
+    expect((await send("GET", `/workspaces/${workspaceId}/audit?actor=`)).status).toBe(400);
+  });
+});
+
+describe("whether the installation holds more than one workspace", () => {
+  interface AccessBody {
+    workspaces: { workspaceId: string }[];
+    multipleWorkspaces: boolean;
+  }
+
+  async function access(token: string): Promise<AccessBody> {
+    const res = await as(token, "GET", "/me/access");
+    expect(res.status, await res.clone().text()).toBe(200);
+    return (await res.json()) as AccessBody;
+  }
+
+  it("tells a Workspace administrator of one workspace on a site with several", async () => {
+    await createWorkspace("Another", "another-for-archive");
+    const body = await access(workspaceOwnerToken);
+    expect(body.workspaces.map((entry) => entry.workspaceId)).toEqual([SEED_WORKSPACE_ID]);
+    expect(body.multipleWorkspaces).toBe(true);
+    expect((await access(ownerToken)).multipleWorkspaces).toBe(true);
+  });
+
+  it("tells nobody who administers no workspace", async () => {
+    expect((await access(editorToken)).multipleWorkspaces).toBe(false);
+    expect((await access(nobodyToken)).multipleWorkspaces).toBe(false);
   });
 });

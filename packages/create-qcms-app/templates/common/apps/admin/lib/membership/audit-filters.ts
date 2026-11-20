@@ -1,6 +1,6 @@
 import type { MessageKey } from "../i18n/en.ts";
 
-import type { AuditRow } from "./types.ts";
+import type { AuditActor } from "./types.ts";
 
 /**
  * The stored kinds the Act filter offers, in the order the audit reads them. The API filters on
@@ -23,13 +23,13 @@ export const AUDIT_FILTER_KINDS = [
 
 export type AuditFilterKind = (typeof AUDIT_FILTER_KINDS)[number];
 
-export const AUDIT_PERSON_MAX_LENGTH = 200;
+export const AUDIT_ACTOR_MAX_LENGTH = 200;
 
+/** Both filters narrow the whole audit, because the API takes both. */
 export interface AuditFilters {
-  /** Narrows the whole audit, because the API takes it. */
   readonly kind: AuditFilterKind | undefined;
-  /** Narrows the rows this page carries: the audit read has no actor parameter. */
-  readonly person: string | undefined;
+  /** One account's stored id. */
+  readonly actor: string | undefined;
   readonly page: number;
   readonly activeCount: number;
 }
@@ -48,29 +48,32 @@ function isFilterKind(value: string): value is AuditFilterKind {
 export function readAuditFilters(params: SearchParams): AuditFilters {
   const asked = first(params.kind);
   const kind = isFilterKind(asked) ? asked : undefined;
-  const typed = first(params.person).trim().slice(0, AUDIT_PERSON_MAX_LENGTH);
-  const person = typed === "" ? undefined : typed;
+  const typed = first(params.actor).trim().slice(0, AUDIT_ACTOR_MAX_LENGTH);
+  const actor = typed === "" ? undefined : typed;
   const requested = Number.parseInt(first(params.page), 10);
   return {
     kind,
-    person,
+    actor,
     page: Number.isInteger(requested) && requested > 0 ? requested : 1,
-    activeCount: [kind, person].filter((entry) => entry !== undefined).length,
+    activeCount: [kind, actor].filter((entry) => entry !== undefined).length,
   };
 }
 
-/** One account to name in the Person filter: the address where the audit has one, else the stored id. */
-export function auditActor(row: AuditRow): string {
-  return row.actorEmail ?? row.actor;
-}
-
-/** The accounts on this page, each once, so the filter offers only what it can narrow. */
-export function auditActors(rows: readonly AuditRow[]): readonly string[] {
-  return [...new Set(rows.map(auditActor))].sort((left, right) => left.localeCompare(right));
-}
-
-export function matchesAuditPerson(row: AuditRow, person: string | undefined): boolean {
-  return person === undefined || auditActor(row) === person;
+/**
+ * The accounts the Person filter offers, by address and then by id. A chosen account the list
+ * does not carry is kept, so Apply does not silently drop the filter the address asked for.
+ */
+export function auditActorChoices(
+  actors: readonly AuditActor[],
+  chosen: string | undefined,
+): readonly AuditActor[] {
+  const listed =
+    chosen === undefined || actors.some((entry) => entry.actor === chosen)
+      ? actors
+      : [...actors, { actor: chosen, actorEmail: null }];
+  return [...listed].sort((left, right) =>
+    (left.actorEmail ?? left.actor).localeCompare(right.actorEmail ?? right.actor),
+  );
 }
 
 /** This page's address with one filter changed, so Previous and Next keep the filters. */
@@ -81,7 +84,7 @@ export function auditHref(
 ): string {
   const query = new URLSearchParams();
   if (filters.kind !== undefined) query.set("kind", filters.kind);
-  if (filters.person !== undefined) query.set("person", filters.person);
+  if (filters.actor !== undefined) query.set("actor", filters.actor);
   const page = next.page ?? filters.page;
   if (page > 1) query.set("page", String(page));
   return query.size === 0 ? basePath : `${basePath}?${query.toString()}`;

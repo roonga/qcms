@@ -11,6 +11,7 @@ const MINE: MyAccess = {
   installationAdmin: false,
   capabilities: NO_CAPABILITIES,
   siteAdministrators: [],
+  multipleWorkspaces: false,
   workspaces: [
     {
       workspaceId: "org_clinical",

@@ -88,12 +88,20 @@ export interface AuditRow {
   readonly detail: string | null;
 }
 
+/** One account the audit names, for the Person filter. */
+export interface AuditActor {
+  readonly actor: string;
+  readonly actorEmail: string | null;
+}
+
 export interface AuditPage {
   readonly workspaceId: string;
   readonly rows: readonly AuditRow[];
   readonly page: number;
   readonly pageSize: number;
   readonly total: number;
+  /** The accounts the whole audit names, capped by the API, whatever the filters narrow. */
+  readonly actors: readonly AuditActor[];
 }
 
 export interface AgentAuditRow {
@@ -146,6 +154,8 @@ export interface MyAccess {
   readonly workspaces: readonly MyAccessWorkspace[];
   /** Who to ask for access; the API sends it only to an account that holds nothing. */
   readonly siteAdministrators: readonly { readonly name: string; readonly email: string }[];
+  /** Two or more workspaces not archived on the installation; sent to an administrator only. */
+  readonly multipleWorkspaces: boolean;
 }
 
 export const RESPONSES_ERASER_ROLE = "responses.eraser";
@@ -168,7 +178,9 @@ export type MembershipActionState =
       readonly role?: string;
       readonly userId?: string;
       readonly requireSecondApprover?: boolean;
-      /** The request a held act is waiting on, so the screen shows the hold rather than a change. */
+      /** The request a decision was made on. */
       readonly request?: ApprovalRequest;
     }
+  /** The API stored the act as a request: nothing changed until an Approver approves it. */
+  | { readonly status: "held"; readonly message: string }
   | { readonly status: "error"; readonly message: string };

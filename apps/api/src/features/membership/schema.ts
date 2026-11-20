@@ -195,6 +195,9 @@ export const MyAccessResponse = z
         environments: z.array(z.string()),
       }),
     ),
+    // The installation holds two or more workspaces not archived. False to a caller who
+    // administers none and holds no installation claim, who has no use for it.
+    multipleWorkspaces: z.boolean(),
   })
   .openapi("MyAccessResponse");
 
@@ -203,6 +206,12 @@ export const AuditQuery = z.object({
     .enum(ACCESS_AUDIT_KINDS)
     .optional()
     .openapi({ param: { name: "kind", in: "query" } }),
+  actor: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .openapi({ param: { name: "actor", in: "query" } }),
   page: z
     .string()
     .optional()
@@ -233,6 +242,8 @@ export const AuditListResponse = z
     page: z.number().int(),
     pageSize: z.number().int(),
     total: z.number().int(),
+    // The accounts the whole audit names, capped, whatever `kind` and `actor` narrow the rows to.
+    actors: z.array(z.object({ actor: z.string(), actorEmail: z.string().nullable() })),
   })
   .openapi("AuditListResponse");
 

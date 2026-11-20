@@ -307,9 +307,14 @@ describe("the Settings warning (criterion 44)", () => {
     });
 
     await disableSeededAccount(testDb.db, second.userId, new Date());
+    // Both halves of the Settings warning's condition: the rule is still on, and nobody else could approve.
     expect(
       await (await as(admin, "GET", `/workspaces/${workspaceId}/settings`)).json(),
-    ).toMatchObject({ nobodyElseCouldApprove: true, missingApprover: { publisher: true } });
+    ).toMatchObject({
+      requireSecondApprover: true,
+      nobodyElseCouldApprove: true,
+      missingApprover: { publisher: true },
+    });
   });
 
   it("is set once the only other administrator is disabled", async () => {
@@ -330,7 +335,11 @@ describe("the Settings warning (criterion 44)", () => {
     await disableSeededAccount(testDb.db, other.userId, new Date());
     expect(
       await (await as(site, "GET", `/workspaces/${workspaceId}/settings`)).json(),
-    ).toMatchObject({ nobodyElseCouldApprove: true, missingApprover: { administrator: true } });
+    ).toMatchObject({
+      requireSecondApprover: true,
+      nobodyElseCouldApprove: true,
+      missingApprover: { administrator: true },
+    });
   });
 
   it("is not readable by a publisher", async () => {

@@ -4,8 +4,10 @@ import { t } from "@/lib/i18n/en";
 import {
   AUDIT_FILTER_KINDS,
   AUDIT_FILTER_KIND_LABELS,
+  auditActorChoices,
   type AuditFilters,
 } from "@/lib/membership/audit-filters";
+import type { AuditActor } from "@/lib/membership/types";
 
 /** The audit's own filters, in the rail's Filters form: the act the API narrows on, then the person. */
 export function AuditRailFilters({
@@ -14,13 +16,11 @@ export function AuditRailFilters({
   clearHref,
 }: {
   readonly filters: AuditFilters;
-  readonly actors: readonly string[];
+  readonly actors: readonly AuditActor[];
   readonly clearHref: string;
 }) {
   const anyone = { label: t("membership.audit.filter.personAny"), value: "" };
-  // Keep a chosen person offered even when this page carries no row of theirs, so Apply does not
-  // silently drop the filter the address asked for.
-  const people = [...new Set(filters.person === undefined ? actors : [...actors, filters.person])];
+  const people = auditActorChoices(actors, filters.actor);
 
   return (
     <RailFilters activeCount={filters.activeCount} clearHref={clearHref}>
@@ -39,14 +39,20 @@ export function AuditRailFilters({
       />
       {people.length > 0 && (
         <Select
-          name="person"
+          name="actor"
           label={t("membership.audit.filter.person")}
-          defaultValue={filters.person ?? ""}
+          defaultValue={filters.actor ?? ""}
           placeholder={anyone.label}
-          items={[anyone, ...people.map((person) => ({ label: person, value: person }))]}
+          items={[
+            anyone,
+            ...people.map((person) => ({
+              label:
+                person.actorEmail ?? t("membership.audit.unknownActor", { actor: person.actor }),
+              value: person.actor,
+            })),
+          ]}
         />
       )}
-      <p className="text-xs text-(--color-text-muted)">{t("membership.audit.filter.scope")}</p>
     </RailFilters>
   );
 }

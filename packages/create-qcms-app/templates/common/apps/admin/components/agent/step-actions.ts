@@ -232,15 +232,22 @@ const releaseStep: StepRunner = async ({ step, tokenStep, args, agentProposal })
   return { outcome: "done", result: { version: state.version, environment: step.environment } };
 };
 
+/* A held act is neither done nor failed: it is stored as a request, so the card holds the plan
+   at this step. */
 function membershipOutcome(
   state: MembershipActionState,
   result: Readonly<Record<string, unknown>>,
 ): AgentStepResult {
+  if (state.status === "held") {
+    return { outcome: "pending-approval", message: t(HELD_FOR_APPROVER), result };
+  }
   if (state.status !== "done") {
     return { outcome: "failed", message: state.status === "error" ? state.message : "" };
   }
   return { outcome: "done", result };
 }
+
+const HELD_FOR_APPROVER = "agent.card.note.heldForApprover" as const;
 
 const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
   "access.groupCreate": async ({ tokenStep, args, agentProposal }) => {

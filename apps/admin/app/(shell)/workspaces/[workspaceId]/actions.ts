@@ -150,14 +150,8 @@ export async function saveWorkspaceSettingsAction(
     };
   }
   refresh(workspaceId);
-  // A switch-off is held, so the saved message would claim a change nobody has approved.
   if (result.data.request !== undefined) {
-    return {
-      status: "done",
-      message: t("membership.settings.held"),
-      requireSecondApprover: result.data.requireSecondApprover,
-      request: result.data.request,
-    };
+    return { status: "held", message: t("membership.settings.held") };
   }
   return {
     status: "done",

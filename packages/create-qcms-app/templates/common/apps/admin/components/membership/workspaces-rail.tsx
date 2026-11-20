@@ -27,11 +27,15 @@ export function WorkspacesRail({
   workspace,
   section,
   multiple = true,
+  archivable = multiple,
   filters,
 }: {
   readonly workspace?: WorkspaceRailRow;
   readonly section?: WorkspaceSection;
+  /** The caller can open more than one workspace. */
   readonly multiple?: boolean;
+  /** The installation holds two or more workspaces, however many of them the caller can open. */
+  readonly archivable?: boolean;
   /** The current screen's own Filters form, where it has one. */
   readonly filters?: ReactNode;
 }) {
@@ -55,12 +59,14 @@ export function WorkspacesRail({
         : {
             sections: (
               <RailTree
-                items={(multiple ? WORKSPACE_SECTIONS : WORKSPACE_SECTIONS_AT_ONE).map((entry) => ({
-                  key: `section:${entry}`,
-                  href: workspaceSectionHref(workspace.workspaceId, entry),
-                  label: t(WORKSPACE_SECTION_LABELS[entry]),
-                  current: entry === section,
-                }))}
+                items={(archivable ? WORKSPACE_SECTIONS : WORKSPACE_SECTIONS_AT_ONE).map(
+                  (entry) => ({
+                    key: `section:${entry}`,
+                    href: workspaceSectionHref(workspace.workspaceId, entry),
+                    label: t(WORKSPACE_SECTION_LABELS[entry]),
+                    current: entry === section,
+                  }),
+                )}
               />
             ),
           })}

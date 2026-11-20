@@ -38,7 +38,7 @@ export default async function WorkspaceAuditPage({
   if (screen.kind === "denied") return screen.element;
   const filters = readAuditFilters(await searchParams);
   const [audit, requests, members] = await Promise.all([
-    readAuditPage(screen.session, workspaceId, filters.kind, filters.page),
+    readAuditPage(screen.session, workspaceId, filters.kind, filters.actor, filters.page),
     listWorkspaceRequests(screen.session, workspaceId),
     listMembers(screen.session, workspaceId),
   ]);

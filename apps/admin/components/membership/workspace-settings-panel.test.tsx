@@ -59,26 +59,31 @@ function isOff(element: Element): boolean {
   return element.hasAttribute("disabled") || element.getAttribute("aria-disabled") === "true";
 }
 
-function renderPanel(options: Options = {}) {
+function renderPanel(options: Options & { readonly saved?: MembershipActionState } = {}) {
   const calls = {
     rename: vi.fn(() => Promise.resolve(DONE)),
-    save: vi.fn(() => Promise.resolve(DONE)),
+    save: vi.fn(() => Promise.resolve(options.saved ?? DONE)),
     decide: vi.fn(() => Promise.resolve(DONE)),
   };
-  render(
+  const panel = (next: Options) => (
     <WorkspaceSettingsPanel
-      settings={options.settings ?? settings()}
+      settings={next.settings ?? settings()}
       workspace={WORKSPACE}
-      viewerId={options.viewerId ?? "usr_1"}
+      viewerId={next.viewerId ?? "usr_1"}
       people={PEOPLE}
-      held={options.held === undefined ? undefined : heldRequests([options.held], NOW)[0]}
-      decided={options.decided === undefined ? undefined : heldRequests([options.decided], NOW)[0]}
+      held={next.held === undefined ? undefined : heldRequests([next.held], NOW)[0]}
+      decided={next.decided === undefined ? undefined : heldRequests([next.decided], NOW)[0]}
       rename={calls.rename}
       save={calls.save}
       decide={calls.decide}
-    />,
+    />
   );
-  return calls;
+  const { rerender } = render(panel(options));
+  return { ...calls, rerender: (next: Options) => rerender(panel(next)) };
+}
+
+function switchBox(): HTMLInputElement {
+  return screen.getByRole("checkbox", { name: SWITCH });
 }
 
 describe("the workspace settings screen", () => {
@@ -198,5 +203,39 @@ describe("the workspace settings screen", () => {
     await user.click(screen.getByText(SWITCH));
     await user.click(screen.getByRole("button", { name: "Save settings" }));
     expect(calls.save).toHaveBeenCalledWith("ws_1", { requireSecondApprover: true });
+  });
+
+  it("puts the switch back on after a held switch-off, and says so as information", async () => {
+    renderPanel({
+      settings: settings({ requireSecondApprover: true }),
+      saved: { status: "held", message: "Nothing has changed yet." },
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByText(SWITCH));
+    expect(switchBox().checked).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(await screen.findByText("Nothing has changed yet.")).toBeTruthy();
+    expect(switchBox().checked).toBe(true);
+  });
+
+  it("puts the switch back after a refused change", async () => {
+    renderPanel({ saved: { status: "error", message: "The settings were not saved: 409" } });
+    const user = userEvent.setup();
+    await user.click(screen.getByText(SWITCH));
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(await screen.findByText("The settings were not saved: 409")).toBeTruthy();
+    expect(switchBox().checked).toBe(false);
+  });
+
+  it("shows the stored rule while a switch-off waits and once it is decided, with no reload", async () => {
+    const calls = renderPanel({ settings: settings({ requireSecondApprover: true }) });
+    const user = userEvent.setup();
+    await user.click(screen.getByText(SWITCH));
+    calls.rerender({ settings: settings({ requireSecondApprover: true }), held: request() });
+    expect(switchBox().checked).toBe(true);
+    calls.rerender({ settings: settings({ requireSecondApprover: true }) });
+    expect(switchBox().checked).toBe(true);
+    calls.rerender({ settings: settings({ requireSecondApprover: false }) });
+    expect(switchBox().checked).toBe(false);
   });
 });

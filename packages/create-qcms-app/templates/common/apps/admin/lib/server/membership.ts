@@ -435,10 +435,11 @@ export async function archiveWorkspace(
 export async function readAudit(
   session: AdminSession,
   workspaceId: string,
-  options: { readonly kind?: string; readonly page?: number } = {},
+  options: { readonly kind?: string; readonly actor?: string; readonly page?: number } = {},
 ): Promise<ApiResult<AuditPage>> {
   const query = new URLSearchParams();
   if (options.kind !== undefined) query.set("kind", options.kind);
+  if (options.actor !== undefined) query.set("actor", options.actor);
   if (options.page !== undefined) query.set("page", String(options.page));
   const suffix = query.size === 0 ? "" : `?${query.toString()}`;
   const result = await readResult<{
@@ -446,6 +447,7 @@ export async function readAudit(
     page?: unknown;
     pageSize?: unknown;
     total?: unknown;
+    actors?: unknown;
   }>(await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/audit${suffix}`));
   if (!result.ok) return result;
   const parsed: readonly AuditRow[] = rows(result.data.rows).map((row) => ({
@@ -466,6 +468,10 @@ export async function readAudit(
       page: num(result.data.page),
       pageSize: num(result.data.pageSize),
       total: num(result.data.total),
+      actors: rows(result.data.actors).map((row) => ({
+        actor: str(row["actor"]),
+        actorEmail: strOrNull(row["actorEmail"]),
+      })),
     },
   };
 }
@@ -475,15 +481,21 @@ export const readAuditPage: (
   session: AdminSession,
   workspaceId: string,
   kind: string | undefined,
+  actor: string | undefined,
   page: number,
 ) => Promise<ApiResult<AuditPage>> = cache(
   async (
     session: AdminSession,
     workspaceId: string,
     kind: string | undefined,
+    actor: string | undefined,
     page: number,
   ): Promise<ApiResult<AuditPage>> =>
-    readAudit(session, workspaceId, { ...(kind === undefined ? {} : { kind }), page }),
+    readAudit(session, workspaceId, {
+      ...(kind === undefined ? {} : { kind }),
+      ...(actor === undefined ? {} : { actor }),
+      page,
+    }),
 );
 
 export async function readAgentAudit(
@@ -550,6 +562,7 @@ export const readMyAccess: (session: AdminSession) => Promise<ApiResult<MyAccess
       capabilities?: unknown;
       workspaces?: unknown;
       siteAdministrators?: unknown;
+      multipleWorkspaces?: unknown;
     }>(await adminApiFetch(session, "/me/access"));
     if (!result.ok) return result;
     return {
@@ -575,6 +588,7 @@ export const readMyAccess: (session: AdminSession) => Promise<ApiResult<MyAccess
           name: str(row["name"]),
           email: str(row["email"]),
         })),
+        multipleWorkspaces: bool(result.data.multipleWorkspaces),
       },
     };
   },

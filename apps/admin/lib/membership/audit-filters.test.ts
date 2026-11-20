@@ -3,27 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   AUDIT_FILTER_KIND_LABELS,
   AUDIT_FILTER_KINDS,
-  auditActors,
+  auditActorChoices,
   auditHref,
-  matchesAuditPerson,
   readAuditFilters,
 } from "./audit-filters.ts";
-import type { AuditRow } from "./types.ts";
 import { messages } from "../i18n/en.ts";
-
-function row(overrides: Partial<AuditRow> = {}): AuditRow {
-  return {
-    id: "aa_1",
-    actor: "usr_1",
-    actorEmail: "admin@qcms.test",
-    environment: null,
-    formId: null,
-    kind: "grant",
-    occurredAt: "2026-11-20T00:00:00.000Z",
-    detail: null,
-    ...overrides,
-  };
-}
 
 describe("the audit filters", () => {
   it("offers every stored kind, each from the catalog", () => {
@@ -38,11 +22,11 @@ describe("the audit filters", () => {
     expect(readAuditFilters({ kind: "approval" }).kind).toBe("approval");
   });
 
-  it("reads the person as typed and counts the filters in use", () => {
-    const filters = readAuditFilters({ kind: "setting", person: " admin@qcms.test " });
-    expect(filters.person).toBe("admin@qcms.test");
+  it("reads the account as sent and counts the filters in use", () => {
+    const filters = readAuditFilters({ kind: "setting", actor: " usr_1 " });
+    expect(filters.actor).toBe("usr_1");
     expect(filters.activeCount).toBe(2);
-    expect(readAuditFilters({ person: "   " }).activeCount).toBe(0);
+    expect(readAuditFilters({ actor: "   " }).activeCount).toBe(0);
   });
 
   it("lands on the first page for anything that is not a page number", () => {
@@ -52,18 +36,25 @@ describe("the audit filters", () => {
     expect(readAuditFilters({ page: "3" }).page).toBe(3);
   });
 
-  it("names each account once, and narrows to the one chosen", () => {
-    const rows = [row(), row({ id: "aa_2" }), row({ id: "aa_3", actorEmail: null })];
-    expect(auditActors(rows)).toEqual(["admin@qcms.test", "usr_1"]);
-    expect(matchesAuditPerson(rows[0] as AuditRow, "admin@qcms.test")).toBe(true);
-    expect(matchesAuditPerson(rows[0] as AuditRow, "someone@qcms.test")).toBe(false);
-    expect(matchesAuditPerson(rows[0] as AuditRow, undefined)).toBe(true);
+  it("offers the audit's accounts by address, and keeps a chosen one it does not list", () => {
+    const actors = [
+      { actor: "usr_2", actorEmail: "sam@qcms.test" },
+      { actor: "usr_9", actorEmail: null },
+      { actor: "usr_1", actorEmail: "grace@qcms.test" },
+    ];
+    expect(auditActorChoices(actors, undefined).map((entry) => entry.actor)).toEqual([
+      "usr_1",
+      "usr_2",
+      "usr_9",
+    ]);
+    expect(auditActorChoices(actors, "usr_1")).toHaveLength(3);
+    expect(auditActorChoices(actors, "usr_7")).toContainEqual({ actor: "usr_7", actorEmail: null });
   });
 
   it("keeps the filters on a paged address, and leaves the first page unmarked", () => {
-    const filters = readAuditFilters({ kind: "approval", person: "admin@qcms.test" });
+    const filters = readAuditFilters({ kind: "approval", actor: "usr_1" });
     expect(auditHref("/workspaces/ws_1/audit", filters, { page: 2 })).toBe(
-      "/workspaces/ws_1/audit?kind=approval&person=admin%40qcms.test&page=2",
+      "/workspaces/ws_1/audit?kind=approval&actor=usr_1&page=2",
     );
     expect(auditHref("/workspaces/ws_1/audit", readAuditFilters({}))).toBe(
       "/workspaces/ws_1/audit",
