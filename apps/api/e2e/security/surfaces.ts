@@ -267,6 +267,32 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: false,
   },
   {
+    name: "GET /admin/forms/{id}/publish-requests",
+    row: "authoring",
+    group: "admin",
+    method: "GET",
+    path: (ctx) => `/admin/forms/${ctx.formId}/publish-requests`,
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/forms/{id}/publish-requests/{requestId}/approve",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) =>
+      `/admin/forms/${ctx.formId}/publish-requests/apr_matrix_missing/approve?environment=prod`,
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/forms/{id}/publish-requests/{requestId}/reject",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) =>
+      `/admin/forms/${ctx.formId}/publish-requests/apr_matrix_missing/reject?environment=prod`,
+    anonymousReachable: false,
+  },
+  {
     name: "GET /admin/forms/{id}/release-batches/{key}",
     row: "authoring",
     group: "admin",
@@ -593,6 +619,40 @@ export const SURFACES: readonly Surface[] = [
     method: "PUT",
     path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/settings`,
     body: { requireSecondApprover: false },
+    anonymousReachable: false,
+  },
+  {
+    name: "GET /admin/workspaces/{id}/settings",
+    row: "membership",
+    group: "admin",
+    method: "GET",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/settings`,
+    anonymousReachable: false,
+  },
+  {
+    name: "GET /admin/workspaces/{id}/approval-requests",
+    row: "membership",
+    group: "admin",
+    method: "GET",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/approval-requests`,
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/workspaces/{id}/approval-requests/{requestId}/approve",
+    row: "membership",
+    group: "admin",
+    method: "POST",
+    path: (ctx) =>
+      `/admin/workspaces/${ctx.workspaceId}/approval-requests/apr_matrix_missing/approve`,
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/workspaces/{id}/approval-requests/{requestId}/reject",
+    row: "membership",
+    group: "admin",
+    method: "POST",
+    path: (ctx) =>
+      `/admin/workspaces/${ctx.workspaceId}/approval-requests/apr_matrix_missing/reject`,
     anonymousReachable: false,
   },
   {

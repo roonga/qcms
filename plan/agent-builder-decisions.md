@@ -53,7 +53,7 @@ Status: Code Owner rulings recorded 2026-11-08 (Q1 to Q13) and 2026-11-13 (Q14 t
 - Logo storage does not exist. Raster only (PNG, JPEG, WebP), magic-number sniffed, size cap, SVG refused. Stored immutably and referenced by a theme, a draft and a version, so applying a theme copies it by value (`docs/WORKSPACE_ACCESS.md` section 9).
 - Serve-step progress is only `{stepIndex, totalVisibleSteps}` (`apps/api/src/features/responses/serve-step/schema.ts`). The rail needs an ordered `steps` list.
 - Measure layout in the admin browser and send it as a strict-schema fact. No `layout-report` API route.
-- Put `data-qcms-question-id` on the qcms-owned wrapper in `packages/ui/src/form-field.tsx`, never on vendored files (ADR-22).
+- Put `data-qcms-question-id` on the qcms-owned field wrapper (`FieldBlur` in `packages/ui/src/registry.tsx`), never on vendored files (ADR-22).
 - Appearance goes inside the draft PUT body, not a second write route: one revision counter, one agent-assisted mark.
 - Undo reverses the draft op only. Unpublished library versions stay until deprecated, so a library write keeps its Confirm card (Q22).
 - "Tint the page background" changes every text-on-page pair. Include it in the contrast check or drop it.

@@ -105,6 +105,11 @@ vi.mock("@/lib/server/workspace-context", () => ({
 }));
 vi.mock("@/lib/server/forms", () => ({
   getForm: () => Promise.resolve(formResult),
+  getAgentChanges: () =>
+    Promise.resolve({
+      ok: true,
+      data: { base: null, draft: null, agentAssisted: false, changes: [] },
+    }),
   listForms: () => Promise.resolve({ ok: true, data: [FORM_ROW] }),
 }));
 vi.mock("@/lib/server/membership", () => ({
@@ -114,7 +119,11 @@ vi.mock("@/lib/server/shell", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   shellAccess: () => Promise.resolve({ status: "unknown" }),
 }));
-vi.mock("@/lib/server/config", () => ({ secureCookies: () => false }));
+vi.mock("@/lib/server/config", () => ({
+  secureCookies: () => false,
+  previewPortalTheme: () => "slate",
+  previewPortalBrand: () => ({ name: undefined, logoSrc: undefined }),
+}));
 vi.mock("@/components/forms/builder-shell", () => ({
   BuilderShell: (props: Record<string, unknown>) => {
     builderProps.push(props);
@@ -139,6 +148,9 @@ vi.mock("./forms/forms-table", () => ({
 vi.mock("./forms/actions", () => ({
   createFormAction: () => Promise.resolve({ status: "idle" }),
   startBuildDraftAction: () => Promise.resolve({ status: "started" }),
+  applyAgentEditAction: () => Promise.resolve({ status: "saved", undoToken: null }),
+  readStoredDraftAction: () => Promise.resolve({ status: "read", definition: null }),
+  previewDraftAction: () => Promise.resolve({ status: "idle" }),
   reviewReleaseAction: () => Promise.resolve({ ok: false }),
   confirmPublishAction: () => Promise.resolve({ status: "idle" }),
   lookupPublishResultAction: () => Promise.resolve({ status: "idle" }),
@@ -235,6 +247,9 @@ describe("who reaches the builder (X3, U1)", () => {
       canPublish: true,
     });
     expect(builderProps[0]?.["startDraft"]).toBeUndefined();
+    const edits = builderProps[0]?.["edits"] as Record<string, unknown> | undefined;
+    expect(typeof edits?.["apply"]).toBe("function");
+    expect(typeof edits?.["readStored"]).toBe("function");
   });
 
   it("answers 404 to a View forms holder, so no tool is reached", async () => {
@@ -287,6 +302,7 @@ describe("the publish wizard's returnTo is decided on the server", () => {
       href: "/forms/frm_one/build",
       toBuilder: true,
     });
+    expect(wizardProps[0]?.["changes"]).toMatchObject({ status: "read" });
   });
 
   it.each([
@@ -310,5 +326,6 @@ describe("the publish wizard's returnTo is decided on the server", () => {
   it("changes nothing when no returnTo is asked for", async () => {
     await renderPublish({});
     expect(wizardProps[0]?.["returnTo"]).toBeUndefined();
+    expect(wizardProps[0]?.["changes"]).toBeUndefined();
   });
 });

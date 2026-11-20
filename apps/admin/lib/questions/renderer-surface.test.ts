@@ -7,6 +7,7 @@ const ADMIN_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const SCAN_DIRS = ["app", "components", "lib"];
 
 const RENDERING_MODULES = [
+  "components/forms/builder-preview.tsx",
   "components/forms/draft-preview.tsx",
   "components/forms/version-view.tsx",
   "components/questions/question-preview.tsx",
@@ -85,11 +86,15 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
   });
 
   it("takes the visibility projection from @roonga/qcms-ui too, so the portal shares it", () => {
-    const modules = modulesMentioning("documentForVisible");
-    expect(modules).toEqual(["components/forms/draft-preview.tsx"]);
-    const preview = files.find((file) => file.path === "components/forms/draft-preview.tsx");
-    expect(preview!.text).toContain("documentForVisible");
-    expect(preview!.text).toContain('from "@roonga/qcms-ui"');
+    const projecting = [
+      "components/forms/builder-preview.tsx",
+      "components/forms/draft-preview.tsx",
+    ];
+    expect(modulesMentioning("documentForVisible")).toEqual(projecting);
+    for (const path of projecting) {
+      const preview = files.find((file) => file.path === path);
+      expect(preview!.text).toContain('from "@roonga/qcms-ui"');
+    }
   });
 
   it("mounts every render inside the one preview styling seam", () => {
@@ -97,7 +102,9 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
       const module = files.find((file) => file.path === path);
       expect(module, `${path} should be scanned`).toBeDefined();
       const text = stripComments(module!.text);
-      expect(text, `${path} should render inside the island`).toContain("PreviewThemeIsland");
+      expect(text, `${path} should render inside the island`).toMatch(
+        /\b(?:PreviewThemeIsland|PreviewSurface)\b/u,
+      );
       expect(text, `${path} should not hand-roll the seam`).not.toContain("qcms-preview-surface");
     }
     const island = files.find((file) => file.path === PREVIEW_ISLAND);

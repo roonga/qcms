@@ -546,6 +546,32 @@ export async function holdsAccessGroup(
   return rows.length > 0;
 }
 
+/**
+ * The active, claimed accounts holding one role in one environment of a workspace, through
+ * an unsuspended hold: the people who could act as a second holder of it.
+ */
+export async function listActiveRoleHolders(
+  exec: Executor,
+  input: { readonly workspaceId: string; readonly role: string; readonly environment: string },
+): Promise<readonly string[]> {
+  const rows = await exec
+    .selectDistinct({ userId: authTeamMember.userId })
+    .from(authTeamMember)
+    .innerJoin(authTeam, eq(authTeam.id, authTeamMember.teamId))
+    .innerJoin(authUser, eq(authUser.id, authTeamMember.userId))
+    .where(
+      and(
+        eq(authTeam.organizationId, input.workspaceId),
+        sql`${input.role} = any(${authTeam.roles})`,
+        sql`${input.environment} = any(${authTeam.environments})`,
+        isNull(authTeamMember.suspendedAt),
+        accountHoldsGrants(),
+      ),
+    )
+    .orderBy(asc(authTeamMember.userId));
+  return rows.map((row) => row.userId);
+}
+
 /** One access group naming an environment, as the drop command's refusal lists it. */
 export interface EnvironmentNamingGroup {
   readonly teamId: string;

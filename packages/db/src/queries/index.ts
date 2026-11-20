@@ -141,6 +141,7 @@ export {
   listAccessGroupHolders,
   listAccessGroups,
   listAccessGroupsHeldIn,
+  listActiveRoleHolders,
   listEnvironmentNames,
   listGrantsForUser,
   listGroupsNamingEnvironment,

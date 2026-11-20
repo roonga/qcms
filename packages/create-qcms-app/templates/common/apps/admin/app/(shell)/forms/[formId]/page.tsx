@@ -19,7 +19,12 @@ import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
-import { saveDraftAction, updateSettingsAction, validateDraftAction } from "../actions";
+import {
+  readStoredDraftAction,
+  saveDraftAction,
+  updateSettingsAction,
+  validateDraftAction,
+} from "../actions";
 
 /* Bind formId from the route, not the payload. A library failure leaves the successfully loaded draft
    editable. */
@@ -108,6 +113,7 @@ export default async function FormBuilderPage({
         saveDraft={saveDraftAction.bind(null, form.formId)}
         validateDraft={validateDraftAction.bind(null, form.formId)}
         updateSettings={updateSettingsAction.bind(null, form.formId)}
+        readStoredDraft={readStoredDraftAction.bind(null, form.formId)}
         {...(agentAuthoringEnabled()
           ? {
               assist: {

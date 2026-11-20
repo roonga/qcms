@@ -4,9 +4,18 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Alert, Button, TextField } from "@/components/kit";
 import { AmbientSaveStatus, AutosaveFlash } from "@/components/save-model";
-import { recordDraftSaved, usePublishBuilderAssist } from "@/lib/agent/builder-assist-bridge";
+import {
+  recordDraftSaved,
+  usePublishBuilderAssist,
+  type AcceptOutcome,
+} from "@/lib/agent/builder-assist-bridge";
 import { AUTOSAVE_DEBOUNCE_MS, useDraftAutosave } from "@/lib/forms/autosave";
-import type { SaveDraftState, SettingsState, ValidateDraftState } from "@/lib/forms/builder-state";
+import type {
+  SaveDraftState,
+  SettingsState,
+  StoredDraftState,
+  ValidateDraftState,
+} from "@/lib/forms/builder-state";
 import {
   addGroup,
   addPinAt,
@@ -52,6 +61,40 @@ import { concurrentNoticeCookie } from "@/lib/builder-notice";
 import { usePublishBuilderRail, type BuilderSelection } from "@/lib/forms/builder-bridge";
 import { StepEditor } from "./step-editor";
 import { ValidationPanel } from "./validation-panel";
+import type { AgentAccept, AgentAdopt } from "@/lib/server/forms";
+
+interface PendingAccept {
+  readonly accept: AgentAccept;
+  /** The last draft the server holds, which Undo restores. */
+  readonly before: DraftForm;
+  readonly settle: (outcome: AcceptOutcome) => void;
+}
+
+/** A refused accept the user still owes a decision about: its token, and the draft to restore. */
+interface RefusedAccept {
+  readonly token: string;
+  readonly before: DraftForm;
+}
+
+function isAcceptRefusal(code: string | undefined): boolean {
+  return code?.startsWith("AGENT_ACCEPT_") === true;
+}
+
+/** What a save refused while the choice stands answers with, so nothing of it reaches the server. */
+function undecidedSave(): SaveDraftState {
+  return {
+    status: "error",
+    issues: [],
+    warnings: [],
+    code: "AGENT_ACCEPT_UNDECIDED",
+    message: t("agent.card.note.acceptUndecided"),
+  };
+}
+
+function storedAsDraft(definition: unknown, formId: string): DraftForm | undefined {
+  if (definition === null || typeof definition !== "object") return undefined;
+  return { ...(definition as Record<string, unknown>), formId } as unknown as DraftForm;
+}
 
 /* The builder owns settings and draft state because changing panels unmounts their controls mid-debounce. */
 
@@ -64,6 +107,7 @@ export function FormBuilder({
   saveDraft,
   validateDraft,
   updateSettings,
+  readStoredDraft,
   assist,
 }: {
   readonly detail: FormDetail;
@@ -75,14 +119,18 @@ export function FormBuilder({
   readonly concurrentNoticeRead: boolean;
   readonly saveDraft: (
     draft: DraftForm,
-    agentAssisted?: boolean,
-    newQuestions?: readonly unknown[],
+    accept?: AgentAccept,
+    /* The builder saves no card step, so it never sends a proposal reference. */
+    proposal?: undefined,
+    adopt?: AgentAdopt,
   ) => Promise<SaveDraftState>;
   readonly validateDraft: (draft: DraftForm) => Promise<ValidateDraftState>;
   readonly updateSettings: (patch: {
     challengeRequired?: boolean;
     minSubmitMs?: number | null;
   }) => Promise<SettingsState>;
+  /** Reads the draft the server holds, which an accept the builder cannot repeat is reloaded from. */
+  readonly readStoredDraft?: () => Promise<StoredDraftState>;
   readonly assist?: { readonly endpoint: string; readonly canPropose?: boolean };
 }) {
   const [draft, setDraft] = useState<DraftForm>(
@@ -98,30 +146,76 @@ export function FormBuilder({
     detail.draftUpdatedAt ?? undefined,
   );
 
-  // Consume the agent-assisted marker for one accepted save only; later ordinary edits must not inherit it.
-  const pendingAgentAssisted = useRef(false);
+  // Held until its save succeeds: a failed accept retries with its token and its questions, never as a plain
+  // save that would land the assistant's draft with no audit row. A token the route refuses is dropped at
+  // once, since it can never verify again.
+  const pendingAccept = useRef<PendingAccept | undefined>(undefined);
 
-  // Clear proposed questions only after a successful atomic accept; a refusal must retry them with the draft
-  // to avoid dangling pins.
-  const pendingNewQuestions = useRef<readonly unknown[]>([]);
+  // A refusal other than a replay leaves the assistant's content on screen and saved nowhere, so the screen
+  // stops saving and asks: Undo it, or keep it, recorded under the same token as the user's own edit.
+  const [refusedAccept, setRefusedAccept] = useState<RefusedAccept | undefined>(undefined);
+  const [keeping, setKeeping] = useState(false);
+  const pendingAdopt = useRef<AgentAdopt | undefined>(undefined);
+
+  // Raised at the refusal itself rather than through the render that follows it: an edit made while
+  // the accept was in flight already has a debounce timer armed, and letting it fire would store the
+  // assistant's content as a plain save with no record of where it came from.
+  const saveHeld = useRef(false);
+
+  const storedDraftReader = useRef(readStoredDraft);
+  storedDraftReader.current = readStoredDraft;
 
   // No validation result is undefined, not an empty issue list; an initial value must not fabricate an
   // all-clear.
   const autosave = useDraftAutosave({
     draft,
-    saveDraft: (next) => {
-      const agentAssistedSave = pendingAgentAssisted.current;
-      pendingAgentAssisted.current = false;
-      const newQuestions = pendingNewQuestions.current;
-      return saveDraft(
-        next,
-        agentAssistedSave || newQuestions.length > 0 ? true : undefined,
-        newQuestions,
+    hold: refusedAccept !== undefined && !keeping,
+    saveDraft: async (next) => {
+      const adopt = pendingAdopt.current;
+      if (adopt === undefined && saveHeld.current) return undecidedSave();
+      const held = pendingAccept.current;
+      const saved = await saveDraft(next, held?.accept, undefined, adopt);
+      if (adopt !== undefined && pendingAdopt.current === adopt) {
+        pendingAdopt.current = undefined;
+        setKeeping(false);
+        if (saved.status === "saved") {
+          setRefusedAccept(undefined);
+        } else if (saved.code === "AGENT_ADOPT_REPLAYED") {
+          // The keep committed and only its response was lost, so the record stands and the server's
+          // draft is the kept one. Leaving the choice up would offer an Undo over a recorded keep.
+          setRefusedAccept(undefined);
+          void reloadStoredDraft();
+        } else {
+          // A keep the server did not record stored nothing either, so the choice stands and the
+          // save strip carries the reason.
+          holdForDecision();
+        }
+      }
+      if (held === undefined || pendingAccept.current !== held) return saved;
+      held.settle(
+        saved.status === "saved"
+          ? { saved: true }
+          : { saved: false, message: saved.message ?? t("agent.card.note.unreachable") },
       );
+      if (saved.status === "saved") {
+        pendingAccept.current = undefined;
+      } else if (isAcceptRefusal(saved.code)) {
+        // A refused token can never verify as an accept again, so it is dropped here and kept only as the
+        // proof that would record a keep.
+        pendingAccept.current = undefined;
+        // A replay means the accept committed and only its response was lost, so the server's draft is the
+        // accepted one and the client's copy is behind it.
+        if (saved.code === "AGENT_ACCEPT_REPLAYED") {
+          void reloadStoredDraft();
+        } else {
+          holdForDecision();
+          setRefusedAccept({ token: held.accept.token, before: held.before });
+        }
+      }
+      return saved;
     },
     validateDraft,
     onSaved: (saved) => {
-      pendingNewQuestions.current = [];
       recordDraftSaved(saved.updatedAt);
       if (saved.agentAssisted !== undefined) setAgentAssisted(saved.agentAssisted);
       if (saved.updatedAt !== undefined && saved.updatedAt !== "") {
@@ -136,6 +230,9 @@ export function FormBuilder({
   settingsAction.current = updateSettings;
 
   const mutate = (next: DraftForm) => {
+    // Nothing of the assistant's may be stored without a record, so the screen takes no edit until the
+    // choice below is answered and Undo stays a clean restore.
+    if (refusedAccept !== undefined || saveHeld.current) return;
     autosave.markDirty();
     setDraft(next);
   };
@@ -279,9 +376,67 @@ export function FormBuilder({
         },
   );
 
-  function acceptAssistProposal(proposedDraft: DraftForm, newQuestions: readonly unknown[]) {
-    pendingAgentAssisted.current = true;
-    pendingNewQuestions.current = newQuestions;
+  async function reloadStoredDraft(): Promise<void> {
+    const read = storedDraftReader.current;
+    if (read === undefined) return;
+    const stored = await read().catch(() => undefined);
+    if (stored?.status !== "read") return;
+    const next = storedAsDraft(stored.definition, detail.formId);
+    if (next !== undefined) setDraft(next);
+  }
+
+  /** Stops every save this screen can make, including a timer armed before the refusal landed. */
+  function holdForDecision(): void {
+    saveHeld.current = true;
+    autosave.holdNow();
+  }
+
+  /** Restores the last draft the server holds, which the next autosave stores plainly. */
+  function undoAssistantChange(): void {
+    const held = refusedAccept;
+    if (held === undefined) return;
+    pendingAdopt.current = undefined;
+    saveHeld.current = false;
+    setKeeping(false);
+    setRefusedAccept(undefined);
+    autosave.markDirty();
+    setDraft(held.before);
+  }
+
+  /** Keeps the content as the user's own: a plain save, under the refused token so it is recorded. */
+  function keepAssistantChange(): void {
+    const held = refusedAccept;
+    if (held === undefined) return;
+    pendingAdopt.current = { token: held.token };
+    saveHeld.current = false;
+    autosave.markDirty();
+    setKeeping(true);
+  }
+
+  function acceptAssistProposal(
+    proposedDraft: DraftForm,
+    accept: AgentAccept,
+  ): Promise<AcceptOutcome> {
+    // The ref is read as well as the state: a refusal raises the hold before the render that shows the
+    // choice, and an accept landing in that gap would never settle while a later keep sent its token.
+    if (refusedAccept !== undefined || saveHeld.current) {
+      return Promise.resolve({ saved: false, message: t("agent.card.note.acceptUndecided") });
+    }
+    const superseded = pendingAccept.current;
+    superseded?.settle({ saved: false, message: t("agent.card.note.unreachable") });
+    let settle: (outcome: AcceptOutcome) => void = () => undefined;
+    const outcome = new Promise<AcceptOutcome>((resolve) => {
+      let settled = false;
+      settle = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+    });
+    // An accept still pending stored nothing, so the draft on screen is the assistant's own and
+    // restoring it would be a plain save with no record. Undo has to land on the superseded accept's
+    // `before`, which is the last draft the server holds.
+    pendingAccept.current = { accept, before: superseded?.before ?? draft, settle };
     if (
       selection.kind === "step" &&
       !proposedDraft.steps.some((step) => step.stepId === selection.stepId)
@@ -289,166 +444,217 @@ export function FormBuilder({
       setSelection({ kind: "form" });
     }
     mutate(proposedDraft);
+    return outcome;
   }
 
   return (
     <div className="flex flex-col gap-6">
       <SaveNotices paused={paused} saveError={saveError} />
 
-      {agentAssisted && (
-        <div data-testid="qcms-builder-provenance">
-          <AgentProvenanceTag />
-        </div>
+      {refusedAccept !== undefined && (
+        <AcceptRefusedChoice
+          deciding={!keeping}
+          onUndo={undoAssistantChange}
+          onKeep={keepAssistantChange}
+        />
       )}
 
-      {selection.kind === "form" && (
-        <>
-          {/* Wrap the server-rendered node: crossing the client boundary removes React's static-child marker and
-   otherwise produces a keyless child. */}
-          {/* The wrapper gives the server node a list position without introducing an empty flex item and its gap. */}
-          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-            <div className="contents">
-              <h1 className="qcms-visually-hidden">{screenName}</h1>
-            </div>
-            <div>{formActions}</div>
-            {/* Two help discs ride these lines; a tighter gap overlaps their 24px targets (WCAG 2.5.8). */}
-            <div className="flex flex-col items-end gap-2">
-              <div>{formMeta}</div>
-              <AmbientSaveStatus
-                isSaving={status === "saving" || settingsSaving}
-                hasFailed={saveError !== undefined || settingsError !== undefined}
-                savedAt={lastSavedAt}
-              />
-            </div>
+      {/* Inert rather than unmounted: the user decides about content they can still read, and no control
+          under it can take a press or a keystroke while they do. */}
+      <div className="flex flex-col gap-6" inert={refusedAccept !== undefined}>
+        {agentAssisted && (
+          <div data-testid="qcms-builder-provenance">
+            <AgentProvenanceTag />
           </div>
-          <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
-          <TextField
-            label={t("forms.builder.formTitle")}
-            value={textOf(draft.title, draft.defaultLocale)}
-            onChange={(next) => {
-              mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
-            }}
-          />
+        )}
 
-          <RulesLens draft={draft} library={library} issues={issues ?? []} />
+        {selection.kind === "form" && (
+          <>
+            {/* Wrap the server-rendered node: crossing the client boundary removes React's static-child marker and
+   otherwise produces a keyless child. */}
+            {/* The wrapper gives the server node a list position without introducing an empty flex item and its gap. */}
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <div className="contents">
+                <h1 className="qcms-visually-hidden">{screenName}</h1>
+              </div>
+              <div>{formActions}</div>
+              {/* Two help discs ride these lines; a tighter gap overlaps their 24px targets (WCAG 2.5.8). */}
+              <div className="flex flex-col items-end gap-2">
+                <div>{formMeta}</div>
+                <AmbientSaveStatus
+                  isSaving={status === "saving" || settingsSaving}
+                  hasFailed={saveError !== undefined || settingsError !== undefined}
+                  savedAt={lastSavedAt}
+                />
+              </div>
+            </div>
+            <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
+            <TextField
+              label={t("forms.builder.formTitle")}
+              value={textOf(draft.title, draft.defaultLocale)}
+              onChange={(next) => {
+                mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
+              }}
+            />
 
-          <ValidationPanel draft={draft} issues={issues} warnings={warnings} status={status} />
+            <RulesLens draft={draft} library={library} issues={issues ?? []} />
 
-          <FormSettingsPanel
-            settings={settings}
-            challengeEnforceable={detail.challengeEnforceable}
-            saveError={settingsError}
-            onChange={setSettings}
-          />
-        </>
-      )}
-      {selection.kind === "step" && (
-        <div>
-          {selectedStep === undefined ? null : (
-            <StepEditor
-              draft={draft}
-              step={selectedStep}
-              saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
-              library={library}
-              issues={issues}
-              /* Fold the entire pin batch through one draft mutation; separate calls would reuse the same closed-over
+            <ValidationPanel draft={draft} issues={issues} warnings={warnings} status={status} />
+
+            <FormSettingsPanel
+              settings={settings}
+              challengeEnforceable={detail.challengeEnforceable}
+              saveError={settingsError}
+              onChange={setSettings}
+            />
+          </>
+        )}
+        {selection.kind === "step" && (
+          <div>
+            {selectedStep === undefined ? null : (
+              <StepEditor
+                draft={draft}
+                step={selectedStep}
+                saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
+                library={library}
+                issues={issues}
+                /* Fold the entire pin batch through one draft mutation; separate calls would reuse the same closed-over
                  draft and lose earlier inserts. */
-              onAddPins={(pins, index, groupId) => {
-                mutate(
-                  pins.reduce(
-                    (next, pin, offset) =>
-                      groupId === undefined
-                        ? addPinAt(
-                            next,
-                            selectedStep.stepId,
-                            pin.questionId,
-                            pin.version,
-                            index + offset,
-                          )
-                        : addPinToGroup(next, groupId, pin.questionId, pin.version, index + offset),
-                    draft,
-                  ),
-                );
-              }}
-              onMovePin={(questionId, version) => {
-                mutate(movePin(draft, questionId, version));
-              }}
-              onRemovePin={(questionId) => {
-                mutate(removePin(draft, questionId));
-              }}
-              onReorderPin={(questionId, delta, groupId) => {
-                mutate(
-                  groupId === undefined
-                    ? movePinWithinStep(draft, selectedStep.stepId, questionId, delta)
-                    : movePinWithinGroup(draft, groupId, questionId, delta),
-                );
-              }}
-              onAddGroup={(label) => {
-                addGroupToStep(selectedStep.stepId, label);
-              }}
-              onOpenGroup={(groupId) => {
-                setSelection({ kind: "group", stepId: selectedStep.stepId, groupId });
-              }}
-              onMoveGroup={(groupId, delta) => {
-                mutate(moveGroupWithinStep(draft, selectedStep.stepId, groupId, delta));
-              }}
-              onRemoveGroup={(groupId) => {
-                mutate(removeGroup(draft, groupId));
-              }}
-            />
-          )}
+                onAddPins={(pins, index, groupId) => {
+                  mutate(
+                    pins.reduce(
+                      (next, pin, offset) =>
+                        groupId === undefined
+                          ? addPinAt(
+                              next,
+                              selectedStep.stepId,
+                              pin.questionId,
+                              pin.version,
+                              index + offset,
+                            )
+                          : addPinToGroup(
+                              next,
+                              groupId,
+                              pin.questionId,
+                              pin.version,
+                              index + offset,
+                            ),
+                      draft,
+                    ),
+                  );
+                }}
+                onMovePin={(questionId, version) => {
+                  mutate(movePin(draft, questionId, version));
+                }}
+                onRemovePin={(questionId) => {
+                  mutate(removePin(draft, questionId));
+                }}
+                onReorderPin={(questionId, delta, groupId) => {
+                  mutate(
+                    groupId === undefined
+                      ? movePinWithinStep(draft, selectedStep.stepId, questionId, delta)
+                      : movePinWithinGroup(draft, groupId, questionId, delta),
+                  );
+                }}
+                onAddGroup={(label) => {
+                  addGroupToStep(selectedStep.stepId, label);
+                }}
+                onOpenGroup={(groupId) => {
+                  setSelection({ kind: "group", stepId: selectedStep.stepId, groupId });
+                }}
+                onMoveGroup={(groupId, delta) => {
+                  mutate(moveGroupWithinStep(draft, selectedStep.stepId, groupId, delta));
+                }}
+                onRemoveGroup={(groupId) => {
+                  mutate(removeGroup(draft, groupId));
+                }}
+              />
+            )}
+          </div>
+        )}
+        {selection.kind === "group" && (
+          <div>
+            {selectedGroup === undefined || selectedGroupStep === undefined ? null : (
+              <GroupPanel
+                draft={draft}
+                step={selectedGroupStep}
+                group={selectedGroup.group}
+                library={library}
+                issues={issues}
+                saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
+                onRename={(label) => {
+                  mutate(renameGroup(draft, selectedGroup.group.groupId, label));
+                }}
+                onInstanceLabel={(template) => {
+                  mutate(setGroupInstanceLabel(draft, selectedGroup.group.groupId, template));
+                }}
+                onCount={(count) => {
+                  mutate(setGroupCount(draft, selectedGroup.group.groupId, count));
+                }}
+                onPresentation={(presentation) => {
+                  mutate(setGroupPresentation(draft, selectedGroup.group.groupId, presentation));
+                }}
+                onAddPins={(pins, index) => {
+                  mutate(
+                    pins.reduce(
+                      (next, pin, offset) =>
+                        addPinToGroup(
+                          next,
+                          selectedGroup.group.groupId,
+                          pin.questionId,
+                          pin.version,
+                          index + offset,
+                        ),
+                      draft,
+                    ),
+                  );
+                }}
+                onMovePin={(questionId, version) => {
+                  mutate(movePin(draft, questionId, version));
+                }}
+                onRemovePin={(questionId) => {
+                  mutate(removePin(draft, questionId));
+                }}
+                onReorderPin={(questionId, delta) => {
+                  mutate(movePinWithinGroup(draft, selectedGroup.group.groupId, questionId, delta));
+                }}
+              />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The choice a refused accept leaves: the assistant's content is on screen and stored nowhere, so it is
+ * either undone or kept as the user's own edit and recorded as such.
+ */
+function AcceptRefusedChoice({
+  deciding,
+  onUndo,
+  onKeep,
+}: {
+  readonly deciding: boolean;
+  readonly onUndo: () => void;
+  readonly onKeep: () => void;
+}) {
+  return (
+    <div data-testid="qcms-builder-accept-choice">
+      <Alert variant="warning">
+        <div className="flex flex-col gap-3">
+          <span>{t("forms.builder.assistantChangeRefused")}</span>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" size="sm" isDisabled={!deciding} onPress={onUndo}>
+              {t("forms.builder.assistantChangeUndo")}
+            </Button>
+            <Button variant="ghost" size="sm" isDisabled={!deciding} onPress={onKeep}>
+              {t("forms.builder.assistantChangeKeep")}
+            </Button>
+          </div>
         </div>
-      )}
-      {selection.kind === "group" && (
-        <div>
-          {selectedGroup === undefined || selectedGroupStep === undefined ? null : (
-            <GroupPanel
-              draft={draft}
-              step={selectedGroupStep}
-              group={selectedGroup.group}
-              library={library}
-              issues={issues}
-              saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
-              onRename={(label) => {
-                mutate(renameGroup(draft, selectedGroup.group.groupId, label));
-              }}
-              onInstanceLabel={(template) => {
-                mutate(setGroupInstanceLabel(draft, selectedGroup.group.groupId, template));
-              }}
-              onCount={(count) => {
-                mutate(setGroupCount(draft, selectedGroup.group.groupId, count));
-              }}
-              onPresentation={(presentation) => {
-                mutate(setGroupPresentation(draft, selectedGroup.group.groupId, presentation));
-              }}
-              onAddPins={(pins, index) => {
-                mutate(
-                  pins.reduce(
-                    (next, pin, offset) =>
-                      addPinToGroup(
-                        next,
-                        selectedGroup.group.groupId,
-                        pin.questionId,
-                        pin.version,
-                        index + offset,
-                      ),
-                    draft,
-                  ),
-                );
-              }}
-              onMovePin={(questionId, version) => {
-                mutate(movePin(draft, questionId, version));
-              }}
-              onRemovePin={(questionId) => {
-                mutate(removePin(draft, questionId));
-              }}
-              onReorderPin={(questionId, delta) => {
-                mutate(movePinWithinGroup(draft, selectedGroup.group.groupId, questionId, delta));
-              }}
-            />
-          )}
-        </div>
-      )}
+      </Alert>
     </div>
   );
 }

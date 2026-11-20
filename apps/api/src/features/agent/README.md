@@ -16,9 +16,10 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 | Method & path                               | Scope (SEC-5)                    | Notes                                                                                                                                                 |
 | ------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState?, screen?, params?, conversationId?, visitId?, viewerToday? }`. Answers `text/event-stream`.        |
-| `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.                                                             |
+| `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Requires the step's accept token in `x-qcms-agent-accept`. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.  |
 | `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId, visitId?, viewerToday? }`. Answers `text/event-stream`. |
 | `GET /admin/forms/:id/draft/agent-changes`  | `forms:read`                     | The wizard's read: the newest published version, the open draft and the agent draft changes recorded since. Mounted whatever the flag.                |
+| `PUT /admin/forms/:id/draft`                | `forms:write`                    | The one draft save path. A refused accept's token in `x-qcms-agent-adopt` records the save as an adopted proposal and changes nothing else about it.  |
 
 Both turn routes share **one per-principal limiter key** (Q19), so ten turns a
 minute is the caller's whole budget rather than one budget per route.
@@ -168,7 +169,7 @@ unpublished version is meant to sit.
 ## `form.saveDraft` takes a form from nothing to a reviewable draft
 
 `form.saveDraft` saves a complete draft through `PUT /admin/forms/{id}/draft`,
-the route every other edit takes, with the sticky agent-assisted mark. It is
+the route every other edit takes; its token writes the step's audit row. It is
 proposable from any screen and its `formId` may name an earlier step's result, so
 one card can be `form.create`, a `question.create` per new question, then
 `form.saveDraft` pinning them. Publishing stays a separate card.
@@ -305,12 +306,14 @@ UI is never handed a draft the agent validated for itself, and no separate
 proposal event travels beside the card, so one proposal per turn (P1) holds for a
 draft as it does for every other act.
 
-`apply-draft` reaches no route. Confirm hands the draft to the builder, which
-stores it through the one save path every other edit takes, with the sticky
-agent-assisted mark; the kind therefore carries no token, no provenance check
-stands behind it, and the builder's own `form: write` route is what authorises it.
-It may be a plan's first step, and the plan's token binds only the steps that do
-reach a route.
+`apply-draft` is a local step with a token of its own. Confirm hands the draft to
+the builder, which stores it through the accept route below. The proposing turn
+mints an accept token for the step (`accept-token.ts`, purpose `agent-accept`),
+binding the user, the step's form, the proposal id and a ten-minute expiry; the
+accept route refuses a request without a verified one and writes the
+`apply-draft` row from it through `audit.ts`. The plan's own token binds only the
+steps that reach a route through it, so an `apply-draft` step takes no index there
+and may still be a plan's first step.
 
 Two lists rather than one because issue #123 split the advisory channel: `issues`
 is why a publish would be refused, `warnings` is a draft that would publish and
@@ -355,7 +358,8 @@ puts that kind alone up for review: `propose-form-settings`,
 `propose-access-grant`, `propose-access-revoke`, `propose-member-role`,
 `propose-workspace-settings`, and the agent builder's `builder-edits`,
 `builder-undo`, `builder-open-wizard`, `builder-library-question`,
-`builder-injection` and `builder-edit-cap`.
+`builder-injection`, `builder-edit-cap` and `builder-first-edits` (three edits on
+a new form's empty first draft, a step added first).
 The `rogue-*` scripts
 exist because a hostile model is the threat the allowlist is for, and the only
 honest way to test a refusal is to have something actually attempt the forbidden
@@ -407,17 +411,53 @@ against the shared harness database and fail every run after.
 
 ## Accepting a proposal
 
-Accepting a proposal that only re-pins **existing library questions** is the
-ordinary draft save (`PUT /admin/forms/:id/draft`) with `agentAssisted: true`,
-which sets a sticky provenance flag on the draft row. The builder header and the
-publish confirmation show it, so the human publishing knows what they are
-signing. An ordinary later save never clears it; discarding the draft does,
-because that removes the row.
+Every accept goes through `POST /admin/forms/:id/draft/assist/accept`, with or
+without new questions, under the step's accept token in `x-qcms-agent-accept`.
+The token must verify, name the caller and this form, and be under ten minutes
+old; a missing, forged, foreign or expired one is refused with `403` and nothing
+written. The accept writes one `apply-draft` row in `control.agent_actions` in its
+own transaction, keyed `(<proposal id>.accept, 0)`, so the unique key makes the
+token single-use and a replay is refused with `AGENT_ACCEPT_REPLAYED`; its
+`proposedAt` is the token's issue time. Every refusal, the replay included, logs
+`agent accept refused` with its code and nothing else. The wizard's read counts that row as the
+assistant's. The draft save body takes no `agentAssisted` mark: the row is the
+record. The accept also sets the draft row's sticky flag, which the builder header
+shows; an ordinary later save never clears it, and discarding the draft does.
 
-Accepting a proposal that carries **new question definitions** goes to
-`POST /admin/forms/:id/draft/assist/accept` instead, and that route is issue
-#823's fix. It stores the draft and materialises every proposed definition as an
-**unpublished question draft** in the library, in one transaction.
+The builder holds an accepted draft's token until a save succeeds, so a failed
+accept is retried under it rather than landing as a plain save. `AGENT_ACCEPT_REPLAYED`
+means the accept committed and only its response was lost, so the builder reloads the
+stored draft. The card's `apply-draft` step settles only when that save has landed or
+failed, so a plan's later step, a publish above all, never runs against the draft as it
+stood before the accept.
+
+## Keeping a refused proposal as an own edit
+
+Any other `AGENT_ACCEPT_*` refusal leaves the proposed content on screen and stored
+nowhere, and the token can never verify as an accept again. Nothing of the assistant's
+may then be stored without a record, so the builder stops saving and asks (Code Owner,
+2026-11-18): **Undo the assistant change**, which restores the pre-accept draft and saves
+that plainly, or **Keep it as my edit**, which saves the content plainly under the same
+token in `x-qcms-agent-adopt`. The builder takes no edit while the choice stands, so Undo
+is a clean restore, and a keep the server does not record stores nothing either and leaves
+the choice up.
+
+The adopt check runs in the draft save handler, after the route policy, and writes one
+`apply-draft.adopted` row keyed `(<proposal id>.adopt, 0)`. It records attribution and
+nothing else: no question is created, the draft row's sticky flag is left alone, and the
+save stores exactly what the same save without the header stores. It checks the signature,
+the shape, the caller and the form, but **not the expiry**, since an expired accept is the
+commonest refusal the choice follows; a request that also carries a card's token or an edit
+token is refused, as is a second save under one token. Every refusal logs `agent adopt
+refused` with its `AGENT_ADOPT_*` code and nothing else, and with the flag off the header is
+a `400`. The row cannot be forged, because only a genuine token for this caller and this
+form writes one, and it bypasses nothing, because the save it rides can do no more than a
+plain save. The header is read on this one route; it carries no authority, so anywhere else
+it is inert. The wizard's read counts the row with the other draft changes.
+
+The route also materialises every proposed **new question definition** as an
+**unpublished question draft** in the library, in the same transaction (issue
+#823).
 
 Three things about it are decisions rather than details.
 
@@ -557,7 +597,7 @@ an Undo applies only while nothing has changed since and restores exactly the
 state before; Undos therefore run latest first. A library write is never an
 edit (Q22): the token is refused on every route but the draft save. The
 wizard's read takes provenance from these rows alone, never from the draft's
-`agentAssisted` mark.
+`agentAssisted` flag, which no request body sets.
 
 ## The agent builder's tools
 

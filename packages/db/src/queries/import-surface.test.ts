@@ -179,6 +179,7 @@ describe("query helper import surface", () => {
     "listGroupsNamingEnvironment",
     "listEnvironmentNames",
     "setRequireSecondApprover",
+    "listActiveRoleHolders",
     "findUserByEmail",
     "findUsersByIds",
     "writeAccessAuditRow",

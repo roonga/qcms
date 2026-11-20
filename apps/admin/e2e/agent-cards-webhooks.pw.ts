@@ -125,20 +125,18 @@ async function buildPublishableForm(page: Page, slug: string): Promise<string> {
   return formId;
 }
 
-async function setSecondApprover(page: Page, on: boolean): Promise<void> {
-  await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
-  await waitForHydration(page);
-  const control = page.getByRole("checkbox", {
-    name: "Second approval in production",
-    exact: true,
-  });
-
-  if ((await control.isChecked()) !== on) {
-    await page.getByText("Second approval in production", { exact: true }).click();
+// Written directly: turning the switch on needs a second approver this spec does not create,
+// and turning it off is held for one. The settings screen has its own spec.
+async function setSecondApprover(on: boolean): Promise<void> {
+  const handle = openDbHandle(readFixtures().databaseUrl);
+  try {
+    await handle.query(
+      `update control."organization" set "requireSecondApprover" = $2 where id = $1`,
+      [WORKSPACE_ID, on],
+    );
+  } finally {
+    await handle.close();
   }
-  await expect(control).toBeChecked({ checked: on });
-  await page.getByRole("button", { name: "Save settings" }).click();
-  await expect(page.getByText("the change is on the access audit", { exact: false })).toBeVisible();
 }
 
 test("confirms an endpoint and then a rotation, each revealing its secret once", async ({
@@ -331,7 +329,7 @@ test("ends the plan on Pending approval when production holds the change", async
   await page.goto(`/operations/forms/${prodFormId}/webhooks`);
   await waitForHydration(page);
   await addEndpoint(page, ENDPOINT_URL);
-  await setSecondApprover(page, true);
+  await setSecondApprover(true);
 
   const before = await auditTally();
   await openWebhooks(page, prodFormId);
@@ -357,5 +355,5 @@ test("ends the plan on Pending approval when production holds the change", async
 
   expect(auditDelta(before, await auditTally())).toEqual({ "webhook.retarget": 1 });
 
-  await setSecondApprover(page, false);
+  await setSecondApprover(false);
 });

@@ -19,6 +19,7 @@ import type { ActionKindDef } from "../actions/types.js";
 import type { PinnedQuestion, SavedDraftPins } from "../draft-pins.js";
 import { offeredEnvironments, type OfferedActionKind } from "../grant-filter.js";
 import { isOperationalScreen } from "../screens.js";
+import { signAcceptToken } from "../accept-token.js";
 import {
   argumentsDigest,
   isStepReference,
@@ -41,6 +42,8 @@ const PUBLISH_FORM_KIND = "form.publish";
 const CREATE_QUESTION_KIND = "question.create";
 
 const SAVE_QUESTION_KIND = "question.saveDraft";
+
+const CREATE_FORM_KIND = "form.create";
 
 /**
  * The id a draft is validated under when its form is an earlier step's result. Nothing
@@ -68,6 +71,8 @@ export interface ProposedDraftStep {
   readonly warnings: readonly PublishWarning[];
   /** Which step of this plan creates each new question, so the card can name it. */
   readonly createdBy?: readonly { readonly questionId: string; readonly step: number }[];
+  /** The single-use token the accept route requires, on the step that applies the proposed draft. */
+  readonly acceptToken?: string;
 }
 
 /** One step as the card will display it, with its arguments resolved only symbolically. */
@@ -139,6 +144,8 @@ export interface ProposeInput {
   /** The environment name a production act runs in, from the deployment's own mount. */
   readonly productionEnvironment: string;
   readonly formId?: string | undefined;
+  /** The workspace the screen names, for a kind that takes it when the model names none. */
+  readonly screenWorkspaceId?: string | undefined;
   /** Resolves the names of the workspaces a plan's own arguments name. */
   readonly workspaceNames?:
     ((workspaceIds: readonly string[]) => Promise<readonly WorkspaceName[]>) | undefined;
@@ -314,6 +321,26 @@ async function draftWriteRefusal(
 }
 
 /**
+ * A create names the workspace the form lands in, and the card shows that workspace's name, so a
+ * workspace this caller may not create a form in is refused before either is resolved.
+ */
+async function formCreateRefusal(
+  input: ProposeInput,
+  step: ProposedStep,
+  index: number,
+): Promise<string | undefined> {
+  const allowed = input.canWriteDraft;
+  if (allowed === undefined || step.kind !== CREATE_FORM_KIND) return undefined;
+  const named = step.args["workspaceId"];
+  const createdInWorkspace = typeof named === "string" && named !== "" ? named : undefined;
+  if (await allowed({ createdInWorkspace })) return undefined;
+  return (
+    `Step ${String(index + 1)} creates a form in a workspace this user may not create forms ` +
+    'in. This needs a grant carrying "form: write" in that workspace.'
+  );
+}
+
+/**
  * The route's own check, run before any card exists, with the server's own words and the
  * spelling it suggests. So the model corrects the definition rather than the person watching
  * step 2 of a confirmed plan fail on it.
@@ -465,17 +492,46 @@ function kindRefusal(
   return undefined;
 }
 
+function withScreenDefaults(
+  input: ProposeInput,
+  def: ActionKindDef,
+  step: ProposedStep,
+): ProposedStep {
+  if (def.screenDefaults === undefined) return step;
+  return { ...step, args: def.screenDefaults(step.args, { workspaceId: input.screenWorkspaceId }) };
+}
+
+/**
+ * Each asks a question the route will ask anyway, before this step's draft is read or
+ * validated, so no card offers a step the route would refuse on its subject alone.
+ */
+async function subjectRefusal(
+  input: ProposeInput,
+  def: ActionKindDef,
+  step: ProposedStep,
+  index: number,
+): Promise<string | undefined> {
+  const taken = await takenQuestionIdRefusal(input, step, index);
+  if (taken !== undefined) return taken;
+  if (def.carriesDraftArgument === true) {
+    const unwritable = await draftWriteRefusal(input, input.steps, step, index);
+    if (unwritable !== undefined) return unwritable;
+  }
+  return formCreateRefusal(input, step, index);
+}
+
 async function stepRefusal(
   input: ProposeInput,
-  step: ProposedStep,
+  proposed: ProposedStep,
   index: number,
   pinned: readonly PinnedQuestion[],
   pinChecked: boolean,
 ): Promise<{ readonly reason: string } | { readonly step: PlanStep; readonly def: ActionKindDef }> {
-  const def = actionKind(step.kind);
+  const def = actionKind(proposed.kind);
   if (def === undefined) {
-    return { reason: `There is no action kind named "${step.kind}".` };
+    return { reason: `There is no action kind named "${proposed.kind}".` };
   }
+  const step = withScreenDefaults(input, def, proposed);
 
   const allowed = offeredEnvironments(input.offered, step.kind);
   if (allowed.length === 0) {
@@ -518,14 +574,8 @@ async function stepRefusal(
   const descriptorIssue = kindRefusal(input, def, step, index, pinned, pinChecked);
   if (descriptorIssue !== undefined) return { reason: descriptorIssue };
 
-  // Both ask a question the route will ask anyway, before this step's draft is read or
-  // validated, so no card offers a step the route would refuse on its subject alone.
-  const taken = await takenQuestionIdRefusal(input, step, index);
-  if (taken !== undefined) return { reason: taken };
-  if (def.carriesDraftArgument === true) {
-    const unwritable = await draftWriteRefusal(input, input.steps, step, index);
-    if (unwritable !== undefined) return { reason: unwritable };
-  }
+  const subjectIssue = await subjectRefusal(input, def, step, index);
+  if (subjectIssue !== undefined) return { reason: subjectIssue };
 
   return {
     step: {
@@ -913,7 +963,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
     proposal: {
       proposalId,
       token,
-      steps: enriched.steps,
+      steps: await withAcceptTokens(input, proposalId, enriched.steps),
       proposedAt: input.issuedAt.toISOString(),
       expiresAt: new Date(input.issuedAt.getTime() + 10 * 60 * 1000).toISOString(),
       formId: boundFormId,
@@ -922,6 +972,37 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
       ...(await namedWorkspaces(input, steps)),
     },
   };
+}
+
+/**
+ * The step that applies the proposed draft reaches the accept route, which writes its row only against a
+ * token minted here, bound to this user, the step's form and this proposal.
+ */
+async function withAcceptTokens(
+  input: ProposeInput,
+  proposalId: string,
+  steps: readonly PlanStep[],
+): Promise<readonly PlanStep[]> {
+  const out: PlanStep[] = [];
+  for (const step of steps) {
+    const formId = step.args["formId"];
+    if (
+      step.draft === undefined ||
+      actionKind(step.kind)?.carriesProposedDraft !== true ||
+      typeof formId !== "string"
+    ) {
+      out.push(step);
+      continue;
+    }
+    const acceptToken = await signAcceptToken(input.appKey, {
+      sub: input.subject,
+      formId,
+      pid: proposalId,
+      issuedAt: input.issuedAt,
+    });
+    out.push({ ...step, draft: { ...step.draft, acceptToken } });
+  }
+  return out;
 }
 
 /** Spread-shaped, because `exactOptionalPropertyTypes` refuses an explicit `undefined`. */

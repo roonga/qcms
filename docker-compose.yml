@@ -278,8 +278,10 @@ services:
       QCMS_ADMIN_TRUSTED_PROXY_HOPS: ${QCMS_ADMIN_TRUSTED_PROXY_HOPS:-1}
       # Admin only renders the public portal URL; it makes no request and does not require the value at boot.
       QCMS_PORTAL_BASE_URL: ${QCMS_PORTAL_BASE_URL:-}
-      # Use the respondent theme for previews; admin chrome remains fixed.
+      # Use the respondent theme and brand for previews; admin chrome remains fixed.
       QCMS_PORTAL_THEME: ${QCMS_PORTAL_THEME:-}
+      QCMS_PORTAL_BRAND_NAME: ${QCMS_PORTAL_BRAND_NAME:-}
+      QCMS_PORTAL_BRAND_LOGO: ${QCMS_PORTAL_BRAND_LOGO:-}
       QCMS_LOCALE: ${QCMS_LOCALE:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       # The API session policy and admin enrollment screen must agree; disagreement fails closed.

@@ -191,6 +191,20 @@ describe("a builder turn's edits", () => {
     expect(events.some((event) => event.type === "error")).toBe(false);
   });
 
+  it("adds a step before it rewords anything, so a form's first draft can take the edits", async () => {
+    const turn = builderTurn({ message: "start it #qcms-fake:builder-first-edits" });
+    const events = await run(turn);
+    const yielded = editsOf(events)[0];
+    expect(yielded?.edits.map((edit) => edit.op)).toEqual(["step", "copy", "copy"]);
+    const last = yielded?.edits.at(-1)?.definition;
+    expect(last?.title).toEqual({ en: "Built by the builder" });
+    expect(last?.steps.at(-1)).toMatchObject({
+      stepId: "stp_builder_first",
+      title: { en: "About you" },
+      items: [{ questionId: "q_lib", version: 3 }],
+    });
+  });
+
   it("holds a turn to the per-turn cap and refuses the edit past it", async () => {
     const turn = builderTurn({ message: "rename it a lot #qcms-fake:builder-edit-cap" });
     const events = await run(turn);

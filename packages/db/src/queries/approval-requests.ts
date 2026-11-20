@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, lte, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, lte, notInArray, sql, type SQL } from "drizzle-orm";
 
 import {
   APPROVAL_REQUEST_TTL_MS,
@@ -84,11 +84,29 @@ const PAYLOAD_CHECKS: Readonly<Record<ApprovalKind, PayloadCheck>> = {
     }
     return value.password || value.factor ? undefined : "resets at least one credential";
   },
+  // A join binds the group's sets; a group edit also binds the name it asked for and the
+  // sets it replaces.
   "self-grant": (value) => {
-    if (!exactKeys(value, ["roles", "environments"])) return "takes roles and environments";
-    return isStringList(value.roles) && isStringList(value.environments)
-      ? undefined
-      : "roles and environments are lists of names";
+    const edit = exactKeys(value, [
+      "name",
+      "roles",
+      "environments",
+      "previousRoles",
+      "previousEnvironments",
+    ]);
+    if (!edit && !exactKeys(value, ["roles", "environments"])) {
+      return (
+        "takes roles and environments, and name, previousRoles and previousEnvironments " +
+        "for an edit"
+      );
+    }
+    if (edit && (typeof value.name !== "string" || value.name === "")) {
+      return "name is the name the edit asked for";
+    }
+    const lists = edit
+      ? [value.roles, value.environments, value.previousRoles, value.previousEnvironments]
+      : [value.roles, value.environments];
+    return lists.every(isStringList) ? undefined : "roles and environments are lists of names";
   },
   "draft-publish": (value) => {
     if (!exactKeys(value, ["revision", "contentHash"])) return "takes revision and contentHash";
@@ -180,6 +198,9 @@ export async function listApprovalRequests(
     readonly scope?: ApprovalScope;
     readonly status?: ApprovalStatus;
     readonly workspaceId?: string;
+    readonly target?: string;
+    readonly kinds?: readonly ApprovalKind[];
+    readonly excludeKinds?: readonly ApprovalKind[];
     readonly limit?: number;
     readonly offset?: number;
   } = {},
@@ -189,6 +210,11 @@ export async function listApprovalRequests(
   if (options.status !== undefined) filters.push(eq(approvalRequests.status, options.status));
   if (options.workspaceId !== undefined) {
     filters.push(eq(approvalRequests.workspaceId, options.workspaceId));
+  }
+  if (options.target !== undefined) filters.push(eq(approvalRequests.target, options.target));
+  if (options.kinds !== undefined) filters.push(inArray(approvalRequests.kind, [...options.kinds]));
+  if (options.excludeKinds !== undefined && options.excludeKinds.length > 0) {
+    filters.push(notInArray(approvalRequests.kind, [...options.excludeKinds]));
   }
   const where = filters.length === 0 ? undefined : and(...filters);
   const rows = await exec
@@ -208,12 +234,13 @@ export async function listApprovalRequests(
 /**
  * Decide a pending, unexpired request, or `undefined` when it was not one. Never the
  * requester, and never the target of a site request; the CHECK refuses both as well.
+ * `lapsed` ends a request its approver could not apply, and records that approver.
  */
 export async function decideApprovalRequest(
   exec: Executor,
   input: {
     readonly requestId: string;
-    readonly decision: "approved" | "rejected";
+    readonly decision: "approved" | "rejected" | "lapsed";
     readonly decidedBy: string;
     readonly decidedAt: Date;
   },

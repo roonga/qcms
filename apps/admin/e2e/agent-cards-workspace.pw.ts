@@ -2,6 +2,8 @@ import type { Locator, Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { openDbHandle } from "../../api/e2e/support/index.js";
+import { readFixtures } from "../../portal/e2e/support/fixtures.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import {
   auditDelta,
@@ -20,7 +22,7 @@ import { waitForHydration } from "./support/hydration.js";
 
 // Use an existing second account: the two-person rule can refuse a responses self-grant.
 // The fake may fall back to the first visible member when facts reach their row limit.
-// Confirm the inverse switch value twice to restore shared workspace policy.
+// Turning the switch off is held for a second administrator, so the cleanup clears it directly.
 
 test.describe.configure({ mode: "serial" });
 
@@ -42,6 +44,22 @@ let totpSecret = "";
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
   await createTestAdmin(SUBJECT);
+});
+
+async function clearSecondApprover(): Promise<void> {
+  const handle = openDbHandle(readFixtures().databaseUrl);
+  try {
+    await handle.query(
+      `update control."organization" set "requireSecondApprover" = false where id = $1`,
+      [WORKSPACE_ID],
+    );
+  } finally {
+    await handle.close();
+  }
+}
+
+test.afterAll(async () => {
+  await clearSecondApprover();
 });
 
 function naming(label: string): string {
@@ -198,9 +216,7 @@ test("Assistant actions reads that plan back in words, grouped and in order", as
   await expect(table).not.toContainText("/workspaces/[workspaceId]/access-groups");
 });
 
-test("confirms the second-approver switch on its own screen, then puts it back", async ({
-  page,
-}) => {
+test("confirms the second-approver switch on its own screen", async ({ page }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await openWorkspace(page, "settings");
@@ -213,12 +229,8 @@ test("confirms the second-approver switch on its own screen, then puts it back",
   await openWorkspace(page, "settings");
   await expect(twoPerson(page)).toBeChecked();
 
-  await propose(page, "propose-workspace-settings", `turn it off again ${naming(ALONE)}`);
-  await confirm(page, /^Done\./u);
-  await openWorkspace(page, "settings");
-  await expect(twoPerson(page)).not.toBeChecked();
-
   expect(auditDelta(before, await auditTally())).toEqual({
-    "workspace.settings": 2,
+    "workspace.settings": 1,
   });
+  await clearSecondApprover();
 });
