@@ -1,5 +1,5 @@
 /** The shell's areas. Operations is a focused area, with its own header and Exit; the others keep the application navigation. */
-export const SHELL_MODES = ["normal", "operations", "workspaces"] as const;
+export const SHELL_MODES = ["normal", "operations", "workspaces", "site"] as const;
 export type ShellMode = (typeof SHELL_MODES)[number];
 
 /** The agent builder is focused too, but inside authoring rather than an area of its own, so it is never remembered. */
@@ -24,6 +24,8 @@ export const SETTINGS_PATH = "/settings";
 export const OPERATIONS_PATH = "/operations";
 export const WORKSPACES_PATH = "/workspaces";
 export const AUTHORING_PATH = "/questions";
+export const SITE_CONFIGURATION_PATH = "/site";
+export const SITE_CONFIGURATION_LANDING = "/site/accounts";
 
 interface ModeDefinition {
   readonly mode: ShellMode;
@@ -52,6 +54,13 @@ const DEFINITIONS: readonly ModeDefinition[] = [
     focused: false,
     capabilities: ["workspaces"],
     routes: [WORKSPACES_PATH],
+  },
+  {
+    mode: "site",
+    landing: SITE_CONFIGURATION_LANDING,
+    focused: false,
+    capabilities: ["siteConfiguration"],
+    routes: [SITE_CONFIGURATION_PATH],
   },
   {
     mode: "normal",

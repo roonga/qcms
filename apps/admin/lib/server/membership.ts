@@ -3,6 +3,7 @@ import { cache } from "react";
 import type {
   AccessGroup,
   AccessGroupList,
+  MemberStatus,
   AgentAuditPage,
   AgentAuditRow,
   ApprovalRequest,
@@ -17,6 +18,8 @@ import type {
 } from "../membership/types.ts";
 import { APPROVAL_STATUSES } from "../membership/types.ts";
 import type { ShellCapabilities } from "../shell/modes.ts";
+
+import { APPROVAL_REQUESTED } from "../membership/refusals.ts";
 
 import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
@@ -47,6 +50,21 @@ function bool(value: unknown): boolean {
 
 function num(value: unknown): number {
   return typeof value === "number" ? value : 0;
+}
+
+const MEMBER_STATUSES: readonly MemberStatus[] = ["active", "unclaimed", "disabled"];
+
+// An unknown or absent status reads as active: the API still refuses whatever the account cannot do.
+function memberStatus(value: unknown): MemberStatus {
+  return MEMBER_STATUSES.find((status) => status === value) ?? "active";
+}
+
+/** A 202 is a held request, not the change itself, so it is never read as the act's success. */
+async function readHeldOrResult<T>(response: Response): Promise<ApiResult<T>> {
+  if (response.status === 202) {
+    return { ok: false, code: APPROVAL_REQUESTED, message: "", issues: [] };
+  }
+  return readResult<T>(response);
 }
 
 function strings(value: unknown): readonly string[] {
@@ -85,7 +103,13 @@ export const listWorkspaces: (
   },
 );
 
-export async function listMembers(
+/** Shared by the page and its rail within one request. */
+export const listMembers: (
+  session: AdminSession,
+  workspaceId: string,
+) => Promise<ApiResult<readonly WorkspaceMember[]>> = cache(fetchMembers);
+
+async function fetchMembers(
   session: AdminSession,
   workspaceId: string,
 ): Promise<ApiResult<readonly WorkspaceMember[]>> {
@@ -100,6 +124,7 @@ export async function listMembers(
       email: str(row["email"]),
       name: str(row["name"]),
       role: str(row["role"]),
+      status: memberStatus(row["status"]),
       groups: strings(row["groups"]),
     })),
   };
@@ -115,11 +140,18 @@ function parseGroup(row: Record<string, unknown>): AccessGroup {
     holders: rows(row["holders"]).map((holder) => ({
       userId: str(holder["userId"]),
       email: str(holder["email"]),
+      suspended: bool(holder["suspended"]),
     })),
   };
 }
 
-export async function listAccessGroups(
+/** Shared by the page and its rail within one request. */
+export const listAccessGroups: (
+  session: AdminSession,
+  workspaceId: string,
+) => Promise<ApiResult<AccessGroupList>> = cache(fetchAccessGroups);
+
+async function fetchAccessGroups(
   session: AdminSession,
   workspaceId: string,
 ): Promise<ApiResult<AccessGroupList>> {
@@ -128,6 +160,64 @@ export async function listAccessGroups(
   );
   if (!result.ok) return result;
   return { ok: true, data: { workspaceId, groups: rows(result.data.groups).map(parseGroup) } };
+}
+
+function groupOf(value: unknown): AccessGroup {
+  return parseGroup(
+    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {},
+  );
+}
+
+export async function updateAccessGroup(
+  session: AdminSession,
+  workspaceId: string,
+  teamId: string,
+  body: {
+    readonly name: string;
+    readonly roles: readonly string[];
+    readonly environments: readonly string[];
+  },
+): Promise<ApiResult<AccessGroup>> {
+  const result = await readHeldOrResult<{ group?: unknown }>(
+    await adminApiFetch(
+      session,
+      `/workspaces/${encodeURIComponent(workspaceId)}/access-groups/${encodeURIComponent(teamId)}`,
+      { method: "PUT", body },
+    ),
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: groupOf(result.data.group) };
+}
+
+export async function reconfirmHolder(
+  session: AdminSession,
+  workspaceId: string,
+  teamId: string,
+  userId: string,
+): Promise<ApiResult<AccessGroup>> {
+  const result = await readResult<{ group?: unknown }>(
+    await adminApiFetch(
+      session,
+      `/workspaces/${encodeURIComponent(workspaceId)}/access-groups/${encodeURIComponent(teamId)}/holders/${encodeURIComponent(userId)}/reconfirm`,
+      { method: "POST" },
+    ),
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: groupOf(result.data.group) };
+}
+
+export async function removeMember(
+  session: AdminSession,
+  workspaceId: string,
+  userId: string,
+): Promise<ApiResult<null>> {
+  return readNoContent(
+    await adminApiFetch(
+      session,
+      `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`,
+      { method: "DELETE" },
+    ),
+  );
 }
 
 export async function createAccessGroup(
@@ -179,7 +269,7 @@ export async function addHolder(
   email: string,
   proposal?: AgentProposalRef,
 ): Promise<ApiResult<AccessGroup>> {
-  const result = await readResult<{ group?: unknown }>(
+  const result = await readHeldOrResult<{ group?: unknown }>(
     await adminApiFetch(
       session,
       `/workspaces/${encodeURIComponent(workspaceId)}/access-groups/${encodeURIComponent(teamId)}/holders`,

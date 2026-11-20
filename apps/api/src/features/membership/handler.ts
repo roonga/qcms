@@ -282,7 +282,7 @@ export async function groupView(
   roles: string[];
   environments: string[];
   externalGroupId: string | null;
-  holders: { userId: string; email: string }[];
+  holders: { userId: string; email: string; suspended: boolean }[];
 }> {
   const holders = await listAccessGroupHolders(exec, group.teamId);
   return {
@@ -291,7 +291,11 @@ export async function groupView(
     roles: [...group.roles],
     environments: [...group.environments],
     externalGroupId: group.externalGroupId,
-    holders: holders.map((holder) => ({ userId: holder.userId, email: holder.email })),
+    holders: holders.map((holder) => ({
+      userId: holder.userId,
+      email: holder.email,
+      suspended: holder.suspendedAt !== null,
+    })),
   };
 }
 
@@ -469,6 +473,14 @@ function environmentsHeld(
   return live.filter((name) => held.has(name));
 }
 
+function memberStatus(member: {
+  readonly disabledAt: Date | null;
+  readonly claimedAt: Date | null;
+}): "active" | "unclaimed" | "disabled" {
+  if (member.disabledAt !== null) return "disabled";
+  return member.claimedAt === null ? "unclaimed" : "active";
+}
+
 export function makeListMembersHandler(deps: Deps): RouteHandler<typeof listMembersRoute, ApiEnv> {
   return async (c) => {
     const workspaceId = c.req.valid("param").id;
@@ -499,6 +511,7 @@ export function makeListMembersHandler(deps: Deps): RouteHandler<typeof listMemb
           email: member.email,
           name: member.name,
           role: member.role,
+          status: memberStatus(member),
           groups: byUser.get(member.userId) ?? [],
         })),
       },

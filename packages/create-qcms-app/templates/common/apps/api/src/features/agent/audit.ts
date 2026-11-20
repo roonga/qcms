@@ -1,6 +1,7 @@
 /**
- * The agent audit rows: one per confirmed card step and one per card-less builder edit or Undo, each written
- * inside **the act's own transaction**, so a failed act writes no row and the trail and the result agree.
+ * The agent audit rows: one per confirmed card step, one per card-less builder edit or Undo, one per
+ * docked-assistant accept and one per proposal a refused accept left a user to keep, each from a verified
+ * token and written inside **the act's own transaction**, so a failed act writes no row.
  */
 
 import { FormId, type Appearance } from "@roonga/qcms-core";
@@ -14,7 +15,21 @@ import {
 } from "@roonga/qcms-db";
 import type { Context } from "hono";
 
+import type { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
+import {
+  ACCEPT_KIND,
+  acceptRefusal,
+  acceptRowKey,
+  ADOPT_KIND,
+  adoptRefusal,
+  adoptRowKey,
+  verifyAcceptToken,
+  verifyAdoptToken,
+  type AcceptRefusalCode,
+  type AcceptTokenPayload,
+  type AdoptRefusalCode,
+} from "./accept-token.js";
 import { editRefusal, type VerifiedEdit } from "./edit-provenance.js";
 import {
   BUILDER_SCREEN,
@@ -258,4 +273,156 @@ export async function recordAgentEdit(
     iat,
     exp: iat + deps.undoTtlMs,
   });
+}
+
+export interface AgentAcceptSite {
+  readonly accept: AcceptTokenPayload;
+  readonly actor: string;
+  readonly workspaceId: string;
+  /** Writes the refusal line a replay shares with the token checks, by code alone. */
+  readonly log: (code: AcceptRefusalCode) => void;
+}
+
+function refuseReplay(site: AgentAcceptSite): ApiError {
+  site.log("AGENT_ACCEPT_REPLAYED");
+  return acceptRefusal("AGENT_ACCEPT_REPLAYED");
+}
+
+/**
+ * The accept route's token check, before any write: present, signed, unexpired, and issued to this caller
+ * for this form. Single use is checked inside the transaction by {@link admitAgentAccept}.
+ */
+export async function verifyAgentAccept(
+  token: string | undefined,
+  args: {
+    readonly appKey: string;
+    readonly now: Date;
+    readonly actor: string;
+    readonly formId: string;
+    readonly log: (code: AcceptRefusalCode) => void;
+  },
+): Promise<AcceptTokenPayload> {
+  const refuse = (code: AcceptRefusalCode) => {
+    args.log(code);
+    return acceptRefusal(code);
+  };
+  if (token === undefined || token === "") throw refuse("AGENT_ACCEPT_MISSING");
+  const verified = await verifyAcceptToken(args.appKey, token, args.now);
+  if (!verified.ok) throw refuse(verified.code);
+  if (verified.payload.sub !== args.actor) throw refuse("AGENT_ACCEPT_SUBJECT");
+  if (verified.payload.formId !== args.formId) throw refuse("AGENT_ACCEPT_FORM");
+  return verified.payload;
+}
+
+/** Refuses a token whose row already exists, read inside the accept's transaction before it writes. */
+export async function admitAgentAccept(exec: Executor, site: AgentAcceptSite): Promise<void> {
+  const key = acceptRowKey(site.accept.pid);
+  if (await agentStepRecorded(exec, key.proposalId, key.stepIndex)) {
+    throw refuseReplay(site);
+  }
+}
+
+/** The accept's one row, in its own transaction; the unique key is the backstop under a race. */
+export async function recordAgentAccept(
+  exec: Executor,
+  site: AgentAcceptSite,
+  saved: { readonly revision: number },
+  confirmedAt: Date,
+): Promise<void> {
+  try {
+    await writeAgentActionRow(exec, {
+      ...acceptRowKey(site.accept.pid),
+      stepCount: 1,
+      actor: site.actor,
+      workspaceId: site.workspaceId,
+      formId: site.accept.formId,
+      kind: ACCEPT_KIND,
+      screen: ACCEPT_SCREEN,
+      proposedAt: new Date(site.accept.iat),
+      confirmedAt,
+      detail: String(saved.revision),
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) throw refuseReplay(site);
+    throw error;
+  }
+}
+
+/** The apply-draft kind's own screen, which is where the docked assistant runs. */
+const ACCEPT_SCREEN = "/forms/[formId]";
+
+export interface AgentAdoptSite {
+  readonly adopt: AcceptTokenPayload;
+  readonly actor: string;
+  readonly workspaceId: string;
+  readonly log: (code: AdoptRefusalCode) => void;
+}
+
+/**
+ * The adopt check on a plain draft save: the refused accept's own token, signed, and issued to
+ * this caller for this form. It is not checked for expiry, because an expired accept is the
+ * commonest refusal the choice follows. It adds a row and no right, so the save it rides stores
+ * exactly what the same save without it would store.
+ */
+export async function verifyAgentAdopt(
+  token: string,
+  args: {
+    readonly appKey: string;
+    readonly actor: string;
+    readonly formId: string;
+    readonly enabled: boolean;
+    readonly otherAgentAct: boolean;
+    readonly log: (code: AdoptRefusalCode) => void;
+  },
+): Promise<AcceptTokenPayload> {
+  const refuse = (code: AdoptRefusalCode) => {
+    args.log(code);
+    return adoptRefusal(code);
+  };
+  if (!args.enabled) throw refuse("AGENT_ADOPT_DISABLED");
+  // One request is one kind of agent act: a card's step, a card-less edit or an adopted proposal.
+  if (args.otherAgentAct) throw refuse("AGENT_ADOPT_MALFORMED");
+  const verified = await verifyAdoptToken(args.appKey, token);
+  if (!verified.ok) throw refuse(verified.code);
+  if (verified.payload.sub !== args.actor) throw refuse("AGENT_ADOPT_SUBJECT");
+  if (verified.payload.formId !== args.formId) throw refuse("AGENT_ADOPT_FORM");
+  return verified.payload;
+}
+
+/** Refuses a token already recorded as adopted, read inside the save's transaction. */
+export async function admitAgentAdopt(exec: Executor, site: AgentAdoptSite): Promise<void> {
+  const key = adoptRowKey(site.adopt.pid);
+  if (await agentStepRecorded(exec, key.proposalId, key.stepIndex)) {
+    site.log("AGENT_ADOPT_REPLAYED");
+    throw adoptRefusal("AGENT_ADOPT_REPLAYED");
+  }
+}
+
+/** The adopted proposal's one row, in the save's own transaction. */
+export async function recordAgentAdopt(
+  exec: Executor,
+  site: AgentAdoptSite,
+  saved: { readonly revision: number },
+  confirmedAt: Date,
+): Promise<void> {
+  try {
+    await writeAgentActionRow(exec, {
+      ...adoptRowKey(site.adopt.pid),
+      stepCount: 1,
+      actor: site.actor,
+      workspaceId: site.workspaceId,
+      formId: site.adopt.formId,
+      kind: ADOPT_KIND,
+      screen: ACCEPT_SCREEN,
+      proposedAt: new Date(site.adopt.iat),
+      confirmedAt,
+      detail: String(saved.revision),
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      site.log("AGENT_ADOPT_REPLAYED");
+      throw adoptRefusal("AGENT_ADOPT_REPLAYED");
+    }
+    throw error;
+  }
 }

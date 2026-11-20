@@ -84,7 +84,9 @@ describe("an area's rail", () => {
     ).toEqual([
       null,
       "section:members",
+      "section:members:grant",
       "section:access-groups",
+      "section:access-groups:new",
       "section:settings",
       "section:audit",
       "section:assistant-actions",

@@ -109,6 +109,40 @@ describe("what an assist route forwards", () => {
   });
 });
 
+describe("what became of the builder's edits", () => {
+  it("forwards ops and outcomes, and nothing else", () => {
+    expect(
+      parseAssistConversation([
+        {
+          role: "edit-result",
+          edits: [
+            { op: "copy", outcome: "applied", definition: { title: "smuggled" } },
+            { op: "step", outcome: "undone" },
+          ],
+        },
+      ]),
+    ).toEqual([
+      {
+        role: "edit-result",
+        edits: [
+          { op: "copy", outcome: "applied" },
+          { op: "step", outcome: "undone" },
+        ],
+      },
+    ]);
+  });
+
+  it("drops a record with an unknown op or outcome, or none at all", () => {
+    expect(
+      parseAssistConversation([
+        { role: "edit-result", edits: [{ op: "publish", outcome: "applied" }] },
+        { role: "edit-result", edits: [{ op: "copy", outcome: "published" }] },
+        { role: "edit-result", edits: [] },
+      ]),
+    ).toEqual([]);
+  });
+});
+
 /* The one client-supplied string that reaches the model's turn context, so the relay checks
    its shape before the API's own schema sees it. */
 describe("the viewer's own day on its way through the relay", () => {

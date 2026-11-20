@@ -104,6 +104,55 @@ describe("the draft save loop's unmount flush", () => {
     expect(saveDraft, "the cancelled timer does not send a second copy").toHaveBeenCalledTimes(1);
   });
 
+  it("flushes nothing while the screen holds its saves", () => {
+    const { saveDraft, validateDraft } = harness();
+
+    const { rerender, result, unmount } = renderHook(
+      ({ draft, hold }: { draft: DraftForm; hold: boolean }) =>
+        useDraftAutosave({ draft, hold, saveDraft, validateDraft }),
+      { initialProps: { draft: DRAFT, hold: false } },
+    );
+
+    act(() => {
+      result.current.markDirty();
+    });
+    rerender({ draft: EDITED, hold: false });
+    rerender({ draft: EDITED, hold: true });
+
+    act(() => {
+      unmount();
+    });
+
+    expect(saveDraft, "the held screen stores nothing on the way out").not.toHaveBeenCalled();
+  });
+
+  it("cancels an armed timer and the flush with it when the hold is raised in the same turn", () => {
+    const { saveDraft, validateDraft } = harness();
+
+    const { rerender, result, unmount } = renderHook(
+      ({ draft }: { draft: DraftForm }) => useDraftAutosave({ draft, saveDraft, validateDraft }),
+      { initialProps: { draft: DRAFT } },
+    );
+
+    act(() => {
+      result.current.markDirty();
+    });
+    rerender({ draft: EDITED });
+
+    // No render between the hold and the timer: this is the order a refusal arrives in.
+    result.current.holdNow();
+
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS * 4);
+    });
+    expect(saveDraft, "the armed timer sends nothing").not.toHaveBeenCalled();
+
+    act(() => {
+      unmount();
+    });
+    expect(saveDraft, "and the flush finds nothing to send").not.toHaveBeenCalled();
+  });
+
   it("sends nothing at all for a screen nobody edited", () => {
     const { saveDraft, validateDraft } = harness();
 

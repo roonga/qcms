@@ -571,10 +571,33 @@ button {
   gap: var(--space-3);
   padding: var(--space-3) var(--admin-section-pad);
 }
-.qcms-builder__turns {
+.qcms-builder-edits {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  inline-size: 100%;
+}
+.qcms-builder-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface);
+}
+.qcms-builder-edit__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.qcms-builder-edit__what {
+  flex: 1 1 auto;
+}
+.qcms-builder-edit__note {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
 }
 .qcms-builder__tablist {
   padding-inline: var(--admin-section-pad);

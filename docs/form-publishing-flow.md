@@ -52,19 +52,19 @@ test release does not itself prove that manual testing passed. The diagram assum
 the form is open in both environments. Draft editing belongs to no environment, so the
 Operations selector never decides where a draft is released.
 
-Planned, not shipped (agent builder, `plan/agent-builder-decisions.md` Q14 and Q16; tasks
-113 and 115): publishing from the agent builder goes through this same wizard and no other
-path.
+Publishing from the agent builder (`plan/agent-builder-decisions.md` Q14 and Q16; tasks 113
+and 115) goes through this same wizard and no other path.
 
 - The wizard accepts a `returnTo` and goes back there when the operator leaves it. The
   server validates it against `/forms/<id>/build` for the same form only; an absolute or
   protocol-relative URL, another form's id, an encoded slash or any other path falls back
   to the form page.
 - The builder's agent may open the wizard for a Publish forms holder, with no card since
-  the wizard is the confirmation, and never publishes itself.
-- The agent's draft edits take no card each, so the wizard shows the cumulative agent diff
-  since the last human-reviewed revision: every change the agent made that no person has
-  reviewed since, which the operator sees before confirming.
+  the wizard is the confirmation, and never publishes itself. A turn that edits and opens
+  the wizard finishes every save first.
+- The agent's draft edits take no card each. Entered from the builder, or for a draft the
+  assistant has changed, the wizard shows every change since the last publish, by anyone,
+  and lists the steps the assistant made beside it, from the audit rows alone.
 
 After a release, the Operations table is where a released form is operated, and it is the
 only place those screens live. Its environment is the Operations header's own selector, and

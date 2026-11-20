@@ -10,6 +10,7 @@ import {
   makeResetAccountHandler,
 } from "./lifecycle.js";
 import {
+  makeAccountHandler,
   makeCreateAccountHandler,
   makeListAccountsHandler,
   makeResendSignInLinkHandler,
@@ -22,6 +23,7 @@ import {
   AccountIdParam,
   AccountLinkSentResponse,
   AccountListResponse,
+  AccountResponse,
   CreateAccountBody,
   ResetAccountBody,
   SignInLinkResponse,
@@ -71,6 +73,25 @@ export const createAccountRoute = createRoute({
     ...errorResponses(400, 401, 403, 409, 422),
   },
   ...withScopes("forms:write"),
+});
+
+export const accountRoute = createRoute({
+  method: "get",
+  path: "/accounts/{id}",
+  summary: "One account (Site administrator)",
+  description:
+    "The account page's header: address, name, role and status. It carries no credential " +
+    "and no sign-in link.",
+  tags,
+  request: { params: AccountIdParam },
+  responses: {
+    200: {
+      description: "The account",
+      content: { "application/json": { schema: AccountResponse } },
+    },
+    ...errorResponses(401, 403, 404),
+  },
+  ...withScopes("forms:read"),
 });
 
 export const resendSignInLinkRoute = createRoute({
@@ -197,6 +218,7 @@ export const resetAccountRoute = createRoute({
 export const registerAccounts: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(listAccountsRoute, makeListAccountsHandler(deps));
   group.openapi(createAccountRoute, makeCreateAccountHandler(deps));
+  group.openapi(accountRoute, makeAccountHandler(deps));
   group.openapi(resendSignInLinkRoute, makeResendSignInLinkHandler(deps));
   group.openapi(accountHoldingsRoute, makeAccountHoldingsHandler(deps));
   group.openapi(disableAccountRoute, makeDisableAccountHandler(deps));

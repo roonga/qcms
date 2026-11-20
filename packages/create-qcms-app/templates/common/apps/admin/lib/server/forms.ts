@@ -136,14 +136,35 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
     };
   });
 
-/** Ordinary autosave omits agentAssisted so it cannot clear provenance. Accepts with new questions use the atomic accept endpoint to avoid storing pins to questions never created. */
+export const AGENT_ACCEPT_HEADER = "x-qcms-agent-accept";
+
+export const AGENT_ADOPT_HEADER = "x-qcms-agent-adopt";
+
+/** The docked assistant's accepted proposal: the token its apply-draft step carried and the questions it invents. */
+export interface AgentAccept {
+  readonly token: string;
+  readonly newQuestions: readonly unknown[];
+}
+
+/**
+ * A proposal the accept route refused, which the user chose to keep as their own edit: the same
+ * token on a plain save, where it records the attribution and creates no question.
+ */
+export interface AgentAdopt {
+  readonly token: string;
+}
+
+/**
+ * An accepted proposal goes through the accept route under its token, which writes its audit row
+ * and creates any new questions in the same transaction; every other save is a plain PUT.
+ */
 export async function saveDraft(
   session: AdminSession,
   formId: string,
   definition: DraftForm,
-  agentAssisted?: boolean,
-  newQuestions?: readonly unknown[],
+  accept?: AgentAccept,
   proposal?: AgentProposalRef,
+  adopt?: AgentAdopt,
 ): Promise<
   ApiResult<{
     readonly issues: readonly FormIssue[];
@@ -152,7 +173,6 @@ export async function saveDraft(
     readonly updatedAt: string;
   }>
 > {
-  const accepting = newQuestions !== undefined && newQuestions.length > 0;
   const draftPath = `/forms/${encodeURIComponent(formId)}/draft` as const;
 
   const result = await read<{
@@ -161,18 +181,22 @@ export async function saveDraft(
     agentAssisted?: unknown;
     updatedAt?: unknown;
   }>(
-    accepting
+    accept !== undefined
       ? await adminApiFetch(session, `${draftPath}/assist/accept`, {
           method: "POST",
+          headers: { [AGENT_ACCEPT_HEADER]: accept.token },
           body: {
             definition,
-            newQuestions: newQuestions.map((question) => ({ definition: question })),
+            newQuestions: accept.newQuestions.map((question) => ({ definition: question })),
           },
         })
       : await adminApiFetch(session, draftPath, {
           method: "PUT",
-          headers: proposalHeaders(proposal),
-          body: agentAssisted === undefined ? { definition } : { definition, agentAssisted },
+          headers: {
+            ...proposalHeaders(proposal),
+            ...(adopt === undefined ? {} : { [AGENT_ADOPT_HEADER]: adopt.token }),
+          },
+          body: { definition },
         }),
   );
   if (!result.ok) return result;
@@ -183,6 +207,101 @@ export async function saveDraft(
       warnings: parseIssues(result.data.warnings),
       agentAssisted: result.data.agentAssisted === true,
       updatedAt: asString(result.data.updatedAt, ""),
+    },
+  };
+}
+
+export const AGENT_EDIT_HEADER = "x-qcms-agent-edit";
+
+/**
+ * One card-less builder edit or its Undo. The definition is sent exactly as the turn produced
+ * it: the token binds that post-state, so any normalising here would be refused.
+ */
+export async function applyAgentEdit(
+  session: AdminSession,
+  formId: string,
+  definition: unknown,
+  token: string,
+): Promise<ApiResult<{ readonly updatedAt: string; readonly undoToken: string | null }>> {
+  const result = await read<{ updatedAt?: unknown; agentEdit?: { undoToken?: unknown } }>(
+    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft`, {
+      method: "PUT",
+      headers: { [AGENT_EDIT_HEADER]: token },
+      body: { definition },
+    }),
+  );
+  if (!result.ok) return result;
+  const undoToken = result.data.agentEdit?.undoToken;
+  return {
+    ok: true,
+    data: {
+      updatedAt: asString(result.data.updatedAt, ""),
+      undoToken: typeof undoToken === "string" && undoToken !== "" ? undoToken : null,
+    },
+  };
+}
+
+/** The open draft's definition exactly as stored, which an Undo of a turn's first edit restores. */
+export async function readStoredDraft(
+  session: AdminSession,
+  formId: string,
+): Promise<ApiResult<unknown>> {
+  const result = await read<Record<string, unknown>>(
+    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}`),
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: result.data["draft"] ?? null };
+}
+
+export interface AgentChange {
+  readonly kind: string;
+  readonly revision: number | null;
+  readonly confirmedAt: string;
+}
+
+/** What the publish wizard compares: the newest publish against the draft, and the assistant's steps since. */
+export interface AgentChanges {
+  readonly base: DraftForm | null;
+  readonly draft: DraftForm | null;
+  readonly agentAssisted: boolean;
+  readonly changes: readonly AgentChange[];
+}
+
+export async function getAgentChanges(
+  session: AdminSession,
+  formId: string,
+): Promise<ApiResult<AgentChanges>> {
+  const result = await read<Record<string, unknown>>(
+    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft/agent-changes`),
+  );
+  if (!result.ok) return result;
+  const raw = result.data;
+  const definitionOf = (side: unknown): DraftForm | null => {
+    if (typeof side !== "object" || side === null) return null;
+    const draft = parseDraft((side as Record<string, unknown>)["definition"], formId, "en");
+    return draft ?? null;
+  };
+  const changes = Array.isArray(raw["changes"]) ? raw["changes"] : [];
+  return {
+    ok: true,
+    data: {
+      base: definitionOf(raw["base"]),
+      draft: definitionOf(raw["draft"]),
+      agentAssisted: raw["agentAssisted"] === true,
+      changes: changes.flatMap((entry): AgentChange[] => {
+        if (typeof entry !== "object" || entry === null) return [];
+        const change = entry as Record<string, unknown>;
+        const kind = change["kind"];
+        const revision = change["revision"];
+        if (typeof kind !== "string" || kind === "") return [];
+        return [
+          {
+            kind,
+            revision: typeof revision === "number" && Number.isInteger(revision) ? revision : null,
+            confirmedAt: asString(change["confirmedAt"], ""),
+          },
+        ];
+      }),
     },
   };
 }

@@ -299,3 +299,46 @@ describe("readAssistEvents", () => {
     ]);
   });
 });
+
+describe("the builder's own events", () => {
+  it("reads a turn's edits, keeping each definition exactly as it arrived", async () => {
+    const definition = { title: { en: "T" }, formId: "frm_a", steps: [], rules: [] };
+    const events = await collect(
+      streamOf([
+        frame("edits", {
+          formId: "frm_a",
+          turnId: "edt_abc12345",
+          edits: [{ index: 0, op: "copy", token: "tok", definition }],
+        }),
+        frame("open-wizard", { formId: "frm_a", returnTo: "/forms/frm_a/build" }),
+      ]),
+    );
+    expect(events).toEqual([
+      {
+        type: "edits",
+        formId: "frm_a",
+        turnId: "edt_abc12345",
+        edits: [{ index: 0, op: "copy", token: "tok", definition }],
+      },
+      { type: "open-wizard", formId: "frm_a", returnTo: "/forms/frm_a/build" },
+    ]);
+    const edit = events[0]?.type === "edits" ? events[0].edits[0] : undefined;
+    expect(Object.keys(edit?.definition ?? {})).toEqual(["title", "formId", "steps", "rules"]);
+  });
+
+  it("drops the whole set when one edit is unreadable, since later tokens bind earlier states", async () => {
+    const events = await collect(
+      streamOf([
+        frame("edits", {
+          formId: "frm_a",
+          turnId: "edt_abc12345",
+          edits: [
+            { index: 0, op: "copy", token: "tok", definition: {} },
+            { index: 1, op: "publish", token: "tok", definition: {} },
+          ],
+        }),
+      ]),
+    );
+    expect(events).toEqual([]);
+  });
+});

@@ -91,6 +91,9 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
       "/responses",
       "/responses/erasures",
       "/webhooks",
+      "/site/accounts",
+      "/site/accounts/new",
+      "/site/accounts/[accountId]",
       "/workspaces",
       "/workspaces/all",
       "/workspaces/[workspaceId]/members",
@@ -142,6 +145,7 @@ describe("which screens carry the form-subtree section", () => {
       "questions",
       "responses",
       "settings",
+      "site",
       "webhooks",
       "workspaces",
     ]);
