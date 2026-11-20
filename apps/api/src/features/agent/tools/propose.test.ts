@@ -1259,6 +1259,29 @@ describe("buildProposal: the subject a step names is checked before its draft is
     expect(outcome.reason).toContain("what step 1 creates");
   });
 
+  it("refuses the create itself in a workspace the caller may not create forms in", async () => {
+    const asked: unknown[] = [];
+    const outcome = await propose({
+      steps: [
+        {
+          kind: "form.create",
+          args: { slug: "new-one", defaultLocale: "en", workspaceId: "wsp_b" },
+        },
+        draftStep({ fromStep: 0, field: "formId" }),
+      ],
+      screen: "/forms",
+      subjectAllows: (request) => {
+        asked.push(request.subject);
+        return Promise.resolve(false);
+      },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(asked).toEqual([{ workspaceId: "wsp_b" }]);
+    expect(outcome.reason).toContain("Step 1 acts on wsp_b");
+    expect(outcome.reason).toContain("form: write");
+  });
+
   it("refuses a create whose questionId has been used before (R6)", async () => {
     const outcome = await propose({
       steps: [

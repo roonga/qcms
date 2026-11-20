@@ -293,7 +293,8 @@ const TOOL_ROUTES: Readonly<Record<AgentToolName, readonly [string, string] | un
   count_dead_letters: ["GET", "/admin/outbox/dead-letters"],
   list_erasures: ["GET", "/admin/erasures"],
   list_workspaces: ["GET", "/admin/workspaces"],
-  read_workspace: ["GET", "/admin/workspaces/{id}/members"],
+  // It returns requireSecondApprover, which the settings route guards more tightly than members.
+  read_workspace: ["GET", "/admin/workspaces/{id}/settings"],
   propose_plan: undefined,
   edit_question: undefined,
   edit_step: undefined,

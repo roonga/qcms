@@ -20,7 +20,7 @@ import {
   makeValidateDraftHandler,
 } from "./handler.js";
 import {
-  AgentEditHeaders,
+  DraftAgentHeaders,
   CreateFormBody,
   CreatedFormResponse,
   DraftBody,
@@ -119,11 +119,16 @@ export const putDraftRoute = createRoute({
     "either side of its edit. A stale, replayed, foreign or over-cap token is refused and " +
     "never saved as an ordinary edit. Each accepted edit and Undo writes one " +
     "`control.agent_actions` row in the save's transaction, and an edit's response carries " +
-    "the token that undoes it. The body's `agentAssisted` is never taken as provenance.",
+    "the token that undoes it. A proposal whose accept this route's sibling refused may be kept " +
+    "as the user's own edit instead: that save carries the refused accept token in " +
+    "`x-qcms-agent-adopt`, which records one `apply-draft.adopted` row, once per proposal, and " +
+    "changes nothing about what the save stores. Either agent header alone, never both, and " +
+    "neither alongside a card's step. The body carries no provenance mark: only a verified token " +
+    "does.",
   tags,
   request: {
     params: FormIdParam,
-    headers: AgentEditHeaders,
+    headers: DraftAgentHeaders,
     body: jsonBody(DraftBody),
   },
   responses: {

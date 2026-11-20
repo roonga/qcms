@@ -99,6 +99,14 @@ export interface ActionKindDef {
   readonly normaliseArgs?: (
     args: Readonly<Record<string, unknown>>,
   ) => Readonly<Record<string, unknown>>;
+  /**
+   * Fills a member the model left out from the screen the turn is on, before the arguments
+   * are checked, so the card shows the value the request will carry.
+   */
+  readonly screenDefaults?: (
+    args: Readonly<Record<string, unknown>>,
+    screen: { readonly workspaceId?: string | undefined },
+  ) => Readonly<Record<string, unknown>>;
   /** What the card displays, which is what the digest is taken over. */
   recomputeArgs(facts: ActionRequestFacts): unknown;
   /**
@@ -113,8 +121,8 @@ export interface ActionKindDef {
   readonly handOff?: true;
   /**
    * A step the screen completes through its own client-side write path rather than a
-   * request of its own. It reaches no route, so it carries no token and the screen's own
-   * save is what authorises it.
+   * request of its own. It takes no index in the plan's token; the one local kind,
+   * `apply-draft`, carries an accept token of its own to the accept route instead.
    */
   readonly local?: true;
   /**

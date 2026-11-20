@@ -179,6 +179,7 @@ vi.mock("./forms/actions", () => ({
   mintLinksAction: NOOP_ACTION,
   revokeLinkAction: NOOP_ACTION,
   previewConditionAction: NOOP_ACTION,
+  readStoredDraftAction: NOOP_ACTION,
   saveDraftAction: NOOP_ACTION,
   setFormStatusAction: NOOP_ACTION,
   updateSettingsAction: NOOP_ACTION,

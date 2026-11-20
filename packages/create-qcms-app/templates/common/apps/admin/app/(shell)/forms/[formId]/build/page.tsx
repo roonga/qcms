@@ -12,7 +12,12 @@ import { getForm } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
-import { previewDraftAction, startBuildDraftAction } from "../../actions";
+import {
+  applyAgentEditAction,
+  previewDraftAction,
+  readStoredDraftAction,
+  startBuildDraftAction,
+} from "../../actions";
 
 import "./preview-fonts.css";
 
@@ -54,6 +59,11 @@ export default async function FormBuildPage({
       userId={session.userId}
       workspaceId={workspaceId ?? ""}
       canPublish={form.workflow?.canPublish !== false}
+      draft={form.draft}
+      edits={{
+        apply: applyAgentEditAction.bind(null, form.formId),
+        readStored: readStoredDraftAction.bind(null, form.formId),
+      }}
       preview={{
         draft: form.draft,
         preview: previewDraftAction.bind(null, form.formId),

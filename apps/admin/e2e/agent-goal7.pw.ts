@@ -135,6 +135,7 @@ test("changes the builder, the releases screen and a response screen in one run"
   await expectNoAnswerValue(page, "the response screen's erasure");
 
   expect(auditDelta(before, await auditTally())).toEqual({
+    "apply-draft": 1,
     "form.publish": 1,
     "form.release": 1,
     "response.erase": 1,

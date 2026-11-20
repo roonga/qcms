@@ -24,6 +24,15 @@ export interface CreateFormCardState {
   readonly message?: string;
 }
 
+/** One card-less edit or Undo as its save left it. `undoToken` reverses an applied edit once. */
+export type AgentEditState =
+  | { readonly status: "saved"; readonly undoToken: string | null }
+  | { readonly status: "error"; readonly code: string; readonly message: string };
+
+export type StoredDraftState =
+  | { readonly status: "read"; readonly definition: unknown }
+  | { readonly status: "error"; readonly message: string };
+
 export type StartDraftState =
   { readonly status: "started" } | { readonly status: "error"; readonly message: string };
 

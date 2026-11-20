@@ -260,3 +260,27 @@ describe("the agent builder's conversation key", () => {
     ]);
   });
 });
+
+describe("the builder's edit outcomes in the history", () => {
+  const edits: AgentTurnRecord = {
+    role: "edit-result",
+    edits: [
+      { op: "step", outcome: "applied" },
+      { op: "copy", outcome: "undone" },
+    ],
+  };
+
+  it("are replayed to the next turn and survive the tab store", () => {
+    expect(promptTurns([edits])).toEqual([edits]);
+    const stored = serializeConversation(state([edits]), "usr_1");
+    expect(parseConversation(stored, "usr_1")?.turns).toEqual([edits]);
+  });
+
+  it("drop the whole store entry when an op or outcome is unknown", () => {
+    const stored = serializeConversation(
+      state([{ role: "edit-result", edits: [{ op: "publish", outcome: "applied" }] } as never]),
+      "usr_1",
+    );
+    expect(parseConversation(stored, "usr_1")).toBeUndefined();
+  });
+});

@@ -19,6 +19,7 @@ import type { ActionKindDef } from "../actions/types.js";
 import type { PinnedQuestion, SavedDraftPins } from "../draft-pins.js";
 import { offeredEnvironments, type OfferedActionKind } from "../grant-filter.js";
 import { isOperationalScreen } from "../screens.js";
+import { signAcceptToken } from "../accept-token.js";
 import {
   argumentsDigest,
   isStepReference,
@@ -68,6 +69,8 @@ export interface ProposedDraftStep {
   readonly warnings: readonly PublishWarning[];
   /** Which step of this plan creates each new question, so the card can name it. */
   readonly createdBy?: readonly { readonly questionId: string; readonly step: number }[];
+  /** The single-use token the accept route requires, on the step that applies the proposed draft. */
+  readonly acceptToken?: string;
 }
 
 /** One step as the card will display it, with its arguments resolved only symbolically. */
@@ -150,6 +153,8 @@ export interface ProposeInput {
   /** The environment name a production act runs in, from the deployment's own mount. */
   readonly productionEnvironment: string;
   readonly formId?: string | undefined;
+  /** The workspace the screen names, for a kind that takes it when the model names none. */
+  readonly screenWorkspaceId?: string | undefined;
   /** Resolves the names of the workspaces a plan's own arguments name. */
   readonly workspaceNames?:
     ((workspaceIds: readonly string[]) => Promise<readonly WorkspaceName[]>) | undefined;
@@ -514,17 +519,27 @@ function kindRefusal(
   return undefined;
 }
 
+function withScreenDefaults(
+  input: ProposeInput,
+  def: ActionKindDef,
+  step: ProposedStep,
+): ProposedStep {
+  if (def.screenDefaults === undefined) return step;
+  return { ...step, args: def.screenDefaults(step.args, { workspaceId: input.screenWorkspaceId }) };
+}
+
 async function stepRefusal(
   input: ProposeInput,
-  step: ProposedStep,
+  proposed: ProposedStep,
   index: number,
   pinned: readonly PinnedQuestion[],
   pinChecked: boolean,
 ): Promise<{ readonly reason: string } | { readonly step: PlanStep; readonly def: ActionKindDef }> {
-  const def = actionKind(step.kind);
+  const def = actionKind(proposed.kind);
   if (def === undefined) {
-    return { reason: `There is no action kind named "${step.kind}".` };
+    return { reason: `There is no action kind named "${proposed.kind}".` };
   }
+  const step = withScreenDefaults(input, def, proposed);
 
   const allowed = offeredEnvironments(input.offered, step.kind);
   if (allowed.length === 0) {
@@ -960,7 +975,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
     proposal: {
       proposalId,
       token,
-      steps: enriched.steps,
+      steps: await withAcceptTokens(input, proposalId, enriched.steps),
       proposedAt: input.issuedAt.toISOString(),
       expiresAt: new Date(input.issuedAt.getTime() + 10 * 60 * 1000).toISOString(),
       formId: boundFormId,
@@ -969,6 +984,37 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
       ...(await namedWorkspaces(input, steps)),
     },
   };
+}
+
+/**
+ * The step that applies the proposed draft reaches the accept route, which writes its row only against a
+ * token minted here, bound to this user, the step's form and this proposal.
+ */
+async function withAcceptTokens(
+  input: ProposeInput,
+  proposalId: string,
+  steps: readonly PlanStep[],
+): Promise<readonly PlanStep[]> {
+  const out: PlanStep[] = [];
+  for (const step of steps) {
+    const formId = step.args["formId"];
+    if (
+      step.draft === undefined ||
+      actionKind(step.kind)?.carriesProposedDraft !== true ||
+      typeof formId !== "string"
+    ) {
+      out.push(step);
+      continue;
+    }
+    const acceptToken = await signAcceptToken(input.appKey, {
+      sub: input.subject,
+      formId,
+      pid: proposalId,
+      issuedAt: input.issuedAt,
+    });
+    out.push({ ...step, draft: { ...step.draft, acceptToken } });
+  }
+  return out;
 }
 
 /** Spread-shaped, because `exactOptionalPropertyTypes` refuses an explicit `undefined`. */

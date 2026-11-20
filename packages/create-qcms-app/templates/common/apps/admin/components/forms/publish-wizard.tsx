@@ -14,6 +14,7 @@ import {
   Select,
 } from "@/components/kit";
 import { AgentProvenanceTag } from "@/components/forms/agent-provenance-tag";
+import { PublishChanges, type PublishChangesRead } from "@/components/forms/publish-changes";
 import { HelpTip } from "@/components/help-tip";
 import { environmentCookie } from "@/lib/environment";
 import type { PublishBatchState } from "@/lib/forms/builder-state";
@@ -335,6 +336,7 @@ export function PublishWizard({
   lookup,
   secureCookies,
   returnTo,
+  changes,
 }: {
   readonly formId: string;
   readonly versions: readonly number[];
@@ -354,6 +356,8 @@ export function PublishWizard({
   readonly lookup: (idempotencyKey: string) => Promise<PublishBatchState>;
   readonly secureCookies: boolean;
   readonly returnTo?: PublishReturn | undefined;
+  /** Shown while the draft is the source: every change since the last publish, the assistant's steps marked. */
+  readonly changes?: PublishChangesRead | undefined;
 }) {
   const [step, setStep] = useState<Step>("source");
   const [sourceKind, setSourceKind] = useState<"draft" | "version">(
@@ -577,6 +581,7 @@ export function PublishWizard({
               }))}
             />
           )}
+          {sourceKind === "draft" && changes !== undefined && <PublishChanges read={changes} />}
           <div className="flex flex-wrap gap-2">
             <Button
               variant="primary"
