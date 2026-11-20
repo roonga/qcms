@@ -9,14 +9,19 @@ import {
   authUser,
   createForm,
   getForm,
+  getWorkspaceForShare,
   insertFormVersion,
   listAccessAudit,
   listSiteAudit,
   listWorkspaces,
+  lockWorkspaceMembership,
+  moveFormToWorkspace,
   removeAccessGroupHolder,
   setMemberRole,
   setRequireSecondApprover,
+  setWorkspaceShared,
 } from "@roonga/qcms-db";
+import type { Executor } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 
 import { createApp } from "../../app.js";
@@ -217,6 +222,48 @@ async function settingDetails(workspaceId: string): Promise<string[]> {
 
 async function workspaceOf(formId: FormId): Promise<string | undefined> {
   return (await getForm(testDb.db, formId))?.workspaceId;
+}
+
+/** Resolves once some session waits on a lock, which is the request reaching the held row. */
+async function untilBlocked(): Promise<void> {
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    const { rows } = await testDb.client.query<{ n: string }>(
+      "select count(*) as n from pg_locks where not granted",
+    );
+    if (Number(rows[0]?.n ?? "0") > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("the request never waited on the held lock");
+}
+
+/**
+ * Run `hold` in a transaction, send the request once it holds, and commit once the request
+ * waits on what the transaction holds, so the request decides after the commit.
+ */
+async function whileHolding(
+  hold: (tx: Executor) => Promise<unknown>,
+  send: () => Promise<Response>,
+): Promise<Response> {
+  let pending: Promise<Response> | undefined;
+  await testDb.db.transaction(async (tx) => {
+    await hold(tx);
+    pending = send();
+    await untilBlocked();
+  });
+  if (pending === undefined) throw new Error("the request was never sent");
+  return pending;
+}
+
+async function libraryRows(workspaceId: string): Promise<{ site: string[]; mirrored: string[] }> {
+  const { rows } = await listSiteAudit(testDb.db, { kind: "library", limit: 200 });
+  const site = rows
+    .filter((row) => row.workspaceId === workspaceId)
+    .map((row) => row.detail ?? "")
+    .sort();
+  const mirrored = (await settingDetails(workspaceId))
+    .filter((detail) => detail.startsWith(`subject=${workspaceId} library=`))
+    .sort();
+  return { site, mirrored };
 }
 
 async function editorGroupOf(workspaceId: string, actor: Actor): Promise<string> {
@@ -699,6 +746,11 @@ describe("the shared question library (criterion 109)", () => {
         .sort();
     expect(details(holder)).toEqual(["library=marked", "library=unmarked"]);
     expect(details(next)).toEqual(["library=marked"]);
+    expect((await libraryRows(holder)).mirrored).toEqual([
+      `subject=${holder} library=marked`,
+      `subject=${holder} library=unmarked`,
+    ]);
+    expect((await libraryRows(next)).mirrored).toEqual([`subject=${next} library=marked`]);
 
     expect((await as(site, "PUT", `/workspaces/${next}/shared`, { shared: false })).status).toBe(
       200,
@@ -730,5 +782,111 @@ describe("the shared question library (criterion 109)", () => {
       `subject=${library} library=marked`,
       `subject=${library} library=unmarked`,
     ]);
+  });
+});
+
+describe("concurrent acts on one workspace", () => {
+  it("audits two hand-ons to the same workspace once", async () => {
+    const holder = await newWorkspace();
+    const next = await newWorkspace();
+    expect((await as(site, "PUT", `/workspaces/${holder}/shared`, { shared: true })).status).toBe(
+      200,
+    );
+
+    const handOn = (): Promise<Response> =>
+      as(site, "PUT", `/workspaces/${next}/shared`, { shared: true, handOn: true });
+    const answers = await Promise.all([handOn(), handOn()]);
+    expect(answers.map((res) => res.status)).toEqual([200, 200]);
+
+    expect(
+      (await listWorkspaces(testDb.db)).filter((row) => row.isShared).map((row) => row.id),
+    ).toEqual([next]);
+    expect(await libraryRows(holder)).toEqual({
+      site: ["library=marked", "library=unmarked"],
+      mirrored: [`subject=${holder} library=marked`, `subject=${holder} library=unmarked`],
+    });
+    expect(await libraryRows(next)).toEqual({
+      site: ["library=marked"],
+      mirrored: [`subject=${next} library=marked`],
+    });
+
+    expect((await as(site, "PUT", `/workspaces/${next}/shared`, { shared: false })).status).toBe(
+      200,
+    );
+  });
+
+  it("names the holder when another marking commits while this one writes", async () => {
+    const other = await newWorkspace();
+    const mine = await newWorkspace();
+
+    const refused = await whileHolding(
+      (tx) => setWorkspaceShared(tx, other, true),
+      () => as(site, "PUT", `/workspaces/${mine}/shared`, { shared: true }),
+    );
+    expect(refused.status).toBe(409);
+    expect(await codeOf(refused)).toBe("SHARED_WORKSPACE_EXISTS");
+    expect(
+      ((await refused.json()) as { error: { details: { workspaceId: string } } }).error.details
+        .workspaceId,
+    ).toBe(other);
+    expect((await libraryRows(mine)).site).toEqual([]);
+
+    await setWorkspaceShared(testDb.db, other, false);
+  });
+
+  it("refuses a direct move once the mover lost Edit forms while it waited", async () => {
+    const source = await newWorkspace();
+    const destination = await newWorkspace();
+    const formId = await seedForm(source);
+    const mover = await editor("racing-mover", [source, destination], { administers: [source] });
+    const group = await editorGroupOf(destination, mover);
+
+    const refused = await whileHolding(
+      async (tx) => {
+        await lockWorkspaceMembership(tx, source);
+        await removeAccessGroupHolder(tx, group, mover.userId);
+      },
+      () => move(mover, formId, destination),
+    );
+    expect(refused.status).toBe(403);
+    expect(await workspaceOf(formId)).toBe(source);
+    expect(await settingDetails(destination)).not.toContainEqual(
+      expect.stringContaining("form-moved-in"),
+    );
+  });
+
+  it("refuses a direct move into a workspace archived while it waited", async () => {
+    const source = await newWorkspace();
+    const destination = await newWorkspace();
+    const formId = await seedForm(source);
+    const mover = await editor("archived-mover", [source, destination], { administers: [source] });
+
+    const refused = await whileHolding(
+      (tx) => archiveWorkspace(tx, destination, new Date()),
+      () => move(mover, formId, destination),
+    );
+    expect(refused.status).toBe(409);
+    expect(await codeOf(refused)).toBe("WORKSPACE_ARCHIVED");
+    expect(await workspaceOf(formId)).toBe(source);
+  });
+
+  it("refuses an archive that waited on a move into the workspace", async () => {
+    const source = await newWorkspace();
+    const destination = await newWorkspace();
+    const formId = await seedForm(source);
+
+    const refused = await whileHolding(
+      async (tx) => {
+        await getWorkspaceForShare(tx, destination);
+        await moveFormToWorkspace(tx, formId, { from: source, to: destination });
+      },
+      () => as(site, "POST", `/workspaces/${destination}/archive`),
+    );
+    expect(refused.status).toBe(409);
+    expect(await codeOf(refused)).toBe("WORKSPACE_NOT_EMPTY");
+    expect(await workspaceOf(formId)).toBe(destination);
+    expect(
+      (await listWorkspaces(testDb.db)).find((row) => row.id === destination)?.archivedAt,
+    ).toBeNull();
   });
 });

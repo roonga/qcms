@@ -1,5 +1,5 @@
 import {
-  getWorkspace,
+  getWorkspaceForShare,
   listEnvironmentNames,
   listWorkspaceAdministrators,
   listWorkspaceMembers,
@@ -236,7 +236,7 @@ export async function moveLapse(
 ): Promise<ApiError | undefined> {
   const leftSource = await lockFormInSource(tx, input);
   if (leftSource !== undefined) return leftSource;
-  const destination = await getWorkspace(tx, input.destinationWorkspaceId);
+  const destination = await getWorkspaceForShare(tx, input.destinationWorkspaceId);
   if (destination === undefined || destination.archivedAt !== null) {
     return moveFail.destinationArchived();
   }

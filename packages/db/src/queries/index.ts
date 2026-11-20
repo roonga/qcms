@@ -87,6 +87,8 @@ export {
   listActiveWorkspaces,
   getWorkspace,
   getWorkspaceForShare,
+  getWorkspaceForUpdate,
+  lockSharedAndWorkspace,
   getWorkspaceBySlug,
   getSharedWorkspace,
   setWorkspaceShared,
