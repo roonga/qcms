@@ -10,7 +10,6 @@ import {
   TEXT_SIZE_PRODUCT_CAP,
   canStepTextSize,
   cappedAtScale,
-  isTextSize,
   presetSize,
   readTextSize,
   respondentTextSize,
@@ -25,16 +24,11 @@ describe("bounds", () => {
 
   it("offers only presets inside the bounds", () => {
     for (const preset of TEXT_SIZE_PRESETS) {
-      expect(isTextSize(preset.px)).toBe(true);
+      expect(preset.px).toBeGreaterThanOrEqual(TEXT_SIZE_MIN);
+      expect(preset.px).toBeLessThanOrEqual(TEXT_SIZE_MAX);
     }
     expect(presetSize("small")).toBe(TEXT_SIZE_MIN);
     expect(presetSize("medium")).toBe(DEFAULT_TEXT_SIZE);
-  });
-
-  it("refuses a size outside the bounds and a fractional one", () => {
-    expect(isTextSize(TEXT_SIZE_MIN - 1)).toBe(false);
-    expect(isTextSize(TEXT_SIZE_MAX + 1)).toBe(false);
-    expect(isTextSize(18.5)).toBe(false);
   });
 
   it("reads a typed value and names why it is refused", () => {

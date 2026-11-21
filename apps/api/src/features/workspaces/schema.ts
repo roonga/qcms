@@ -117,7 +117,11 @@ export const WorkspaceThemeView = z
   .openapi("WorkspaceThemeView");
 
 export const WorkspaceThemeListResponse = z
-  .object({ themes: z.array(WorkspaceThemeView) })
+  .object({
+    themes: z.array(WorkspaceThemeView),
+    /** Carried here so an Edit forms holder, who may not read workspace settings, still sees it. */
+    appearanceLocked: z.boolean().openapi({ example: false }),
+  })
   .openapi("WorkspaceThemeListResponse");
 
 export const WorkspaceThemeResponse = z

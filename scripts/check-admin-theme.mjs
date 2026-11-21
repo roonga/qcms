@@ -24,9 +24,6 @@ const SCAN_EXTENSIONS = [".css", ".ts", ".tsx"];
  */
 export const ALLOWED_LITERAL_COLOURS = new Map([
   ["apps/admin/lib/pwa/brand.ts", "apps/admin/lib/pwa/brand.test.ts"],
-  // The respondent portal's shipped palettes, which no admin token names; its own test
-  // re-derives them and pins the accents to packages/ui/src/theme.css.
-  ["apps/admin/lib/forms/shipped-themes.ts", "apps/admin/lib/forms/shipped-themes.test.ts"],
 ]);
 
 /**

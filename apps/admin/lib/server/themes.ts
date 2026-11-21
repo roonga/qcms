@@ -8,7 +8,6 @@ import { adminApiFetch } from "./api.ts";
 import { readNoContent, readResult, type ApiResult } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
 
-/** One of a workspace's named themes, as the Settings list and the drawer's Theme row show it. */
 export interface WorkspaceTheme {
   readonly themeId: string;
   readonly name: string;
@@ -63,21 +62,33 @@ function themePath(workspaceId: string, themeId: string): `/${string}` {
   return `${themesPath(workspaceId)}/${encodeURIComponent(themeId)}`;
 }
 
+/**
+ * The lock travels with the list because an Edit forms holder who is no administrator cannot
+ * read workspace settings, and the drawer and the Settings switch both have to show it.
+ */
+export interface WorkspaceThemeList {
+  readonly themes: readonly WorkspaceTheme[];
+  readonly appearanceLocked: boolean;
+}
+
 export async function listWorkspaceThemes(
   session: AdminSession,
   workspaceId: string,
-): Promise<ApiResult<readonly WorkspaceTheme[]>> {
-  const result = await readResult<{ themes?: unknown }>(
+): Promise<ApiResult<WorkspaceThemeList>> {
+  const result = await readResult<{ themes?: unknown; appearanceLocked?: unknown }>(
     await adminApiFetch(session, themesPath(workspaceId)),
   );
   if (!result.ok) return result;
   const rows = Array.isArray(result.data.themes) ? result.data.themes : [];
   return {
     ok: true,
-    data: rows.flatMap((row) => {
-      const theme = parseTheme(row as Record<string, unknown>);
-      return theme === undefined ? [] : [theme];
-    }),
+    data: {
+      themes: rows.flatMap((row) => {
+        const theme = parseTheme(row as Record<string, unknown>);
+        return theme === undefined ? [] : [theme];
+      }),
+      appearanceLocked: result.data.appearanceLocked === true,
+    },
   };
 }
 

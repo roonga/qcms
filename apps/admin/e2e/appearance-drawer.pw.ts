@@ -32,6 +32,7 @@ const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 let totpSecret = "";
+let editorSecret = "";
 let formId = "";
 
 function surface(page: Page): Locator {
@@ -94,8 +95,7 @@ async function openDrawer(page: Page): Promise<void> {
 }
 
 async function chooseTheme(page: Page, name: string): Promise<void> {
-  await drawer(page).getByRole("button", { name: /Theme/u }).click();
-  await page.getByRole("option", { name, exact: true }).click();
+  await drawer(page).getByLabel("Theme", { exact: true }).selectOption({ label: name });
 }
 
 async function axeClean(page: Page, where: string): Promise<void> {
@@ -164,12 +164,22 @@ test("a locked workspace disables the drawer and attempts no save", async ({ pag
   await openDrawer(page);
   const reason = page.getByTestId("qcms-appearance-locked");
   await expect(reason).toContainText("A Workspace administrator can unlock it in Settings.");
-  const medium = drawer(page).getByRole("button", { name: "Medium", exact: true });
-  await expect(medium).toBeDisabled();
   const reasonId = (await reason.getAttribute("id")) ?? "";
-  await expect(medium).toHaveAttribute("aria-describedby", reasonId);
+  const locked: Locator[] = [
+    drawer(page).getByLabel("Theme", { exact: true }),
+    drawer(page).getByLabel("Face", { exact: true }),
+    drawer(page).getByRole("checkbox", { name: /Tint the page background/u }),
+    page.getByTestId("qcms-appearance-text-size"),
+    drawer(page).getByRole("button", { name: "Medium", exact: true }),
+    drawer(page).getByRole("button", { name: "Spacious", exact: true }),
+    drawer(page).getByRole("button", { name: "Rounded", exact: true }),
+    drawer(page).getByRole("button", { name: "None", exact: true }),
+  ];
+  for (const control of locked) {
+    await expect(control).toBeDisabled();
+    await expect(control).toHaveAttribute("aria-describedby", reasonId);
+  }
   await expect(page.getByTestId("qcms-appearance-done")).toBeDisabled();
-  await expect(drawer(page).getByRole("button", { name: "Spacious", exact: true })).toBeDisabled();
   expect(drafts, "a locked drawer sent a draft save").toEqual([]);
   await axeClean(page, "the locked appearance drawer");
   await setLock(false);
@@ -212,10 +222,26 @@ test("Settings renames a theme, takes a raster logo and deletes it", async ({ pa
 
 test("the lock is the administrator's, and an Edit forms holder is told so", async ({ page }) => {
   test.setTimeout(300_000);
-  await enrollNewAdmin(page, EDITOR_EMAIL);
+  editorSecret = await enrollNewAdmin(page, EDITOR_EMAIL);
   await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
   await waitForHydration(page);
 
-  await expect(page.getByRole("switch", { name: /Lock appearance/u })).toBeDisabled();
-  await expect(page.getByText("Needs Workspace administrator.")).toBeVisible();
+  const lock = page.getByRole("switch", { name: /Lock appearance/u });
+  await expect(lock).toBeDisabled();
+  const needs = page.getByText("Needs Workspace administrator.");
+  await expect(needs).toBeVisible();
+  await expect(lock).toHaveAttribute("aria-describedby", (await needs.getAttribute("id")) ?? "");
+});
+
+test("an Edit forms holder is shown the lock from the themes read alone", async ({ page }) => {
+  test.setTimeout(300_000);
+  await setLock(true);
+  await signInWithTotp(page, EDITOR_EMAIL, editorSecret);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
+  await waitForHydration(page);
+
+  const lock = page.getByRole("switch", { name: /Lock appearance/u });
+  await expect(lock).toBeDisabled();
+  await expect(lock).toBeChecked();
+  await setLock(false);
 });

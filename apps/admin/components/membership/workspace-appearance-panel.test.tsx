@@ -1,7 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { messageForFormCode } from "@/lib/forms/errors";
+import { LOGO_MAX_BYTES } from "@/lib/forms/logo";
 import type { MembershipActionState } from "@/lib/membership/types";
 import { shippedThemeOptions } from "@/lib/server/appearance-options";
 
@@ -41,6 +43,11 @@ function panel(
       name: string,
     ) => Promise<MembershipActionState>;
     readonly remove?: (workspaceId: string, themeId: string) => Promise<MembershipActionState>;
+    readonly uploadLogo?: (
+      workspaceId: string,
+      themeId: string,
+      bytesBase64: string,
+    ) => Promise<MembershipActionState>;
     readonly setLock?: (workspaceId: string, locked: boolean) => Promise<MembershipActionState>;
   } = {},
 ) {
@@ -53,7 +60,7 @@ function panel(
       canSetLock={overrides.canSetLock ?? true}
       rename={overrides.rename ?? (() => Promise.resolve(DONE))}
       remove={overrides.remove ?? (() => Promise.resolve(DONE))}
-      uploadLogo={() => Promise.resolve(DONE)}
+      uploadLogo={overrides.uploadLogo ?? (() => Promise.resolve(DONE))}
       setLock={overrides.setLock ?? (() => Promise.resolve(DONE))}
     />
   );
@@ -67,15 +74,89 @@ describe("the appearance lock", () => {
     expect(setLock).toHaveBeenCalledWith("ws_1", true);
   });
 
-  it("is off to anyone else, with the role it needs", () => {
+  it("is off to anyone else, with the role it needs on the switch itself", () => {
     render(panel({ canSetLock: false }));
-    expect(isOff(screen.getByRole("switch", { name: LOCK }))).toBe(true);
-    expect(screen.getByText("Needs Workspace administrator.")).not.toBeNull();
+    const lock = screen.getByRole("switch", { name: LOCK });
+    expect(isOff(lock)).toBe(true);
+    const needs = screen.getByText("Needs Workspace administrator.");
+    expect(lock.getAttribute("aria-describedby")).toBe(needs.id);
   });
 
-  it("claims no state when the settings read was refused", () => {
+  it("shows an Edit forms holder the state the themes read carried", () => {
+    render(panel({ canSetLock: false, locked: true }));
+    const lock = screen.getByRole("switch", { name: LOCK });
+    expect(isOff(lock)).toBe(true);
+    expect((lock as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("claims no state when neither read answered", () => {
     render(panel({ locked: undefined }));
     expect(isOff(screen.getByRole("switch", { name: LOCK }))).toBe(true);
+  });
+});
+
+/** A `File` that reports a size without holding the bytes, so the guard is what is measured. */
+function sizedFile(bytes: number): File {
+  const file = new File([new Uint8Array(1)], "logo.png", { type: "image/png" });
+  Object.defineProperty(file, "size", { value: bytes });
+  return file;
+}
+
+describe("the theme logo", () => {
+  it("offers only the image types the upload route re-encodes", () => {
+    render(panel());
+    expect(screen.getByTestId("qcms-theme-logo-input").getAttribute("accept")).toBe(
+      "image/png,image/jpeg",
+    );
+  });
+
+  it("sends the chosen image and reports the save", async () => {
+    const uploadLogo = vi.fn(() => Promise.resolve(DONE));
+    render(panel({ uploadLogo }));
+    await userEvent.upload(
+      screen.getByTestId("qcms-theme-logo-input"),
+      new File([new Uint8Array([1, 2, 3])], "logo.png", { type: "image/png" }),
+    );
+    await waitFor(() => {
+      expect(uploadLogo).toHaveBeenCalledWith("ws_1", "thm_1", "AQID");
+    });
+    expect(await screen.findByText("ok")).not.toBeNull();
+  });
+
+  it("refuses an oversized image here rather than posting it for a 413", async () => {
+    const uploadLogo = vi.fn(() => Promise.resolve(DONE));
+    render(panel({ uploadLogo }));
+    await userEvent.upload(
+      screen.getByTestId("qcms-theme-logo-input"),
+      sizedFile(LOGO_MAX_BYTES + 1),
+    );
+    expect(await screen.findByText(/over 512 KB/u)).not.toBeNull();
+    expect(uploadLogo).not.toHaveBeenCalled();
+  });
+
+  it("refuses an empty file the same way", async () => {
+    const uploadLogo = vi.fn(() => Promise.resolve(DONE));
+    render(panel({ uploadLogo }));
+    await userEvent.upload(screen.getByTestId("qcms-theme-logo-input"), sizedFile(0));
+    expect(await screen.findByText("That file is empty. Pick an image.")).not.toBeNull();
+    expect(uploadLogo).not.toHaveBeenCalled();
+  });
+
+  it("words every refusal the upload route can answer with, raw code and all", () => {
+    const codes = [
+      "INVALID_LOGO",
+      "LOGO_NOT_RASTER",
+      "LOGO_UNSUPPORTED",
+      "LOGO_TOO_LARGE",
+      "LOGO_TOO_MANY_PIXELS",
+      "LOGO_TAKEN_DOWN",
+      "LOGO_UNKNOWN",
+    ];
+    for (const code of codes) {
+      const message = messageForFormCode(code);
+      expect(message, code).not.toContain(code);
+      expect(message, code).not.toContain("The request failed");
+    }
   });
 });
 

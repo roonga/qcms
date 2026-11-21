@@ -497,6 +497,34 @@ describe(
       expect((await cleared.json()) as unknown).toMatchObject({ appearanceLocked: false });
     });
 
+    it("is carried on the theme list read, which an Edit forms holder may make", async () => {
+      const workspaceId = await newWorkspace("lock-on-list");
+      const onlyEditor = await seedAdminSession(testDb.db, {
+        label: "lock-list-editor",
+        owner: false,
+        workspaceId,
+        grants: ["forms.editor"],
+      });
+
+      const open = await as(onlyEditor.token, "GET", `/workspaces/${workspaceId}/themes`);
+      expect(open.status, await open.clone().text()).toBe(200);
+      expect((await open.json()) as unknown).toMatchObject({ appearanceLocked: false });
+
+      const set = await send("PUT", `/workspaces/${workspaceId}/appearance-lock`, {
+        locked: true,
+      });
+      expect(set.status, await set.clone().text()).toBe(200);
+
+      // The settings read an administrator makes is refused to this holder, so the list is
+      // the only place the lock can reach them.
+      expect((await as(onlyEditor.token, "GET", `/workspaces/${workspaceId}/settings`)).status).toBe(
+        403,
+      );
+      const locked = await as(onlyEditor.token, "GET", `/workspaces/${workspaceId}/themes`);
+      expect(locked.status).toBe(200);
+      expect((await locked.json()) as unknown).toMatchObject({ appearanceLocked: true });
+    });
+
     it("refuses an Edit forms holder", async () => {
       const workspaceId = await newWorkspace("lock-editor");
       const onlyEditor = await seedAdminSession(testDb.db, {

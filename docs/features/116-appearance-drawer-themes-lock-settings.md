@@ -28,7 +28,7 @@ Spec criteria owned: none. 109 owns criteria 118 and 120 to 122 at the API.
 ## Required tests
 
 - X1 (Vitest): the text-size rule module (bounds, Custom state, the 32 px cap note per Q9).
-- Playwright (X3): open the drawer, change theme and text size, see the preview update, save; locked workspace shows the locked state and the PUT is not attempted; themes CRUD and logo upload on settings; the lock switch hidden for an Edit forms holder; axe clean.
+- Playwright (X3): open the drawer, change theme and text size, see the preview update, save; locked workspace shows the locked state and the PUT is not attempted; themes CRUD and logo upload on settings; the lock switch disabled for an Edit forms holder, with "Needs Workspace administrator." named through `aria-describedby` (Code Owner, 2026-11-22, replacing "hidden"); axe clean.
 
 ## Files and areas
 
@@ -56,6 +56,9 @@ Cleared by ruling (Code Owner, 2026-11-22). The drawer is drawn on the Agent Bui
 - The logo upload sits on the theme row in Settings; the drawer shows the logo read-only.
 - The drawer's locked state applies the text-size card's locked language to every control, with one reason line, "Locked by your workspace. A Workspace administrator can unlock it in Settings.", wired with `aria-describedby`.
 - The contrast correction report is worded from 107's `APPEARANCE_CONTRAST` failures in the drawer's own style; it is not drawn.
+- The shipped themes are exported as data from `@roonga/qcms-ui`, for the admin now and the portal and 117's derive later; there is no generated admin copy.
+- The theme list read carries the appearance lock, so an Edit forms holder who cannot read workspace settings still sees it.
+- `themes.create.note` ships now and becomes true when 117 lands.
 
 ## Out of scope
 

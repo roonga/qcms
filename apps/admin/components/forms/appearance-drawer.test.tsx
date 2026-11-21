@@ -35,8 +35,12 @@ function isOff(element: Element): boolean {
   );
 }
 
-function picker(name: RegExp): HTMLElement {
-  return screen.getByRole("button", { name });
+function picker(name: string): HTMLSelectElement {
+  return screen.getByRole("combobox", { name }) as HTMLSelectElement;
+}
+
+function tint(): HTMLInputElement {
+  return screen.getByRole("checkbox", { name: /Tint the page background/u }) as HTMLInputElement;
 }
 
 function drawer(
@@ -65,8 +69,7 @@ describe("choosing a theme", () => {
   it("reports the chosen theme's palettes for the preview to render", async () => {
     const onPreview = vi.fn();
     render(drawer(null, { onPreview }));
-    await userEvent.click(picker(/Theme/u));
-    await userEvent.click(await screen.findByRole("option", { name: "Plum" }));
+    await userEvent.selectOptions(picker("Theme"), PLUM.key);
     expect(onPreview).toHaveBeenCalledTimes(1);
     expect(onPreview.mock.calls[0]?.[0]).toMatchObject({ palettes: PLUM.palettes });
   });
@@ -74,7 +77,8 @@ describe("choosing a theme", () => {
   it("leaves every other axis off while the form has no appearance to sit on", () => {
     render(drawer(null));
     expect(isOff(screen.getByRole("button", { name: "Medium" }))).toBe(true);
-    expect(isOff(picker(/Face/u))).toBe(true);
+    expect(isOff(picker("Face"))).toBe(true);
+    expect(isOff(tint())).toBe(true);
   });
 });
 
@@ -116,16 +120,24 @@ describe("text size", () => {
 });
 
 describe("a locked workspace", () => {
-  it("disables every control, names the reason and attempts no save", async () => {
+  it("disables every control, points each at the one reason and attempts no save", async () => {
     const onSave = vi.fn(() => Promise.resolve(SAVED));
     render(drawer(APPLIED, { locked: true, onSave }));
     const reason = screen.getByTestId("qcms-appearance-locked");
     expect(reason.textContent).toContain("A Workspace administrator can unlock it in Settings.");
-    const medium = screen.getByRole("button", { name: "Medium" });
-    expect(isOff(medium)).toBe(true);
-    expect(medium.getAttribute("aria-describedby")).toBe(reason.id);
-    expect(isOff(picker(/Theme/u))).toBe(true);
-    expect(isOff(screen.getByTestId("qcms-appearance-text-size"))).toBe(true);
+    const controls: Element[] = [
+      picker("Theme"),
+      picker("Face"),
+      tint(),
+      screen.getByTestId("qcms-appearance-text-size"),
+      ...["Medium", "Custom", "Spacious", "Rounded", "None"].map((name) =>
+        screen.getByRole("button", { name }),
+      ),
+    ];
+    for (const control of controls) {
+      expect(isOff(control), control.id).toBe(true);
+      expect(control.getAttribute("aria-describedby"), control.id).toBe(reason.id);
+    }
     const done = screen.getByTestId("qcms-appearance-done");
     expect(isOff(done)).toBe(true);
     await userEvent.click(done);

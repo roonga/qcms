@@ -118,7 +118,8 @@ vi.mock("@/lib/server/membership", () => ({
   readMyAccess: () => Promise.resolve(accessResult),
 }));
 vi.mock("@/lib/server/themes", () => ({
-  listWorkspaceThemes: () => Promise.resolve({ ok: true, data: [] }),
+  listWorkspaceThemes: () =>
+    Promise.resolve({ ok: true, data: { themes: [], appearanceLocked: false } }),
   themeOption: (theme: unknown) => theme,
 }));
 vi.mock("@/lib/server/releases", () => ({

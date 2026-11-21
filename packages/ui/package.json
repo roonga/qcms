@@ -31,6 +31,10 @@
       "types": "./dist/repeat/repeat-table-node.d.ts",
       "default": "./dist/repeat/repeat-table-node.js"
     },
+    "./shipped-themes": {
+      "types": "./dist/shipped-themes.d.ts",
+      "default": "./dist/shipped-themes.js"
+    },
     "./theme.css": "./src/theme.css",
     "./theme-components.css": "./src/theme-components.css",
     "./fonts.css": "./src/fonts.css",

@@ -3444,6 +3444,18 @@ export const messages = {
   "themes.logo.change": "Change logo",
   "themes.logo.input": "Logo image for {name}",
   "themes.logo.uploaded": "Logo saved to the theme.",
+  "themes.logo.error.malformed": "That file could not be read. Pick the image again.",
+  "themes.logo.error.empty": "That file is empty. Pick an image.",
+  "themes.logo.error.notRaster":
+    "A logo has to be a PNG or a JPEG. SVG is refused, whatever the file is named.",
+  "themes.logo.error.unsupported":
+    "That image type is not accepted. Save the logo as a non-interlaced PNG or a JPEG.",
+  "themes.logo.error.tooLarge": "That image is over {limit}. Save a smaller one.",
+  "themes.logo.error.tooManyPixels":
+    "That image has too many pixels. Scale it down to 4000 px on a side at most.",
+  "themes.logo.error.takenDown":
+    "A Site administrator took this image down, so it cannot be uploaded again.",
+  "themes.logo.error.unknown": "That logo is no longer stored. Upload the image again.",
   "themes.rename": "Rename",
   "themes.rename.label": "Theme name",
   "themes.rename.save": "Save name",

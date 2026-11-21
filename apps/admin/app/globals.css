@@ -4727,6 +4727,30 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   font-size: 13px;
   font-weight: 600;
 }
+.qcms-adrawer__select {
+  min-block-size: 32px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+.qcms-adrawer__select:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.qcms-adrawer__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+}
+.qcms-adrawer__check > input:disabled,
+.qcms-adrawer__check > input:disabled + label {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 .qcms-adrawer__hint {
   margin: 0;
   font-size: 12px;
