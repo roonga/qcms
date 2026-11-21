@@ -43,9 +43,13 @@ describe("the plan's own title", () => {
   });
 
   it("leaves a word that merely contains a forbidden one alone", () => {
-    expect(accepted(readPlanTitle("Ask how they were released from hospital"))).toBe(
-      "Ask how they were released from hospital",
+    expect(accepted(readPlanTitle("Ask whether the paperwork felt sluggish"))).toBe(
+      "Ask whether the paperwork felt sluggish",
     );
+  });
+
+  it("refuses a banned word's own inflection, not only its shortest form", () => {
+    expect(refusal(readPlanTitle("Say which version is released to prod"))).toContain('"released"');
   });
 
   it("refuses a title longer than a heading, and says the limit", () => {

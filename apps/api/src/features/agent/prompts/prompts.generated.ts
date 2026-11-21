@@ -85,7 +85,7 @@ export const TOOL_DESCRIPTIONS = {
   list_erasures:
     "List the erasure log for the current environment: which session was erased, from which form and version, when and why. The log holds no answers.",
   list_form_versions:
-    "List one form's published versions, each with when it was published, which environments it is released in, and its step and question counts.",
+    "List one form's published versions, each with when it was published, which environments it is live in, and its step and question counts.",
   list_links:
     "List a form's secure links in the current environment with each one's state, whether it is single-use and when it expires. No link URL or token exists to return.",
   list_questions:
@@ -111,13 +111,13 @@ export const TOOL_DESCRIPTIONS = {
   question_recipes:
     "Look up this installation's own recipe for one or more common question types: the settings to apply, what the product cannot express, and what to tell the person about it. Name only types the list holds. Reads nothing a user authored and changes nothing.",
   read_form:
-    "Read one form: its slug and title, whether it has a draft, its latest published version, what is released in the current environment, its steps with their question counts, its rule ids, the question versions its draft pins unpublished, and the COMPLETE working draft under `definition`. Start any form.saveDraft from that definition: a draft save replaces the draft wholesale, so anything you leave out is dropped.",
+    "Read one form: its slug and title, whether it has a draft, its latest published version, which version is live in the current environment, its steps with their question counts, its rule ids, the question versions its draft pins unpublished, and the COMPLETE working draft under `definition`. Start any form.saveDraft from that definition: a draft save replaces the draft wholesale, so anything you leave out is dropped.",
   read_question:
     "Read one question: its versions with their statuses, and the complete definition of the version you name (label, help, type, required, constraints, messages and options). Authoring content only.",
   read_workspace:
     "Read one workspace's members with their roles, and its access groups with the role, environments and forms each group grants.",
   search_forms:
-    "Search the forms this caller may read, by slug or id, and report each one's latest and released version in the current environment.",
+    "Search the forms this caller may read, by slug or id, and report each one's latest version and the one live in the current environment.",
   search_question_library:
     "Search the published question library. Returns question definitions only - never response data.",
   test_rule:

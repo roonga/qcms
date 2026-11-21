@@ -2493,7 +2493,7 @@
   },
   {
     "name": "read_form",
-    "description": "Read one form: its slug and title, whether it has a draft, its latest published version, what is released in the current environment, its steps with their question counts, its rule ids, the question versions its draft pins unpublished, and the COMPLETE working draft under `definition`. Start any form.saveDraft from that definition: a draft save replaces the draft wholesale, so anything you leave out is dropped.",
+    "description": "Read one form: its slug and title, whether it has a draft, its latest published version, which version is live in the current environment, its steps with their question counts, its rule ids, the question versions its draft pins unpublished, and the COMPLETE working draft under `definition`. Start any form.saveDraft from that definition: a draft save replaces the draft wholesale, so anything you leave out is dropped.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -2509,7 +2509,7 @@
   },
   {
     "name": "search_forms",
-    "description": "Search the forms this caller may read, by slug or id, and report each one's latest and released version in the current environment.",
+    "description": "Search the forms this caller may read, by slug or id, and report each one's latest version and the one live in the current environment.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -2531,7 +2531,7 @@
   },
   {
     "name": "list_form_versions",
-    "description": "List one form's published versions, each with when it was published, which environments it is released in, and its step and question counts.",
+    "description": "List one form's published versions, each with when it was published, which environments it is live in, and its step and question counts.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",

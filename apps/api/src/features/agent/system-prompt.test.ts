@@ -36,6 +36,7 @@ const FORBIDDEN_TERMS = [
   "minted",
   "release",
   "releases",
+  "released",
   "BFF",
   "draft v1",
   "halts",
