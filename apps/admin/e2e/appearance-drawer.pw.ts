@@ -18,7 +18,7 @@ test.describe.configure({ mode: "serial" });
 
 const WORKSPACE_ID = "org_default_workspace";
 const EMAIL = uniqueAdminEmail("appearance116");
-const EDITOR_EMAIL = uniqueAdminEmail("appearance116editor");
+const ADMIN_ONLY_EMAIL = uniqueAdminEmail("appearance116admin");
 const RUN = Date.now().toString(36);
 const TEXT_SLUG = `e2e-appearance-text-${RUN}`;
 const TEXT_ID = `q_${TEXT_SLUG.replaceAll("-", "_")}`;
@@ -32,7 +32,6 @@ const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 let totpSecret = "";
-let editorSecret = "";
 let formId = "";
 
 function surface(page: Page): Locator {
@@ -107,7 +106,9 @@ async function axeClean(page: Page, where: string): Promise<void> {
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
-  await createTestAdmin(EDITOR_EMAIL, { grants: ["forms.editor"], owner: false });
+  // A Workspace administrator who holds no Edit forms grant: the one caller who reaches
+  // this screen and is refused its themes half.
+  await createTestAdmin(ADMIN_ONLY_EMAIL, { grants: [], owner: true });
   await setLock(false);
 });
 
@@ -220,28 +221,19 @@ test("Settings renames a theme, takes a raster logo and deletes it", async ({ pa
   await expect(page.getByText("Theme deleted.")).toBeVisible();
 });
 
-test("the lock is the administrator's, and an Edit forms holder is told so", async ({ page }) => {
-  test.setTimeout(300_000);
-  editorSecret = await enrollNewAdmin(page, EDITOR_EMAIL);
-  await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
-  await waitForHydration(page);
-
-  const lock = page.getByRole("switch", { name: /Lock appearance/u });
-  await expect(lock).toBeDisabled();
-  const needs = page.getByText("Needs Workspace administrator.");
-  await expect(needs).toBeVisible();
-  await expect(lock).toHaveAttribute("aria-describedby", (await needs.getAttribute("id")) ?? "");
-});
-
-test("an Edit forms holder is shown the lock from the themes read alone", async ({ page }) => {
+test("the lock is the administrator's and the themes are the Edit forms holder's", async ({
+  page,
+}) => {
   test.setTimeout(300_000);
   await setLock(true);
-  await signInWithTotp(page, EDITOR_EMAIL, editorSecret);
+  await enrollNewAdmin(page, ADMIN_ONLY_EMAIL);
   await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
   await waitForHydration(page);
 
   const lock = page.getByRole("switch", { name: /Lock appearance/u });
-  await expect(lock).toBeDisabled();
+  await expect(lock).toBeEnabled();
   await expect(lock).toBeChecked();
+  await expect(page.getByText("Needs Edit forms.")).toBeVisible();
+  await expect(page.getByText("Themes are not available to you in this workspace.")).toBeVisible();
   await setLock(false);
 });
