@@ -18,6 +18,7 @@ Given a PR number, its current head SHA, and the task or issue work order:
 7. Re-read the PR head SHA before issuing the verdict. A review is valid only for the exact tree inspected.
 8. Cite, never recall. Every claim about what shipped code, a work order, a corpus, or an earlier task does carries a `path:line` read at the reviewed head, or a quotation from it, obtained while writing the finding. An assertion you cannot cite is not a finding: check it or drop it. This applies equally to a claim that supports a conclusion you are confident in, including a correct verdict.
 9. A code comment in the diff that restates the code, narrates history, or is not required by the Code comments rule in `PROJECT_INSTRUCTIONS.md` is a finding.
+10. Check new or changed user-facing text (strings, prompts, recipes, docs, error messages) against `apps/site/src/content/docs/concepts/glossary.mdx`. A term the glossary names, used in another word, or a new term the diff introduces without updating the glossary, is a finding.
 
 The report is posted as the PR comment, so follow the Written text rule in `PROJECT_INSTRUCTIONS.md`: short bullets for unmet criteria, rule and scope findings with file and line, unresolved review comments, and checks run (one line each), then `FRICTION:`. No narrative or tables for what passed. End with exactly one head-bound line:
 

@@ -26,3 +26,5 @@ If work cannot finish, leave the branch green and commit `HANDOFF.md`. Its first
 Report the exit criteria with evidence, files changed, commands run, same-area riders, unresolved discoveries, and a final `FRICTION:` line or `FRICTION: none`.
 
 Follow the repository writing rules: pnpm only, no em dash, no secrets, no personal names or machine-specific paths in committed content, and no AI attribution trailers.
+
+User-facing text you write or change (strings, prompts, recipes, docs, error messages) uses the terms in `apps/site/src/content/docs/concepts/glossary.mdx`, and a new term, or a change to what an existing one means, updates the glossary in the same PR.
