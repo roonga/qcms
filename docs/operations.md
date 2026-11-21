@@ -216,9 +216,9 @@ same thing. A `forms.editor` and above sees the whole URL, because they are the 
 set it. **The URL is not treated as a secret and the signing secret is**, so masking a
 query string is a mitigation rather than a control, and this paragraph is the control.
 
-The role names in this guide are the ones the API enforces today. The decided workspace
-access model is [`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) and is not built yet; its
-[status table](WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
+The role names in this guide are the identifiers the policy code uses. The workspace
+access model they belong to is [`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) and is
+built; its [status table](WORKSPACE_ACCESS.md#1-status-and-authority) says what remains.
 
 **Webhook egress is per environment** (ADR-40, SEC-14). `webhooks`, `outbox` and
 `webhook_deliveries` live in each environment's own schema, so a deliverer running under
