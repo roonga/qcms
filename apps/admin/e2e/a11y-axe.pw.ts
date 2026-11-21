@@ -1,4 +1,4 @@
-import { chooseEnvironment } from "./support/environment.js";
+import { chooseEnvironment, presetEnvironment } from "./support/environment.js";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
@@ -633,7 +633,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(wizardReview).toBeVisible();
   await expectNoViolations(page, "the publish wizard, reviewing one destination");
-  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await page.getByRole("button", { name: /^Publish to /u }).click();
   await expect(page.getByTestId("qcms-publish-result")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "the recorded publish outcome");
 
@@ -949,6 +949,36 @@ async function sweepDeliveries(
   await expect(page.getByTestId("qcms-dead-letters-empty")).toBeVisible();
   await expectNoViolations(page, "the dead-letter queue");
 }
+
+test("the forms-area unavailable states have zero violations", async ({ browser }) => {
+  test.setTimeout(600_000);
+  const viewer = uniqueAdminEmail("a11y103viewer");
+  await createTestAdmin(viewer, { grants: ["forms.viewer"], owner: false });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  try {
+    await enrollNewAdmin(page, viewer, /\/(questions|forms|me\/access)/u);
+    await presetEnvironment(page, "prod");
+
+    await page.goto("/forms");
+    await expect(page.getByTestId("qcms-forms-create")).toBeVisible();
+    await expectNoViolations(page, "the forms list to a View forms holder");
+
+    await page.goto(`/forms/${OPS_FORM_ID}`);
+    await expect(page.getByTestId("qcms-form-read-only-notice")).toBeVisible();
+    await expectNoViolations(page, "a read-only form");
+
+    await page.goto(`/operations/forms/${OPS_FORM_ID}/responses`);
+    await expect(page.getByTestId("qcms-responses-unavailable")).toBeVisible();
+    await expectNoViolations(page, "responses not available in prod");
+
+    await page.goto(`/operations/forms/${OPS_FORM_ID}/availability`);
+    await expect(page.getByTestId("qcms-form-availability-unavailable")).toBeVisible();
+    await expectNoViolations(page, "availability without Publish forms");
+  } finally {
+    await context.close();
+  }
+});
 
 test("the 2FA challenge and its recovery variant have zero violations", async ({ page }) => {
   await submitSignIn(page, EMAIL);

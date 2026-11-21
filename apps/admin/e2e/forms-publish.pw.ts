@@ -155,7 +155,7 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   );
   await expect(review).toContainText("test");
 
-  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await page.getByRole("button", { name: /^Publish to /u }).click();
   const result = page.getByTestId("qcms-publish-result");
   await expect(result).toContainText("Version 1 is published.", { timeout: 30_000 });
 

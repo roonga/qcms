@@ -2394,6 +2394,8 @@ export const messages = {
   "ops.webhooks.addTitle": "Add a webhook endpoint",
   "ops.webhooks.url": "Endpoint URL",
   "ops.webhooks.urlHint": "https, unless this deployment allows private targets.",
+  "ops.webhooks.maskedNote":
+    "The query string is hidden. Edit forms and Publish forms see the whole address.",
   "ops.webhooks.activeNow": "Deliver to it straight away",
   "ops.webhooks.create": "Create endpoint",
   "ops.webhooks.table": "Configured endpoints",
