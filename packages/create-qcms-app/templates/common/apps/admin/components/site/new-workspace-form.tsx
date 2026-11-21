@@ -16,7 +16,6 @@ import {
   type CreateWorkspaceState,
 } from "@/lib/site/workspaces";
 
-/** After a create: the four starter groups it opened with, and what to do next. */
 function CreatedPanel({
   state,
 }: {

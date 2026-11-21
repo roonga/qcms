@@ -25,7 +25,6 @@ export interface RoleRow {
 
 type RoleActCall = (userId: string, credentials: StepUpCredentials) => Promise<RoleActState>;
 
-/** A promote or demote button, disabled with its reason where the act is refused here. */
 function RoleButton({
   row,
   act,

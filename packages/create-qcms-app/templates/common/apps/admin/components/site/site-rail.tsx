@@ -19,13 +19,7 @@ import { APPROVAL_REQUESTS_PATH } from "@/lib/site/approvals";
 import { SITE_AUDIT_PATH } from "@/lib/site/audit";
 
 export type SiteRailRow =
-  | "accounts"
-  | "newAccount"
-  | "administrators"
-  | "approvalRequests"
-  | "siteAudit"
-  | "workspaces"
-  | "newWorkspace";
+  "accounts" | "newAccount" | "administrators" | "approvalRequests" | "siteAudit" | "newWorkspace";
 
 /** The level-1 rows after Accounts, in the order Site configuration lists its screens. */
 const LATER_ROWS: readonly {
@@ -116,7 +110,6 @@ export function SiteRail({
               href={ALL_WORKSPACES_PATH}
               className="qcms-rail__link"
               data-rail-item="section:workspaces"
-              {...status("workspaces")}
             >
               {t("site.workspaces.title")}
             </Link>

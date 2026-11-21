@@ -7,10 +7,7 @@ export const WORKSPACE_SLUG_MAX_LENGTH = 48;
 /** How many identifiers a create tries when the name's own one is taken. */
 export const SLUG_ATTEMPTS = 5;
 
-/**
- * The stored identifier a name gives: lowercase letters and digits joined by single hyphens.
- * A name with none of those still gets one, since the identifier is never shown as a name.
- */
+/** The stored identifier a name gives: lowercase letters and digits joined by single hyphens. */
 export function workspaceSlugFrom(name: string): string {
   const base = name
     .normalize("NFKD")
@@ -20,12 +17,23 @@ export function workspaceSlugFrom(name: string): string {
     .replace(/^-/u, "")
     .slice(0, WORKSPACE_SLUG_MAX_LENGTH)
     .replace(/-$/u, "");
-  return base === "" ? "workspace" : base;
+  return base;
 }
 
-/** The identifiers a create tries in turn: the name's own, then numbered ones. */
+function randomSuffix(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(4));
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * The identifiers a create tries in turn: the name's own, then numbered ones. A name with no
+ * Latin letter or digit gives random ones instead, so any number of such names can exist.
+ */
 export function slugCandidates(name: string): readonly string[] {
   const base = workspaceSlugFrom(name);
+  if (base === "") {
+    return Array.from({ length: SLUG_ATTEMPTS }, () => `workspace-${randomSuffix()}`);
+  }
   const candidates = [base];
   for (let n = 2; n <= SLUG_ATTEMPTS; n += 1) {
     const suffix = `-${String(n)}`;

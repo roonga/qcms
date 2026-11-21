@@ -116,6 +116,8 @@ export async function listApprovalRequests(
   };
 }
 
+const DECISION_SEGMENTS = { approve: "approve", reject: "reject" } as const;
+
 /** Decide a site request. Approving one needs a step-up on this session first. */
 export async function decideSiteRequest(
   session: AdminSession,
@@ -125,7 +127,7 @@ export async function decideSiteRequest(
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
-      `/approval-requests/${encodeURIComponent(requestId)}/${decision}`,
+      `/approval-requests/${encodeURIComponent(requestId)}/${DECISION_SEGMENTS[decision]}`,
       { method: "POST", body: {} },
     ),
   );

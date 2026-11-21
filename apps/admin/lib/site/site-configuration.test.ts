@@ -8,6 +8,7 @@ import {
   promoteCandidates,
   promoteControl,
   readPromoteSearch,
+  roleBlockText,
 } from "./administrators.ts";
 import {
   approvalRequestsHref,
@@ -57,10 +58,12 @@ describe("promote and demote controls", () => {
     expect(demoteControl(other, viewer(3))).toEqual({ approval: "needsApprover" });
   });
 
-  it("never demotes the last active Site administrator", () => {
+  it("never demotes the last active Site administrator, nor the viewer's own account", () => {
     const me = account({ userId: "usr_me", siteAdministrator: true });
     expect(demoteControl(me, viewer(1)).blocked).toBe("lastSiteAdministrator");
-    expect(demoteControl(me, viewer(2))).toEqual({ approval: "needsApprover" });
+    expect(demoteControl(me, viewer(2)).blocked).toBe("ownAccount");
+    expect(demoteControl(me, viewer(3)).blocked).toBe("ownAccount");
+    expect(roleBlockText("ownAccount", "Me")).toBe(t("site.accounts.error.ownAccount"));
   });
 
   it("offers only accounts that are not Site administrators yet, and reads a bounded search", () => {
@@ -226,7 +229,7 @@ describe("a new workspace's identifier and starter groups", () => {
   it("makes a stored identifier from the name", () => {
     expect(workspaceSlugFrom("Clinical Trials (EU)")).toBe("clinical-trials-eu");
     expect(workspaceSlugFrom("Équipe Née")).toBe("equipe-nee");
-    expect(workspaceSlugFrom("日本")).toBe("workspace");
+    expect(workspaceSlugFrom("日本")).toBe("");
     expect(workspaceSlugFrom("a".repeat(80))).toHaveLength(48);
   });
 
@@ -235,6 +238,14 @@ describe("a new workspace's identifier and starter groups", () => {
     expect(candidates).toHaveLength(5);
     expect(candidates[1]).toMatch(/-2$/u);
     for (const slug of candidates) expect(slug.length).toBeLessThanOrEqual(48);
+  });
+
+  it("gives a name with no Latin letter or digit fresh random identifiers on every create", () => {
+    const first = slugCandidates("日本");
+    const second = slugCandidates("日本");
+    expect(first).toHaveLength(5);
+    for (const slug of [...first, ...second]) expect(slug).toMatch(/^workspace-[0-9a-f]{8}$/u);
+    expect(new Set([...first, ...second]).size).toBe(10);
   });
 
   it("says when a starter group has no environment set", () => {

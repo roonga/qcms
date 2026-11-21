@@ -177,6 +177,32 @@ describe("the Site administrators screen", () => {
     expect(screen.getByText("Account not claimed yet")).toBeTruthy();
   });
 
+  it("disables Demote on the viewer's own row, with the own-account reason, before any step-up", async () => {
+    const demote = vi.fn(done);
+    const user = userEvent.setup();
+    const others = { userId: "usr_me", activeSiteAdministrators: 3 };
+    const ada: Account = { ...ME, userId: "usr_ada", name: "Ada Obi" };
+    render(
+      <SiteAdministratorsPanel
+        administrators={[
+          { account: ME, control: demoteControl(ME, others) },
+          { account: ada, control: demoteControl(ada, others) },
+        ]}
+        candidates={undefined}
+        search=""
+        promote={done}
+        demote={demote}
+      />,
+    );
+    const own = screen.getByRole("button", { name: "Demote Sam Okafor" });
+    expect(isOff(own)).toBe(true);
+    expect(screen.getByText(t("site.accounts.error.ownAccount"))).toBeTruthy();
+    await user.click(own);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(isOff(screen.getByRole("button", { name: "Demote Ada Obi" }))).toBe(false);
+    expect(demote).not.toHaveBeenCalled();
+  });
+
   it("keeps the step-up dialog open with the refusal when the step-up fails", async () => {
     const promote = vi.fn((): Promise<RoleActState> =>
       Promise.resolve({

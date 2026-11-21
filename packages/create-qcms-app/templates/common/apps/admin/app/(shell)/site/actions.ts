@@ -73,6 +73,10 @@ export async function demoteAction(
   return settled(await demoteAccount(session, userId), t("site.administrators.demote.done"));
 }
 
+function isDecision(value: unknown): value is "approve" | "reject" {
+  return value === "approve" || value === "reject";
+}
+
 /** Approving a site request takes a step-up; rejecting one does not. */
 export async function decideSiteRequestAction(
   requestId: string,
@@ -80,6 +84,8 @@ export async function decideSiteRequestAction(
   credentials?: StepUpCredentials,
 ): Promise<RoleActState> {
   const session = await requireAdminSession();
+  // A Server Action argument is whatever the caller posts, whatever its type says.
+  if (!isDecision(decision)) return refused("http_400", decisionErrorMessage("http_400"));
   if (decision === "approve") {
     if (credentials === undefined) return refused("STEP_UP_REQUIRED");
     const refusal = await stepUpRefusal(session, credentials);

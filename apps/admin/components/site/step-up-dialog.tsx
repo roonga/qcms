@@ -10,7 +10,6 @@ export interface StepUpCredentials {
   readonly code: string;
 }
 
-/** Password and current code, as typed; ready once both are there. */
 export function useStepUpFields() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");

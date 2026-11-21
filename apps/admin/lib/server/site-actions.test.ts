@@ -135,6 +135,16 @@ describe("deciding a request", () => {
     expect(calls.decide).toEqual(["approve:apr_1"]);
   });
 
+  it.each(["approve?x", "../x", ""])(
+    "refuses the decision %j and makes no call",
+    async (decision) => {
+      const state = await decideSiteRequestAction("apr_1", decision as "approve", credentials);
+      expect(state).toMatchObject({ status: "error", code: "http_400" });
+      expect(calls.stepUp).toEqual([]);
+      expect(calls.decide).toEqual([]);
+    },
+  );
+
   it("rejects a site request without a step-up", async () => {
     await decideSiteRequestAction("apr_2", "reject");
     expect(calls.stepUp).toEqual([]);

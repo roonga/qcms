@@ -9,7 +9,7 @@ export const PROMOTE_CANDIDATE_LIMIT = 10;
 
 export type RoleAct = "promote" | "demote";
 
-export type RoleBlock = "lastSiteAdministrator" | "unclaimed" | "disabled";
+export type RoleBlock = "lastSiteAdministrator" | "ownAccount" | "unclaimed" | "disabled";
 
 /** One promote or demote control: whether it is refused here, and how the act would settle. */
 export interface RoleControl {
@@ -33,20 +33,24 @@ export function promoteControl(account: Account, viewer: RoleViewer): RoleContro
 
 /**
  * A demotion waits for a Site administrator other than the viewer and the target; with
- * nobody else it applies on step-up alone, and the last one is never demoted.
+ * nobody else it applies on step-up alone. The last one is never demoted, and the viewer
+ * never demotes themself.
  */
 export function demoteControl(account: Account, viewer: RoleViewer): RoleControl {
   const targetCounts = account.status === "active" && account.userId !== viewer.userId;
   const others = viewer.activeSiteAdministrators - 1 - (targetCounts ? 1 : 0);
   const approval = others > 0 ? "needsApprover" : "stepUpAlone";
   const last = account.status === "active" && viewer.activeSiteAdministrators <= 1;
-  return last ? { blocked: "lastSiteAdministrator", approval } : { approval };
+  if (last) return { blocked: "lastSiteAdministrator", approval };
+  if (account.userId === viewer.userId) return { blocked: "ownAccount", approval };
+  return { approval };
 }
 
 export function roleBlockText(block: RoleBlock, name: string): string {
   if (block === "lastSiteAdministrator") {
     return t("site.administrators.blocked.last", { person: name });
   }
+  if (block === "ownAccount") return t("site.accounts.error.ownAccount");
   if (block === "unclaimed") return t("site.administrators.blocked.unclaimed");
   return t("site.administrators.blocked.disabled");
 }

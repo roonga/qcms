@@ -167,7 +167,6 @@ export function siteAuditActLabel(row: SiteAuditRow): string {
   return actLabel(row, detailFields(row.detail)) ?? siteAuditKindLabel(row.kind);
 }
 
-/** The system is named as itself, never as an account or a removed one. */
 export function siteAuditActor(row: Pick<SiteAuditRow, "actor" | "actorEmail">): string {
   return auditActorLabel(row);
 }
