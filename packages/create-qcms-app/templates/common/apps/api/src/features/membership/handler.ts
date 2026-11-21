@@ -29,6 +29,7 @@ import {
   listAgentActions,
   listEnvironmentNames,
   listGrantsForUser,
+  listSuspendedGrantsForUser,
   listMemberWorkspacesForUser,
   listSiteAudit,
   listWorkspaceAdministrators,
@@ -358,9 +359,10 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
   return async (c) => {
     const principal = principalOf(c);
     const exec = deps.databases.control;
-    const [memberships, grants, live] = await Promise.all([
+    const [memberships, grants, suspended, live] = await Promise.all([
       listMemberWorkspacesForUser(exec, principal.userId),
       listGrantsForUser(exec, principal.userId),
+      listSuspendedGrantsForUser(exec, principal.userId),
       listEnvironmentNames(exec),
     ]);
 
@@ -373,6 +375,7 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
         archived: boolean;
         memberRole: string | null;
         grants: { name: string; roles: string[]; environments: string[] }[];
+        suspended: { name: string; roles: string[]; environments: string[] }[];
       }
     >();
 
@@ -384,9 +387,10 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
         archived: membership.archived,
         memberRole: membership.role,
         grants: [],
+        suspended: [],
       });
     }
-    for (const grant of grants) {
+    const place = (grant: (typeof grants)[number], into: "grants" | "suspended"): void => {
       const slot = byWorkspace.get(grant.workspaceId) ?? {
         workspaceId: grant.workspaceId,
         slug: grant.workspaceSlug,
@@ -394,14 +398,17 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
         archived: grant.workspaceArchived,
         memberRole: null,
         grants: [],
+        suspended: [],
       };
-      slot.grants.push({
+      slot[into].push({
         name: grant.name,
         roles: [...grant.roles],
         environments: [...grant.environments],
       });
       byWorkspace.set(grant.workspaceId, slot);
-    }
+    };
+    for (const grant of grants) place(grant, "grants");
+    for (const grant of suspended) place(grant, "suspended");
 
     const claim = holdsInstallationClaim(principal.role);
     const administers = memberships.some((membership) => membership.role === OWNER_MEMBER_ROLE);

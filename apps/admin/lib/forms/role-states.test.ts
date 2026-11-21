@@ -86,7 +86,26 @@ describe("responsesUnavailable", () => {
     expect(responsesUnavailable(access([authors]), "ws_clinical", "prod", "en")).toEqual({
       heading: "Responses are not available in prod",
       body: "You have View responses in test only. Response viewers gives it in prod.",
+      suspended: false,
     });
+  });
+
+  it("says a suspended View responses waits for a re-confirmation", () => {
+    const record = access([reviewers]);
+    const suspended: MyAccess = {
+      ...record,
+      workspaces: record.workspaces.map((workspace) => ({
+        ...workspace,
+        suspended: [
+          { name: "Response viewers", roles: ["responses.viewer"], environments: ["prod"] },
+        ],
+      })),
+    };
+    expect(responsesUnavailable(suspended, "ws_clinical", "prod", "en")).toMatchObject({
+      body: "Your View responses in prod is suspended until a Workspace administrator re-confirms it.",
+      suspended: true,
+    });
+    expect(responsesUnavailable(suspended, "ws_clinical", "test", "en").suspended).toBe(false);
   });
 
   it("names the group when View responses is held nowhere", () => {

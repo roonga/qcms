@@ -19,6 +19,8 @@ function request(overrides: Partial<HeldPublishRequest> = {}): HeldPublishReques
     expiresAt: new Date(NOW + 7 * DAY).toISOString(),
     status: "pending",
     draftUnchanged: true,
+    requestedByName: "Grace Mensah",
+    decidedByName: null,
     ...overrides,
   };
 }
@@ -79,6 +81,9 @@ describe("parseHeldPublishes", () => {
       parseHeldPublishes({ requests: [{ requestId: 1 }, { ...request(), status: "odd" }] }),
     ).toEqual([]);
     expect(parseHeldPublishes({ requests: [request()] })).toEqual([request()]);
+    expect(
+      parseHeldPublishes({ requests: [{ ...request(), requestedByName: "  ", decidedByName: 3 }] }),
+    ).toEqual([request({ requestedByName: null })]);
   });
 });
 
@@ -95,6 +100,17 @@ describe("copy", () => {
     );
     expect(heldDecisionRefusal("OWN_REQUEST", "", "prod")).toBe(
       "You asked for this, so another person with Publish forms in prod approves.",
+    );
+    expect(
+      heldDecisionRefusal("REQUESTER_CANNOT_PUBLISH", "", "prod", {
+        requester: "Grace Mensah",
+        workspace: "Clinical",
+      }),
+    ).toBe(
+      "Not applied: Grace Mensah no longer holds Edit forms and Publish forms for prod in Clinical.",
+    );
+    expect(heldDecisionRefusal("REQUESTER_CANNOT_PUBLISH", "", "prod")).toBe(
+      "Not applied: the person who asked no longer holds Edit forms and Publish forms for prod in this workspace.",
     );
     expect(heldDecisionRefusal("REQUEST_EXPIRED", "", "prod")).toBe(
       "This request expired and can no longer be approved.",

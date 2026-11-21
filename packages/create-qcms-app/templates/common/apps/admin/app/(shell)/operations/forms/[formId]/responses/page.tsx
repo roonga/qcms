@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
@@ -28,6 +29,29 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { formId } = await params;
   return pageMetadata(formSectionName("responses", formId));
+}
+
+function UnavailableResponses({
+  state,
+}: {
+  readonly state: { readonly heading: string; readonly body: string; readonly suspended: boolean };
+}) {
+  const { suspended, ...copy } = state;
+  return (
+    <EmptyState
+      {...copy}
+      testId="qcms-responses-unavailable"
+      {...(suspended
+        ? {
+            action: (
+              <Link href="/me/access" className="qcms-text-link">
+                {t("ops.unavailable.myAccess")}
+              </Link>
+            ),
+          }
+        : {})}
+    />
+  );
 }
 
 /* Why the list was refused, naming the environments where View responses is held. */
@@ -115,10 +139,7 @@ export default async function FormResponsesPage({
     return (
       <div className="flex flex-col gap-6">
         {header}
-        <EmptyState
-          {...await unavailableHere(session, form?.workspaceId)}
-          testId="qcms-responses-unavailable"
-        />
+        <UnavailableResponses state={await unavailableHere(session, form?.workspaceId)} />
       </div>
     );
   }

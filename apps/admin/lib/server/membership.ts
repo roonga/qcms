@@ -658,6 +658,11 @@ export const readMyAccess: (session: AdminSession) => Promise<ApiResult<MyAccess
             roles: strings(grant["roles"]),
             environments: strings(grant["environments"]),
           })),
+          suspended: rows(row["suspended"]).map((grant) => ({
+            name: str(grant["name"]),
+            roles: strings(grant["roles"]),
+            environments: strings(grant["environments"]),
+          })),
           environments: strings(row["environments"]),
         })),
         siteAdministrators: rows(result.data.siteAdministrators).map((row) => ({

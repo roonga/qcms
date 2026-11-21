@@ -153,6 +153,8 @@ export interface MyAccessWorkspace {
   readonly archived: boolean;
   readonly memberRole: string | null;
   readonly grants: readonly HeldGrant[];
+  /** Places suspended until an administrator re-confirms them; they grant nothing. */
+  readonly suspended?: readonly HeldGrant[];
 
   readonly environments: readonly string[];
 }

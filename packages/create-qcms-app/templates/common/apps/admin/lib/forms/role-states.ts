@@ -119,15 +119,29 @@ export function responsesUnavailable(
   workspaceId: string | undefined,
   environment: string,
   locale: string,
-): { readonly heading: string; readonly body: string } {
+): { readonly heading: string; readonly body: string; readonly suspended: boolean } {
   const heading = t("ops.unavailable.responsesHeading", { environment });
   const group = starterGroupFor(VIEW_RESPONSES_ROLE, environment);
   const workspace = access === undefined ? undefined : workspaceOf(access, workspaceId);
+  const suspended = (workspace?.suspended ?? []).some(
+    (grant) => grant.roles.includes(VIEW_RESPONSES_ROLE) && covers(grant.environments, environment),
+  );
+  if (suspended) {
+    return {
+      heading,
+      body: t("ops.unavailable.responsesSuspended", { environment }),
+      suspended: true,
+    };
+  }
   const elsewhere = (workspace?.environments ?? []).filter(
     (name) => name !== environment && holdsRole(workspace, VIEW_RESPONSES_ROLE, name),
   );
   if (elsewhere.length === 0) {
-    return { heading, body: t("ops.unavailable.responsesNone", { environment, group }) };
+    return {
+      heading,
+      body: t("ops.unavailable.responsesNone", { environment, group }),
+      suspended: false,
+    };
   }
   return {
     heading,
@@ -136,5 +150,6 @@ export function responsesUnavailable(
       environment,
       group,
     }),
+    suspended: false,
   };
 }

@@ -10,6 +10,9 @@ export interface HeldPublishRequest {
   readonly status: ApprovalStatus;
   /** False once the draft was saved after the request, which the API then refuses to apply. */
   readonly draftUnchanged: boolean;
+  /** Display names, sent only to the requester and to a holder of Publish forms for prod. */
+  readonly requestedByName: string | null;
+  readonly decidedByName: string | null;
 }
 
 export type HeldPublishBlock = "changed" | "expired";
@@ -31,6 +34,10 @@ const DAY = 86_400_000;
 
 function readStatus(value: unknown): ApprovalStatus | undefined {
   return APPROVAL_STATUSES.find((status) => status === value);
+}
+
+function nameOf(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
 /** The API's list, dropping a row it could not have sent. */
@@ -57,6 +64,8 @@ export function parseHeldPublishes(value: unknown): readonly HeldPublishRequest[
         expiresAt: row["expiresAt"],
         status,
         draftUnchanged: row["draftUnchanged"] === true,
+        requestedByName: nameOf(row["requestedByName"]),
+        decidedByName: nameOf(row["decidedByName"]),
       },
     ];
   });
@@ -106,12 +115,28 @@ export function blockSentence(block: HeldPublishBlock): string {
 /** The result of deciding a held publish, as the panel renders it. */
 export type HeldDecisionState =
   | { readonly status: "idle" }
-  | { readonly status: "approved"; readonly version: number | undefined }
+  | {
+      readonly status: "approved";
+      readonly version: number | undefined;
+      readonly requester: string | null;
+      readonly approver: string | null;
+    }
   | { readonly status: "rejected" }
   | { readonly status: "error"; readonly message: string };
 
+/** Who asked, and the workspace the form is in, for a refusal that names them. */
+export interface HeldDecisionContext {
+  readonly requester: string | null;
+  readonly workspace: string | null;
+}
+
 /** The refusal the approver reads, in the screen's own words where the code has one. */
-export function heldDecisionRefusal(code: string, message: string, environment: string): string {
+export function heldDecisionRefusal(
+  code: string,
+  message: string,
+  environment: string,
+  context: HeldDecisionContext = { requester: null, workspace: null },
+): string {
   switch (code) {
     case "DRAFT_CHANGED_SINCE_REQUEST":
     case "STALE_REVIEW":
@@ -121,7 +146,11 @@ export function heldDecisionRefusal(code: string, message: string, environment: 
     case "OWN_REQUEST":
       return t("forms.publish.requests.own", { environment });
     case "REQUESTER_CANNOT_PUBLISH":
-      return t("forms.publish.requests.requesterCannot", { environment });
+      return t("forms.publish.requests.requesterCannot", {
+        person: context.requester ?? t("forms.publish.requests.someone"),
+        environment,
+        workspace: context.workspace ?? t("forms.unavailable.thisWorkspace"),
+      });
     case "PUBLISH_FORM_LEFT_WORKSPACE":
       return t("forms.publish.requests.leftWorkspace");
     case "REQUEST_NOT_PENDING":

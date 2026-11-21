@@ -24,7 +24,7 @@ function view(overrides: Partial<HeldPublishView> = {}): HeldPublishView {
 function renderPanel(
   views: readonly HeldPublishView[],
   decide: (id: string, decision: "approve" | "reject") => Promise<HeldDecisionState> = () =>
-    Promise.resolve({ status: "approved", version: 5 }),
+    Promise.resolve({ status: "approved", version: 5, requester: null, approver: null }),
 ) {
   render(
     <HeldPublishPanel
@@ -57,7 +57,14 @@ describe("HeldPublishPanel", () => {
   it("shows the approver the bound draft and approves it", async () => {
     const decide = vi.fn<
       (id: string, decision: "approve" | "reject") => Promise<HeldDecisionState>
-    >(() => Promise.resolve({ status: "approved", version: 5 }));
+    >(() =>
+      Promise.resolve({
+        status: "approved",
+        version: 5,
+        requester: "Grace Mensah",
+        approver: "Luis Ortega",
+      }),
+    );
     renderPanel([view()], decide);
     expect(screen.getByTestId("qcms-held-publish-summary").textContent).toMatch(
       /^Patient intake, 14 questions, 3 steps, requested /u,
@@ -67,7 +74,7 @@ describe("HeldPublishPanel", () => {
       .click(screen.getByRole("button", { name: t("forms.publish.requests.approve") }));
     expect(decide).toHaveBeenCalledWith("apr_1", "approve");
     expect(
-      await screen.findByText("v5 frozen by the person who asked, approved by you, live in prod."),
+      await screen.findByText("v5 frozen by Grace Mensah, approved by Luis Ortega, live in prod."),
     ).toBeTruthy();
     expect(refresh).toHaveBeenCalled();
   });

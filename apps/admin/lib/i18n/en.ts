@@ -1456,7 +1456,7 @@ export const messages = {
   "forms.publish.blocked.alreadyReleased": "Already live here.",
   "forms.publish.blocked.approverIsAuthor":
     "You froze this version, so another person with Publish forms in {environment} publishes it.",
-  /** Second approval cannot hold a draft publish yet, so no copy may offer an approver for one. */
+  /** Only where a draft publish to prod is refused under second approval; on a prod-only site it is held instead. */
   "forms.publish.blocked.draftSecondApproval":
     "Second approval is on for production, so a draft cannot be published there: publish an existing version instead.",
   "forms.publish.blocked.approverUnknownAuthor":
@@ -1516,14 +1516,16 @@ export const messages = {
     "This draft has changed since publishing was requested. Request publishing again.",
   "forms.publish.requests.expired": "This request expired and can no longer be approved.",
   "forms.publish.requests.requesterCannot":
-    "Not applied: the person who asked no longer holds Edit forms and Publish forms in {environment}.",
+    "Not applied: {person} no longer holds Edit forms and Publish forms for {environment} in {workspace}.",
+  "forms.publish.requests.someone": "the person who asked",
+  "forms.publish.requests.you": "you",
   "forms.publish.requests.leftWorkspace":
     "Not applied: the form is no longer in the workspace this publish was asked in.",
   "forms.publish.requests.decided":
     "That request has already been decided. Reload the screen to see where it stands.",
   "forms.publish.requests.failed": "Nothing was published. {message}",
   "forms.publish.requests.approved":
-    "v{version} frozen by the person who asked, approved by you, live in {environment}.",
+    "v{version} frozen by {requester}, approved by {approver}, live in {environment}.",
   "forms.publish.requests.approvedUnread": "Approved: frozen and live in {environment}.",
   "forms.publish.requests.rejected": "Rejected. Nothing was frozen or published.",
   "forms.publish.lookup": "Look the result up",
@@ -2354,6 +2356,9 @@ export const messages = {
   "ops.unavailable.responsesHeading": "Responses are not available in {environment}",
   "ops.unavailable.responsesElsewhere":
     "You have View responses in {environments} only. {group} gives it in {environment}.",
+  "ops.unavailable.responsesSuspended":
+    "Your View responses in {environment} is suspended until a Workspace administrator re-confirms it.",
+  "ops.unavailable.myAccess": "My access",
   "ops.unavailable.responsesNone":
     "View responses in {environment} comes from {group}. Ask a Workspace administrator.",
   "ops.erase.known.sessionLabel": "Session id",

@@ -5,12 +5,14 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { presetEnvironment } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { suspendHold } from "./support/membership.js";
 
 test.describe.configure({ mode: "serial" });
 
 const VIEWER = uniqueAdminEmail("states103viewer");
 const LANDING = /\/(questions|forms|me\/access)/u;
 const FORM_ID = "frm_auto_quote";
+const WORKSPACE_ID = "org_default_workspace";
 
 let secret = "";
 
@@ -80,6 +82,25 @@ for (const width of [375, 320]) {
     ).toBeDisabled();
   });
 }
+
+test("a suspended View responses says it waits for a re-confirmation", async ({ page }) => {
+  test.setTimeout(300_000);
+  const suspended = uniqueAdminEmail("states103suspended");
+  await createTestAdmin(suspended, { grants: ["forms.viewer", "responses.viewer"], owner: false });
+  await suspendHold(WORKSPACE_ID, "Every environment: responses.viewer", suspended, suspended);
+  await enrollNewAdmin(page, suspended, LANDING);
+  await presetEnvironment(page, "prod");
+
+  await open(page, `/operations/forms/${FORM_ID}/responses`, 375, "qcms-responses-unavailable");
+  const state = page.getByTestId("qcms-responses-unavailable");
+  await expect(state).toContainText(
+    "Your View responses in prod is suspended until a Workspace administrator re-confirms it.",
+  );
+  await expect(state.getByRole("link", { name: "My access" })).toHaveAttribute(
+    "href",
+    "/me/access",
+  );
+});
 
 test("the route behind a hidden control still answers denied", async ({ page }) => {
   test.setTimeout(300_000);

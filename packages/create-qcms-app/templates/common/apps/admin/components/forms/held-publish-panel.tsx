@@ -82,7 +82,12 @@ function Decision({
           <Alert variant="success">
             {state.version === undefined
               ? t("forms.publish.requests.approvedUnread", { environment })
-              : t("forms.publish.requests.approved", { version: state.version, environment })}
+              : t("forms.publish.requests.approved", {
+                  version: state.version,
+                  requester: state.requester ?? t("forms.publish.requests.someone"),
+                  approver: state.approver ?? t("forms.publish.requests.you"),
+                  environment,
+                })}
           </Alert>
         )}
         {state.status === "rejected" && (
