@@ -351,8 +351,9 @@
       access.
     </p>
     <p class="status" role="note">
-      This guide describes how workspace access is designed to work. Parts of it are not yet
-      available in the product.
+      This guide describes the product as it is. Two screens are still being finished, so
+      <a href="#run-form">Run a live form</a> and
+      <a href="#responses">Read or erase responses</a> may not look exactly as described yet.
     </p>
   </header>
 
@@ -865,7 +866,9 @@
         <li>
           When a request is approved, QCMS checks again that the person who asked can still do what
           they asked. If they no longer can, for example because they lost Edit forms in a workspace
-          a form is moving to, the approval is refused.
+          a form is moving to, the approval is refused and nothing is applied. The request then ends
+          rather than waiting, so the person can ask again; the list shows it as lapsed, and the
+          person who tried is not recorded as having rejected it.
         </li>
       </ul>
       <p>
@@ -919,8 +922,9 @@
       <p>
         The audit records response reads, exports and erasures; every access change (groups,
         members, administrators, re-confirmations); workspace changes (rename, archive, forms moved
-        in or out, the second approval switch); assistant actions; and site-level acts that affect
-        this workspace, such as a reset of one of its members. Nobody can edit or delete an entry.
+        in or out, the second approval switch); respondent links minted or revoked; assistant
+        actions; and site-level acts that affect this workspace, such as a reset of one of its
+        members. Nobody can edit or delete an entry.
       </p>
 
       <h3 id="archive">Archive the workspace</h3>
