@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
 import { authUser } from "../schema/index.js";
@@ -100,6 +100,22 @@ export async function listAccountDirectory(
 }
 
 /** One account by id, with the state the Accounts screen reports. */
+/** Display names by account id, and nothing else about the accounts. A blank name is left out. */
+export async function listDisplayNames(
+  exec: Executor,
+  userIds: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  const ids = [...new Set(userIds)];
+  if (ids.length === 0) return new Map();
+  const rows = await exec
+    .select({ userId: authUser.id, name: authUser.name })
+    .from(authUser)
+    .where(inArray(authUser.id, ids));
+  return new Map(
+    rows.flatMap((row) => (row.name.trim() === "" ? [] : [[row.userId, row.name] as const])),
+  );
+}
+
 export async function findAccountById(
   exec: Executor,
   userId: string,

@@ -1478,10 +1478,20 @@
                   "properties": {
                     "draftUnchanged": {
                       "type": "boolean"
+                    },
+                    "requestedByName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "decidedByName": {
+                      "type": "string",
+                      "nullable": true
                     }
                   },
                   "required": [
-                    "draftUnchanged"
+                    "draftUnchanged",
+                    "requestedByName",
+                    "decidedByName"
                   ]
                 }
               ]
@@ -4018,6 +4028,34 @@
                     ]
                   }
                 },
+                "suspended": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "roles": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "environments": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "roles",
+                      "environments"
+                    ]
+                  }
+                },
                 "environments": {
                   "type": "array",
                   "items": {
@@ -4032,6 +4070,7 @@
                 "archived",
                 "memberRole",
                 "grants",
+                "suspended",
                 "environments"
               ]
             }
@@ -7847,7 +7886,7 @@
     "/admin/forms/{id}/publish-requests": {
       "get": {
         "summary": "Held publishes of this form's draft to prod (admin)",
-        "description": "On a site whose only environment is prod, with second approval on, a draft publish to prod is held here until a different holder of Publish forms for prod approves it. Newest first. `draft` is the draft as it now stands, given while a pending request still binds it, so the approver sees exactly what would be published. A request an approver could not apply carries status `lapsed`, not `rejected`, with that approver as `decidedBy`.",
+        "description": "On a site whose only environment is prod, with second approval on, a draft publish to prod is held here until a different holder of Publish forms for prod approves it. Newest first. `draft` is the draft as it now stands, given while a pending request still binds it, so the approver sees exactly what would be published. A request an approver could not apply carries status `lapsed`, not `rejected`, with that approver as `decidedBy`. `requestedByName` and `decidedByName` are display names, given only to the requester and to a holder of Publish forms for prod in the form's workspace.",
         "tags": [
           "forms"
         ],
