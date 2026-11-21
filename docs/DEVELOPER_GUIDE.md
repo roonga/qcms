@@ -591,7 +591,7 @@ The operator recipe is `docs/operations.md` ("Adding an environment later"): `pn
 What the access model adds to that, and the part a developer meets first:
 
 - **A new environment is covered by no access group.** There is no value meaning every environment, so a person in every existing group is refused every environment-scoped act in the new one until an administrator adds it to a group (`docs/WORKSPACE_ACCESS.md`, criterion 14). Publish forms, View responses and Erase responses are the roles this governs; View forms and Edit forms ignore the environment set.
-- **The switcher shows a person only the environments their groups name**, so a new environment is invisible to everybody until it is in a group, the Site administrator included.
+- **The switcher is an offer, not a gate.** `GET /admin/environments` serves a Site administrator the whole live set, and serves a group holder the environments their groups name plus every live environment where a group of theirs names none, which is any group carrying only View forms or Edit forms (`apps/api/src/features/releases/handler.ts`). A new environment therefore appears at once for those two, and stays out of the switcher only for a holder whose groups name environments explicitly. Being offered one grants nothing in it: the environment-scoped acts still need a group that names it.
 - **Starter groups are seeded per workspace at creation**, from the environments the site had then. Adding an environment changes no existing workspace's groups; a workspace created afterwards gets it in Authors.
 - **Access groups shows the gap.** With a role or an environment left uncovered, that screen carries the "no group covers it yet" notice naming it (spec section 13).
 

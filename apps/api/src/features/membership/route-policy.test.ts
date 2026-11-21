@@ -284,7 +284,7 @@ describe("every row names an action the policy declares", () => {
     expect(read?.installationOnly).toBeUndefined();
   });
 
-  it("names exactly twenty-one installation-only rows", () => {
+  it("names exactly twenty-two installation-only rows", () => {
     expect(
       ROUTE_POLICIES.filter((row) => row.installationOnly === true).map(
         (row) => `${row.method} ${row.path}`,

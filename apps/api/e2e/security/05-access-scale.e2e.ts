@@ -1,7 +1,7 @@
 /**
  * Criterion 114: search over people, groups and accounts under 300 ms at 1,000 accounts.
- * The fastest of several samples is asserted and every sample printed, because a slower
- * sample on a host running other lanes measures the machine rather than the query.
+ * The median of several samples is asserted and every sample printed, so one slow sample
+ * on a host running other lanes neither fails the gate nor hides a regression.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -28,10 +28,9 @@ import {
 const ADMIN_SESSION_HEADER = "x-qcms-admin-session";
 const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
 
-/** The scale the criterion names. */
 const ACCOUNTS = 1_000;
-/** The criterion's budget, in milliseconds. */
 const BUDGET_MS = 300;
+/** Odd, so the median is a sample rather than a mean of two. */
 const SAMPLES = 5;
 /** Rows per insert: one statement per account would spend the suite's budget on setup. */
 const CHUNK = 200;
@@ -98,20 +97,31 @@ async function seedAccounts(exec: Executor, teamId: string): Promise<void> {
   );
 }
 
-/** The fastest of {@link SAMPLES} reads, with every sample printed. */
-async function fastest(label: string, path: string): Promise<number> {
+/**
+ * Reads `path` once to check what it returned, then {@link SAMPLES} times to measure it.
+ * A query that narrowed to nothing, or that was ignored, fails `check` rather than
+ * reporting a fast read of the wrong rows.
+ */
+async function measure(
+  label: string,
+  path: string,
+  check: (body: Record<string, unknown>) => void,
+): Promise<number> {
   const headers = {
     [INTERNAL_TOKEN_HEADER]: all.internalToken,
     [ADMIN_SESSION_HEADER]: adminToken,
   };
-  // Warm up: the first read of a session pays for the connection and the plan.
-  expect((await all.app.request(path, { headers })).status).toBe(200);
+  // The first read of a session pays for the connection and the plan, and is the one whose
+  // body is checked.
+  const warm = await all.app.request(path, { headers });
+  expect(warm.status, label).toBe(200);
+  check((await warm.json()) as Record<string, unknown>);
 
   const samples: number[] = [];
   for (let run = 0; run < SAMPLES; run += 1) {
     const started = performance.now();
     const res = await all.app.request(path, { headers });
-    expect(res.status).toBe(200);
+    expect(res.status, label).toBe(200);
     await res.text();
     samples.push(performance.now() - started);
   }
@@ -119,7 +129,20 @@ async function fastest(label: string, path: string): Promise<number> {
   console.log(
     `${label}: ${sorted.map((ms) => ms.toFixed(1)).join(", ")} ms over ${String(ACCOUNTS)} accounts`,
   );
-  return sorted[0] ?? Number.POSITIVE_INFINITY;
+  return sorted[(SAMPLES - 1) / 2] ?? Number.POSITIVE_INFINITY;
+}
+
+interface AccountRow {
+  readonly email: string;
+  readonly name: string;
+  readonly role: string;
+  readonly status: string;
+}
+
+function accountsOf(body: Record<string, unknown>): readonly AccountRow[] {
+  const rows = body["accounts"] as AccountRow[] | undefined;
+  expect(rows ?? [], "the page carried no accounts, so the filter matched nothing").not.toEqual([]);
+  return rows ?? [];
 }
 
 beforeAll(async () => {
@@ -163,33 +186,74 @@ describe("search at 1,000 accounts (criterion 114)", () => {
     expect(body.total).toBeGreaterThanOrEqual(ACCOUNTS);
   });
 
-  it("searches the account directory under the budget", async () => {
-    expect(await fastest("accounts, search by address", "/admin/accounts?q=scale.07")).toBeLessThan(
-      BUDGET_MS,
-    );
+  it("searches the account directory under the budget, narrowed to the match", async () => {
+    // One hundred of the thousand carry `scale.07` in their address.
     expect(
-      await fastest("accounts, search by name", "/admin/accounts?q=Person%200123"),
+      await measure("accounts, search by address", "/admin/accounts?q=scale.07", (body) => {
+        expect(body["total"]).toBe(100);
+        for (const row of accountsOf(body)) expect(row.email).toContain("scale.07");
+      }),
+    ).toBeLessThan(BUDGET_MS);
+
+    // The search reads the display name as well as the address, and this one names a row.
+    expect(
+      await measure("accounts, search by name", "/admin/accounts?q=Person%200123", (body) => {
+        expect(body["total"]).toBe(1);
+        expect(accountsOf(body)[0]?.name).toBe("Scale Person 0123");
+      }),
     ).toBeLessThan(BUDGET_MS);
   });
 
   it("filters the account directory by role and by status under the budget", async () => {
+    // Every tenth account is seeded unclaimed.
     expect(
-      await fastest("accounts, status filter", "/admin/accounts?status=unclaimed"),
+      await measure("accounts, status filter", "/admin/accounts?status=unclaimed", (body) => {
+        expect(body["total"]).toBe(ACCOUNTS / 10);
+        for (const row of accountsOf(body)) expect(row.status).toBe("unclaimed");
+      }),
     ).toBeLessThan(BUDGET_MS);
-    expect(await fastest("accounts, role filter", "/admin/accounts?role=member")).toBeLessThan(
-      BUDGET_MS,
-    );
+
+    // Narrower than the unfiltered list, which also holds the Site administrator.
+    expect(
+      await measure("accounts, role filter", "/admin/accounts?role=member", (body) => {
+        expect(body["total"]).toBeGreaterThanOrEqual(ACCOUNTS);
+        for (const row of accountsOf(body)) expect(row.role).toBe("member");
+      }),
+    ).toBeLessThan(BUDGET_MS);
   });
 
   it("reads the workspace's people and their groups under the budget", async () => {
     expect(
-      await fastest("members and their groups", `/admin/workspaces/${SEED_WORKSPACE_ID}/members`),
+      await measure(
+        "members and their groups",
+        `/admin/workspaces/${SEED_WORKSPACE_ID}/members`,
+        (body) => {
+          const members = body["members"] as { email?: string; groups?: string[] }[] | undefined;
+          expect(members?.length ?? 0).toBeGreaterThanOrEqual(ACCOUNTS);
+          // The seeded group reaches every one of them, so the read really joins holders.
+          // Found by address, because the list is ordered by one and this workspace holds
+          // the suite's own accounts too.
+          const seeded = (members ?? []).find((member) =>
+            (member.email ?? "").startsWith("scale."),
+          );
+          expect(seeded?.groups).toContain("Scale authors");
+        },
+      ),
     ).toBeLessThan(BUDGET_MS);
   });
 
   it("reads the workspace's access groups under the budget", async () => {
     expect(
-      await fastest("access groups", `/admin/workspaces/${SEED_WORKSPACE_ID}/access-groups`),
+      await measure(
+        "access groups",
+        `/admin/workspaces/${SEED_WORKSPACE_ID}/access-groups`,
+        (body) => {
+          const groups = body["groups"] as { name?: string }[] | undefined;
+          expect((groups ?? []).map((group) => group.name)).toEqual(
+            expect.arrayContaining(["Scale authors", "Scale publishers"]),
+          );
+        },
+      ),
     ).toBeLessThan(BUDGET_MS);
   });
 });

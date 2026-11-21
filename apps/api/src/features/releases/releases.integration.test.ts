@@ -706,7 +706,7 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
   });
 
-  it("records no approval and compares nothing with the switch off (criterion 3)", async () => {
+  it("records no approval and compares nothing with the switch off", async () => {
     await post(`/forms/${RULE_FORM}/releases`, { environment: "test", version: 1 });
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
     const res = await post(`/forms/${RULE_FORM}/releases`, { environment: "prod", version: 1 });

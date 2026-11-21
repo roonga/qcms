@@ -532,7 +532,7 @@ describe("archiving a workspace (criterion 98)", () => {
     );
   });
 
-  it("leaves the questions it owns exactly where they were (criterion 5)", async () => {
+  it("leaves the questions it owns exactly where they were", async () => {
     const workspaceId = await createWorkspace("archive-questions");
     const questionId = QuestionId.parse("q_archive_kept");
     const created = await send("POST", "/questions", {
@@ -569,7 +569,7 @@ describe("archiving a workspace (criterion 98)", () => {
   });
 });
 
-describe("the owning workspace of something new (criterion 1)", () => {
+describe("the owning workspace of something new", () => {
   it("is refused rather than guessed when more than one workspace could be meant", async () => {
     // Several workspaces exist by this point, so there is no safe default to resolve to.
     const res = await send("POST", "/forms", {

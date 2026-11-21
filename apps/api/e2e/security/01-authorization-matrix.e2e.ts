@@ -27,9 +27,16 @@ import {
   insertWorkspaceTheme,
   listAccessAudit,
   listSiteAudit,
+  needsEnvironments,
   setRequireSecondApprover,
 } from "@roonga/qcms-db";
 
+import {
+  decideAccess,
+  type HeldGrant,
+  holdsStatement,
+  ROLE_NAMES,
+} from "../../src/features/membership/policy.js";
 import { ROUTE_POLICIES, type RoutePolicy } from "../../src/features/membership/route-policy.js";
 import { REQUEST_ENVIRONMENT_HEADER } from "../../src/middleware/request-environment.js";
 import { seedAdminSession, seedGrants, synthSecret } from "../../src/test-support.js";
@@ -1525,7 +1532,7 @@ describe("the publisher's environments and the masked endpoint URL (criterion 9)
  * blocks above assert against, and the switch is turned on in `beforeAll` and off in
  * `afterAll` so a block added after this one inherits the default.
  */
-describe("the two-person rule for production (task 070, criteria 1 to 7)", () => {
+describe("the two-person rule for production (criteria 27 to 30)", () => {
   const headersFor = environmentHeaders;
   const TWO_PERSON_FORM = "frm_two_person";
   const ORIGINAL_URL = "https://agreed-consumer.example/hook";
@@ -1927,23 +1934,60 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   });
 });
 
+// The matrix's two administrator columns own these three resources; the rest are data.
+const ADMINISTRATIVE_RESOURCES = new Set(["membership", "workspace", "audit"]);
+const DATA_RESOURCES = new Set(["question", "form", "release", "link", "webhook", "response"]);
+
+/**
+ * Mounted only where an agent provider is configured, which this composition is not, so
+ * their paths 404 for everybody. One probe below proves that rather than assuming it.
+ */
+const UNMOUNTED_ROUTES = [
+  "POST /admin/assist",
+  "POST /admin/forms/{id}/draft/assist",
+  "POST /admin/forms/{id}/draft/assist/accept",
+] as const;
+
+const ADMINISTRATIVE_ROWS = ROUTE_POLICIES.filter(
+  (row) => row.workspace === "path" && ADMINISTRATIVE_RESOURCES.has(row.resource),
+);
+const SITE_ROWS = ROUTE_POLICIES.filter((row) => row.installationOnly === true);
+const DATA_ROWS = ROUTE_POLICIES.filter(
+  (row) =>
+    row.installationOnly !== true &&
+    DATA_RESOURCES.has(row.resource) &&
+    !UNMOUNTED_ROUTES.includes(`${row.method} ${row.path}` as (typeof UNMOUNTED_ROUTES)[number]),
+);
+
+/** The grant check's own refusal; a step-up or a handler guard refuses under its own code. */
+const GRANT_REFUSAL = "FORBIDDEN";
+
+function errorCodeOf(text: string): string {
+  try {
+    return String((JSON.parse(text) as { error?: { code?: string } }).error?.code ?? "");
+  } catch {
+    return "";
+  }
+}
+
+describe("the three by-route sweeps between them reach every row of the route table", () => {
+  it("leaves exactly the narrowed workspace list and the unmounted assist routes", () => {
+    const swept = new Set([...ADMINISTRATIVE_ROWS, ...SITE_ROWS, ...DATA_ROWS]);
+    const remainder = ROUTE_POLICIES.filter((row) => !swept.has(row)).map(
+      (row) => `${row.method} ${row.path}`,
+    );
+    // `GET /admin/workspaces` answers a narrowed list rather than a refusal, which is
+    // criterion 26's own probe above; the three assist routes are not mounted here.
+    expect(remainder.sort()).toStrictEqual(["GET /admin/workspaces", ...UNMOUNTED_ROUTES].sort());
+  });
+});
+
 /**
  * Criterion 1 for the administrative and the site columns, by route rather than by the
  * policy unit: every row the table marks as administration, called by an actor the matrix
  * leaves blank. The set is derived from `ROUTE_POLICIES`, so a route added later is probed.
  */
 describe("every administrative and site act refuses an actor the matrix leaves blank (criterion 1)", () => {
-  /** The three resources the matrix's two administrator columns own; the rest are data. */
-  const ADMINISTRATIVE_RESOURCES = new Set(["membership", "workspace", "audit"]);
-
-  const ADMINISTRATIVE_ROWS = ROUTE_POLICIES.filter(
-    (row) => row.workspace === "path" && ADMINISTRATIVE_RESOURCES.has(row.resource),
-  );
-  const SITE_ROWS = ROUTE_POLICIES.filter((row) => row.installationOnly === true);
-
-  /** The grant check's own refusal. A step-up or a handler guard refuses under its own code. */
-  const GRANT_REFUSALS = new Set(["FORBIDDEN", "ROUTE_NOT_AUTHORIZED"]);
-
   /**
    * In the store under no key, so the positive control below exercises the takedown route
    * without taking down the logo the earlier probes serve.
@@ -1967,16 +2011,10 @@ describe("every administrative and site act refuses an actor the matrix leaves b
       .replace("{key}", ABSENT_LOGO_KEY);
   }
 
-  /** The error envelope's code, or "" for a body that is not one. */
-  function codeOf(text: string): string {
-    try {
-      return String((JSON.parse(text) as { error?: { code?: string } }).error?.code ?? "");
-    } catch {
-      return "";
-    }
-  }
-
-  async function call(row: RoutePolicy, token: string): Promise<{ status: number; code: string }> {
+  async function call(
+    row: RoutePolicy,
+    token: string,
+  ): Promise<{ status: number; code: string; text: string }> {
     const writes = row.method !== "GET";
     const res = await all.app.request(pathFor(row), {
       method: row.method,
@@ -1988,8 +2026,7 @@ describe("every administrative and site act refuses an actor the matrix leaves b
       ...(writes ? { body: "{}" } : {}),
     });
     const text = await res.text();
-    expectNoPayload(text);
-    return { status: res.status, code: codeOf(text) };
+    return { status: res.status, code: errorCodeOf(text), text };
   }
 
   beforeAll(async () => {
@@ -2042,8 +2079,6 @@ describe("every administrative and site act refuses an actor the matrix leaves b
   });
 
   it("builds a real path for every row it derives, so no probe below is a 404", () => {
-    expect(ADMINISTRATIVE_ROWS.length).toBeGreaterThanOrEqual(18);
-    expect(SITE_ROWS.length).toBeGreaterThanOrEqual(20);
     for (const row of [...ADMINISTRATIVE_ROWS, ...SITE_ROWS]) {
       expect(
         pathFor(row),
@@ -2075,20 +2110,20 @@ describe("every administrative and site act refuses an actor the matrix leaves b
 
   it("refuses every administrative act to a holder of all five roles (criterion 21)", async () => {
     for (const row of ADMINISTRATIVE_ROWS) {
-      const { status, code } = await call(row, everyRoleToken);
+      const { status, code, text } = await call(row, everyRoleToken);
       expect(status, `${row.method} ${row.path} for every access role`).toBe(403);
-      expect(GRANT_REFUSALS.has(code), `${row.method} ${row.path} refused with ${code}`).toBe(true);
+      expect(code, `${row.method} ${row.path} for every access role`).toBe(GRANT_REFUSAL);
+      expectNoPayload(text);
     }
   });
 
   it("refuses every site act to that holder and to a Workspace administrator (criterion 22)", async () => {
     for (const token of [everyRoleToken, administratorToken]) {
       for (const row of SITE_ROWS) {
-        const { status, code } = await call(row, token);
+        const { status, code, text } = await call(row, token);
         expect(status, `${row.method} ${row.path} for a non-Site administrator`).toBe(403);
-        expect(GRANT_REFUSALS.has(code), `${row.method} ${row.path} refused with ${code}`).toBe(
-          true,
-        );
+        expect(code, `${row.method} ${row.path} for a non-Site administrator`).toBe(GRANT_REFUSAL);
+        expectNoPayload(text);
       }
     }
   });
@@ -2144,4 +2179,229 @@ describe("a site act affecting a workspace writes one site row and one mirrored 
     const bystanderAfter = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, { kind: "setting" });
     expect(bystanderAfter.rows).toHaveLength(bystanderBefore.rows.length);
   });
+});
+
+/**
+ * Criterion 1 for the data columns, by route: every row of `ROUTE_POLICIES` deciding a data
+ * cell, once per role and per environment. The expectation is read from the policy the
+ * middleware consults, so this asserts the wiring rather than a second copy of the matrix.
+ */
+describe("every data act agrees with the matrix, by route and by environment (criterion 1)", () => {
+  /** The environments the probe groups name, and one they do not. */
+  const NAMED = "test";
+  const UNNAMED = "prod";
+
+  interface Actor {
+    readonly label: string;
+    readonly token: string;
+    readonly memberRole: string | undefined;
+    readonly grants: readonly HeldGrant[];
+  }
+
+  let actors: readonly Actor[] = [];
+
+  /** What the middleware would decide, asked of the same exported policy it asks. */
+  function allows(actor: Actor, row: RoutePolicy, environment: string | undefined): boolean {
+    const held = { memberRole: actor.memberRole, grants: actor.grants };
+    if (row.anyOf !== undefined) {
+      return row.anyOf.some((cell) => holdsStatement(held, cell.resource, cell.action));
+    }
+    return [{ resource: row.resource, action: row.action }, ...(row.also ?? [])].every(
+      (cell) =>
+        decideAccess({
+          ...held,
+          request: {
+            resource: cell.resource,
+            action: cell.action,
+            ...(environment === undefined ? {} : { environment }),
+          },
+        }).allowed,
+    );
+  }
+
+  function pathFor(row: RoutePolicy, environment: string | undefined): string {
+    const path = row.path
+      .replace("/admin/workspaces/{id}", `/admin/workspaces/${SEED_WORKSPACE_ID}`)
+      .replace("/admin/questions/{id}", `/admin/questions/${ctx.questionId}`)
+      .replace("/admin/forms/{id}", `/admin/forms/${ctx.formId}`)
+      .replace("{themeId}", ctx.themeId)
+      .replace("{sessionId}", ctx.sessionId)
+      .replace("{linkId}", ctx.linkId)
+      .replace("{webhookId}", ctx.webhookId)
+      .replace("{deliveryId}", ctx.deliveryId)
+      .replace("{proposalId}", "wep_matrix_probe")
+      .replace("{requestId}", "req_matrix_probe")
+      .replace("{key}", "rbk_matrix_probe")
+      .replace("{v}", "1");
+    const query =
+      row.environmentFrom === "query" && environment !== undefined
+        ? `?environment=${environment}`
+        : "";
+    return `${path}${query}`;
+  }
+
+  /** The workspace and the environment go where the row says they come from, or the gate
+   * refuses the shape before it reaches the grant check. */
+  function bodyFor(row: RoutePolicy, environment: string | undefined): string | undefined {
+    if (row.method === "GET") return undefined;
+    const body: Record<string, unknown> = {};
+    if (row.workspace === "body") body["workspaceId"] = SEED_WORKSPACE_ID;
+    if (row.environmentFrom === "body" && environment !== undefined) {
+      body["environment"] = environment;
+    }
+    if (row.environmentFrom === "targets" && environment !== undefined) {
+      body["targets"] = [{ environment }];
+    }
+    return JSON.stringify(body);
+  }
+
+  async function call(
+    row: RoutePolicy,
+    actor: Actor,
+    environment: string | undefined,
+  ): Promise<{ status: number; code: string; text: string }> {
+    const body = bodyFor(row, environment);
+    const useSwitcher =
+      row.namesEnvironment === true &&
+      row.environmentFrom !== "body" &&
+      row.environmentFrom !== "query" &&
+      row.environmentFrom !== "targets";
+    const res = await all.app.request(pathFor(row, environment), {
+      method: row.method,
+      headers: {
+        [INTERNAL_TOKEN_HEADER]: internalToken,
+        [ADMIN_SESSION_HEADER]: actor.token,
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+        ...(useSwitcher && environment !== undefined
+          ? { [REQUEST_ENVIRONMENT_HEADER]: environment }
+          : {}),
+      },
+      ...(body === undefined ? {} : { body }),
+    });
+    const text = await res.text();
+    return { status: res.status, code: errorCodeOf(text), text };
+  }
+
+  beforeAll(async () => {
+    const built: Actor[] = [];
+    for (const role of ROLE_NAMES) {
+      // A group carrying only View forms or Edit forms names no environment; one carrying a
+      // publish or response role must name at least one (section 3).
+      const environments = needsEnvironments([role]) ? [NAMED] : [];
+      const administrator = role === "forms.owner";
+      const account = await seedAdminSession(testDb.db, {
+        label: `matrix-${role.replace(".", "-")}`,
+        workspaceId: SEED_WORKSPACE_ID,
+        owner: administrator,
+        grants: [],
+      });
+      if (!administrator) {
+        const group = await createAccessGroup(testDb.db, {
+          workspaceId: SEED_WORKSPACE_ID,
+          name: `Matrix ${role}`,
+          roles: [role],
+          environments,
+        });
+        await addAccessGroupHolder(testDb.db, group.teamId, account.userId);
+      }
+      built.push({
+        label: role,
+        token: account.token,
+        memberRole: administrator ? "forms.owner" : undefined,
+        grants: administrator ? [] : [{ roles: [role], environments }],
+      });
+    }
+
+    // Every group role at once: the matrix marks the two-cell rows, a draft publish
+    // among them, for a holder of both halves and for no single role.
+    const groupRoles = ROLE_NAMES.filter((role) => role !== "forms.owner");
+    const everyRole = await seedAdminSession(testDb.db, {
+      label: "matrix-every-role",
+      workspaceId: SEED_WORKSPACE_ID,
+      owner: false,
+      grants: [],
+    });
+    const everyRoleGroup = await createAccessGroup(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      name: "Matrix every role",
+      roles: [...groupRoles],
+      environments: [NAMED],
+    });
+    await addAccessGroupHolder(testDb.db, everyRoleGroup.teamId, everyRole.userId);
+    built.push({
+      label: "every role",
+      token: everyRole.token,
+      memberRole: undefined,
+      grants: [{ roles: [...groupRoles], environments: [NAMED] }],
+    });
+
+    // The floor: a claimed account with a member row and no group at all.
+    const bare = await seedAdminSession(testDb.db, {
+      label: "matrix-no-grant",
+      workspaceId: SEED_WORKSPACE_ID,
+      owner: false,
+      grants: [],
+    });
+    built.push({ label: "no grant", token: bare.token, memberRole: undefined, grants: [] });
+    actors = built;
+  });
+
+  it("derives a probe for every data row, and nothing it cannot build a path for", () => {
+    for (const row of DATA_ROWS) {
+      expect(pathFor(row, NAMED), `${row.method} ${row.path}`).not.toContain("{");
+    }
+    // Every row is reachable by somebody, or its refusals would prove nothing.
+    for (const row of DATA_ROWS) {
+      const reachable = actors.some((actor) =>
+        allows(actor, row, row.namesEnvironment === true ? NAMED : undefined),
+      );
+      expect(reachable, `${row.method} ${row.path} is allowed to no role at all`).toBe(true);
+    }
+  });
+
+  it("serves the agent assist routes to nobody, which is why they are left out", async () => {
+    for (const route of UNMOUNTED_ROUTES) {
+      const [, path] = route.split(" ");
+      const res = await all.app.request(
+        (path ?? "").replace("/admin/forms/{id}", `/admin/forms/${ctx.formId}`),
+        {
+          method: "POST",
+          headers: {
+            [INTERNAL_TOKEN_HEADER]: internalToken,
+            [ADMIN_SESSION_HEADER]: adminToken,
+            "content-type": "application/json",
+          },
+          body: "{}",
+        },
+      );
+      expect(res.status, route).toBe(404);
+    }
+  });
+
+  it("refuses every role the matrix leaves blank, and admits every role it marks", async () => {
+    const refusals: string[] = [];
+    const admissions: string[] = [];
+    for (const row of DATA_ROWS) {
+      const environments = row.namesEnvironment === true ? [NAMED, UNNAMED] : [undefined];
+      for (const environment of environments) {
+        for (const actor of actors) {
+          const { status, code, text } = await call(row, actor, environment);
+          const where = `${row.method} ${row.path}${environment === undefined ? "" : ` in ${environment}`} for ${actor.label}`;
+          if (allows(actor, row, environment)) {
+            expect(status, where).not.toBe(401);
+            expect(code, where).not.toBe(GRANT_REFUSAL);
+            admissions.push(where);
+          } else {
+            expect(status, where).toBe(403);
+            expect(code, where).toBe(GRANT_REFUSAL);
+            expectNoPayload(text);
+            refusals.push(where);
+          }
+        }
+      }
+    }
+    // Neither direction may be empty, or one half of the matrix went unasserted.
+    expect(refusals.length).toBeGreaterThan(DATA_ROWS.length);
+    expect(admissions.length).toBeGreaterThan(DATA_ROWS.length / 2);
+  }, 120_000);
 });

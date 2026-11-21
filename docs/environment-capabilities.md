@@ -106,7 +106,6 @@ grant; site administration is not a response-data bypass.
   both Edit forms and Publish forms in prod and Second approval is off. With it on
   the publish is held for an approver, and the freeze and the publish are applied
   together on approval.
-
 - A workspace can turn Second approval on for production. Then the Approver must
   differ from the account that froze that version, including for rollback. Holding
   both roles does not let one account satisfy this rule alone.
