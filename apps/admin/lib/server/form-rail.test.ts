@@ -33,6 +33,7 @@ const DRAFT: DraftForm = {
 const DETAIL: FormDetail = {
   formId: "frm_life",
   slug: "life",
+  workspaceId: "org_default_workspace",
   defaultLocale: "en",
   status: "open",
   draft: DRAFT,

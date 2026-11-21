@@ -795,14 +795,22 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     environmentFrom: "body",
   },
   {
-    // Edit forms in the source and a Workspace administrator of it. The destination's
-    // own Edit forms cell is the handler's, since this row names one workspace.
+    // Edit forms in the source. The destination's own Edit forms cell is the handler's,
+    // since this row names one workspace, and whether the move applies or is held for an
+    // approver is the source's rule and the mover's standing in it (section 9).
     method: "POST",
     path: "/admin/forms/{id}/workspace",
     resource: "form",
     action: "write",
     workspace: "form",
-    also: [{ resource: "workspace", action: "update" }],
+  },
+  {
+    // The preview of that same act, so the same cell: it names the two workspaces' people.
+    method: "GET",
+    path: "/admin/forms/{id}/workspace/preview",
+    resource: "form",
+    action: "write",
+    workspace: "form",
   },
 
   {

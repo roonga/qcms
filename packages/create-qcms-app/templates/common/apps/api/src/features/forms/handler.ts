@@ -812,6 +812,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
       {
         formId: form.formId,
         slug: form.slug,
+        workspaceId: form.workspaceId,
         defaultLocale: form.defaultLocale,
         status: availabilityOf(environmentState),
         draft,

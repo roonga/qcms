@@ -1237,6 +1237,42 @@ export const messages = {
   "forms.tab.links": "Links",
 
   "forms.tab.publish": "Publish",
+  "forms.tab.move": "Move form",
+
+  "forms.move.intro":
+    "Moving a form hands it to another workspace with its versions and its responses. The destination's access groups then decide who reads them.",
+  "forms.move.destination": "Destination workspace",
+  "forms.move.destinationHelp": "Only workspaces where you hold Edit forms are listed.",
+  "forms.move.preview": "Show who gains access",
+  "forms.move.choose": "Choose a destination workspace to see who gains and who loses access.",
+  "forms.move.nowhere":
+    "There is no other workspace you hold Edit forms in, so there is nowhere to move this form.",
+  "forms.move.summary":
+    "This form moves from {source} to {destination} with its versions and its responses. {destination}'s access groups will apply.",
+  "forms.move.gainsOne": "Gains access: 1 person",
+  "forms.move.gains": "Gains access: {count} people",
+  "forms.move.losesOne": "Loses access: 1 person",
+  "forms.move.loses": "Loses access: {count} people",
+  "forms.move.person": "{person}: {acts}",
+  "forms.move.noChange": "Nobody gains or loses access.",
+  "forms.move.act.formRead": "See the form",
+  "forms.move.act.formWrite": "Edit the form",
+  "forms.move.act.formPublish": "Publish the form",
+  "forms.move.act.responseRead": "Read responses",
+  "forms.move.act.responseExport": "Export responses",
+  "forms.move.act.responseErase": "Erase responses",
+  "forms.move.actIn": "{act} in {environments}",
+  "forms.move.heldByRole":
+    "You are not a Workspace administrator of {source}, so this move waits for one.",
+  "forms.move.heldBySetting":
+    "Second approval is on in {source}, so every move waits for someone other than the person moving it.",
+  "forms.move.approvers": "a Workspace administrator of {source} or a Site administrator",
+  "forms.move.confirm": "Move to {destination}",
+  "forms.move.request": "Request move",
+  "forms.move.moved": "This form moved to {destination}. Recorded in both workspaces' audit.",
+  "forms.move.held":
+    "Waiting for an approver. The request expires in 7 days; the approver acts from the workspace's Requests row.",
+  "forms.move.failed": "The form was not moved. {message}",
   // The per-form Operations screen, named for what it carries rather than for the acts on
   // it: what the selected environment serves, and whether it is taking responses.
   "forms.tab.availability": "Availability",
@@ -1690,6 +1726,7 @@ export const messages = {
   "agent.context.form.versions": "Form {subject}: versions",
   "agent.context.form.version": "Form {subject}: version {version}",
   "agent.context.form.publish": "Form {subject}: publish",
+  "agent.context.form.move": "Move form: {subject}",
   "agent.context.form.links": "Form {subject}: links",
   "agent.context.form.webhooks": "Form {subject}: webhooks, no payloads",
   "agent.context.form.responses": "Form {subject}: response metadata, no answers",
@@ -1704,6 +1741,7 @@ export const messages = {
   "agent.context.responses": "Response metadata across forms, no answers",
   "agent.context.erasures": "Erasure requests and their state",
   "agent.context.settings": "Workspace settings",
+  "agent.context.site.library": "Shared question library",
   "agent.context.webhooks": "Endpoints and delivery state, no payloads",
   "agent.context.workspaces": "Workspaces you can read",
   "agent.context.workspaces.all": "Every workspace you can open",
@@ -2916,6 +2954,24 @@ export const messages = {
   "access.explain.titleSelf": "What you can do in {workspace}",
   "access.explain.columnAction": "Action",
   "access.explain.noGroup": "No group grants this",
+  "site.title": "Site configuration",
+  "site.library.title": "Shared question library",
+  "site.library.choose": "Workspace that holds the shared questions",
+  "site.library.none": "None",
+  "site.library.archivedNote": "Archived workspaces are not offered.",
+  "site.library.confirmMark":
+    "Everyone with Edit forms in any workspace will be able to see and pin {workspace}'s questions.",
+  "site.library.confirmUnmark":
+    "Question lists stop showing the Shared tag. Pins in other workspaces stay.",
+  "site.library.recorded": "Recorded in the site audit and in {workspace}'s audit.",
+  "site.library.oneWorkspace":
+    "A shared question library matters at two or more workspaces; this installation has one.",
+  "site.library.save": "Save",
+  "site.library.saved": "Saved.",
+  "site.library.failed": "The shared question library was not changed. {message}",
+
+  "questions.shared": "Shared",
+
   "access.change.in": "{role} in {environments}",
   "access.change.through": "{change} through {groups}",
   "access.preview.gains": "Gains",
@@ -2965,7 +3021,6 @@ export const messages = {
   "access.results.previous": "Previous",
   "access.results.next": "Next",
 
-  "site.title": "Site configuration",
   /** A level-2 rail row's visible text; its accessible name is the full label. */
   "site.rail.new": "New",
   "site.accounts.title": "Accounts",

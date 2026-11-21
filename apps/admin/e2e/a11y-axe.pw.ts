@@ -265,6 +265,7 @@ test("the authenticated shell states have zero violations", async ({ page }) => 
     "/site/accounts",
     "/site/accounts/new",
     `/site/accounts/${await accountIdOf(EMAIL)}`,
+    "/site/shared-library",
   ]) {
     await page.goto(path);
     await expectNoViolations(page, `shell ${path}`);
@@ -460,6 +461,9 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await openMenu(page.getByRole("button", { name: "Actions for form Accessibility sweep form" }));
   await expectNoViolations(page, "form library, row menu open");
   await page.keyboard.press("Escape");
+
+  await page.goto(`/forms/${sweepFormId}/move`);
+  await expectNoViolations(page, "move form, one workspace");
 
   await page.goto(`/forms/${sweepFormId}`);
 

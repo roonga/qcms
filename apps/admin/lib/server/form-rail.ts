@@ -11,6 +11,8 @@ import type { AdminSession } from "./session.ts";
 export interface FormRailData {
   readonly formId: string;
   readonly slug: string;
+  /** The owning workspace, which decides whether the rail offers Move form. */
+  readonly workspaceId: string;
   /** An empty title is an unnamed form, not a missing field; the slug remains its address. */
   readonly title: string;
   /** Read availability from the form, not the draft: a form can close while the draft still exists. */
@@ -34,6 +36,7 @@ export async function loadFormRail(
     return {
       formId: form.formId,
       slug: form.slug,
+      workspaceId: form.workspaceId,
       title: "",
       status: form.status,
       steps: [],
@@ -45,6 +48,7 @@ export async function loadFormRail(
   return {
     formId: form.formId,
     slug: form.slug,
+    workspaceId: form.workspaceId,
     title: textOf(draft.title, form.defaultLocale),
     status: form.status,
     steps: draft.steps,

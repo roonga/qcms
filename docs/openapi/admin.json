@@ -222,6 +222,10 @@
             "type": "string",
             "example": "org_default_workspace"
           },
+          "shared": {
+            "type": "boolean",
+            "example": false
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -274,6 +278,7 @@
           "questionId",
           "slug",
           "workspaceId",
+          "shared",
           "createdAt",
           "latestVersion",
           "latestStatus",
@@ -495,6 +500,10 @@
             "type": "string",
             "example": "signup"
           },
+          "workspaceId": {
+            "type": "string",
+            "example": "org_default_workspace"
+          },
           "defaultLocale": {
             "type": "string",
             "example": "en"
@@ -620,6 +629,7 @@
         "required": [
           "formId",
           "slug",
+          "workspaceId",
           "defaultLocale",
           "status",
           "draftSource",
@@ -2658,6 +2668,11 @@
           "shared": {
             "type": "boolean",
             "example": true
+          },
+          "handOn": {
+            "type": "boolean",
+            "description": "With `shared: true`, unmark whichever workspace holds the library in the same act rather than refusing",
+            "example": true
           }
         },
         "required": [
@@ -2682,6 +2697,17 @@
           "workspaceId"
         ]
       },
+      "ApprovalRequestHeld": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/ApprovalRequest"
+          }
+        },
+        "required": [
+          "request"
+        ]
+      },
       "MoveToWorkspaceBody": {
         "type": "object",
         "properties": {
@@ -2695,6 +2721,99 @@
           "workspaceId"
         ],
         "additionalProperties": false
+      },
+      "MoveFormPreview": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "example": "frm_signup"
+          },
+          "sourceWorkspaceId": {
+            "type": "string",
+            "example": "org_default_workspace"
+          },
+          "destinationWorkspaceId": {
+            "type": "string",
+            "example": "org_finance"
+          },
+          "requiresApproval": {
+            "type": "boolean",
+            "example": true
+          },
+          "holdReason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "second-approval",
+              "not-source-administrator",
+              null
+            ]
+          },
+          "gains": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MovePreviewPerson"
+            }
+          },
+          "losses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MovePreviewPerson"
+            }
+          }
+        },
+        "required": [
+          "formId",
+          "sourceWorkspaceId",
+          "destinationWorkspaceId",
+          "requiresApproval",
+          "holdReason",
+          "gains",
+          "losses"
+        ]
+      },
+      "MovePreviewPerson": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The display name, or the email address where the name is blank",
+            "example": "Priya Shah"
+          },
+          "acts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MovedAct"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "acts"
+        ]
+      },
+      "MovedAct": {
+        "type": "object",
+        "properties": {
+          "act": {
+            "type": "string",
+            "example": "response.read"
+          },
+          "environments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "prod"
+            ]
+          }
+        },
+        "required": [
+          "act",
+          "environments"
+        ]
       },
       "WorkspaceThemeListResponse": {
         "type": "object",
@@ -4442,17 +4561,6 @@
           "requests",
           "page",
           "total"
-        ]
-      },
-      "ApprovalRequestHeld": {
-        "type": "object",
-        "properties": {
-          "request": {
-            "$ref": "#/components/schemas/ApprovalRequest"
-          }
-        },
-        "required": [
-          "request"
         ]
       },
       "AuditListResponse": {
@@ -9838,7 +9946,7 @@
     "/admin/workspaces/{id}/shared": {
       "put": {
         "summary": "Mark a workspace as the installation's shared question library, or unmark it (admin)",
-        "description": "At most one workspace is shared. Every workspace's editors may pin a shared question; only the shared workspace's own members may edit one.",
+        "description": "At most one workspace is shared. Every workspace's editors may pin a shared question; only the shared workspace's own members may edit one. Marking refuses while another workspace holds the library unless `handOn` is true, which unmarks the holder in the same transaction, auditing both.",
         "tags": [
           "workspaces"
         ],
@@ -9996,7 +10104,7 @@
     "/admin/forms/{id}/workspace": {
       "post": {
         "summary": "Move a form to another workspace (admin)",
-        "description": "One update on the identity row: no published version changes hands and the slug does not move, so no public address changes.",
+        "description": "Edit forms in the source and in the destination. One update on the identity row: no published version changes hands and the slug does not move, so no public address changes, and the form's responses move with it. Applied at once for an active Workspace administrator of the source with second approval off there; every other move, and every move at all while the rule is on, answers 202 with a held workspace approval request, approved in the source by a Workspace administrator of it or a Site administrator who is not the mover. Refused when the destination is archived or is the form's own workspace, and when the form has left the source by the time the move or its approval is applied.",
         "tags": [
           "workspaces"
         ],
@@ -10039,6 +10147,16 @@
               }
             }
           },
+          "202": {
+            "description": "Held for an approver; nothing has moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalRequestHeld"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad request",
             "content": {
@@ -10051,6 +10169,115 @@
           },
           "401": {
             "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/workspace/preview": {
+      "get": {
+        "summary": "Who gains and who loses access when a form moves (admin)",
+        "description": "The same cells the policy evaluator decides every screen act by, read against the source's groups and then the destination's, and whether the move needs an approver. Only the two workspaces' own members are considered, so nobody outside them is named. Each person is named by display name, or by email address where the name is blank, and by nothing else.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "workspaceId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Who gains, who loses, and whether an approver is needed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveFormPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -12067,7 +12294,7 @@
     "/admin/workspaces/{id}/approval-requests": {
       "get": {
         "summary": "The workspace's approval requests (admin)",
-        "description": "The Requests row: turning second approval off and self-grants held for an approver, newest first, fifty to a page. A held publish to prod is approved on its form and is not listed here. A request an approver could not apply carries status `lapsed`, not `rejected`, with that approver as `decidedBy`.",
+        "description": "The Requests row: turning second approval off, self-grants and moves held for an approver, newest first, fifty to a page. A held publish to prod is approved on its form and is not listed here. A request an approver could not apply carries status `lapsed`, not `rejected`, with that approver as `decidedBy`.",
         "tags": [
           "membership"
         ],
@@ -12170,7 +12397,7 @@
     "/admin/workspaces/{id}/approval-requests/{requestId}/approve": {
       "post": {
         "summary": "Approve and apply a workspace request (admin)",
-        "description": "By a Workspace administrator of the workspace, or a Site administrator, who is not the requester. Refused after 7 days and once decided. Re-checked as it is applied: the requester must still be a Workspace administrator of the workspace or a Site administrator, and a self-grant applies only the roles, environments and name it bound. A self-grant whose group has moved since the request, or whose requested name has been taken since, applies nothing and ends the request as `lapsed`, so the requester can ask again.",
+        "description": "By a Workspace administrator of the workspace, or a Site administrator, who is not the requester. Refused after 7 days and once decided. Re-checked as it is applied: a switch-off's or self-grant's requester must still be a Workspace administrator of the workspace or a Site administrator, a move's mover must still hold Edit forms in both workspaces with the destination unarchived, and a self-grant applies only the roles, environments and name it bound. A request whose ground has moved since it was made applies nothing and ends as `lapsed`, so the requester can ask again.",
         "tags": [
           "membership"
         ],

@@ -297,19 +297,19 @@ export async function listFormVersions(exec: Executor, formId: FormId): Promise<
 }
 
 /**
- * Move a form to another workspace; no published version or public address moves with it.
- * The caller must check the target is not archived: `archivedAt` is a rule, not a
- * constraint.
+ * Move a form from one workspace to another; no published version or public address moves
+ * with it. `undefined` when the form is absent or no longer in `from`. The caller must check
+ * the target is not archived: `archivedAt` is a rule, not a constraint.
  */
 export async function moveFormToWorkspace(
   exec: Executor,
   formId: FormId,
-  workspaceId: string,
+  workspaces: { readonly from: string; readonly to: string },
 ): Promise<FormRow | undefined> {
   const [row] = await exec
     .update(forms)
-    .set({ workspaceId })
-    .where(eq(forms.formId, formId))
+    .set({ workspaceId: workspaces.to })
+    .where(and(eq(forms.formId, formId), eq(forms.workspaceId, workspaces.from)))
     .returning();
   return row;
 }

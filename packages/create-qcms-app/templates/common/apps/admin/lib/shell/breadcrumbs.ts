@@ -30,6 +30,7 @@ const FORM_SECTIONS: Readonly<Record<string, MessageKey>> = {
   preview: "forms.tab.preview",
   versions: "forms.tab.versions",
   publish: "forms.tab.publish",
+  move: "forms.tab.move",
 };
 
 const OPERATIONS_SECTIONS: Readonly<Record<string, MessageKey>> = {
@@ -114,6 +115,7 @@ function workspaces(rest: readonly string[], names: CrumbNames): Crumb[] {
 function site(rest: readonly string[], names: CrumbNames): Crumb[] {
   const area: Crumb = { label: t("site.title") };
   const [section, item] = rest;
+  if (section === "shared-library") return [area, { label: t("site.library.title") }];
   if (section !== "accounts") return [area];
   const accounts: Crumb = { label: t("site.accounts.title"), href: "/site/accounts" };
   if (item === undefined) return [area, accounts];

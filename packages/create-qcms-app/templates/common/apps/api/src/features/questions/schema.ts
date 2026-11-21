@@ -131,6 +131,8 @@ export const QuestionListItem = z
     slug: z.string().openapi({ example: "favourite-colour" }),
     /** The owning workspace, so a caller reading several can tell a shared row from its own. */
     workspaceId: z.string().openapi({ example: "org_default_workspace" }),
+    /** True where the shared question library owns it, which is what a list tags. */
+    shared: z.boolean().openapi({ example: false }),
     createdAt: z.iso.datetime(),
     latestVersion: z.number().int().positive().openapi({ example: 2 }),
     latestStatus: QuestionStatus.openapi({ example: "published" }),

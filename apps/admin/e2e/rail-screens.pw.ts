@@ -27,6 +27,12 @@ interface Screen {
   readonly children: boolean;
 
   readonly title: string;
+  /**
+   * Move form's row is drawn at two or more workspaces and hidden at one
+   * (`docs/WORKSPACE_ACCESS.md` section 9). This harness has one workspace, so the sweep
+   * asserts the screen marks no row rather than asserting a row that is correctly absent.
+   */
+  readonly rowHidden?: true;
 }
 
 function screens(): readonly Screen[] {
@@ -67,6 +73,13 @@ function screens(): readonly Screen[] {
       children: true,
       title: `Version 1: ${FORM_ID} - QCMS`,
     },
+    {
+      path: `/forms/${FORM_ID}/move`,
+      current: "section:move",
+      children: true,
+      title: `Move form: ${FORM_ID} - QCMS`,
+      rowHidden: true,
+    },
   ];
 }
 
@@ -98,7 +111,7 @@ test.beforeAll(async ({ browser }) => {
   }
 });
 
-test("561 puts the rail on all ten form-scoped screens, marking the row the screen is", async ({
+test("561 puts the rail on every form-scoped screen, marking the row the screen is", async ({
   page,
 }) => {
   test.setTimeout(600_000);
@@ -115,18 +128,33 @@ test("561 puts the rail on all ten form-scoped screens, marking the row the scre
       .toBeVisible();
 
     await expect.soft(page, `${screen.path} names its own browser tab`).toHaveTitle(screen.title);
-    await expect
-      .soft(
-        page.locator(`.qcms-rail__link[data-rail-item="${screen.current}"]`),
-        `${screen.path} marks ${screen.current} as the current row`,
-      )
-      .toHaveAttribute("aria-current", "page");
-    await expect
-      .soft(
-        page.locator('.qcms-rail__link[aria-current="page"]'),
-        `${screen.path} marks exactly one row`,
-      )
-      .toHaveCount(1);
+    if (screen.rowHidden === true) {
+      await expect
+        .soft(
+          page.locator(`.qcms-rail__link[data-rail-item="${screen.current}"]`),
+          `${screen.path} draws no row for itself at one workspace`,
+        )
+        .toHaveCount(0);
+      await expect
+        .soft(
+          page.locator('.qcms-rail__link[aria-current="page"]'),
+          `${screen.path} marks no row, because its own row is hidden`,
+        )
+        .toHaveCount(0);
+    } else {
+      await expect
+        .soft(
+          page.locator(`.qcms-rail__link[data-rail-item="${screen.current}"]`),
+          `${screen.path} marks ${screen.current} as the current row`,
+        )
+        .toHaveAttribute("aria-current", "page");
+      await expect
+        .soft(
+          page.locator('.qcms-rail__link[aria-current="page"]'),
+          `${screen.path} marks exactly one row`,
+        )
+        .toHaveCount(1);
+    }
 
     await expect
       .soft(page.locator('[data-rail-group="sections"]'), `${screen.path} has the sibling group`)

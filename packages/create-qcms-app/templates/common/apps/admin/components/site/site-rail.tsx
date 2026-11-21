@@ -11,16 +11,23 @@ import {
   NEW_ACCOUNT_PATH,
   type AccountFilters,
 } from "@/lib/site/accounts";
+import { SHARED_LIBRARY_PATH } from "@/lib/membership/site";
 
-export type SiteRailRow = "accounts" | "newAccount";
+export type SiteRailRow = "accounts" | "newAccount" | "sharedLibrary";
 
-/** The Site configuration rail: its rows, and on the Accounts list the directory filters. */
+/**
+ * The Site configuration rail: its rows, and on the Accounts list the directory filters. The
+ * Shared question library row is drawn at two or more workspaces only (`docs/WORKSPACE_ACCESS.md`
+ * section 9).
+ */
 export function SiteRail({
   current,
+  offersLibrary,
   filters,
   account,
 }: {
   readonly current: SiteRailRow;
+  readonly offersLibrary: boolean;
   readonly filters?: AccountFilters;
   /** The account page's subject, for the breadcrumb. */
   readonly account?: string;
@@ -60,6 +67,18 @@ export function SiteRail({
               </li>
             </ul>
           </li>
+          {offersLibrary ? (
+            <li>
+              <Link
+                href={SHARED_LIBRARY_PATH}
+                className="qcms-rail__link"
+                data-rail-item="section:shared-library"
+                {...status("sharedLibrary")}
+              >
+                {t("site.library.title")}
+              </Link>
+            </li>
+          ) : null}
         </ul>
       }
       {...(filters === undefined

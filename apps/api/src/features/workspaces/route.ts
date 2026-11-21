@@ -3,11 +3,13 @@ import { createRoute } from "@hono/zod-openapi";
 import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { errorResponses, jsonBody, withScopes } from "../../openapi.js";
+import { HeldResponse } from "../site-admins/schema.js";
 import {
   makeArchiveWorkspaceHandler,
   makeCreateWorkspaceHandler,
   makeListWorkspacesHandler,
   makeMoveFormHandler,
+  makeMoveFormPreviewHandler,
   makeRenameWorkspaceHandler,
   makeSetSharedWorkspaceHandler,
 } from "./handler.js";
@@ -24,6 +26,8 @@ import {
   AppearanceLockBody,
   AppearanceLockResponse,
   CreateWorkspaceBody,
+  MovePreviewQuery,
+  MovePreviewResponse,
   MoveToWorkspaceBody,
   MovedResponse,
   RenameWorkspaceBody,
@@ -108,7 +112,9 @@ export const setSharedWorkspaceRoute = createRoute({
   summary: "Mark a workspace as the installation's shared question library, or unmark it (admin)",
   description:
     "At most one workspace is shared. Every workspace's editors may pin a shared " +
-    "question; only the shared workspace's own members may edit one.",
+    "question; only the shared workspace's own members may edit one. Marking refuses " +
+    "while another workspace holds the library unless `handOn` is true, which unmarks " +
+    "the holder in the same transaction, auditing both.",
   tags,
   request: { params: WorkspaceIdParam, body: jsonBody(SharedWorkspaceBody) },
   responses: {
@@ -291,8 +297,15 @@ export const moveFormRoute = createRoute({
   path: "/forms/{id}/workspace",
   summary: "Move a form to another workspace (admin)",
   description:
-    "One update on the identity row: no published version changes hands and the slug " +
-    "does not move, so no public address changes.",
+    "Edit forms in the source and in the destination. One update on the identity row: no " +
+    "published version changes hands and the slug does not move, so no public address " +
+    "changes, and the form's responses move with it. Applied at once for an active " +
+    "Workspace administrator of the source with second approval off there; every other " +
+    "move, and every move at all while the rule is on, answers 202 with a held workspace " +
+    "approval request, approved in the source by a Workspace administrator of it or a Site " +
+    "administrator who is not the mover. Refused when the destination is archived or is " +
+    "the form's own workspace, and when the form has left the source by the time the " +
+    "move or its approval is applied.",
   tags,
   request: { params: WorkspaceIdParam, body: jsonBody(MoveToWorkspaceBody) },
   responses: {
@@ -300,9 +313,35 @@ export const moveFormRoute = createRoute({
       description: "The form and the workspace that owns it now",
       content: { "application/json": { schema: MovedResponse } },
     },
-    ...errorResponses(400, 401, 404, 409),
+    202: {
+      description: "Held for an approver; nothing has moved",
+      content: { "application/json": { schema: HeldResponse } },
+    },
+    ...errorResponses(400, 401, 403, 404, 409),
   },
   ...withScopes("forms:write"),
+});
+
+export const moveFormPreviewRoute = createRoute({
+  method: "get",
+  path: "/forms/{id}/workspace/preview",
+  summary: "Who gains and who loses access when a form moves (admin)",
+  description:
+    "The same cells the policy evaluator decides every screen act by, read against the " +
+    "source's groups and then the destination's, and whether the move needs an approver. " +
+    "Only the two workspaces' own members are considered, so nobody outside them is named. " +
+    "Each person is named by display name, or by email address where the name is blank, " +
+    "and by nothing else.",
+  tags,
+  request: { params: WorkspaceIdParam, query: MovePreviewQuery },
+  responses: {
+    200: {
+      description: "Who gains, who loses, and whether an approver is needed",
+      content: { "application/json": { schema: MovePreviewResponse } },
+    },
+    ...errorResponses(400, 401, 403, 404, 409),
+  },
+  ...withScopes("forms:read"),
 });
 
 export const registerWorkspaces: SliceRegistrar = (group, deps: Deps): void => {
@@ -312,6 +351,7 @@ export const registerWorkspaces: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(setSharedWorkspaceRoute, makeSetSharedWorkspaceHandler(deps));
   group.openapi(archiveWorkspaceRoute, makeArchiveWorkspaceHandler(deps));
   group.openapi(moveFormRoute, makeMoveFormHandler(deps));
+  group.openapi(moveFormPreviewRoute, makeMoveFormPreviewHandler(deps));
   group.openapi(listWorkspaceThemesRoute, makeListWorkspaceThemesHandler(deps));
   group.openapi(createWorkspaceThemeRoute, makeCreateWorkspaceThemeHandler(deps));
   group.openapi(getWorkspaceThemeRoute, makeGetWorkspaceThemeHandler(deps));

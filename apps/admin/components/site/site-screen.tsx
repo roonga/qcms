@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 
 import { DeniedRecovery } from "@/components/shell/denied-recovery";
 import { t } from "@/lib/i18n/en";
+import { listWorkspaces } from "@/lib/server/membership";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession, type AdminSession } from "@/lib/server/session";
 import { permitsPath } from "@/lib/shell/modes";
@@ -19,6 +20,12 @@ export async function loadSiteScreen(): Promise<SiteScreen> {
     return { kind: "denied", element: <DeniedRecovery capabilities={capabilities} /> };
   }
   return { kind: "allowed", session };
+}
+
+/** The Shared question library row is offered at two or more workspaces. */
+export async function offersSharedLibrary(session: AdminSession): Promise<boolean> {
+  const workspaces = await listWorkspaces(session);
+  return workspaces.ok && workspaces.data.length > 1;
 }
 
 const STATUS_TAG = {

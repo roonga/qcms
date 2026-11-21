@@ -24,6 +24,7 @@ import {
   publishQuestionVersion,
   purgeExpiredReleaseBatches,
   schema,
+  setMemberRole,
   setRequireSecondApprover,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
@@ -45,6 +46,7 @@ import { registerAgentProvenance } from "../agent/provenance-mount.js";
 import { PROPOSAL_HEADER, PROPOSAL_STEP_HEADER } from "../agent/provenance.js";
 import { registerGrantCheck } from "../membership/middleware.js";
 import { registerForms } from "../forms/route.js";
+import { registerWorkspaces } from "../workspaces/route.js";
 import { registerReleases } from "./route.js";
 
 const { Pool } = pg;
@@ -330,6 +332,7 @@ beforeAll(async () => {
       registerAgentProvenance,
       registerForms,
       registerReleases,
+      registerWorkspaces,
     ],
   };
   batchDeps = makeDeps({
@@ -1629,6 +1632,60 @@ describe("a held draft publish on a site whose only environment is prod (criteri
         (await getDraft(control, formId))!.revision,
       );
       expect(renewed.status, JSON.stringify(renewed.body)).toBe(202);
+    });
+  });
+
+  it("ends the request once the form has moved to another workspace, freezing nothing (criterion 48)", async () => {
+    const mover = await persona("bMover", [
+      { roles: ["forms.editor"], environments: [] },
+      { roles: ["forms.editor"], environments: [], workspaceId: OTHER_WORKSPACE },
+    ]);
+    await setMemberRole(control, SEED_WORKSPACE_ID, mover.userId, "forms.owner");
+    await withRuleOn(async () => {
+      const formId = await seedForm(0);
+      const held = await requestPublish(
+        prodOnlyAuthor.token,
+        formId,
+        await saveDraft(prodOnlyAuthor.token, formId),
+      );
+      expect(held.status, JSON.stringify(held.body)).toBe(202);
+      const requestId = requestIdOf(held.body);
+
+      // With the rule off the move applies at once rather than being held itself.
+      await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
+      const moved = await call(
+        mover.token,
+        "POST",
+        `/forms/${formId}/workspace`,
+        { workspaceId: OTHER_WORKSPACE },
+        prodOnlyApp,
+      );
+      expect(moved.status, JSON.stringify(moved.body)).toBe(200);
+
+      const refused = await decide(otherWorkspaceEditor.token, formId, requestId, "approve");
+      expect(refused.status, JSON.stringify(refused.body)).toBe(409);
+      expect(codeOf(refused.body)).toBe("PUBLISH_FORM_LEFT_WORKSPACE");
+      expect(await listFormVersions(control, formId)).toEqual([]);
+      expect(await listFormReleases(control, formId, "prod")).toEqual([]);
+      expect(await releasedEvents("prod", formId)).toBe(0);
+      expect(await getDraft(control, formId)).toBeDefined();
+
+      const listed = await call(
+        otherWorkspaceEditor.token,
+        "GET",
+        `/forms/${formId}/publish-requests`,
+        undefined,
+        prodOnlyApp,
+      );
+      expect((listed.body.requests as Record<string, unknown>[])[0]).toMatchObject({
+        requestId,
+        status: "lapsed",
+        decidedBy: otherWorkspaceEditor.userId,
+      });
+      const lapsed = (
+        await listAccessAudit(control, SEED_WORKSPACE_ID, { kind: "approval", limit: 500 })
+      ).rows.filter((row) => row.formId === formId && row.detail?.includes("act=lapsed") === true);
+      expect(lapsed.map((row) => row.actor)).toEqual([otherWorkspaceEditor.userId]);
     });
   });
 

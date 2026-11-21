@@ -97,6 +97,12 @@ vi.mock("@/lib/server/config", () => ({
 
 /* Mock both specifiers: the page uses the alias, while the real form-rail loader imports its relative
    neighbor. */
+/* The form rail asks which workspaces the caller holds Edit forms in, to decide whether it
+   offers Move form. */
+vi.mock("@/lib/server/membership", () => ({
+  readMyAccess: () => Promise.resolve({ ok: true, data: { workspaces: [] } }),
+}));
+
 vi.mock("@/lib/server/forms", () => ({
   getForm: () => Promise.resolve(formDetailResult),
   getFormVersion: () => Promise.resolve(versionResult),

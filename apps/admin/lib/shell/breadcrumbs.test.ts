@@ -111,4 +111,11 @@ describe("the Site configuration trail", () => {
       "Grace Mensah",
     ]);
   });
+
+  it("names the area, then the shared question library", () => {
+    expect(breadcrumbTrail("/site/shared-library")).toEqual([
+      { label: "Site configuration" },
+      { label: "Shared question library" },
+    ]);
+  });
 });

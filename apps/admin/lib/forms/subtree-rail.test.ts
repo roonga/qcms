@@ -14,7 +14,11 @@ const SLUG = "life-insurance";
 
 const TITLE = "Life insurance";
 
-function rail(current: Parameters<typeof formSubtreeRail>[0]["current"], counts = new Map()) {
+function rail(
+  current: Parameters<typeof formSubtreeRail>[0]["current"],
+  counts = new Map(),
+  offersMove = true,
+) {
   return formSubtreeRail({
     formId: FORM_ID,
     slug: SLUG,
@@ -22,18 +26,31 @@ function rail(current: Parameters<typeof formSubtreeRail>[0]["current"], counts 
     steps: STEPS,
     issueCounts: counts,
     current,
+    offersMove,
   });
 }
 
 describe("the form-subtree rail's contents", () => {
-  it("carries the five authoring routes in §7's order, and Validation is not one of them", () => {
+  it("carries the authoring routes in §7's order, and Validation is not one of them", () => {
     expect([...RAIL_SECTIONS]).toStrictEqual([
       "builder",
       "rules",
       "preview",
       "versions",
       "publish",
+      "move",
     ]);
+  });
+
+  it("offers Move form only where another workspace could take the form", () => {
+    expect(
+      rail({ kind: "section", section: "versions" }, new Map(), false).siblings.map(
+        (item) => item.key,
+      ),
+    ).not.toContain("section:move");
+    expect(
+      rail({ kind: "section", section: "versions" }).siblings.map((item) => item.key),
+    ).toContain("section:move");
   });
 
   it("puts the form's children first and its siblings second", () => {
@@ -53,6 +70,7 @@ describe("the form-subtree rail's contents", () => {
       "Versions",
 
       "Publish",
+      "Move form",
     ]);
   });
 
@@ -64,6 +82,7 @@ describe("the form-subtree rail's contents", () => {
       "/forms/frm_life/preview",
       "/forms/frm_life/versions",
       "/forms/frm_life/publish",
+      "/forms/frm_life/move",
     ]);
   });
 
@@ -123,6 +142,7 @@ describe("the form-subtree rail's contents", () => {
       steps: [],
       issueCounts: new Map(),
       current: { kind: "section", section: "builder" },
+      offersMove: false,
     });
     expect(groups.siblings[0]?.href).toBe("/forms/frm_a%20b");
   });

@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 
 import type { FormId } from "@roonga/qcms-core";
 
@@ -98,6 +98,39 @@ export async function getWorkspaceBySlug(
     .where(eq(authOrganization.slug, slug))
     .limit(1);
   return row;
+}
+
+/**
+ * One workspace, locked `FOR UPDATE` until the transaction ends, so an archive waits for an
+ * act that holds it `FOR SHARE` and then sees what that act wrote.
+ */
+export async function getWorkspaceForUpdate(
+  exec: Executor,
+  workspaceId: string,
+): Promise<WorkspaceRow | undefined> {
+  const [row] = await exec
+    .select(workspaceColumns)
+    .from(authOrganization)
+    .where(eq(authOrganization.id, workspaceId))
+    .limit(1)
+    .for("update");
+  return row;
+}
+
+/**
+ * The shared workspace, if any, and the one named, locked `FOR UPDATE` in id order so two
+ * markings serialise without deadlocking. Call inside a transaction.
+ */
+export async function lockSharedAndWorkspace(
+  exec: Executor,
+  workspaceId: string,
+): Promise<readonly WorkspaceRow[]> {
+  return exec
+    .select(workspaceColumns)
+    .from(authOrganization)
+    .where(or(eq(authOrganization.isShared, true), eq(authOrganization.id, workspaceId)))
+    .orderBy(asc(authOrganization.id))
+    .for("update");
 }
 
 /** The installation's shared workspace. Having none marked is a legal state. */
