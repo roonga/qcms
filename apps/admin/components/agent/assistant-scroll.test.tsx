@@ -113,12 +113,11 @@ describe("where the assistant panel leaves the reader", () => {
     revealed.length = 0;
 
     say("anything else?");
+    // The streaming turn carries the same words before the finished one is appended, so wait
+    // on where the panel was left rather than on the text being anywhere on screen.
     await vi.waitFor(() => {
-      expect(screen.getByText("Nothing needs changing.")).toBeTruthy();
+      expect(screen.queryByTestId("qcms-assistant-streaming")).toBeNull();
+      expect(revealed.at(-1)?.textContent).toContain("Nothing needs changing.");
     });
-
-    const last = revealed.at(-1);
-    expect(last).toBeDefined();
-    expect(last?.textContent).toContain("Nothing needs changing.");
   });
 });

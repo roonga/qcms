@@ -160,6 +160,8 @@ describe("a card the assistant said another has to follow", () => {
         0,
       );
     });
+    // A turn would be posted a tick after the card settles, so give it that tick to appear.
+    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
