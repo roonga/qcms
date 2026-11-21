@@ -4,7 +4,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { API_BASE_URL, FIXED_INTERNAL_TOKEN } from "../../portal/e2e/support/harness-config.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { enrollNewAdmin, signInWithTotp, warmSignIn } from "./support/flow.js";
 import { chooseOption, openRail } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
 import {
@@ -92,10 +92,7 @@ async function applyFilters(page: Page): Promise<void> {
 
 test("the sign-in screen is served before anything types into it", async ({ page }) => {
   test.setTimeout(300_000);
-  // Warm and hydrate sign-in before typing so dev-server compilation cannot replace the next test's document.
-  await page.goto("/sign-in");
-  await waitForHydration(page);
-  await expect(page.getByRole("button", { name: "Sign in" })).toBeEnabled();
+  await warmSignIn(page);
 });
 
 test("an administrator's group and grant are written to this workspace's audit", async ({

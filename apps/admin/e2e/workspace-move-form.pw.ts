@@ -4,7 +4,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { API_BASE_URL, FIXED_INTERNAL_TOKEN } from "../../portal/e2e/support/harness-config.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { enrollNewAdmin, openMenu, signInWithTotp } from "./support/flow.js";
+import { enrollNewAdmin, openMenu, signInWithTotp, warmSignIn } from "./support/flow.js";
 import { openRail } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
 import {
@@ -122,10 +122,7 @@ async function moveRequestFor(formId: string): Promise<{ requestId: string; stat
 
 test("the sign-in screen is served before anything types into it", async ({ page }) => {
   test.setTimeout(300_000);
-  // Warm and hydrate sign-in before typing so dev-server compilation cannot replace the next test's document.
-  await page.goto("/sign-in");
-  await waitForHydration(page);
-  await expect(page.getByRole("button", { name: "Sign in" })).toBeEnabled();
+  await warmSignIn(page);
 });
 
 test("the rail offers Move form, and the preview names the affected people by name", async ({

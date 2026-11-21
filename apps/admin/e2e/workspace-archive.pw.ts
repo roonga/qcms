@@ -3,7 +3,13 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { enrollNewAdmin, fillStable, openMenu, signInWithTotp } from "./support/flow.js";
+import {
+  enrollNewAdmin,
+  fillStable,
+  openMenu,
+  signInWithTotp,
+  warmSignIn,
+} from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 import {
   createFormIn,
@@ -57,10 +63,7 @@ async function switchWorkspace(page: Page, name: string): Promise<void> {
 
 test("the sign-in screen is served before anything types into it", async ({ page }) => {
   test.setTimeout(300_000);
-  // Warm and hydrate sign-in before typing so dev-server compilation cannot replace the next test's document.
-  await page.goto("/sign-in");
-  await waitForHydration(page);
-  await expect(page.getByRole("button", { name: "Sign in" })).toBeEnabled();
+  await warmSignIn(page);
 });
 
 test("archiving is refused inline while the workspace still owns a form", async ({ page }) => {
