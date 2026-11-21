@@ -219,7 +219,7 @@ export async function renameWorkspaceThemeAction(
   const session = await requireAdminSession();
   const themes = await listWorkspaceThemes(session, workspaceId);
   if (!themes.ok) return refused(themes, "themes.failed");
-  const theme = themes.data.find((candidate) => candidate.themeId === themeId);
+  const theme = themes.data.themes.find((candidate) => candidate.themeId === themeId);
   if (theme === undefined) {
     return { status: "error", message: t("themes.failed", { message: t("themes.gone") }) };
   }

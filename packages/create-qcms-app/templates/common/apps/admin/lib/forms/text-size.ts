@@ -54,11 +54,6 @@ export function readTextSize(raw: string): TextSizeEntry {
   return { status: "ok", px };
 }
 
-export function isTextSize(px: number): boolean {
-  return Number.isInteger(px) && px >= TEXT_SIZE_MIN && px <= TEXT_SIZE_MAX;
-}
-
-/** One step, which stops at the bounds rather than overshooting them. */
 export function stepTextSize(px: number, by: number): number {
   return Math.min(TEXT_SIZE_MAX, Math.max(TEXT_SIZE_MIN, px + by));
 }
@@ -75,7 +70,8 @@ export function respondentTextSize(base: number, scalePercent: number): number {
 /** The smallest offered scale at which this base reaches the cap, or null when none does. */
 export function cappedAtScale(base: number): number | null {
   return (
-    RESPONDENT_SCALES.find((scale) => Math.round((base * scale) / 100) > TEXT_SIZE_PRODUCT_CAP) ??
-    null
+    RESPONDENT_SCALES.find(
+      (scale) => respondentTextSize(base, scale) < Math.round((base * scale) / 100),
+    ) ?? null
   );
 }

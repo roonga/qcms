@@ -70,6 +70,13 @@ export default async function WorkspaceSettingsPage({
   const seat = access.ok
     ? access.data.workspaces.find((entry) => entry.workspaceId === workspaceId)
     : undefined;
+  /* The themes read first: an Edit forms holder who is no administrator gets that one and not
+     the settings read, and either answer is the same workspace row. */
+  const appearanceLocked = themes.ok
+    ? themes.data.appearanceLocked
+    : settings.ok
+      ? settings.data.appearanceLocked
+      : undefined;
   const held = requests.ok ? heldRequests(requests.data.requests, new Date()) : [];
   const pending = held.filter((entry) => entry.request.status === "pending");
 
@@ -102,8 +109,8 @@ export default async function WorkspaceSettingsPage({
       />
       <WorkspaceAppearancePanel
         workspaceId={workspaceId}
-        themes={themes.ok ? themes.data : undefined}
-        locked={settings.ok ? settings.data.appearanceLocked : undefined}
+        themes={themes.ok ? themes.data.themes : undefined}
+        locked={appearanceLocked}
         canEditForms={seat !== undefined && holdsEditForms(seat)}
         canSetLock={
           (access.ok && access.data.installationAdmin) ||

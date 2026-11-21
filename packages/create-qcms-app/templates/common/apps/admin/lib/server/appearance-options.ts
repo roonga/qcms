@@ -1,4 +1,5 @@
 import type { Appearance } from "@roonga/qcms-core";
+import { SHIPPED_THEMES } from "@roonga/qcms-ui/shipped-themes";
 
 import {
   DEFAULT_CORNERS,
@@ -6,10 +7,8 @@ import {
   type ThemeOption,
   type ThemePalettes,
 } from "../forms/appearance-edit.ts";
-import { SHIPPED_THEMES } from "../forms/shipped-themes.ts";
 import { t, type MessageKey } from "../i18n/en.ts";
 
-/** The shipped respondent themes, which every workspace may dress a form in. */
 export function shippedThemeOptions(): readonly ThemeOption[] {
   return SHIPPED_THEMES.map((theme): ThemeOption => ({
     key: shippedThemeKey(theme.key),

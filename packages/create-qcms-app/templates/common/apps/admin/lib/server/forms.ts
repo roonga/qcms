@@ -33,7 +33,7 @@ import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
 import type { AssistConversationRelay, AssistParamsRelay } from "./assist-request.ts";
 import type { ApiResult } from "./api-result.ts";
-import { readResult as read } from "./api-result.ts";
+import { HELD, readResult as read } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
 
 /** Read API payloads for presentation without validating domain legality. Preserve unfamiliar issue codes so newer API verdicts remain visible. */
@@ -216,7 +216,7 @@ export async function saveDraft(
 }
 
 export type AppearanceSaveResult =
-  | { readonly ok: true; readonly updatedAt: string }
+  | { readonly ok: true; readonly updatedAt: string; readonly held?: true }
   | {
       readonly ok: false;
       readonly code: string;
@@ -242,7 +242,11 @@ export async function saveDraftAppearance(
   });
   const body: unknown = await response.json().catch(() => undefined);
   if (response.ok) {
-    return { ok: true, updatedAt: asString((body as { updatedAt?: unknown })?.updatedAt, "") };
+    return {
+      ok: true,
+      updatedAt: asString((body as { updatedAt?: unknown })?.updatedAt, ""),
+      ...(response.status === HELD ? { held: true as const } : {}),
+    };
   }
   const envelope = (body as { error?: { code?: unknown; details?: unknown } } | undefined)?.error;
   const code =

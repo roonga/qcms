@@ -3,7 +3,7 @@
 import type { Appearance } from "@roonga/qcms-core";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
-import { Alert, Checkbox, Select } from "@/components/kit";
+import { Alert } from "@/components/kit";
 import {
   DEFAULT_CORNERS,
   DEFAULT_DENSITY,
@@ -44,6 +44,9 @@ export interface FaceChoice {
 const LOCK_REASON_ID = "qcms-appearance-lock-reason";
 const SIZE_ERROR_ID = "qcms-appearance-size-error";
 const SIZE_LABEL_ID = "qcms-appearance-size-label";
+const THEME_FIELD_ID = "qcms-appearance-theme";
+const FACE_FIELD_ID = "qcms-appearance-face";
+const TINT_FIELD_ID = "qcms-appearance-page-tint";
 
 const DENSITY_LABELS: Readonly<Record<string, MessageKey>> = {
   compact: "appearance.density.compact",
@@ -76,7 +79,49 @@ function choiceLabel(labels: Readonly<Record<string, MessageKey>>, value: string
   return key === undefined ? value : t(key);
 }
 
-/** Native buttons, because the kit's drop `aria-describedby` and a disabled one has to say why. */
+/** Native controls, because the kit's drop `aria-describedby` and a disabled one has to say why. */
+function Picker({
+  id,
+  label,
+  value,
+  options,
+  isDisabled,
+  describedBy,
+  onPick,
+}: {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+  readonly options: readonly { readonly label: string; readonly value: string }[];
+  readonly isDisabled: boolean;
+  readonly describedBy: string | undefined;
+  readonly onPick: (value: string) => void;
+}) {
+  return (
+    <>
+      <label className="qcms-adrawer__label" htmlFor={id}>
+        {label}
+      </label>
+      <select
+        id={id}
+        className="qcms-adrawer__select"
+        value={value}
+        disabled={isDisabled}
+        {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
+        onChange={(event) => {
+          onPick(event.target.value);
+        }}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}
+
 function Segments({
   label,
   values,
@@ -247,11 +292,13 @@ export function AppearanceDrawer({
         )}
 
         <div className="qcms-adrawer__field">
-          <Select
+          <Picker
+            id={THEME_FIELD_ID}
             label={t("appearance.theme")}
             value={themeKey ?? ""}
             isDisabled={locked}
-            items={[
+            describedBy={reason}
+            options={[
               ...(themeKey === undefined
                 ? [
                     {
@@ -264,29 +311,36 @@ export function AppearanceDrawer({
                 : []),
               ...themes.map((theme) => ({ label: theme.name, value: theme.key })),
             ]}
-            onChange={(next) => {
+            onPick={(next) => {
               const theme = themes.find((candidate) => candidate.key === next);
               if (theme !== undefined) change(appearanceFromTheme(theme, appearance));
             }}
           />
           {appearance !== null && <Swatch palettes={appearance.palettes} />}
-          <Checkbox
-            label={t("appearance.pageTint")}
-            isSelected={appearance?.pageTint === true}
-            isDisabled={off}
-            onChange={(selected) => {
-              edit({ pageTint: selected });
-            }}
-          />
+          <div className="qcms-adrawer__check">
+            <input
+              id={TINT_FIELD_ID}
+              type="checkbox"
+              checked={appearance?.pageTint === true}
+              disabled={off}
+              {...(reason === undefined ? {} : { "aria-describedby": reason })}
+              onChange={(event) => {
+                edit({ pageTint: event.target.checked });
+              }}
+            />
+            <label htmlFor={TINT_FIELD_ID}>{t("appearance.pageTint")}</label>
+          </div>
         </div>
 
         <div className="qcms-adrawer__field">
-          <Select
+          <Picker
+            id={FACE_FIELD_ID}
             label={t("appearance.face")}
             value={appearance?.face ?? ""}
             isDisabled={off}
-            items={faces.map((face) => ({ label: face.label, value: face.key }))}
-            onChange={(next) => {
+            describedBy={reason}
+            options={faces.map((face) => ({ label: face.label, value: face.key }))}
+            onPick={(next) => {
               edit({ face: next as Appearance["face"] });
             }}
           />

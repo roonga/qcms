@@ -1,3 +1,4 @@
+import type { ContrastFailureView } from "./appearance-report.ts";
 import type { DraftPreview, FormIssue, FormSettings, MintedLink } from "./types.ts";
 
 // Keep shared state outside use-server modules, which may export only async functions.
@@ -28,8 +29,6 @@ export interface CreateFormCardState {
 export type AgentEditState =
   | { readonly status: "saved"; readonly undoToken: string | null }
   | { readonly status: "error"; readonly code: string; readonly message: string };
-
-import type { ContrastFailureView } from "./appearance-report.ts";
 
 export type SaveAppearanceState =
   | { readonly status: "saved" }

@@ -57,7 +57,10 @@ export default async function FormBuildPage({
 
   /* A refused themes read leaves the shipped themes, which every workspace may use anyway. */
   const saved = await listWorkspaceThemes(session, form.workspaceId);
-  const themes = [...shippedThemeOptions(), ...(saved.ok ? saved.data.map(themeOption) : [])];
+  const themes = [
+    ...shippedThemeOptions(),
+    ...(saved.ok ? saved.data.themes.map(themeOption) : []),
+  ];
 
   return (
     <BuilderShell

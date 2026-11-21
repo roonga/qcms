@@ -4,6 +4,7 @@ import { useRef, useState, useTransition, type ReactNode } from "react";
 
 import { Alert, SwitchButton, SwitchField, TextField } from "@/components/kit";
 import { themeSwatch, type ThemePalettes } from "@/lib/forms/appearance-edit";
+import { LOGO_ACCEPT, LOGO_MAX_LABEL, logoSizeRefusal } from "@/lib/forms/logo";
 import { t } from "@/lib/i18n/en";
 import type { MembershipActionState } from "@/lib/membership/types";
 
@@ -15,6 +16,12 @@ export interface WorkspaceThemeRow {
   readonly logoKey: string | null;
   readonly sourceHost: string | null;
 }
+
+/* Refused before the read and the post, so an oversized pick never costs an encode and a 413. */
+const LOGO_SIZE_MESSAGES: Readonly<Record<"empty" | "tooLarge", () => string>> = {
+  empty: () => t("themes.logo.error.empty"),
+  tooLarge: () => t("themes.logo.error.tooLarge", { limit: LOGO_MAX_LABEL }),
+};
 
 const LOCK_REASON_ID = "qcms-appearance-lock-needs";
 const THEME_REASON_ID = "qcms-themes-needs";
@@ -157,7 +164,7 @@ function ThemeRow({
           ref={logoInput}
           type="file"
           className="sr-only"
-          accept="image/png,image/jpeg,image/webp"
+          accept={LOGO_ACCEPT}
           aria-label={t("themes.logo.input", { name: theme.name })}
           data-testid="qcms-theme-logo-input"
           disabled={!canEdit || pending}
@@ -257,6 +264,11 @@ export function WorkspaceAppearancePanel({
               run(() => remove(workspaceId, themeId));
             }}
             onLogo={(themeId, file) => {
+              const refusal = logoSizeRefusal(file.size);
+              if (refusal !== undefined) {
+                setState({ status: "error", message: LOGO_SIZE_MESSAGES[refusal]() });
+                return;
+              }
               run(async () => uploadLogo(workspaceId, themeId, await base64Of(file)));
             }}
           />

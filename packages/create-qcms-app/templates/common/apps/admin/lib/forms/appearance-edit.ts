@@ -66,7 +66,6 @@ export function sameAppearance(a: Appearance | null, b: Appearance | null): bool
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** The accent, page and ink of the light palette, which the Theme row shows as a chip. */
 export function themeSwatch(palettes: ThemePalettes): readonly [string, string, string] {
   const light = palettes.light;
   return [light.primary, light.background, light.text];
