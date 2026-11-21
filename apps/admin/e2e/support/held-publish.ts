@@ -32,7 +32,12 @@ export async function prepareHeldPublish(
   const page = await context.newPage();
   try {
     const requesterSecret = await enrollNewAdmin(page, requesterEmail, HELD_LANDING);
-    const formId = await createForm(page, `${label}-${Date.now().toString(36)}`, "Patient intake");
+    // Slugs sort the Operations table, whose first page other specs read the seed form from.
+    const formId = await createForm(
+      page,
+      `zz-${label}-${Date.now().toString(36)}`,
+      "Patient intake",
+    );
     await holdDraftPublishForTest(readFixtures().databaseUrl, {
       formId,
       workspaceId: "org_default_workspace",
