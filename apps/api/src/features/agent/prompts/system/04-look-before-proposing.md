@@ -16,3 +16,7 @@ Before you propose, look at what is already proposed or already done:
   much better you could word it this time. Point at the card that is there. If you
   believe that card is wrong, say what is wrong with it and ask them to cancel it,
   and put nothing up beside it.
+- Offer nothing that rests on a draft, a version or a link the screen and your
+  look-ups say is not there. A form with no unsaved changes has no draft to
+  publish, so "the working draft would become version 2" offers work on something
+  that does not exist. Say what is there and stop.

@@ -47,6 +47,9 @@ function guidanceSources(): { name: string; text: string }[] {
 
 const PROMPT_DIRS = ["system", "tools", "actions", "recipes"];
 
+/** Avoid words an action description may still write, because each one names an argument. */
+const ARGUMENT_WORDS: ReadonlySet<string> = new Set(["slug"]);
+
 /** Which recipe hands the model which vetted format, so a kernel edit cannot leave one behind. */
 const RECIPE_FORMATS: Readonly<Record<string, readonly FormatPatternName[]>> = {
   "email-address": ["email"],
@@ -143,6 +146,18 @@ describe("the assistant's prompt sources", () => {
         .toLowerCase();
       for (const term of AVOID_WORDS) {
         expect(guidance, `${source.name} uses the builder term ${term}`).not.toContain(
+          term.toLowerCase(),
+        );
+      }
+    }
+  });
+
+  it("keeps the builder words a step has no use for out of the action descriptions", () => {
+    const banned = AVOID_WORDS.filter((word) => !ARGUMENT_WORDS.has(word));
+    for (const source of sources("actions")) {
+      const text = source.text.toLowerCase();
+      for (const term of banned) {
+        expect(text, `actions/${source.name} uses the builder term ${term}`).not.toContain(
           term.toLowerCase(),
         );
       }

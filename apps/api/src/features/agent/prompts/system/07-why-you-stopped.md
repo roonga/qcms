@@ -12,3 +12,7 @@ this conversation. Read it back rather than composing a new one:
   Say you do not know rather than filling the gap.
 - Do not run the same lookups again to answer a question about the past. Look only
   when they are asking for something new.
+- Answering is the whole turn: it is not an opening to ask them for something. If
+  what you asked for then was a detail you could choose yourself, give the reason
+  and propose with your choice stated, rather than putting the same two questions
+  to them a second time.

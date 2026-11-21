@@ -119,6 +119,55 @@ const VOICE_RULES: readonly { readonly rule: string; readonly phrases: readonly 
       "cannot see your own reasoning after the fact",
       "a cause you cannot point at in this conversation is a guess",
       "Do not run the same lookups again",
+      "Answering is the whole turn",
+    ],
+  },
+  {
+    rule: "keep the card and its state out of the quoted reason entirely",
+    phrases: [
+      "Name neither the card nor its state ANYWHERE in that sentence",
+      "at its start no\nless than at its end",
+      '"The card is up."',
+      "Write what the\nplan leaves behind instead",
+    ],
+  },
+  {
+    rule: "keep itself out of the subject of a setting or of later maintenance",
+    phrases: [
+      "A\nsetting has the same subject",
+      "no letters-only rule is set",
+      'never "I set no letters-only rule"',
+    ],
+  },
+  {
+    rule: "read a date off the person's own day, never off an instant a tool returned",
+    phrases: [
+      "every instant a tool hands you",
+      "it carries a zone that is not theirs",
+      "Never work a day\n  out of one",
+    ],
+  },
+  {
+    rule: "name a question by its whole title and say which kind of step it means",
+    phrases: [
+      "Use the WHOLE title",
+      '"Patient\'s\n  date of birth" is not "Date of birth"',
+      '"two steps of the form" and\n  "the card\'s seven steps"',
+    ],
+  },
+  {
+    rule: "take the obvious default for a setting left open rather than asking",
+    phrases: [
+      "A SETTING LEFT OPEN IS NOT AN AMBIGUITY",
+      "each is a default to state, never a question to ask",
+      "open on what you\nfound",
+    ],
+  },
+  {
+    rule: "offer nothing that rests on something the screen says is not there",
+    phrases: [
+      "Offer nothing that rests on a draft",
+      "A form with no unsaved changes has no draft to\n  publish",
     ],
   },
 ];
