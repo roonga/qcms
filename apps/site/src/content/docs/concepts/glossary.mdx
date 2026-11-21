@@ -170,7 +170,7 @@ Exporting is recorded in the [audit](#audit).
 
 A marking on a [response](#response) that came in looking automated, for instance submitted faster
 than the form's minimum time. A flagged response is held back from
-[webhook](#webhook) delivery until somebody looks at it and releases the withheld message.
+[webhook](#webhook) delivery until somebody looks at it and sends the withheld message on.
 
 ## Form
 
@@ -272,9 +272,9 @@ any answer being kept. The form builder can also share a preview with somebody w
 
 ## Production
 
-See [Environment](#environment). It is the environment that holds real respondent data, the one
-[second approval](#second-approval) protects, and the only one a form has to reach a test environment
-before.
+The [environment](#environment) that holds real respondent data. It is the one
+[second approval](#second-approval) protects, and where a site has a test environment, a
+[version](#version) has to be live there before it can go to production.
 
 ## Public form link
 
