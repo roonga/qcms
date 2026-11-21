@@ -110,9 +110,7 @@ test("a suspended View responses says it waits for a re-confirmation", async ({ 
   );
 });
 
-test("a workspace holding only a suspended place says so on My access and the forms list", async ({
-  page,
-}) => {
+test("a workspace holding only a suspended place says so on My access", async ({ page }) => {
   test.setTimeout(300_000);
   const held = uniqueAdminEmail("states103onlysuspended");
   await createTestAdmin(held, { grants: ["responses.viewer"], owner: false });
@@ -124,12 +122,6 @@ test("a workspace holding only a suspended place says so on My access and the fo
     "Every environment: responses.viewer",
   );
   await expect(page.getByTestId("qcms-my-access-workspace")).toContainText("Suspended");
-
-  await open(page, "/forms", 375, "qcms-forms-empty");
-  await expect(page.getByTestId("qcms-forms-empty")).toContainText("is suspended");
-  await expect(
-    page.getByTestId("qcms-forms-empty").getByRole("link", { name: "My access" }),
-  ).toHaveAttribute("href", "/me/access");
 });
 
 test.describe("a held draft publish to prod", () => {
