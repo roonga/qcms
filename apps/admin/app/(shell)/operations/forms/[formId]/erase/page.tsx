@@ -6,7 +6,7 @@ import { FormPageHeader } from "@/components/forms/form-page-header";
 import { KnownTargetErasure } from "@/components/ops/known-target-erasure";
 import { shownEnvironment } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
-import { ERASE_RESPONSES_ROLE, starterGroupFor } from "@/lib/forms/role-states";
+import { eraseUnavailable } from "@/lib/forms/role-states";
 import { mayEraseResponses } from "@/lib/ops/erasure";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { secureCookies } from "@/lib/server/config";
@@ -68,12 +68,7 @@ export default async function FormErasePage({
           />
         </>
       ) : (
-        <Alert variant="info">
-          {t("ops.erase.known.denied", {
-            environment,
-            group: starterGroupFor(ERASE_RESPONSES_ROLE, environment),
-          })}
-        </Alert>
+        <Alert variant="info">{eraseUnavailable(environment)}</Alert>
       )}
     </div>
   );

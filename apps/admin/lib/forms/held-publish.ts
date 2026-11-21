@@ -17,7 +17,6 @@ export interface HeldPublishRequest {
 
 export type HeldPublishBlock = "changed" | "expired";
 
-/** What one viewer is shown of one pending request. */
 export interface HeldPublishView {
   readonly requestId: string;
   /** The viewer asked: pending, and never an Approve. */
@@ -112,7 +111,6 @@ export function blockSentence(block: HeldPublishBlock): string {
     : t("forms.publish.requests.changed");
 }
 
-/** The result of deciding a held publish, as the panel renders it. */
 export type HeldDecisionState =
   | { readonly status: "idle" }
   | {

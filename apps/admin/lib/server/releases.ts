@@ -192,7 +192,7 @@ export async function decideHeldPublish(
   return readResult<unknown>(
     await adminApiFetch(
       session,
-      `/forms/${encodeURIComponent(formId)}/publish-requests/${encodeURIComponent(requestId)}/${decision}?environment=${PROD}`,
+      `/forms/${encodeURIComponent(formId)}/publish-requests/${encodeURIComponent(requestId)}/${encodeURIComponent(decision)}?environment=${PROD}`,
       { method: "POST", environment: PROD },
     ),
   );

@@ -4,10 +4,12 @@ import { t } from "../i18n/en.ts";
 import type { HeldGrant, MyAccess } from "../membership/types.ts";
 
 import {
+  eraseUnavailable,
   formsListStates,
   readOnlyNotice,
   responsesUnavailable,
   starterGroupFor,
+  suspendedOnly,
 } from "./role-states.ts";
 
 function access(grants: readonly HeldGrant[], environments = ["test", "prod"]): MyAccess {
@@ -115,10 +117,55 @@ describe("responsesUnavailable", () => {
   });
 });
 
+describe("eraseUnavailable", () => {
+  it("names Response erasers in prod only, where it carries Erase responses", () => {
+    expect(eraseUnavailable("prod")).toBe(
+      "Erasing responses in prod needs Erase responses there. Response erasers gives it; erasing does not need View responses.",
+    );
+    expect(eraseUnavailable("test")).toBe(
+      "Erasing responses in test needs Erase responses there. Ask a Workspace administrator; erasing does not need View responses.",
+    );
+  });
+});
+
+describe("suspendedOnly", () => {
+  it("holds for a workspace whose every place is suspended", () => {
+    const [workspace] = access([]).workspaces;
+    const place = { name: "Response viewers", roles: ["responses.viewer"], environments: ["prod"] };
+    expect(
+      suspendedOnly(workspace === undefined ? undefined : { ...workspace, suspended: [place] }),
+    ).toBe(true);
+    expect(
+      suspendedOnly(
+        workspace === undefined
+          ? undefined
+          : { ...workspace, grants: [reviewers], suspended: [place] },
+      ),
+    ).toBe(false);
+    expect(suspendedOnly(workspace)).toBe(false);
+  });
+
+  it("tells the forms list the workspace is suspended", () => {
+    const record = access([]);
+    const suspended: MyAccess = {
+      ...record,
+      workspaces: record.workspaces.map((workspace) => ({
+        ...workspace,
+        suspended: [{ name: "Response viewers", roles: ["responses.viewer"], environments: [] }],
+      })),
+    };
+    expect(formsListStates(suspended, "ws_clinical")).toMatchObject({
+      suspended: true,
+      noAccessWorkspace: "Clinical",
+    });
+  });
+});
+
 describe("starterGroupFor", () => {
   it("follows the starter groups", () => {
     expect(starterGroupFor("forms.publisher", "prod")).toBe("Publishers");
     expect(starterGroupFor("forms.publisher", "test")).toBe("Authors");
-    expect(starterGroupFor("responses.eraser", "test")).toBe("Response erasers");
+    expect(starterGroupFor("responses.eraser", "prod")).toBe("Response erasers");
+    expect(starterGroupFor("responses.eraser", "test")).toBeUndefined();
   });
 });

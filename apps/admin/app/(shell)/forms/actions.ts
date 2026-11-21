@@ -493,6 +493,10 @@ export async function decideHeldPublishAction(
   decision: "approve" | "reject",
 ): Promise<HeldDecisionState> {
   const session = await requireAdminSession();
+  // A Server Action argument is whatever the caller posts, whatever its type says.
+  if (decision !== "approve" && decision !== "reject") {
+    return { status: "error", message: t("forms.publish.requests.badDecision") };
+  }
   const result = await decideHeldPublish(session, formId, requestId, decision);
   revalidatePath(`/forms/${formId}`, "layout");
   if (!result.ok) {

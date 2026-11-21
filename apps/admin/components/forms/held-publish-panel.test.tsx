@@ -29,7 +29,7 @@ function renderPanel(
   render(
     <HeldPublishPanel
       views={views}
-      summaries={{ apr_1: "Patient intake, 14 questions, 3 steps" }}
+      summaries={{ apr_1: "Patient intake, 14 questions, 6 changes since v4" }}
       environment="prod"
       decide={decide}
     />,
@@ -67,7 +67,7 @@ describe("HeldPublishPanel", () => {
     );
     renderPanel([view()], decide);
     expect(screen.getByTestId("qcms-held-publish-summary").textContent).toMatch(
-      /^Patient intake, 14 questions, 3 steps, requested /u,
+      /^Patient intake, 14 questions, 6 changes since v4, requested /u,
     );
     await userEvent
       .setup()
@@ -79,7 +79,7 @@ describe("HeldPublishPanel", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("announces a refusal and keeps Approve off", async () => {
+  it("announces a refusal and offers no second decision", async () => {
     renderPanel([view()], () =>
       Promise.resolve({ status: "error", message: t("forms.publish.requests.changed") }),
     );
@@ -88,11 +88,46 @@ describe("HeldPublishPanel", () => {
     expect((await screen.findByRole("alert")).textContent).toBe(
       t("forms.publish.requests.changed"),
     );
-    expect(
-      screen
-        .getByRole("button", { name: t("forms.publish.requests.approve") })
-        .hasAttribute("disabled"),
-    ).toBe(true);
+    expect(screen.queryByRole("button", { name: t("forms.publish.requests.approve") })).toBeNull();
+  });
+
+  it("keeps the outcome once the refresh takes the decided request away", async () => {
+    const decide = () =>
+      Promise.resolve<HeldDecisionState>({
+        status: "approved",
+        version: 5,
+        requester: "Grace Mensah",
+        approver: "Luis Ortega",
+      });
+    const { rerender } = render(
+      <HeldPublishPanel views={[view()]} summaries={{}} environment="prod" decide={decide} />,
+    );
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: t("forms.publish.requests.approve") }));
+    const sentence = "v5 frozen by Grace Mensah, approved by Luis Ortega, live in prod.";
+    expect(await screen.findByText(sentence)).toBeTruthy();
+
+    rerender(<HeldPublishPanel views={[]} summaries={{}} environment="prod" decide={decide} />);
+    expect(screen.getByText(sentence)).toBeTruthy();
+    expect(screen.queryByTestId("qcms-held-publish")).toBeNull();
+  });
+
+  it("keeps a lapse refusal once the lapsed request leaves the list", async () => {
+    const decide = () =>
+      Promise.resolve<HeldDecisionState>({
+        status: "error",
+        message: t("forms.publish.requests.changed"),
+      });
+    const { rerender } = render(
+      <HeldPublishPanel views={[view()]} summaries={{}} environment="prod" decide={decide} />,
+    );
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: t("forms.publish.requests.approve") }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    rerender(<HeldPublishPanel views={[]} summaries={{}} environment="prod" decide={decide} />);
+    expect(screen.getByRole("alert").textContent).toBe(t("forms.publish.requests.changed"));
   });
 
   it("words an unexpected rejection in catalog copy only", async () => {

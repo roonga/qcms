@@ -298,7 +298,6 @@ function ConfirmControls({
   readonly state: PublishBatchState;
   readonly isPending: boolean;
   readonly canConfirm: boolean;
-  /** Names the act and where it lands. */
   readonly label: string;
   readonly pendingLabel: string;
   readonly onConfirm: () => void;

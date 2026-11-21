@@ -99,7 +99,6 @@ export async function listAccountDirectory(
   return { rows, total: counted?.total ?? 0 };
 }
 
-/** One account by id, with the state the Accounts screen reports. */
 /** Display names by account id, and nothing else about the accounts. A blank name is left out. */
 export async function listDisplayNames(
   exec: Executor,
@@ -116,6 +115,7 @@ export async function listDisplayNames(
   );
 }
 
+/** One account by id, with the state the Accounts screen reports. */
 export async function findAccountById(
   exec: Executor,
   userId: string,

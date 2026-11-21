@@ -655,6 +655,10 @@ export const messages = {
   "forms.empty.filtered": "No form matches this search.",
   "forms.empty.noAccess": "No forms you can see in {workspace}",
   "forms.empty.noAccessBody": "A Workspace administrator adds you to a group.",
+  "forms.empty.suspended": "Your access in {workspace} is suspended",
+  "forms.empty.suspendedBody":
+    "It grants nothing until a Workspace administrator re-confirms it. My access says which groups.",
+  "forms.empty.myAccess": "My access",
   "forms.unavailable.create": "Creating a form needs Edit forms in {workspace}. {group} gives it.",
   "forms.unavailable.readOnlyTag": "Read only",
   "forms.unavailable.readOnly": "You have View forms. Edit forms comes from {group}.",
@@ -1500,11 +1504,12 @@ export const messages = {
   "forms.publish.requests.label": "Draft publish to {environment}",
   "forms.publish.requests.approver": "Approver",
   "forms.publish.requests.summary": "{subject}, requested {time}",
-  "forms.publish.requests.subject": "{form}, {questions}, {steps}",
+  "forms.publish.requests.subject": "{form}, {questions}, {changes}",
+  "forms.publish.requests.subjectFirst": "{form}, {questions}",
+  "forms.publish.requests.changes.one": "1 change since v{version}",
+  "forms.publish.requests.changes.other": "{count} changes since v{version}",
   "forms.publish.requests.questions.one": "1 question",
   "forms.publish.requests.questions.other": "{count} questions",
-  "forms.publish.requests.steps.one": "1 step",
-  "forms.publish.requests.steps.other": "{count} steps",
   "forms.publish.requests.summaryUnread": "Requested {time}",
   "forms.publish.requests.own":
     "You asked for this, so another person with Publish forms in {environment} approves.",
@@ -1518,6 +1523,8 @@ export const messages = {
   "forms.publish.requests.requesterCannot":
     "Not applied: {person} no longer holds Edit forms and Publish forms for {environment} in {workspace}.",
   "forms.publish.requests.someone": "the person who asked",
+  "forms.publish.requests.badDecision":
+    "Nothing was published: that is not a decision this screen offers.",
   "forms.publish.requests.you": "you",
   "forms.publish.requests.leftWorkspace":
     "Not applied: the form is no longer in the workspace this publish was asked in.",
@@ -2352,6 +2359,8 @@ export const messages = {
     "Erase one respondent's data in {environment} by its session id. Nothing here lists responses, so the id comes from the data subject's request.",
   "ops.erase.known.denied":
     "Erasing responses in {environment} needs Erase responses there. {group} gives it; erasing does not need View responses.",
+  "ops.erase.known.deniedNoGroup":
+    "Erasing responses in {environment} needs Erase responses there. Ask a Workspace administrator; erasing does not need View responses.",
   "ops.unavailable.availability": "Needs Publish forms in {environment}.",
   "ops.unavailable.responsesHeading": "Responses are not available in {environment}",
   "ops.unavailable.responsesElsewhere":
@@ -2668,6 +2677,8 @@ export const messages = {
   "membership.members.administratorRemoved":
     "Removed as Workspace administrator. Their access groups stay.",
   "membership.suspended.tag": "Suspended",
+  "membership.mine.suspended":
+    "Suspended until a Workspace administrator re-confirms it, and granting nothing until then: {groups}.",
   "membership.suspended.more": ", needs re-confirmation",
   "membership.person.administrator": "Workspace administrator",
   "membership.person.appoint": "Appoint",

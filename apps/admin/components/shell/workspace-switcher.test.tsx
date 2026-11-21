@@ -25,6 +25,25 @@ function draw(current = CURRENT) {
 }
 
 describe("the workspace switcher", () => {
+  it("tags a workspace whose every place is suspended", async () => {
+    render(
+      <WorkspaceSwitcher
+        choices={[...CHOICES, { workspaceId: "org_held", name: "Held", suspended: true }]}
+        current={CURRENT}
+        secureCookies={false}
+      />,
+    );
+    await userEvent
+      .setup()
+      .click(
+        screen.getByRole("button", {
+          name: t("workspace.switcher.trigger", { name: CURRENT.name }),
+        }),
+      );
+    const tags = await screen.findAllByTestId("qcms-workspace-suspended");
+    expect(tags.map((tag) => tag.textContent)).toEqual([t("membership.suspended.tag")]);
+  });
+
   it("names the current workspace, with its visible text inside that name", () => {
     draw();
     const trigger = screen.getByRole("button", {

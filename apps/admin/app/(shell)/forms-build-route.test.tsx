@@ -91,6 +91,7 @@ function offered(): boolean[] {
 const wizardProps: Record<string, unknown>[] = [];
 
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: () => undefined }),
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },

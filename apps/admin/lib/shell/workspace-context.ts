@@ -3,6 +3,8 @@
 export interface WorkspaceChoice {
   readonly workspaceId: string;
   readonly name: string;
+  /** Every place the caller holds there is suspended until re-confirmed. */
+  readonly suspended?: boolean;
 }
 
 export interface WorkspaceContext {
