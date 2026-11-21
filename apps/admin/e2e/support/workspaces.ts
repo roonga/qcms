@@ -92,17 +92,20 @@ export interface StoredRequest {
   readonly status: string;
 }
 
-/** This workspace's approval requests of one kind, newest first. */
+/**
+ * This workspace's approval requests of one kind over one subject. The harness clock is
+ * fixed, so every request shares a `requested_at` and only the subject tells them apart.
+ */
 export async function workspaceRequests(
   workspaceId: string,
   kind: string,
+  target: string,
 ): Promise<readonly StoredRequest[]> {
   const found = await withDb(async (handle) =>
     handle.query<StoredRequest>(
       `select request_id as "requestId", status from control."approval_requests"
-        where workspace_id = $1 and kind = $2
-        order by requested_at desc`,
-      [workspaceId, kind],
+        where workspace_id = $1 and kind = $2 and target = $3`,
+      [workspaceId, kind, target],
     ),
   );
   return found.rows;

@@ -114,11 +114,19 @@ async function switchWorkspace(page: Page, name: string): Promise<void> {
   await waitForHydration(page);
 }
 
-async function newestMoveRequest(): Promise<{ requestId: string; status: string }> {
-  const [request] = await workspaceRequests(source.workspaceId, "move-form");
-  if (request === undefined) throw new Error("no move request was stored in the source");
+async function moveRequestFor(formId: string): Promise<{ requestId: string; status: string }> {
+  const [request] = await workspaceRequests(source.workspaceId, "move-form", formId);
+  if (request === undefined) throw new Error(`no move request was stored for ${formId}`);
   return { requestId: request.requestId, status: request.status };
 }
+
+test("the sign-in screen is served before anything types into it", async ({ page }) => {
+  test.setTimeout(300_000);
+  // Warm and hydrate sign-in before typing so dev-server compilation cannot replace the next test's document.
+  await page.goto("/sign-in");
+  await waitForHydration(page);
+  await expect(page.getByRole("button", { name: "Sign in" })).toBeEnabled();
+});
 
 test("the rail offers Move form, and the preview names the affected people by name", async ({
   page,
@@ -218,7 +226,7 @@ test("with Second approval on, the move waits for an Approver and the mover cann
   await expect(panel(page).getByText("Waiting for an approver")).toBeVisible();
   expect(await workspaceOf(heldForm)).toBe(source.workspaceId);
 
-  const held = await newestMoveRequest();
+  const held = await moveRequestFor(heldForm);
   expect(held.status).toBe("pending");
 
   await openWorkspaceAudit(page, source.workspaceId);
@@ -231,7 +239,7 @@ test("with Second approval on, the move waits for an Approver and the mover cann
 test("an Approver of the source applies the held move", async ({ page }) => {
   test.setTimeout(300_000);
   approverSecret = await enrollNewAdmin(page, APPROVER);
-  const held = await newestMoveRequest();
+  const held = await moveRequestFor(heldForm);
 
   await openWorkspaceAudit(page, source.workspaceId);
   const card = requestCard(page, held.requestId);
@@ -245,9 +253,7 @@ test("an Approver of the source applies the held move", async ({ page }) => {
   await setWorkspaceSecondApproval(source.workspaceId, false);
 });
 
-test("a held move lapses once the form has left the source before the approval", async ({
-  page,
-}) => {
+test("a mover who administers neither workspace waits for an Approver", async ({ page }) => {
   test.setTimeout(300_000);
   await enrollNewAdmin(page, EDITOR);
   await openMove(page, lapsedForm, destination.workspaceId);
@@ -258,10 +264,13 @@ test("a held move lapses once the form has left the source before the approval",
   );
   await panel(page).getByRole("button", { name: "Request move" }).click();
   await expect(panel(page).getByText("Waiting for an approver")).toBeVisible();
-  const held = await newestMoveRequest();
-  expect(held.status).toBe("pending");
 
-  // The form leaves the source while the request waits.
+  expect((await moveRequestFor(lapsedForm)).status).toBe("pending");
+  expect(await workspaceOf(lapsedForm)).toBe(source.workspaceId);
+});
+
+test("the form leaves the source while that request is still waiting", async ({ page }) => {
+  test.setTimeout(300_000);
   await signInWithTotp(page, MOVER, moverSecret);
   await openMove(page, lapsedForm, elsewhere.workspaceId);
   await panel(page)
@@ -269,6 +278,13 @@ test("a held move lapses once the form has left the source before the approval",
     .click();
   await expect(panel(page).getByText(`This form moved to ${elsewhere.name}`)).toBeVisible();
 
+  expect(await workspaceOf(lapsedForm)).toBe(elsewhere.workspaceId);
+  expect((await moveRequestFor(lapsedForm)).status).toBe("pending");
+});
+
+test("the Approver's decision lapses the move the form outran", async ({ page }) => {
+  test.setTimeout(300_000);
+  const held = await moveRequestFor(lapsedForm);
   await signInWithTotp(page, APPROVER, approverSecret);
   await openWorkspaceAudit(page, source.workspaceId);
   await requestCard(page, held.requestId)
@@ -279,7 +295,7 @@ test("a held move lapses once the form has left the source before the approval",
   ).toBeVisible();
 
   // Stored, not only reported: the request ends undecided and the form stays where it went.
-  expect((await newestMoveRequest()).status).toBe("lapsed");
+  expect((await moveRequestFor(lapsedForm)).status).toBe("lapsed");
   expect(await workspaceOf(lapsedForm)).toBe(elsewhere.workspaceId);
 
   await page.reload();

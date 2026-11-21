@@ -55,6 +55,14 @@ async function switchWorkspace(page: Page, name: string): Promise<void> {
   await waitForHydration(page);
 }
 
+test("the sign-in screen is served before anything types into it", async ({ page }) => {
+  test.setTimeout(300_000);
+  // Warm and hydrate sign-in before typing so dev-server compilation cannot replace the next test's document.
+  await page.goto("/sign-in");
+  await waitForHydration(page);
+  await expect(page.getByRole("button", { name: "Sign in" })).toBeEnabled();
+});
+
 test("archiving is refused inline while the workspace still owns a form", async ({ page }) => {
   test.setTimeout(300_000);
   adminSecret = await enrollNewAdmin(page, ADMIN);
@@ -112,13 +120,15 @@ test("the archived workspace reads as archived and refuses a new form", async ({
   ).toBeVisible();
   await expect(page.getByRole("button", { name: `Archive ${closing.name}` })).toHaveCount(0);
 
+  // An archived workspace grants nothing, so its Forms list offers no form and no create.
   await page.goto("/forms");
   await switchWorkspace(page, closing.name);
-  await expect(page.getByTestId("qcms-forms-create-reason")).toContainText(
-    `Creating a form needs Edit forms in ${closing.name}.`,
+  await expect(page.getByTestId("qcms-forms-empty")).toContainText(
+    `No forms you can see in ${closing.name}`,
   );
+  await expect(page.getByRole("link", { name: "New form" })).toHaveCount(0);
 
-  // The disabled control is a courtesy; the route behind it answers for itself.
+  // The missing control is a courtesy; the route behind it answers for itself.
   await page.goto("/forms/new");
   await waitForHydration(page);
   await fillStable(page.getByRole("textbox", { name: "Slug", exact: true }), `blocked-${RUN}`);

@@ -90,7 +90,15 @@ async function applyFilters(page: Page): Promise<void> {
   await waitForHydration(page);
 }
 
-test("the membership changes two administrators make write their own audit rows", async ({
+test("the sign-in screen is served before anything types into it", async ({ page }) => {
+  test.setTimeout(300_000);
+  // Warm and hydrate sign-in before typing so dev-server compilation cannot replace the next test's document.
+  await page.goto("/sign-in");
+  await waitForHydration(page);
+  await expect(page.getByRole("button", { name: "Sign in" })).toBeEnabled();
+});
+
+test("an administrator's group and grant are written to this workspace's audit", async ({
   page,
 }) => {
   test.setTimeout(300_000);
@@ -107,10 +115,6 @@ test("the membership changes two administrators make write their own audit rows"
 
   await grantGroupTo(page, HOLDER);
 
-  await enrollNewAdmin(page, SECOND);
-  await grantGroupTo(page, OTHER_HOLDER);
-
-  await signInWithTotp(page, ADMIN, adminSecret);
   await openAudit(page);
   await expect(
     auditRows(page).filter({ hasText: ADMIN }).filter({ hasText: "Changed an access group" }),
@@ -118,8 +122,20 @@ test("the membership changes two administrators make write their own audit rows"
   await expect(
     auditRows(page).filter({ hasText: ADMIN }).filter({ hasText: "Granted" }),
   ).toHaveCount(1);
+  await expect(auditTable(page)).not.toContainText(SECOND);
+});
+
+test("a second administrator's grant is written as their own act", async ({ page }) => {
+  test.setTimeout(300_000);
+  await enrollNewAdmin(page, SECOND);
+  await grantGroupTo(page, OTHER_HOLDER);
+
+  await openAudit(page);
   await expect(
     auditRows(page).filter({ hasText: SECOND }).filter({ hasText: "Granted" }),
+  ).toHaveCount(1);
+  await expect(
+    auditRows(page).filter({ hasText: ADMIN }).filter({ hasText: "Granted" }),
   ).toHaveCount(1);
 });
 
