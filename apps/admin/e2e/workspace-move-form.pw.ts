@@ -53,6 +53,7 @@ let appliedForm = "";
 let heldForm = "";
 let lapsedForm = "";
 let ownWorkspaceForm = "";
+let staleForm = "";
 
 test.beforeAll(async () => {
   await createTestAdmin(MOVER, { name: MOVER_NAME, grants: [], owner: false });
@@ -81,6 +82,7 @@ test.beforeAll(async () => {
   heldForm = await createFormIn(source.workspaceId, `move-held-${RUN}`);
   lapsedForm = await createFormIn(source.workspaceId, `move-lapsed-${RUN}`);
   ownWorkspaceForm = await createFormIn(source.workspaceId, `move-own-${RUN}`);
+  staleForm = await createFormIn(source.workspaceId, `move-stale-${RUN}`);
 });
 
 // Leave the switch off whatever failed: a serial retry restarts at a test that expects it off.
@@ -112,6 +114,19 @@ async function switchWorkspace(page: Page, name: string): Promise<void> {
   await openMenu(page.getByTestId("qcms-workspace-switcher").getByRole("button").first());
   await page.getByRole("menuitemradio", { name, exact: true }).click();
   await waitForHydration(page);
+}
+
+async function moveByRoute(formId: string, workspaceId: string): Promise<Response> {
+  return fetch(`${API_BASE_URL}/admin/forms/${encodeURIComponent(formId)}/workspace`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-qcms-internal-token": FIXED_INTERNAL_TOKEN,
+      "x-qcms-admin-session": await sessionTokenOf(MOVER),
+      "x-qcms-environment": "prod",
+    },
+    body: JSON.stringify({ workspaceId }),
+  });
 }
 
 async function moveRequestFor(formId: string): Promise<{ requestId: string; status: string }> {
@@ -287,9 +302,12 @@ test("the Approver's decision lapses the move the form outran", async ({ page })
   await requestCard(page, held.requestId)
     .getByRole("button", { name: /^Approve/u })
     .click();
-  await expect(
-    page.getByTestId("qcms-workspace-requests").getByText("The request was not approved"),
-  ).toBeVisible();
+  const requests = page.getByTestId("qcms-workspace-requests");
+  await expect(requests).toContainText(
+    "The request was not approved: The form had already moved out of the workspace this move " +
+      "was asked from, so nothing was applied. It can be moved again from where it is now.",
+  );
+  await expect(requests).not.toContainText("MOVE_FORM_LEFT_SOURCE");
 
   // Stored, not only reported: the request ends undecided and the form stays where it went.
   expect((await moveRequestFor(lapsedForm)).status).toBe("lapsed");
@@ -310,19 +328,7 @@ test("the route refuses a move to the form's own workspace", async ({ page }) =>
   await openMove(page, ownWorkspaceForm);
   await expect(panel(page)).toContainText("Only workspaces where you hold Edit forms are listed.");
 
-  const response = await fetch(
-    `${API_BASE_URL}/admin/forms/${encodeURIComponent(ownWorkspaceForm)}/workspace`,
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-qcms-internal-token": FIXED_INTERNAL_TOKEN,
-        "x-qcms-admin-session": await sessionTokenOf(MOVER),
-        "x-qcms-environment": "prod",
-      },
-      body: JSON.stringify({ workspaceId: source.workspaceId }),
-    },
-  );
+  const response = await moveByRoute(ownWorkspaceForm, source.workspaceId);
   expect(response.status).toBe(409);
   const body = (await response.json()) as { error?: { code?: string } };
   expect(body.error?.code).toBe("MOVE_SAME_WORKSPACE");
@@ -331,4 +337,24 @@ test("the route refuses a move to the form's own workspace", async ({ page }) =>
   expect(await auditDetails(source.workspaceId, "setting")).not.toContain(
     `setting=form-moved-out to=${source.workspaceId}`,
   );
+});
+
+test("a panel the form moved out from under reads the refusal as a sentence", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, MOVER, moverSecret);
+  await openMove(page, staleForm, destination.workspaceId);
+  const confirm = panel(page).getByRole("button", { name: `Move to ${destination.name}` });
+  await expect(confirm).toBeEnabled();
+
+  // The same move applied elsewhere while this panel sat open, which is the only way a person
+  // reaches the refusal: the chooser never offers the workspace the form is already in.
+  const applied = await moveByRoute(staleForm, destination.workspaceId);
+  expect(applied.status).toBe(200);
+  expect(await workspaceOf(staleForm)).toBe(destination.workspaceId);
+
+  await confirm.click();
+  await expect(panel(page)).toContainText(
+    "The form was not moved. This form is already in that workspace, so there is nothing to move.",
+  );
+  await expect(panel(page)).not.toContainText("MOVE_SAME_WORKSPACE");
 });
