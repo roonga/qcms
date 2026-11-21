@@ -99,7 +99,7 @@ describe("where the assistant panel leaves the reader", () => {
         screen={SCREEN}
         environment="test"
         conversation={conversationHandle()}
-      builder={undefined}
+        builder={undefined}
         composerRef={{ current: null }}
         onWorkingChange={() => undefined}
         onAnnounce={() => undefined}

@@ -395,11 +395,15 @@ function ScreenConversation({
     if (saved === undefined) {
       // The card the assistant said would follow this one: it gets the turn here, so the
       // person is not left holding a promise they have to ask for.
-      if (plan.thenAnother === true) await runTurn(undefined, undefined, []);
+      if (plan.thenAnother !== true) return;
+      followsNewest.current = true;
+      await runTurn(undefined, undefined, []);
       return;
     }
     const token = await saved;
-    if (token !== undefined) await runTurn(undefined, token, []);
+    if (token === undefined) return;
+    followsNewest.current = true;
+    await runTurn(undefined, token, []);
   };
 
   const postTurn = (

@@ -13,19 +13,21 @@ const MARKER = /^ {0,3}([-*+]|\d{1,3}[.)]) */;
  * id is the common case here, and `q_insurance_provider` is not emphasis.
  */
 function inline(text: string): string {
-  return text
-    .replaceAll(/`+/g, "")
-    .replaceAll(/!\[/g, "[")
-    .replaceAll(/\[([^\][]*)\]\(([^()]*)\)/g, "$1")
-    .replaceAll(/\*\*([^*]*)\*\*/g, "$1")
-    .replaceAll(/\*([^*]*)\*/g, "$1")
-    // Whatever emphasis the pairs above could not resolve is still a marker, never a word.
-    .replaceAll(/\*+/g, "")
-    .replaceAll(/(^|\W)__([^_]*)__(?=\W|$)/g, "$1$2")
-    .replaceAll(/(^|\W)_([^_]*)_(?=\W|$)/g, "$1$2")
-    .replaceAll(/^ {0,3}#{1,6} +/g, "")
-    .replaceAll(/^ {0,3}> ?/g, "")
-    .trim();
+  return (
+    text
+      .replaceAll(/`+/g, "")
+      .replaceAll(/!\[/g, "[")
+      .replaceAll(/\[([^\][]*)\]\(([^()]*)\)/g, "$1")
+      .replaceAll(/\*\*([^*]*)\*\*/g, "$1")
+      .replaceAll(/\*([^*]*)\*/g, "$1")
+      // Whatever emphasis the pairs above could not resolve is still a marker, never a word.
+      .replaceAll(/\*+/g, "")
+      .replaceAll(/(^|\W)__([^_]*)__(?=\W|$)/g, "$1$2")
+      .replaceAll(/(^|\W)_([^_]*)_(?=\W|$)/g, "$1$2")
+      .replaceAll(/^ {0,3}#{1,6} +/g, "")
+      .replaceAll(/^ {0,3}> ?/g, "")
+      .trim()
+  );
 }
 
 /** One line of the quote per line the writer wrote, grouped by the blank lines between them. */
@@ -96,10 +98,7 @@ const joined = (block: readonly string[]): string => block.join("\n");
 /* A paragraph the quote stopped part-way through reads as cut mid-thought, so the quote
    stops on a paragraph boundary wherever one fits, and a lead-in to what was dropped goes
    with it. */
-function wholeParagraphs(
-  blocks: readonly (readonly string[])[],
-  max: number,
-): string | undefined {
+function wholeParagraphs(blocks: readonly (readonly string[])[], max: number): string | undefined {
   const kept: (readonly string[])[] = [];
   let used = 0;
   for (const block of blocks) {
