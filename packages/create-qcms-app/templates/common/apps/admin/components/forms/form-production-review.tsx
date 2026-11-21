@@ -15,10 +15,11 @@ export async function FormProductionReview({
   form,
   environments,
   notice,
+  section = "builder",
 }: {
+  readonly section?: "builder" | "rules";
   readonly form: FormDetail;
   readonly environments: readonly string[];
-  /** Why the draft is read only to the caller. */
   readonly notice?: string;
 }) {
   const session = await requireAdminSession();
@@ -32,7 +33,7 @@ export async function FormProductionReview({
     <div className="flex flex-col gap-6" data-testid="qcms-published-form-review">
       <FormPageHeader
         formId={form.formId}
-        section="builder"
+        section={section}
         form={form}
         heading={{ id: "qcms-published-form-heading", text: t("forms.workflow.publishedForm") }}
       />

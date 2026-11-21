@@ -42,13 +42,19 @@ export function holdsRole(
   );
 }
 
-/** The starter group that carries a role in an environment in a new workspace. */
-export function starterGroupFor(role: string, environment?: string): string {
-  return t(starterGroupKey(role, environment));
+/**
+ * The starter group that carries a role in an environment in a new workspace, or undefined
+ * where none does: Response erasers covers `prod` only.
+ */
+export function starterGroupFor(role: string, environment?: string): string | undefined {
+  const key = starterGroupKey(role, environment);
+  return key === undefined ? undefined : t(key);
 }
 
-function starterGroupKey(role: string, environment: string | undefined): MessageKey {
-  if (role === ERASE_RESPONSES_ROLE) return "forms.unavailable.group.responseErasers";
+function starterGroupKey(role: string, environment: string | undefined): MessageKey | undefined {
+  if (role === ERASE_RESPONSES_ROLE) {
+    return environment === PRODUCTION ? "forms.unavailable.group.responseErasers" : undefined;
+  }
   if (role === EDIT_FORMS_ROLE || environment !== PRODUCTION) {
     return "forms.unavailable.group.authors";
   }
@@ -63,27 +69,27 @@ function workspaceName(workspace: MyAccessWorkspace | undefined): string {
 export interface FormsListStates {
   /** Set while the caller cannot create a form here: the New form control is disabled with it. */
   readonly createReason: string | undefined;
-  /** Whether a row's form is read only to the caller. */
   readonly readOnly: (workspaceId: string) => boolean;
-  /** The list's reason for read-only rows, shown once above the table. */
   readonly readOnlyReason: string;
   /** Set while the caller holds no form role in the workspace: the empty state names it. */
   readonly noAccessWorkspace: string | undefined;
+  /** Every place the caller holds in the workspace is suspended. */
+  readonly suspended: boolean;
 }
 
 export function formsListStates(
   access: MyAccess | undefined,
   workspaceId: string | undefined,
 ): FormsListStates {
-  const readOnlyReason = t("forms.unavailable.readOnly", {
-    group: starterGroupFor(EDIT_FORMS_ROLE),
-  });
+  const authors = t("forms.unavailable.group.authors");
+  const readOnlyReason = t("forms.unavailable.readOnly", { group: authors });
   if (access === undefined) {
     return {
       createReason: undefined,
       readOnly: () => false,
       readOnlyReason,
       noAccessWorkspace: undefined,
+      suspended: false,
     };
   }
   const workspace = workspaceOf(access, workspaceId);
@@ -93,21 +99,39 @@ export function formsListStates(
     : access.workspaces.some((entry) => holdsRole(entry, EDIT_FORMS_ROLE));
   const noFormRole =
     scoped && workspace !== undefined && !FORM_ROLES.some((role) => holdsRole(workspace, role));
+  const suspended = scoped && suspendedOnly(workspace);
   return {
     createReason: canCreate
       ? undefined
       : t("forms.unavailable.create", {
           workspace: workspaceName(workspace),
-          group: starterGroupFor(EDIT_FORMS_ROLE),
+          group: authors,
         }),
     readOnly: (formWorkspaceId) =>
       !holdsRole(workspaceOf(access, formWorkspaceId), EDIT_FORMS_ROLE),
     readOnlyReason,
     noAccessWorkspace: noFormRole ? workspace?.name : undefined,
+    suspended,
   };
 }
 
-/** The edit screen's read-only notice for a caller without Edit forms. */
+/** Why erasing is unavailable here, naming a starter group only where one carries it. */
+export function eraseUnavailable(environment: string): string {
+  const group = starterGroupFor(ERASE_RESPONSES_ROLE, environment);
+  return group === undefined
+    ? t("ops.erase.known.deniedNoGroup", { environment })
+    : t("ops.erase.known.denied", { environment, group });
+}
+
+/** A workspace where every place the caller holds is suspended: it grants nothing until re-confirmed. */
+export function suspendedOnly(workspace: MyAccessWorkspace | undefined): boolean {
+  return (
+    workspace !== undefined &&
+    (workspace.suspended ?? []).length > 0 &&
+    workspace.grants.length === 0
+  );
+}
+
 export function readOnlyNotice(access: MyAccess | undefined, workspaceId: string): string {
   const workspace = access === undefined ? undefined : workspaceOf(access, workspaceId);
   return t("forms.unavailable.readOnlyIn", { workspace: workspaceName(workspace) });
@@ -121,7 +145,8 @@ export function responsesUnavailable(
   locale: string,
 ): { readonly heading: string; readonly body: string; readonly suspended: boolean } {
   const heading = t("ops.unavailable.responsesHeading", { environment });
-  const group = starterGroupFor(VIEW_RESPONSES_ROLE, environment);
+  const group =
+    starterGroupFor(VIEW_RESPONSES_ROLE, environment) ?? t("forms.unavailable.group.authors");
   const workspace = access === undefined ? undefined : workspaceOf(access, workspaceId);
   const suspended = (workspace?.suspended ?? []).some(
     (grant) => grant.roles.includes(VIEW_RESPONSES_ROLE) && covers(grant.environments, environment),

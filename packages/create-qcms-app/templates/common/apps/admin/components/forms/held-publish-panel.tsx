@@ -14,6 +14,13 @@ import {
 import { t } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
+type Decide = (requestId: string, decision: "approve" | "reject") => Promise<HeldDecisionState>;
+
+interface Outcome {
+  readonly requestId: string;
+  readonly state: HeldDecisionState;
+}
+
 function viewerOf(view: HeldPublishView): "requester" | "approver" | "observer" {
   if (view.own) return "requester";
   return view.decides ? "approver" : "observer";
@@ -32,42 +39,63 @@ function Waiting({ view }: { readonly view: HeldPublishView }) {
   );
 }
 
+function OutcomeNotice({
+  outcome,
+  environment,
+}: {
+  readonly outcome: Outcome | undefined;
+  readonly environment: string;
+}) {
+  const state = outcome?.state;
+  return (
+    <div className="flex flex-col gap-2" aria-live="polite" data-testid="qcms-held-publish-outcome">
+      {state?.status === "approved" && (
+        <Alert variant="success">
+          {state.version === undefined
+            ? t("forms.publish.requests.approvedUnread", { environment })
+            : t("forms.publish.requests.approved", {
+                version: state.version,
+                requester: state.requester ?? t("forms.publish.requests.someone"),
+                approver: state.approver ?? t("forms.publish.requests.you"),
+                environment,
+              })}
+        </Alert>
+      )}
+      {state?.status === "rejected" && (
+        <Alert variant="info">{t("forms.publish.requests.rejected")}</Alert>
+      )}
+      {state?.status === "error" && (
+        <p
+          className="text-sm text-(--color-danger-fg)"
+          role="alert"
+          data-testid="qcms-held-publish-refusal"
+        >
+          {state.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Decision({
   view,
   summary,
-  environment,
-  decide,
+  outcome,
+  isPending,
+  acting,
+  onDecide,
 }: {
   readonly view: HeldPublishView;
   readonly summary: string;
-  readonly environment: string;
-  readonly decide: (
-    requestId: string,
-    decision: "approve" | "reject",
-  ) => Promise<HeldDecisionState>;
+  readonly outcome: HeldDecisionState | undefined;
+  readonly isPending: boolean;
+  readonly acting: "approve" | "reject" | undefined;
+  readonly onDecide: (decision: "approve" | "reject") => void;
 }) {
-  const router = useRouter();
   const format = useOperatorDateTimeFormat();
   const time = format(view.requestedAt, "");
-  const [state, setState] = useState<HeldDecisionState>({ status: "idle" });
-  const [acting, setActing] = useState<"approve" | "reject">();
-  const [isPending, startTransition] = useTransition();
-  const run = (decision: "approve" | "reject") => {
-    setActing(decision);
-    startTransition(() => {
-      void decide(view.requestId, decision)
-        .then((next) => {
-          setState(next);
-          if (next.status !== "error") router.refresh();
-        })
-        .catch(() => {
-          setState({ status: "error", message: unexpected() });
-        });
-    });
-  };
-  const done = state.status === "approved" || state.status === "rejected";
-  const refusal = state.status === "error" ? state.message : undefined;
   const block = view.block === undefined ? undefined : blockSentence(view.block);
+  const decided = outcome !== undefined && outcome.status !== "idle";
 
   return (
     <>
@@ -77,40 +105,23 @@ function Decision({
           ? t("forms.publish.requests.summaryUnread", { time })
           : t("forms.publish.requests.summary", { subject: summary, time })}
       </p>
-      <div className="flex flex-col gap-2" aria-live="polite">
-        {state.status === "approved" && (
-          <Alert variant="success">
-            {state.version === undefined
-              ? t("forms.publish.requests.approvedUnread", { environment })
-              : t("forms.publish.requests.approved", {
-                  version: state.version,
-                  requester: state.requester ?? t("forms.publish.requests.someone"),
-                  approver: state.approver ?? t("forms.publish.requests.you"),
-                  environment,
-                })}
-          </Alert>
-        )}
-        {state.status === "rejected" && (
-          <Alert variant="info">{t("forms.publish.requests.rejected")}</Alert>
-        )}
-      </div>
-      {(refusal ?? block) !== undefined && (
+      {block !== undefined && (
         <p
           className="text-sm text-(--color-danger-fg)"
           role="alert"
-          data-testid="qcms-held-publish-refusal"
+          data-testid="qcms-held-publish-block"
         >
-          {refusal ?? block}
+          {block}
         </p>
       )}
-      {!done && (
+      {!decided && (
         <div className="flex flex-wrap gap-2">
           <Button
             variant="primary"
             size="md"
-            isDisabled={isPending || block !== undefined || refusal !== undefined}
+            isDisabled={isPending || block !== undefined}
             onPress={() => {
-              run("approve");
+              onDecide("approve");
             }}
           >
             {isPending && acting === "approve"
@@ -122,7 +133,7 @@ function Decision({
             size="md"
             isDisabled={isPending}
             onPress={() => {
-              run("reject");
+              onDecide("reject");
             }}
           >
             {isPending && acting === "reject"
@@ -138,7 +149,8 @@ function Decision({
 /**
  * The held draft publishes to `prod` on a site whose only environment is `prod`. The
  * requester sees each one pending; another holder of Publish forms there approves it here,
- * on the form, and nowhere else.
+ * on the form, and nowhere else. A decision's outcome is held above the rows, since the
+ * refresh it causes takes the decided row away.
  */
 export function HeldPublishPanel({
   views,
@@ -150,14 +162,32 @@ export function HeldPublishPanel({
   /** By request: what the approver would publish, the draft the request is bound to. */
   readonly summaries: Readonly<Record<string, string>>;
   readonly environment: string;
-  readonly decide: (
-    requestId: string,
-    decision: "approve" | "reject",
-  ) => Promise<HeldDecisionState>;
+  readonly decide: Decide;
 }) {
-  if (views.length === 0) return null;
+  const router = useRouter();
+  const [outcome, setOutcome] = useState<Outcome>();
+  const [acting, setActing] = useState<{ requestId: string; decision: "approve" | "reject" }>();
+  const [isPending, startTransition] = useTransition();
+
+  const run = (requestId: string, decision: "approve" | "reject") => {
+    setActing({ requestId, decision });
+    setOutcome(undefined);
+    startTransition(() => {
+      void decide(requestId, decision)
+        .then((state) => {
+          setOutcome({ requestId, state });
+          router.refresh();
+        })
+        .catch(() => {
+          setOutcome({ requestId, state: { status: "error", message: unexpected() } });
+        });
+    });
+  };
+
+  if (views.length === 0 && outcome === undefined) return null;
   return (
     <div className="flex flex-col gap-4" data-testid="qcms-held-publishes">
+      <OutcomeNotice outcome={outcome} environment={environment} />
       {views.map((view) => (
         <section
           key={view.requestId}
@@ -175,8 +205,12 @@ export function HeldPublishPanel({
             <Decision
               view={view}
               summary={summaries[view.requestId] ?? ""}
-              environment={environment}
-              decide={decide}
+              outcome={outcome?.requestId === view.requestId ? outcome.state : undefined}
+              isPending={isPending}
+              acting={acting?.requestId === view.requestId ? acting.decision : undefined}
+              onDecide={(decision) => {
+                run(view.requestId, decision);
+              }}
             />
           ) : (
             <>
@@ -186,7 +220,7 @@ export function HeldPublishPanel({
                   : t("forms.publish.held.requestNote", { environment })}
               </p>
               {view.block !== undefined && (
-                <p className="text-sm" data-testid="qcms-held-publish-refusal">
+                <p className="text-sm" data-testid="qcms-held-publish-block">
                   {blockSentence(view.block)}
                 </p>
               )}

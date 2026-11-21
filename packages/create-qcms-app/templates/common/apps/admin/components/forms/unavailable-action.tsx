@@ -6,11 +6,13 @@ export function UnavailableAction({
   label,
   reason,
   testId,
+  variant = "primary",
 }: {
   readonly label: string;
   readonly reason: string;
-  /** Also names the reason, which the control is described by. */
+  /** Also names the reason, `<testId>-reason`, which the control is described by. */
   readonly testId: string;
+  readonly variant?: "primary" | "secondary";
 }) {
   const reasonId = `${testId}-reason`;
   return (
@@ -20,11 +22,11 @@ export function UnavailableAction({
         type="button"
         disabled
         aria-describedby={reasonId}
-        className="qcms-button-link cursor-not-allowed opacity-50"
+        className={`qcms-button-link ${variant === "secondary" ? "qcms-button-link--secondary " : ""}cursor-not-allowed opacity-50`}
       >
         {label}
       </button>
-      <span id={reasonId} className="text-sm text-(--color-text-muted)">
+      <span id={reasonId} className="text-sm text-(--color-text-muted)" data-testid={reasonId}>
         {reason}
       </span>
     </span>

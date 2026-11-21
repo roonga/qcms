@@ -57,6 +57,7 @@ function WorkspaceAccess({
   readonly environments: readonly string[];
 }) {
   const headingId = `qcms-my-access-${workspace.workspaceId}`;
+  const suspended = workspace.suspended ?? [];
   return (
     <section
       aria-labelledby={headingId}
@@ -70,12 +71,20 @@ function WorkspaceAccess({
         {workspace.archived && (
           <span className="text-xs text-(--color-text-muted)">{t("membership.mine.archived")}</span>
         )}
+        {suspended.length > 0 && <span className="qcms-tag">{t("membership.suspended.tag")}</span>}
         <p className="text-sm sm:ml-auto">
           {isWorkspaceAdministrator(workspace)
             ? t("membership.mine.administrator.yes")
             : t("membership.mine.administrator.no")}
         </p>
       </div>
+      {suspended.length > 0 && (
+        <p className="text-sm" data-testid="qcms-my-access-suspended">
+          {t("membership.mine.suspended", {
+            groups: suspended.map((grant) => grant.name).join(", "),
+          })}
+        </p>
+      )}
       {workspace.grants.length === 0 ? (
         <p className="text-sm text-(--color-text-muted)">
           {t("membership.mine.noAccessIn", { workspace: workspace.name })}

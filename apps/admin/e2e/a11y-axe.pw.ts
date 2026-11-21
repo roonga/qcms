@@ -43,6 +43,7 @@ import {
   waitForSaveAfter,
   waitForSaved,
 } from "./support/forms.js";
+import { HELD_LANDING, prepareHeldPublish } from "./support/held-publish.js";
 import { waitForHydration } from "./support/hydration.js";
 import { TestConsumer, openDeliverer, openEraseDialog, submitResponse } from "./support/ops.js";
 import { chooseDestination, chooseSource, publishDraftThroughWizard } from "./support/publish.js";
@@ -973,10 +974,33 @@ test("the forms-area unavailable states have zero violations", async ({ browser 
     await expectNoViolations(page, "responses not available in prod");
 
     await page.goto(`/operations/forms/${OPS_FORM_ID}/availability`);
-    await expect(page.getByTestId("qcms-form-availability-unavailable")).toBeVisible();
+    await expect(page.getByTestId("qcms-form-availability-door")).toBeVisible();
     await expectNoViolations(page, "availability without Publish forms");
   } finally {
     await context.close();
+  }
+});
+
+test("the held draft publish has zero violations for its requester and its approver", async ({
+  browser,
+}) => {
+  test.setTimeout(600_000);
+  const fixture = await prepareHeldPublish(browser, "a11y103held");
+  for (const [who, account] of [
+    ["requester", fixture.requester],
+    ["approver", fixture.approver],
+  ] as const) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    try {
+      await signInWithTotp(page, account.email, account.secret, HELD_LANDING);
+      await presetEnvironment(page, "prod");
+      await page.goto(`/forms/${fixture.formId}/publish`);
+      await expect(page.getByTestId("qcms-held-publish")).toHaveAttribute("data-viewer", who);
+      await expectNoViolations(page, `the held draft publish, shown to its ${who}`);
+    } finally {
+      await context.close();
+    }
   }
 });
 

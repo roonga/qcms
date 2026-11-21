@@ -61,6 +61,24 @@ export default async function FormsPage({
         testId="qcms-forms-create"
       />
     );
+  const noAccess = states.suspended ? (
+    <EmptyState
+      heading={t("forms.empty.suspended", { workspace: states.noAccessWorkspace ?? "" })}
+      body={t("forms.empty.suspendedBody")}
+      testId="qcms-forms-empty"
+      action={
+        <Link href="/me/access" className="qcms-text-link">
+          {t("forms.empty.myAccess")}
+        </Link>
+      }
+    />
+  ) : (
+    <EmptyState
+      heading={t("forms.empty.noAccess", { workspace: states.noAccessWorkspace ?? "" })}
+      body={t("forms.empty.noAccessBody")}
+      testId="qcms-forms-empty"
+    />
+  );
   const emptyLibrary =
     states.noAccessWorkspace === undefined ? (
       <EmptyState
@@ -70,11 +88,7 @@ export default async function FormsPage({
         action={createControl}
       />
     ) : (
-      <EmptyState
-        heading={t("forms.empty.noAccess", { workspace: states.noAccessWorkspace })}
-        body={t("forms.empty.noAccessBody")}
-        testId="qcms-forms-empty"
-      />
+      noAccess
     );
   const readOnlyRows = result.ok && result.data.some((form) => states.readOnly(form.workspaceId));
 

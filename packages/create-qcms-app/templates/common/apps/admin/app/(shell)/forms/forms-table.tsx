@@ -18,7 +18,6 @@ export function FormsTable({
   readonly canOperate: boolean;
   /** Whether a row's form offers the agent builder. */
   readonly canBuild?: (form: FormListItem) => boolean;
-  /** Whether a row's form is read only to the caller; the list states why once. */
   readonly readOnly?: (form: FormListItem) => boolean;
 }) {
   return (

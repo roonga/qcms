@@ -10,7 +10,8 @@ import { builderFormName } from "@/lib/forms/build-access";
 import { publishReturnHref } from "@/lib/forms/build-return";
 import { heldPublishViews } from "@/lib/forms/held-publish";
 import { canFreezeDraft, freezeSummary } from "@/lib/forms/publish";
-import type { FormDetail } from "@/lib/forms/types";
+import { changesSincePublish } from "@/lib/forms/assist-diff";
+import type { DraftForm, FormDetail } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { agentAuthoringEnabled } from "@/lib/server/agent";
@@ -30,19 +31,25 @@ import {
 const PROD = "prod";
 
 /* The stored draft is the one a request still bound to it would publish. */
-function draftSubject(form: FormDetail): string {
-  const summary = freezeSummary(form.draft);
+function draftSubject(form: FormDetail, base: DraftForm | null | undefined): string {
+  const questions = tPlural(
+    "forms.publish.requests.questions.one",
+    "forms.publish.requests.questions.other",
+    freezeSummary(form.draft).pins,
+  );
+  const latest = Math.max(0, ...form.versions.map((version) => version.version));
+  // A failed read of the last publish names no count rather than a wrong one.
+  if (latest === 0 || base === undefined || form.draft === null) {
+    return t("forms.publish.requests.subjectFirst", { form: builderFormName(form), questions });
+  }
   return t("forms.publish.requests.subject", {
     form: builderFormName(form),
-    questions: tPlural(
-      "forms.publish.requests.questions.one",
-      "forms.publish.requests.questions.other",
-      summary.pins,
-    ),
-    steps: tPlural(
-      "forms.publish.requests.steps.one",
-      "forms.publish.requests.steps.other",
-      summary.steps,
+    questions,
+    changes: tPlural(
+      "forms.publish.requests.changes.one",
+      "forms.publish.requests.changes.other",
+      changesSincePublish(base, form.draft).length,
+      { version: latest },
     ),
   });
 }
@@ -93,7 +100,7 @@ export default async function FormPublishPage({
         now: Date.now(),
       })
     : [];
-  const subject = draftSubject(form);
+  const subject = draftSubject(form, read.ok ? read.data.base : undefined);
   const summaries = Object.fromEntries(
     views.map((view) => [view.requestId, view.block === "changed" ? "" : subject]),
   );
