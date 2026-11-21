@@ -151,6 +151,62 @@ describe("a scaffolded QCMS deployment", () => {
     expect(response.status).toBe(401);
   });
 
+  it("makes the first account a one-person site under the access model", async () => {
+    // `qcms:create-admin` is the only path to the first account (SEC-1), and under the
+    // access model it leaves a Site administrator who is also the first workspace's
+    // Workspace administrator and in all four starter groups.
+    const access = (await json(`${API}/admin/me/access`, { headers: adminHeaders() }, [200])) as {
+      installationAdmin?: boolean;
+      capabilities?: { siteConfiguration?: boolean; workspaces?: boolean; authoring?: boolean };
+      workspaces?: { memberRole?: string | null; grants?: { name?: string }[] }[];
+    };
+    expect(access.installationAdmin).toBe(true);
+    expect(access.capabilities?.siteConfiguration).toBe(true);
+    expect(access.capabilities?.workspaces).toBe(true);
+    expect(access.capabilities?.authoring).toBe(true);
+    const first = access.workspaces?.[0];
+    expect(first?.memberRole).toBe("forms.owner");
+    expect((first?.grants ?? []).map((grant) => grant.name).sort()).toEqual([
+      "Authors",
+      "Publishers",
+      "Response erasers",
+      "Response viewers",
+    ]);
+  });
+
+  it("serves the account directory to that account and to no session at all", async () => {
+    // A site act that no workspace grant reaches, so a scaffold whose policy table went
+    // missing would serve it to anybody.
+    const directory = (await json(`${API}/admin/accounts`, { headers: adminHeaders() }, [200])) as {
+      accounts?: { email?: string; role?: string }[];
+      total?: number;
+    };
+    expect(directory.total).toBeGreaterThanOrEqual(1);
+    expect(
+      (directory.accounts ?? []).some(
+        (account) => account.email === ADMIN_EMAIL && account.role === "site-administrator",
+      ),
+    ).toBe(true);
+
+    const anonymous = await fetch(`${API}/admin/accounts`, { headers: headers() });
+    expect(anonymous.status).toBe(401);
+  });
+
+  it("refuses a second account while the scaffold configures no outbound mail", async () => {
+    // The first account is the only one that needs no emailed link, so every later create
+    // is refused rather than leaving an account nobody can claim.
+    const refused = await fetch(`${API}/admin/accounts`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ email: `scaffold.${RUN}@accounts.test` }),
+    });
+    expect(refused.status).toBe(409);
+    const body = await refused.text();
+    expect(body).toContain("MAIL_NOT_CONFIGURED");
+    // A refusal carries no link and no credential.
+    expect(body).not.toContain("http");
+  });
+
   it("completes the scenario-1 loop: author, publish, release, link, respond, submit, read back", async () => {
     await json(
       `${API}/admin/questions`,

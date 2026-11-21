@@ -26,9 +26,11 @@ import {
   insertFormVersion,
   insertWorkspaceTheme,
   listAccessAudit,
+  listSiteAudit,
   setRequireSecondApprover,
 } from "@roonga/qcms-db";
 
+import { ROUTE_POLICIES, type RoutePolicy } from "../../src/features/membership/route-policy.js";
 import { REQUEST_ENVIRONMENT_HEADER } from "../../src/middleware/request-environment.js";
 import { seedAdminSession, seedGrants, synthSecret } from "../../src/test-support.js";
 import {
@@ -1922,5 +1924,224 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
       // never given an unmasked endpoint URL.
       expect(row.detail ?? "").not.toContain("audited-consumer.example");
     }
+  });
+});
+
+/**
+ * Criterion 1 for the administrative and the site columns, by route rather than by the
+ * policy unit: every row the table marks as workspace administration or site
+ * administration, called by an actor the matrix leaves that cell blank for. The probe set
+ * is derived from `ROUTE_POLICIES` and the paths are built by substitution, so a route
+ * added later is probed here or fails the placeholder assertion rather than going
+ * unasserted.
+ */
+describe("every administrative and site act refuses an actor the matrix leaves blank (criterion 1)", () => {
+  /** The three resources the matrix's two administrator columns own; the rest are data. */
+  const ADMINISTRATIVE_RESOURCES = new Set(["membership", "workspace", "audit"]);
+
+  const ADMINISTRATIVE_ROWS = ROUTE_POLICIES.filter(
+    (row) => row.workspace === "path" && ADMINISTRATIVE_RESOURCES.has(row.resource),
+  );
+  const SITE_ROWS = ROUTE_POLICIES.filter((row) => row.installationOnly === true);
+
+  /** The grant check's own refusal. A step-up or a handler guard refuses under its own code. */
+  const GRANT_REFUSALS = new Set(["FORBIDDEN", "ROUTE_NOT_AUTHORIZED"]);
+
+  /**
+   * In the store under no key, so the positive control below exercises the takedown route
+   * without taking down the logo the earlier probes serve.
+   */
+  const ABSENT_LOGO_KEY = "0".repeat(64);
+
+  let probeWorkspaceId: string;
+  let everyRoleToken: string;
+  let administratorToken: string;
+  let subjectId: string;
+  let probeGroupId: string;
+
+  function pathFor(row: RoutePolicy): string {
+    return row.path
+      .replace("/admin/workspaces/{id}", `/admin/workspaces/${probeWorkspaceId}`)
+      .replace("/admin/accounts/{id}", `/admin/accounts/${subjectId}`)
+      .replace("/admin/approval-requests/{id}", "/admin/approval-requests/req_matrix_probe")
+      .replace("{teamId}", probeGroupId)
+      .replace("{userId}", subjectId)
+      .replace("{requestId}", "req_matrix_probe")
+      .replace("{key}", ABSENT_LOGO_KEY);
+  }
+
+  async function call(row: RoutePolicy, token: string): Promise<{ status: number; code: string }> {
+    const writes = row.method !== "GET";
+    const res = await all.app.request(pathFor(row), {
+      method: row.method,
+      headers: {
+        [INTERNAL_TOKEN_HEADER]: internalToken,
+        [ADMIN_SESSION_HEADER]: token,
+        ...(writes ? { "content-type": "application/json" } : {}),
+      },
+      ...(writes ? { body: "{}" } : {}),
+    });
+    const text = await res.text();
+    expectNoPayload(text);
+    let code = "";
+    try {
+      code = String((JSON.parse(text) as { error?: { code?: string } }).error?.code ?? "");
+    } catch {
+      code = "";
+    }
+    return { status: res.status, code };
+  }
+
+  beforeAll(async () => {
+    probeWorkspaceId = "org_final_matrix";
+    await testDb.db.insert(authOrganization).values({
+      id: probeWorkspaceId,
+      name: "Final matrix",
+      slug: "final-matrix",
+    });
+
+    // Every access role in the workspace and no administrator flag: the actor the
+    // administrative and site columns are blank for.
+    const everyRole = await seedAdminSession(testDb.db, {
+      label: "final-every-role",
+      workspaceId: probeWorkspaceId,
+      owner: false,
+      grants: [
+        "forms.viewer",
+        "forms.editor",
+        "forms.publisher",
+        "responses.viewer",
+        "responses.eraser",
+      ],
+    });
+    everyRoleToken = everyRole.token;
+
+    const administrator = await seedAdminSession(testDb.db, {
+      label: "final-administrator",
+      workspaceId: probeWorkspaceId,
+      owner: true,
+      grants: [],
+    });
+    administratorToken = administrator.token;
+
+    // The account every `{id}` and `{userId}` names. Disposable and in no workspace,
+    // because the positive control below really calls disable, reset and promote on it.
+    const subject = await seedAdminSession(testDb.db, {
+      label: "final-subject",
+      membership: false,
+    });
+    subjectId = subject.userId;
+
+    const group = await createAccessGroup(testDb.db, {
+      workspaceId: probeWorkspaceId,
+      name: "Final matrix viewers",
+      roles: ["forms.viewer"],
+      environments: [],
+    });
+    probeGroupId = group.teamId;
+  });
+
+  it("builds a real path for every row it derives, so no probe below is a 404", () => {
+    expect(ADMINISTRATIVE_ROWS.length).toBeGreaterThanOrEqual(18);
+    expect(SITE_ROWS.length).toBeGreaterThanOrEqual(20);
+    for (const row of [...ADMINISTRATIVE_ROWS, ...SITE_ROWS]) {
+      expect(
+        pathFor(row),
+        `${row.method} ${row.path} has a placeholder this suite cannot fill, so its probe ` +
+          "would assert a 404 rather than a refusal",
+      ).not.toContain("{");
+    }
+  });
+
+  it("admits the administrators themselves, so the refusals below are about the actor", async () => {
+    for (const row of ADMINISTRATIVE_ROWS) {
+      const { status, code } = await call(row, administratorToken);
+      expect(status, `${row.method} ${row.path} for a Workspace administrator`).not.toBe(401);
+      expect(code, `${row.method} ${row.path} for a Workspace administrator`).not.toBe("FORBIDDEN");
+      expect(code, `${row.method} ${row.path} for a Workspace administrator`).not.toBe(
+        "ROUTE_NOT_AUTHORIZED",
+      );
+    }
+    for (const row of SITE_ROWS) {
+      const { status, code } = await call(row, adminToken);
+      expect(status, `${row.method} ${row.path} for a Site administrator`).not.toBe(401);
+      // A step-up or a handler guard may still refuse: what must not refuse is the grant check.
+      expect(code, `${row.method} ${row.path} for a Site administrator`).not.toBe("FORBIDDEN");
+      expect(code, `${row.method} ${row.path} for a Site administrator`).not.toBe(
+        "ROUTE_NOT_AUTHORIZED",
+      );
+    }
+  });
+
+  it("refuses every administrative act to a holder of all five roles (criterion 21)", async () => {
+    for (const row of ADMINISTRATIVE_ROWS) {
+      const { status, code } = await call(row, everyRoleToken);
+      expect(status, `${row.method} ${row.path} for every access role`).toBe(403);
+      expect(GRANT_REFUSALS.has(code), `${row.method} ${row.path} refused with ${code}`).toBe(true);
+    }
+  });
+
+  it("refuses every site act to that holder and to a Workspace administrator (criterion 22)", async () => {
+    for (const token of [everyRoleToken, administratorToken]) {
+      for (const row of SITE_ROWS) {
+        const { status, code } = await call(row, token);
+        expect(status, `${row.method} ${row.path} for a non-Site administrator`).toBe(403);
+        expect(GRANT_REFUSALS.has(code), `${row.method} ${row.path} refused with ${code}`).toBe(
+          true,
+        );
+      }
+    }
+  });
+});
+
+/**
+ * Criterion 111's site half, by route: the marking is one act, so it leaves one row in the
+ * site audit and one in the audit of the workspace it names, and none anywhere else.
+ */
+describe("a site act affecting a workspace writes one site row and one mirrored row (criterion 111)", () => {
+  let mirrorWorkspaceId: string;
+
+  beforeAll(async () => {
+    mirrorWorkspaceId = "org_mirror_probe";
+    await testDb.db.insert(authOrganization).values({
+      id: mirrorWorkspaceId,
+      name: "Mirror probe",
+      slug: "mirror-probe",
+    });
+  });
+
+  it("marks the shared question library once in each log, and nowhere else", async () => {
+    const siteBefore = await listSiteAudit(testDb.db, { kind: "library", limit: 200 });
+    const mirroredBefore = await listAccessAudit(testDb.db, mirrorWorkspaceId, { kind: "setting" });
+    const bystanderBefore = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, {
+      kind: "setting",
+    });
+
+    const marked = await all.app.request(`/admin/workspaces/${mirrorWorkspaceId}/shared`, {
+      method: "PUT",
+      headers: {
+        [INTERNAL_TOKEN_HEADER]: internalToken,
+        [ADMIN_SESSION_HEADER]: adminToken,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ shared: true }),
+    });
+    expect(marked.status).toBe(200);
+
+    const siteAfter = await listSiteAudit(testDb.db, { kind: "library", limit: 200 });
+    const added = siteAfter.rows.filter(
+      (row) => !siteBefore.rows.some((earlier) => earlier.id === row.id),
+    );
+    expect(added).toHaveLength(1);
+    expect(added[0]?.workspaceId).toBe(mirrorWorkspaceId);
+    expect(added[0]?.detail).toBe("library=marked");
+
+    const mirroredAfter = await listAccessAudit(testDb.db, mirrorWorkspaceId, { kind: "setting" });
+    expect(mirroredAfter.rows).toHaveLength(mirroredBefore.rows.length + 1);
+    expect(mirroredAfter.rows[0]?.detail).toContain("library=marked");
+
+    // The mirror goes to the workspace the act names and to no other.
+    const bystanderAfter = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, { kind: "setting" });
+    expect(bystanderAfter.rows).toHaveLength(bystanderBefore.rows.length);
   });
 });

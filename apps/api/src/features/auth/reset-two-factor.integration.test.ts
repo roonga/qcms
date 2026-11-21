@@ -1,4 +1,14 @@
-import { authTwoFactor, authUser, schema, twoFactorResets } from "@roonga/qcms-db";
+import {
+  authTwoFactor,
+  authUser,
+  listAccessGroupsHeldIn,
+  listWorkspaces,
+  OWNER_MEMBER_ROLE,
+  resolveMembership,
+  schema,
+  SITE_ADMINISTRATOR_ROLE,
+  twoFactorResets,
+} from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 import {
   applyMigrations,
@@ -6,6 +16,7 @@ import {
   startTestDb,
   type TestDb,
 } from "@roonga/qcms-db/testing";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { generate } from "otplib";
 import pg from "pg";
@@ -290,6 +301,29 @@ describe("the reset itself", () => {
     expect(audit[0]?.databaseRole).toBe(MIGRATE_ROLE);
     expect(audit[0]?.clearedFactors).toBe(1);
     expect(audit[0]?.wasEnrolled).toBe(true);
+  });
+
+  it("leaves the account its Site administrator role and its groups (criterion 85)", async () => {
+    // The whole point of the break-glass: the one account that can administer the site is
+    // locked out by a factor nobody can verify, and the command restores the sign-in
+    // rather than restoring it as somebody weaker.
+    const [account] = await migrateDb
+      .select({ id: authUser.id, role: authUser.role })
+      .from(authUser)
+      .where(eq(authUser.email, EMAIL))
+      .limit(1);
+    const accountId = account?.id ?? "";
+    expect(account?.role).toBe(SITE_ADMINISTRATOR_ROLE);
+
+    const workspaceId = (await listWorkspaces(migrateDb))[0]?.id;
+    expect(workspaceId, "the bootstrap seeded no workspace, so this proves nothing").toBeDefined();
+    const membership = await resolveMembership(migrateDb, accountId, workspaceId ?? "");
+    expect(membership?.memberRole).toBe(OWNER_MEMBER_ROLE);
+    expect(
+      (await listAccessGroupsHeldIn(migrateDb, workspaceId ?? "", accountId)).map(
+        (group) => group.name,
+      ),
+    ).toStrictEqual(["Authors", "Publishers", "Response erasers", "Response viewers"]);
   });
 
   it("lets that admin sign in on the password alone and enrol a new factor", async () => {

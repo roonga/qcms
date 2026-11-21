@@ -392,7 +392,7 @@ describe("the shared workspace", () => {
   });
 });
 
-describe("archiving a workspace (criterion 4)", () => {
+describe("archiving a workspace (criterion 98)", () => {
   it("refuses while an open form remains, names it, and succeeds once it is reassigned", async () => {
     const workspaceId = await createWorkspace("archive-open");
     const elsewhere = await createWorkspace("archive-open-target");
