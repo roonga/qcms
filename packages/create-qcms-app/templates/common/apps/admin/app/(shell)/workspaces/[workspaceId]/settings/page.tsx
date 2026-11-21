@@ -72,11 +72,9 @@ export default async function WorkspaceSettingsPage({
     : undefined;
   /* The themes read first: an Edit forms holder who is no administrator gets that one and not
      the settings read, and either answer is the same workspace row. */
-  const appearanceLocked = themes.ok
-    ? themes.data.appearanceLocked
-    : settings.ok
-      ? settings.data.appearanceLocked
-      : undefined;
+  let appearanceLocked: boolean | undefined;
+  if (themes.ok) appearanceLocked = themes.data.appearanceLocked;
+  else if (settings.ok) appearanceLocked = settings.data.appearanceLocked;
   const held = requests.ok ? heldRequests(requests.data.requests, new Date()) : [];
   const pending = held.filter((entry) => entry.request.status === "pending");
 

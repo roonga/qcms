@@ -36,11 +36,11 @@ function isOff(element: Element): boolean {
 }
 
 function picker(name: string): HTMLSelectElement {
-  return screen.getByRole("combobox", { name }) as HTMLSelectElement;
+  return screen.getByRole<HTMLSelectElement>("combobox", { name });
 }
 
 function tint(): HTMLInputElement {
-  return screen.getByRole("checkbox", { name: /Tint the page background/u }) as HTMLInputElement;
+  return screen.getByRole<HTMLInputElement>("checkbox", { name: /Tint the page background/u });
 }
 
 function drawer(

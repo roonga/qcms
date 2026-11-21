@@ -10,33 +10,33 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 - Tests are written against the real policy code as each task lands. Section 14 lists the cases they must cover, and `plan/work-order-sequence.md` names the one task that owns each and the test that proves it.
 - The access rules for workspace themes and the appearance lock come from agent-builder rulings Q10 and Q18 (`plan/agent-builder-decisions.md`) and are stated here.
 
-| Area                                                              | Status       |
-| ----------------------------------------------------------------- | ------------ |
-| Workspaces, forms and questions owned by one workspace            | Built        |
-| Environment scope enforced in the API per route                   | Built        |
-| Access groups with several roles and one explicit environment set | Built        |
-| Five roles, View forms to Erase responses                         | Built        |
-| Workspace administrator as a direct membership flag               | Built        |
-| Site administrator as an explicit, non-default role               | Built        |
-| Four starter groups on every new workspace                        | Built        |
-| One user-facing Publish step                                      | Built        |
-| Second approval for `prod` publish and endpoint changes           | Built        |
-| Second approval for turning the rule off and for self-grant       | Built        |
-| Account creation, disable, reactivation and reset in the app      | Built        |
-| Site administrator appointment with approval requests             | Built        |
-| Workspace audit (SEC-15)                                          | Built        |
-| Site audit and mirroring                                          | Built        |
-| Workspace list narrowed to the caller's own                       | Built        |
-| Workspace rename, Move form screen, shared library screen         | Built        |
-| Archive refused while any form remains                            | Built        |
-| Assistant tools follow the user's grants (SEC-17)                 | Built        |
-| Workspace themes and the workspace appearance lock                | Partly built |
+| Area                                                              | Status |
+| ----------------------------------------------------------------- | ------ |
+| Workspaces, forms and questions owned by one workspace            | Built  |
+| Environment scope enforced in the API per route                   | Built  |
+| Access groups with several roles and one explicit environment set | Built  |
+| Five roles, View forms to Erase responses                         | Built  |
+| Workspace administrator as a direct membership flag               | Built  |
+| Site administrator as an explicit, non-default role               | Built  |
+| Four starter groups on every new workspace                        | Built  |
+| One user-facing Publish step                                      | Built  |
+| Second approval for `prod` publish and endpoint changes           | Built  |
+| Second approval for turning the rule off and for self-grant       | Built  |
+| Account creation, disable, reactivation and reset in the app      | Built  |
+| Site administrator appointment with approval requests             | Built  |
+| Workspace audit (SEC-15)                                          | Built  |
+| Site audit and mirroring                                          | Built  |
+| Workspace list narrowed to the caller's own                       | Built  |
+| Workspace rename, Move form screen, shared library screen         | Built  |
+| Archive refused while any form remains                            | Built  |
+| Assistant tools follow the user's grants (SEC-17)                 | Built  |
+| Workspace themes and the workspace appearance lock                | Built  |
 
 - The workspace list admits every grant holder and returns only the workspaces the caller holds something in. A caller who holds no `workspace: read` there is given the workspace's identity alone, with no setting and no counts (criterion 26).
 - Account creation, the claim, disable, reactivation, reset and re-confirmation are built in the API, with the claim screen the emailed link lands on. The Accounts screens are built under Site configuration: list, create, the account page, disable, reactivate and reset, with the step-up asked for inside the disable and reset dialogs. Promoting, demoting, disabling and resetting a Site administrator carry the step-up and approval guards of section 8, and the site approval requests are built in the API. The Site administrators, Approval requests, Site audit and New workspace screens are built under Site configuration, with the step-up asked for in a dialog named for the act.
 - Turning second approval off, a self-grant and a held draft publish to `prod` are built in the API, with their stored requests, their re-checks at approval and their audit rows. The Requests row of the workspace Audit screen and the Approval requests screen in Site configuration both list them.
 - The Workspace area screens are built: Members with the person side sheet, Access groups with the new-group rail row and the group side sheet, Settings with the rename and the second-approval switch, Audit with its Requests row, and Archive. Move form and the shared question library screens are built, and the account menu carries My account and My access.
-- Workspace themes are built in the API: a draft and a version carry appearance by value, the appearance lock refuses every draft save that changes appearance, the logo route serves a stored raster logo without a session, and the derive route writes one audit row per fetch. The Workspace themes list and the lock control in Settings are not built; they are task 116.
+- Workspace themes are built: a draft and a version carry appearance by value, the appearance lock refuses every draft save that changes appearance, the logo route serves a stored raster logo without a session, and the derive route writes one audit row per fetch. The themes list, the rename, the delete, the logo upload and the lock switch are built on the workspace Settings screen, and the Appearance drawer in the agent builder edits a draft's appearance. A theme is created from that drawer, which is task 117.
 - The Availability, Responses and Erase responses screens stay partly built: the routes and the role gating are built, and the states the access programme specified for them are part of the forms-area work that follows.
 - Records that describe what is built (`docs/SECURITY_DESIGN.md`, the operator guides, the built-task notes in ADR-41) keep that description until the code changes, with a line pointing here.
 - The SEC-3 role table in `docs/SECURITY_DESIGN.md` §3.2 carries the policy code, because `apps/api/e2e/security/matrix-coverage.e2e.ts` reads it. It changes with the roles in code.
@@ -300,6 +300,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 - **Workspace themes:** a workspace holds named themes (colour tokens, face, corners, an optional logo, the source host of a derive). An Edit forms holder derives one from a website (SEC-18) and saves or changes one; applying a theme to a form is a draft edit.
   - Applying a theme **copies** its appearance, logo included, into the draft by value, and publishing copies the draft's appearance into the version. The logo is held in immutable storage, so a version's logo is frozen with it. Nothing links a form to a theme: changing or deleting a theme alters no draft, locked or not, and no version.
   - The **appearance lock** is a workspace setting set or cleared by a Workspace administrator or a Site administrator. While it is set, the draft save path refuses any change to a form's appearance; the refusal is the API's, never only the assistant's.
+  - The theme list read carries the lock as well as the themes, because an Edit forms holder who is no administrator may not read workspace settings and the Settings screen and the drawer both have to show it. The read tells; only an administrator sets.
   - The **logo route** serves a theme's logo without a session, with a fixed content type, `X-Content-Type-Options: nosniff` and from the same origin, so SEC-9's `img-src` holds. Only a raster logo (PNG, JPEG, WebP) held in QCMS's immutable logo storage, for a workspace theme, a draft or a version, is ever served; SVG is refused at upload.
 
 ## 10. Guards and invariants
@@ -409,7 +410,7 @@ The Code Owner reviewed design batch 7 on 2026-11-17, which clears the design ga
 | Responses and export                                                                            | View responses                                                                 | `operations/forms/[formId]/responses/`                           | Operations-Unavailable, Phone-F                        | Partly built |
 | Erase responses                                                                                 | Erase responses                                                                | `operations/forms/[formId]/erase/`                               | Operations-Unavailable                                 | Partly built |
 
-Every row above is built except five. Workspace themes is task 116. The Workspaces list stays partly built until issue #1384 adds its Workspace administrators column. Availability, Responses and Erase responses keep the routes and the role gating they have, and stay partly built: the states this programme specified for them belong to the forms-area work that follows it (Code Owner, 2026-11-21).
+Every row above is built except four. The Workspaces list stays partly built until issue #1384 adds its Workspace administrators column. Availability, Responses and Erase responses keep the routes and the role gating they have, and stay partly built: the states this programme specified for them belong to the forms-area work that follows it (Code Owner, 2026-11-21).
 
 ## 13. Shared UX patterns
 

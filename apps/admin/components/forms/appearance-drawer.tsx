@@ -163,6 +163,26 @@ function Segments({
   );
 }
 
+/** The themes offered, with a first row naming where a form with no theme of its own gets its look. */
+function themeChoices(
+  themes: readonly ThemeOption[],
+  themeKey: string | undefined,
+  noAppearance: boolean,
+): readonly { readonly label: string; readonly value: string }[] {
+  const current =
+    themeKey === undefined
+      ? [
+          {
+            label: noAppearance
+              ? t("appearance.theme.deployment")
+              : t("appearance.theme.ownColours"),
+            value: "",
+          },
+        ]
+      : [];
+  return [...current, ...themes.map((theme) => ({ label: theme.name, value: theme.key }))];
+}
+
 function Swatch({ palettes }: { readonly palettes: Appearance["palettes"] }) {
   const [accent, page, ink] = themeSwatch(palettes);
   return (
@@ -298,19 +318,7 @@ export function AppearanceDrawer({
             value={themeKey ?? ""}
             isDisabled={locked}
             describedBy={reason}
-            options={[
-              ...(themeKey === undefined
-                ? [
-                    {
-                      label: noAppearance
-                        ? t("appearance.theme.deployment")
-                        : t("appearance.theme.ownColours"),
-                      value: "",
-                    },
-                  ]
-                : []),
-              ...themes.map((theme) => ({ label: theme.name, value: theme.key })),
-            ]}
+            options={themeChoices(themes, themeKey, noAppearance)}
             onPick={(next) => {
               const theme = themes.find((candidate) => candidate.key === next);
               if (theme !== undefined) change(appearanceFromTheme(theme, appearance));
