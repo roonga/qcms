@@ -1978,7 +1978,10 @@ describe("the three by-route sweeps between them reach every row of the route ta
     );
     // `GET /admin/workspaces` answers a narrowed list rather than a refusal, which is
     // criterion 26's own probe above; the three assist routes are not mounted here.
-    expect(remainder.sort()).toStrictEqual(["GET /admin/workspaces", ...UNMOUNTED_ROUTES].sort());
+    remainder.sort();
+    const expected = ["GET /admin/workspaces", ...UNMOUNTED_ROUTES];
+    expected.sort();
+    expect(remainder).toStrictEqual(expected);
   });
 });
 
@@ -2378,6 +2381,30 @@ describe("every data act agrees with the matrix, by route and by environment (cr
     }
   });
 
+  function labelFor(row: RoutePolicy, environment: string | undefined, actor: Actor): string {
+    const where = environment === undefined ? "" : ` in ${environment}`;
+    return `${row.method} ${row.path}${where} for ${actor.label}`;
+  }
+
+  /** One cell: refused where the matrix is blank, admitted past the gate where it is not. */
+  async function assertCell(
+    row: RoutePolicy,
+    actor: Actor,
+    environment: string | undefined,
+  ): Promise<"refused" | "admitted"> {
+    const { status, code, text } = await call(row, actor, environment);
+    const where = labelFor(row, environment, actor);
+    if (allows(actor, row, environment)) {
+      expect(status, where).not.toBe(401);
+      expect(code, where).not.toBe(GRANT_REFUSAL);
+      return "admitted";
+    }
+    expect(status, where).toBe(403);
+    expect(code, where).toBe(GRANT_REFUSAL);
+    expectNoPayload(text);
+    return "refused";
+  }
+
   it("refuses every role the matrix leaves blank, and admits every role it marks", async () => {
     const refusals: string[] = [];
     const admissions: string[] = [];
@@ -2385,18 +2412,10 @@ describe("every data act agrees with the matrix, by route and by environment (cr
       const environments = row.namesEnvironment === true ? [NAMED, UNNAMED] : [undefined];
       for (const environment of environments) {
         for (const actor of actors) {
-          const { status, code, text } = await call(row, actor, environment);
-          const where = `${row.method} ${row.path}${environment === undefined ? "" : ` in ${environment}`} for ${actor.label}`;
-          if (allows(actor, row, environment)) {
-            expect(status, where).not.toBe(401);
-            expect(code, where).not.toBe(GRANT_REFUSAL);
-            admissions.push(where);
-          } else {
-            expect(status, where).toBe(403);
-            expect(code, where).toBe(GRANT_REFUSAL);
-            expectNoPayload(text);
-            refusals.push(where);
-          }
+          const outcome = await assertCell(row, actor, environment);
+          const where = labelFor(row, environment, actor);
+          if (outcome === "refused") refusals.push(where);
+          else admissions.push(where);
         }
       }
     }
