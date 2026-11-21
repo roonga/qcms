@@ -14,8 +14,8 @@ import {
   type SeededWorkspace,
 } from "./support/workspaces.js";
 
-// Named `workspace-*` so it runs after every spec that reads the installation's workspace
-// count: this one adds a workspace, and no earlier spec should meet it (issue #1387).
+// Named `workspace-*` so it sorts after every spec that reads the installation's workspace
+// count: this one adds a workspace, and no earlier spec may meet it.
 
 test.describe.configure({ mode: "serial" });
 
