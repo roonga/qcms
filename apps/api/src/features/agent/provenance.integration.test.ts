@@ -30,6 +30,8 @@ import {
   internalTokenFor,
   makeDeps,
   seedAdminSession,
+  seedGrants,
+  suspendSeededGrant,
   validEnv,
 } from "../../test-support.js";
 import { registerForms } from "../forms/route.js";
@@ -1648,6 +1650,51 @@ describe("a Confirm from a disabled account is refused (criterion 67)", () => {
       proposal: { token, step: 0 },
     });
     expect(res.status).toBe(401);
+    expect(await countRows(proposalId)).toBe(0);
+  });
+});
+
+/**
+ * Criterion 91 at Confirm. A Confirm is a request of its own, so the session gate and the
+ * grant check are what read the account and the membership again; a card-less edit has its
+ * own recheck, since no card stands in front of it.
+ */
+describe("a Confirm after the membership it needs was suspended is refused (criterion 91)", () => {
+  it("refuses the step and writes no row, because the grant check reads the hold again", async () => {
+    const editor = await seedAdminSession(testDb.db, {
+      label: "susp_confirm",
+      membership: false,
+    });
+    const { teamIds } = await seedGrants(testDb.db, {
+      userId: editor.userId,
+      grants: ["forms.editor"],
+      owner: false,
+    });
+
+    const args = {
+      slug: "prov-q-suspended",
+      definition: { questionId: "q_prov_suspended", type: "shortText", label: { en: "Held" } },
+    };
+    const { token, proposalId } = await mintToken({
+      subject: editor.userId,
+      steps: [await binding("question.create", args, "prod")],
+    });
+
+    await suspendSeededGrant(testDb.db, {
+      teamId: teamIds["forms.editor"] as string,
+      userId: editor.userId,
+      by: owner.userId,
+      at: deps.clock.now(),
+    });
+
+    const res = await send({
+      caller: editor,
+      path: "/questions",
+      environment: "prod",
+      body: args,
+      proposal: { token, step: 0 },
+    });
+    expect(res.status).toBe(403);
     expect(await countRows(proposalId)).toBe(0);
   });
 });

@@ -38,6 +38,7 @@ import { acceptedDraft, proposalDiff } from "@/lib/forms/assist-diff";
 import { isErasureReason } from "@/lib/ops/erasure";
 import { IDLE_MUTATION } from "@/lib/questions/editor-state";
 import type { MembershipActionState } from "@/lib/membership/types";
+import type { PublishBatchState } from "@/lib/forms/builder-state";
 import type { WebhookActionState } from "@/components/ops/webhook-config";
 import type { AgentStepIssue, AgentStepResult } from "@/lib/agent/plan-state";
 import type { AgentPlanStep } from "@/lib/forms/assist-stream";
@@ -180,6 +181,18 @@ function endpointOutcome(
   return { outcome: "done", result, ...(revealed === undefined ? {} : { revealed }) };
 }
 
+/* A held draft publish answers 202 with no version: the card holds the plan at that step
+   rather than reading the missing version as a failure. */
+function publishOutcome(state: PublishBatchState, environment: string): AgentStepResult {
+  if (state.status === "held") {
+    return { outcome: "pending-approval", message: t(HELD_FOR_APPROVER), result: { environment } };
+  }
+  if (state.status !== "done" || state.version === undefined) {
+    return { outcome: "failed", message: text(state.message) };
+  }
+  return { outcome: "done", result: { version: state.version, environment } };
+}
+
 /* Read review immediately before confirmation and forward both expectations; an intervening save must
    refuse without writes. */
 const publishStep: StepRunner = async ({ step, tokenStep, args, agentProposal }) => {
@@ -201,13 +214,7 @@ const publishStep: StepRunner = async ({ step, tokenStep, args, agentProposal })
     },
     proposalRef(agentProposal, tokenStep),
   );
-  if (state.status !== "done" || state.version === undefined) {
-    return { outcome: "failed", message: text(state.message) };
-  }
-  return {
-    outcome: "done",
-    result: { version: state.version, environment: step.environment },
-  };
+  return publishOutcome(state, step.environment);
 };
 
 /* The wizard's own path for an existing version, so the card is refused on a stale review
@@ -242,10 +249,7 @@ const releaseStep: StepRunner = async ({ step, tokenStep, args, agentProposal })
     },
     proposalRef(agentProposal, tokenStep),
   );
-  if (state.status !== "done" || state.version === undefined) {
-    return { outcome: "failed", message: text(state.message) };
-  }
-  return { outcome: "done", result: { version: state.version, environment: step.environment } };
+  return publishOutcome(state, step.environment);
 };
 
 /* A held act is neither done nor failed: it is stored as a request, so the card holds the plan

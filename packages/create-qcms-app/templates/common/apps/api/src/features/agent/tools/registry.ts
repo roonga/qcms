@@ -712,7 +712,7 @@ const LINK_READ: ToolCell = { resource: "link", action: "read" };
 const WEBHOOK_READ: ToolCell = { resource: "webhook", action: "read" };
 const RESPONSE_READ: ToolCell = { resource: "response", action: "read" };
 const WORKSPACE_READ: ToolCell = { resource: "workspace", action: "read" };
-const MEMBERSHIP_READ: ToolCell = { resource: "membership", action: "read" };
+const WORKSPACE_UPDATE: ToolCell = { resource: "workspace", action: "update" };
 
 /** An executor may only touch the {@link AgentContext} it is handed. */
 interface AgentToolDef {
@@ -1171,7 +1171,7 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
     description: TOOL_DESCRIPTIONS.read_workspace,
     inputSchema: WorkspaceSubjectInput,
     outputSchema: Outputs.read_workspace,
-    cell: MEMBERSHIP_READ,
+    cell: WORKSPACE_UPDATE,
     execute: (input, ctx) =>
       port(ctx.readWorkspace, "read_workspace")(WorkspaceSubjectInput.parse(input)),
   },

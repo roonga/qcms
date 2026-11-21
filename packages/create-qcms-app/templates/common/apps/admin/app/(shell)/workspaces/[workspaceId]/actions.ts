@@ -78,6 +78,7 @@ export async function updateAccessGroupAction(
   const result = await updateAccessGroup(session, workspaceId, teamId, body);
   if (!result.ok) return refused(result, "membership.groups.updateFailed");
   refresh(workspaceId);
+  if (result.held === true) return { status: "held", message: t("membership.held.requested") };
   return {
     status: "done",
     message: t("membership.groups.saved", { name: result.data.name }),
@@ -108,6 +109,7 @@ export async function grantAccessGroupAction(
   const result = await addHolder(session, workspaceId, teamId, email, proposal);
   if (!result.ok) return refused(result, "membership.groups.holderFailed");
   refresh(workspaceId);
+  if (result.held === true) return { status: "held", message: t("membership.held.requested") };
   return {
     status: "done",
     message: t("membership.groups.holderAdded", { email, name: result.data.name }),
@@ -192,7 +194,7 @@ export async function saveWorkspaceSettingsAction(
     };
   }
   refresh(workspaceId);
-  if (result.data.request !== undefined) {
+  if (result.held === true) {
     return { status: "held", message: t("membership.settings.held") };
   }
   return {

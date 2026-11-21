@@ -959,7 +959,7 @@ function listWorkspacesPort(input: ScreenBuildInput): ListWorkspacesPort {
 function readWorkspacePort(input: ScreenBuildInput): ReadWorkspacePort {
   return async (asked) => {
     const workspaceId = resolveWorkspaceId(input, asked.workspaceId);
-    await requireCell(input, { workspaceId, resource: "membership", action: "read" });
+    await requireCell(input, { workspaceId, resource: "workspace", action: "update" });
     const exec = input.deps.databases.control;
     const [workspaces, members, groups] = await Promise.all([
       listWorkspaces(exec),
