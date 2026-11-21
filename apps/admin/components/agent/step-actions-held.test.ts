@@ -118,7 +118,7 @@ beforeEach(() => {
           closed: false,
           evidence: [],
           blockers: [],
-          twoPerson: { applies: true, refusedAsAuthor: false },
+          twoPerson: { applies: true, refusedAsAuthor: false, heldForApproval: false },
           protected: true,
         },
       ],

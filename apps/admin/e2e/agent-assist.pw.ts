@@ -171,7 +171,7 @@ test("publishes the accepted draft through the unchanged human flow (exit criter
   await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
   await expect(page.getByTestId("qcms-publish-provenance")).toBeVisible();
 
-  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await page.getByRole("button", { name: /^Publish to /u }).click();
   await expect(page.getByTestId("qcms-publish-result")).toContainText("Version 1 is published.", {
     timeout: 60_000,
   });

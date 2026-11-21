@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 
+import { suspendedOnly } from "../forms/role-states.ts";
 import { parseWorkspaceContext, SHELL_WORKSPACE_COOKIE } from "../shell/context.ts";
 import {
   workspaceContextFor,
@@ -22,6 +23,7 @@ export async function currentWorkspaceContext(session: AdminSession): Promise<Wo
     ? access.data.workspaces.map((workspace) => ({
         workspaceId: workspace.workspaceId,
         name: workspace.name,
+        ...(suspendedOnly(workspace) ? { suspended: true } : {}),
       }))
     : [];
   const every =

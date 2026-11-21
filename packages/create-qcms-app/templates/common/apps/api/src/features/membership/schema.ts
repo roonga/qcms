@@ -192,6 +192,15 @@ export const MyAccessResponse = z
             environments: z.array(z.string()),
           }),
         ),
+        // Places in groups suspended until an administrator re-confirms them. They grant
+        // nothing, and are not counted in `environments`.
+        suspended: z.array(
+          z.object({
+            name: z.string(),
+            roles: z.array(z.string()),
+            environments: z.array(z.string()),
+          }),
+        ),
         // The environments the caller's groups name, plus every environment where a
         // group of theirs ignores the set: this is what the environment switcher offers.
         environments: z.array(z.string()),

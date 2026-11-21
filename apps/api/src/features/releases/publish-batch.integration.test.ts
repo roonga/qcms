@@ -20,6 +20,7 @@ import {
   insertFormVersion,
   listAccessAudit,
   listFormReleases,
+  listDisplayNames,
   listFormVersions,
   publishQuestionVersion,
   purgeExpiredReleaseBatches,
@@ -1462,6 +1463,50 @@ describe("a held draft publish on a site whose only environment is prod (criteri
       await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
     }
   }
+
+  it("names the requester and the decider to them and to Publish forms holders for prod only", async () => {
+    await withRuleOn(async () => {
+      const formId = await seedForm(0);
+      const held = await requestPublish(
+        prodOnlyAuthor.token,
+        formId,
+        await saveDraft(prodOnlyAuthor.token, formId),
+      );
+      expect(held.status, JSON.stringify(held.body)).toBe(202);
+      const viewer = await persona("bNamesViewer", [{ roles: ["forms.viewer"], environments: [] }]);
+      const names = await listDisplayNames(control, [prodOnlyAuthor.userId]);
+      const authorName = names.get(prodOnlyAuthor.userId);
+      expect(authorName).toBeDefined();
+
+      const read = async (token: string) => {
+        const listed = await call(
+          token,
+          "GET",
+          `/forms/${formId}/publish-requests`,
+          undefined,
+          prodOnlyApp,
+        );
+        expect(listed.status, JSON.stringify(listed.body)).toBe(200);
+        return (listed.body.requests as Record<string, unknown>[])[0];
+      };
+      expect(await read(prodOnlyAuthor.token)).toMatchObject({ requestedByName: authorName });
+      expect(await read(prodPublisher.token)).toMatchObject({ requestedByName: authorName });
+      const hidden = await read(viewer.token);
+      expect(hidden).toMatchObject({ requestedByName: null, decidedByName: null });
+      expect(JSON.stringify(hidden)).not.toContain("@");
+
+      const rejected = await decide(prodPublisher.token, formId, requestIdOf(held.body), "reject");
+      expect(rejected.status, JSON.stringify(rejected.body)).toBe(200);
+      const approverName = (await listDisplayNames(control, [prodPublisher.userId])).get(
+        prodPublisher.userId,
+      );
+      expect(await read(prodOnlyAuthor.token)).toMatchObject({
+        requestedByName: authorName,
+        decidedByName: approverName,
+      });
+      expect(await read(viewer.token)).toMatchObject({ decidedByName: null });
+    });
+  });
 
   it("freezes nothing until another Publish forms holder for prod approves, then records both", async () => {
     await withRuleOn(async () => {

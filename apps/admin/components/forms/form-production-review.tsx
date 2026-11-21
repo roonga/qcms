@@ -14,9 +14,13 @@ import { releaseVersionAction, reviewFormVersionAction } from "@/app/(shell)/for
 export async function FormProductionReview({
   form,
   environments,
+  notice,
+  section = "builder",
 }: {
+  readonly section?: "builder" | "rules";
   readonly form: FormDetail;
   readonly environments: readonly string[];
+  readonly notice?: string;
 }) {
   const session = await requireAdminSession();
   const workflow = form.workflow;
@@ -29,11 +33,13 @@ export async function FormProductionReview({
     <div className="flex flex-col gap-6" data-testid="qcms-published-form-review">
       <FormPageHeader
         formId={form.formId}
-        section="builder"
+        section={section}
         form={form}
         heading={{ id: "qcms-published-form-heading", text: t("forms.workflow.publishedForm") }}
       />
-      <Alert variant="info">{t("forms.workflow.noEditPermission")}</Alert>
+      <div data-testid="qcms-form-read-only-notice">
+        <Alert variant="warning">{notice ?? t("forms.workflow.noEditPermission")}</Alert>
+      </div>
       {!history.ok ? (
         <Alert variant="error">{history.message}</Alert>
       ) : (

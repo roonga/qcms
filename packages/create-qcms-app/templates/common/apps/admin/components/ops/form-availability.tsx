@@ -4,6 +4,7 @@ import { useCallback, useState, useTransition } from "react";
 
 import { Alert, Button, Dialog } from "@/components/kit";
 import { HeadingMarker } from "@/components/agent/heading-marker";
+import { UnavailableAction } from "@/components/forms/unavailable-action";
 import { useEnvironmentUnknown } from "@/components/environment-scope";
 import type { FormStatusState } from "@/lib/forms/builder-state";
 import { IDLE_FORM_STATUS } from "@/lib/forms/builder-state";
@@ -21,7 +22,10 @@ export function FormAvailability({
   status,
   setStatus,
   environment,
+  unavailable,
 }: {
+  /** Set while the caller lacks Publish forms here: the door is disabled with this reason. */
+  readonly unavailable?: string | undefined;
   readonly slug: string;
   readonly status: FormAvailability;
   /** Bound by the page to the environment this screen showed; refused if that has changed. */
@@ -53,6 +57,32 @@ export function FormAvailability({
     [setStatus],
   );
 
+  const verb =
+    status === "open"
+      ? t("forms.lifecycle.close", { environment })
+      : t("forms.lifecycle.reopen", { environment });
+  const door =
+    unavailable === undefined ? (
+      <Button
+        variant="secondary"
+        size="md"
+        isDisabled={isPending || environmentUnknown}
+        onPress={() => {
+          setLifecycle(IDLE_FORM_STATUS);
+          setDialog(status === "open" ? "close" : "reopen");
+        }}
+      >
+        {verb}
+      </Button>
+    ) : (
+      <UnavailableAction
+        label={verb}
+        reason={unavailable}
+        testId="qcms-form-availability-door"
+        variant="secondary"
+      />
+    );
+
   return (
     <section
       aria-labelledby="qcms-form-availability-heading"
@@ -71,21 +101,7 @@ export function FormAvailability({
         </p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          <HeadingMarker control="intake.door">
-            <Button
-              variant="secondary"
-              size="md"
-              isDisabled={isPending || environmentUnknown}
-              onPress={() => {
-                setLifecycle(IDLE_FORM_STATUS);
-                setDialog(status === "open" ? "close" : "reopen");
-              }}
-            >
-              {status === "open"
-                ? t("forms.lifecycle.close", { environment })
-                : t("forms.lifecycle.reopen", { environment })}
-            </Button>
-          </HeadingMarker>
+          <HeadingMarker control="intake.door">{door}</HeadingMarker>
         </div>
       )}
 

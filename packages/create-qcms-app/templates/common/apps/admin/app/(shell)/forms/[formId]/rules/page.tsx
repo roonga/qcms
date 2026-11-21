@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { FormPageHeader } from "@/components/forms/form-page-header";
+import { FormProductionReview } from "@/components/forms/form-production-review";
+import { readOnlyNotice } from "@/lib/forms/role-states";
+import { resolvedEnvironment } from "@/lib/server/environments";
+import { readMyAccess } from "@/lib/server/membership";
 import { RulesScreen } from "@/components/forms/rules-screen";
 import { Alert } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
@@ -43,6 +47,20 @@ export default async function FormRulesPage({
     return <Alert variant="error">{detail.message}</Alert>;
   }
   const form = detail.data;
+  if (!form.canWriteDraft) {
+    const [access, resolved] = await Promise.all([
+      readMyAccess(session),
+      resolvedEnvironment(session),
+    ]);
+    return (
+      <FormProductionReview
+        form={form}
+        section="rules"
+        environments={resolved.status === "known" ? resolved.environments : []}
+        notice={readOnlyNotice(access.ok ? access.data : undefined, form.workspaceId)}
+      />
+    );
+  }
   const verdict =
     form.draft === null ? undefined : await formVerdict(session, form.formId, form.draft);
 

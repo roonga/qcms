@@ -39,13 +39,13 @@ export function NoAccessHome({
   return (
     <section
       aria-labelledby="qcms-no-access-heading"
-      className="qcms-card flex max-w-prose flex-col gap-2 p-4"
+      className="qcms-card flex min-w-0 max-w-prose flex-col gap-2 p-4"
       data-testid="qcms-no-access-home"
     >
       <h2 id="qcms-no-access-heading" className="text-base font-semibold text-(--color-text)">
         {t("access.noAccess.heading")}
       </h2>
-      <p className="text-sm">{who}</p>
+      <p className="text-sm [overflow-wrap:anywhere]">{who}</p>
       <Link href={accessHref} className="qcms-text-link text-sm">
         {t("access.title")}
       </Link>

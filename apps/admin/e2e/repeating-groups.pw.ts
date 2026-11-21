@@ -332,7 +332,7 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   await chooseDestination(destinations, "test");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
-  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await page.getByRole("button", { name: /^Publish to /u }).click();
   await expect(page.getByTestId("qcms-publish-result")).toContainText(
     /Version \d+ is published\./,
     {

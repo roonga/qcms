@@ -12,6 +12,7 @@ import type { EndpointProposal, RevealedWebhook, WebhookSummary } from "@/lib/op
 import { unexpected } from "@/lib/ops/unexpected";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
+import { MASKED_QUERY } from "@/lib/ops/webhook-mask";
 import { HeadingMarker } from "@/components/agent/heading-marker";
 
 export interface WebhookActionState {
@@ -198,6 +199,14 @@ export function WebhookConfig({
                     </th>
                     <td>
                       <span className="qcms-link-url">{hook.url}</span>
+                      {hook.url.endsWith(MASKED_QUERY) && (
+                        <span
+                          className="block text-sm text-(--color-text-muted)"
+                          data-testid="qcms-webhook-url-masked"
+                        >
+                          {t("ops.webhooks.maskedNote")}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <span

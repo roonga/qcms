@@ -42,7 +42,7 @@ export async function releaseThroughWizard(
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
   await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
-  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await page.getByRole("button", { name: /^Publish to /u }).click();
 
   const result = page.getByTestId("qcms-publish-result");
   await expect(result).toBeVisible({ timeout: 30_000 });
@@ -66,7 +66,7 @@ export async function refuseDraftThroughWizard(
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
   await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
-  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await page.getByRole("button", { name: /^Publish to /u }).click();
 
   const rejected = page.getByTestId("qcms-publish-rejected");
   await expect(rejected).toBeVisible({ timeout: 30_000 });
@@ -103,7 +103,7 @@ export async function publishDraftThroughWizard(
   } else {
     await expect(freeze).toHaveText(input.freezeSummary);
   }
-  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await page.getByRole("button", { name: /^Publish to /u }).click();
 
   const result = page.getByTestId("qcms-publish-result");
   await expect(result).toBeVisible({ timeout: 30_000 });

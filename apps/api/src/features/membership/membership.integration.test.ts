@@ -1,9 +1,11 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   SEED_WORKSPACE_ID,
+  addAccessGroupHolder,
   authTeam,
+  authTeamMember,
   countAccessAuditByKind,
   createEnvironment,
   listAccessGroupHolders,
@@ -511,6 +513,35 @@ describe("access-group names and the role set (criteria 12 and 13)", () => {
     expect(Object.values(body.capabilities).every((held) => held === false)).toBe(true);
 
     await setMemberRole(testDb.db, SEED_WORKSPACE_ID, subject.userId, "forms.owner");
+  });
+
+  it("lists a suspended place apart from the grants, so it grants nothing", async () => {
+    const teamId = await createGroup({
+      name: "Suspended viewers",
+      roles: ["responses.viewer"],
+      environments: ["prod"],
+    });
+    const subject = await seedAdminSession(testDb.db, { label: "suspendedhold", grants: [] });
+    await addAccessGroupHolder(testDb.db, teamId, subject.userId);
+    await testDb.db
+      .update(authTeamMember)
+      .set({ suspendedAt: new Date() })
+      .where(and(eq(authTeamMember.teamId, teamId), eq(authTeamMember.userId, subject.userId)));
+
+    const body = (await (await as(subject.token, "GET", "/me/access")).json()) as {
+      workspaces: {
+        workspaceId: string;
+        grants: { name: string }[];
+        suspended: { name: string; roles: string[]; environments: string[] }[];
+        environments: string[];
+      }[];
+    };
+    const workspace = body.workspaces.find((entry) => entry.workspaceId === SEED_WORKSPACE_ID);
+    expect(workspace?.grants.map((grant) => grant.name)).not.toContain("Suspended viewers");
+    expect(workspace?.suspended).toEqual([
+      { name: "Suspended viewers", roles: ["responses.viewer"], environments: ["prod"] },
+    ]);
+    expect(workspace?.environments).not.toContain("prod");
   });
 
   it("fails closed on a role name that reaches the row but no declared role", async () => {

@@ -50,6 +50,14 @@ import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
 import type { AgentProposalRef } from "@/lib/server/agent-proposal";
 import type { BatchOutcome } from "@/lib/server/releases";
 import {
+  heldDecisionRefusal,
+  type HeldDecisionContext,
+  type HeldDecisionState,
+} from "@/lib/forms/held-publish";
+import { readMyAccess } from "@/lib/server/membership";
+import {
+  decideHeldPublish,
+  listHeldPublishes,
   lookupReleaseBatch,
   publishBatch,
   releaseBatch,
@@ -458,6 +466,61 @@ export async function confirmPublishAction(
   if (!result.ok) return refusedPublish(result);
   if ("held" in result.data) return { status: "held" };
   return committedPublish(formId, result.data);
+}
+
+async function heldContext(
+  session: AdminSession,
+  formId: string,
+  requestId: string,
+): Promise<HeldDecisionContext> {
+  const [held, form, access] = await Promise.all([
+    listHeldPublishes(session, formId),
+    getForm(session, formId),
+    readMyAccess(session),
+  ]);
+  const request = held.ok ? held.data.find((row) => row.requestId === requestId) : undefined;
+  const workspace =
+    form.ok && access.ok
+      ? access.data.workspaces.find((entry) => entry.workspaceId === form.data.workspaceId)?.name
+      : undefined;
+  return { requester: request?.requestedByName ?? null, workspace: workspace ?? null };
+}
+
+/* The approver is shown the version the approval froze, read back from the form once it has. */
+export async function decideHeldPublishAction(
+  formId: string,
+  requestId: string,
+  decision: "approve" | "reject",
+): Promise<HeldDecisionState> {
+  const session = await requireAdminSession();
+  // A Server Action argument is whatever the caller posts, whatever its type says.
+  if (decision !== "approve" && decision !== "reject") {
+    return { status: "error", message: t("forms.publish.requests.badDecision") };
+  }
+  const result = await decideHeldPublish(session, formId, requestId, decision);
+  revalidatePath(`/forms/${formId}`, "layout");
+  if (!result.ok) {
+    const context = await heldContext(session, formId, requestId);
+    return {
+      status: "error",
+      message: heldDecisionRefusal(result.code, result.message, "prod", context),
+    };
+  }
+  if (decision === "reject") return { status: "rejected" };
+  revalidatePath("/forms");
+  revalidatePath("/operations");
+  const [form, held] = await Promise.all([
+    getForm(session, formId),
+    listHeldPublishes(session, formId),
+  ]);
+  const latest = form.ok ? Math.max(0, ...form.data.versions.map((version) => version.version)) : 0;
+  const decided = held.ok ? held.data.find((row) => row.requestId === requestId) : undefined;
+  return {
+    status: "approved",
+    version: latest > 0 ? latest : undefined,
+    requester: decided?.requestedByName ?? null,
+    approver: decided?.decidedByName ?? null,
+  };
 }
 
 /* A lookup 404 means no confirmation committed, so the same idempotency key may be resent. */

@@ -148,6 +148,7 @@ export {
   listGrantsForUser,
   listGroupsNamingEnvironment,
   listMemberWorkspacesForUser,
+  listSuspendedGrantsForUser,
   listWorkspaceAdministrators,
   listWorkspaceMembers,
   lockWorkspaceMembership,
@@ -197,6 +198,7 @@ export {
   accountStatusOf,
   findAccountById,
   listAccountDirectory,
+  listDisplayNames,
 } from "./accounts.js";
 
 export {

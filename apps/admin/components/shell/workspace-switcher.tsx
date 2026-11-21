@@ -126,6 +126,11 @@ export function WorkspaceSwitcher({
                 {choice.workspaceId === current.workspaceId && <Check />}
               </span>
               <span>{choice.name}</span>
+              {choice.suspended === true && (
+                <span className="qcms-tag" data-testid="qcms-workspace-suspended">
+                  {t("membership.suspended.tag")}
+                </span>
+              )}
             </MenuItemText>
           ),
         }))}

@@ -653,6 +653,22 @@ export const messages = {
   "forms.empty.body":
     "Create the first form, then pin published questions into its steps. A question has to be published before a form can pin it.",
   "forms.empty.filtered": "No form matches this search.",
+  "forms.empty.noAccess": "No forms you can see in {workspace}",
+  "forms.empty.noAccessBody": "A Workspace administrator adds you to a group.",
+  "forms.empty.suspended": "Your access in {workspace} is suspended",
+  "forms.empty.suspendedBody":
+    "It grants nothing until a Workspace administrator re-confirms it. My access says which groups.",
+  "forms.empty.myAccess": "My access",
+  "forms.unavailable.create": "Creating a form needs Edit forms in {workspace}. {group} gives it.",
+  "forms.unavailable.readOnlyTag": "Read only",
+  "forms.unavailable.readOnly": "You have View forms. Edit forms comes from {group}.",
+  "forms.unavailable.readOnlyIn": "Read only: you have View forms in {workspace}.",
+  "forms.unavailable.thisWorkspace": "this workspace",
+  /** The starter group that carries a role in a new workspace (docs/WORKSPACE_ACCESS.md section 4). */
+  "forms.unavailable.group.authors": "Authors",
+  "forms.unavailable.group.publishers": "Publishers",
+  "forms.unavailable.group.responseViewers": "Response viewers",
+  "forms.unavailable.group.responseErasers": "Response erasers",
 
   "forms.create.title": "New form",
   "forms.create.blank": "Start blank",
@@ -1444,7 +1460,7 @@ export const messages = {
   "forms.publish.blocked.alreadyReleased": "Already live here.",
   "forms.publish.blocked.approverIsAuthor":
     "You froze this version, so another person with Publish forms in {environment} publishes it.",
-  /** Second approval cannot hold a draft publish yet, so no copy may offer an approver for one. */
+  /** Only where a draft publish to prod is refused under second approval; on a prod-only site it is held instead. */
   "forms.publish.blocked.draftSecondApproval":
     "Second approval is on for production, so a draft cannot be published there: publish an existing version instead.",
   "forms.publish.blocked.approverUnknownAuthor":
@@ -1459,8 +1475,8 @@ export const messages = {
     "{environment}: nothing live becomes the new version",
   "forms.publish.review.secondPerson":
     "Second approval is on for {environment}: you are recorded as the Approver.",
-  "forms.publish.wizardConfirm": "Confirm",
-  "forms.publish.wizardPending": "Confirming...",
+  "forms.publish.wizardConfirm": "Publish to {environments}",
+  "forms.publish.wizardPending": "Publishing...",
   "forms.publish.next": "Continue",
   "forms.publish.back": "Back",
   "forms.publish.wizardCancel": "Cancel",
@@ -1475,8 +1491,50 @@ export const messages = {
     "The confirmation was sent and no answer arrived, so it may or may not have committed. " +
     "Look the result up before trying anything else: retrying would never create a second " +
     "version, but the answer is already recorded if it committed.",
-  "forms.publish.held":
-    "Nothing was published. This draft is published once an Approver approves the request.",
+  "forms.publish.held": "Nothing is frozen until it is approved.",
+  "forms.publish.held.waiting": "Waiting for an Approver",
+  "forms.publish.held.expiresIn.one": "Expires in 1 day.",
+  "forms.publish.held.expiresIn.other": "Expires in {count} days.",
+  "forms.publish.held.expiresToday": "Expires today.",
+  "forms.publish.held.requestHeading": "Publish draft to {environment}",
+  "forms.publish.held.requestNote":
+    "Another person with Publish forms in {environment} approves. Nothing is frozen until it is approved.",
+  "forms.publish.held.request": "Request publish to {environment}",
+  "forms.publish.held.requesting": "Requesting...",
+  "forms.publish.requests.label": "Draft publish to {environment}",
+  "forms.publish.requests.approver": "Approver",
+  "forms.publish.requests.summary": "{subject}, requested {time}",
+  "forms.publish.requests.subject": "{form}, {questions}, {changes}",
+  "forms.publish.requests.subjectFirst": "{form}, {questions}",
+  "forms.publish.requests.changes.one": "1 change since v{version}",
+  "forms.publish.requests.changes.other": "{count} changes since v{version}",
+  "forms.publish.requests.questions.one": "1 question",
+  "forms.publish.requests.questions.other": "{count} questions",
+  "forms.publish.requests.summaryUnread": "Requested {time}",
+  "forms.publish.requests.own":
+    "You asked for this, so another person with Publish forms in {environment} approves.",
+  "forms.publish.requests.approve": "Approve and publish",
+  "forms.publish.requests.reject": "Reject",
+  "forms.publish.requests.approving": "Approving...",
+  "forms.publish.requests.rejecting": "Rejecting...",
+  "forms.publish.requests.changed":
+    "This draft has changed since publishing was requested. Request publishing again.",
+  "forms.publish.requests.expired": "This request expired and can no longer be approved.",
+  "forms.publish.requests.requesterCannot":
+    "Not applied: {person} no longer holds Edit forms and Publish forms for {environment} in {workspace}.",
+  "forms.publish.requests.someone": "the person who asked",
+  "forms.publish.requests.badDecision":
+    "Nothing was published: that is not a decision this screen offers.",
+  "forms.publish.requests.you": "you",
+  "forms.publish.requests.leftWorkspace":
+    "Not applied: the form is no longer in the workspace this publish was asked in.",
+  "forms.publish.requests.decided":
+    "That request has already been decided. Reload the screen to see where it stands.",
+  "forms.publish.requests.failed": "Nothing was published. {message}",
+  "forms.publish.requests.approved":
+    "v{version} frozen by {requester}, approved by {approver}, live in {environment}.",
+  "forms.publish.requests.approvedUnread": "Approved: frozen and live in {environment}.",
+  "forms.publish.requests.rejected": "Rejected. Nothing was frozen or published.",
   "forms.publish.lookup": "Look the result up",
   "forms.publish.lookupNothing":
     "Nothing was committed under that confirmation. You can confirm again.",
@@ -2300,7 +2358,18 @@ export const messages = {
   "ops.erase.known.intro":
     "Erase one respondent's data in {environment} by its session id. Nothing here lists responses, so the id comes from the data subject's request.",
   "ops.erase.known.denied":
-    "You do not hold the erase role for this form in {environment}, so there is nothing to do here.",
+    "Erasing responses in {environment} needs Erase responses there. {group} gives it; erasing does not need View responses.",
+  "ops.erase.known.deniedNoGroup":
+    "Erasing responses in {environment} needs Erase responses there. Ask a Workspace administrator; erasing does not need View responses.",
+  "ops.unavailable.availability": "Needs Publish forms in {environment}.",
+  "ops.unavailable.responsesHeading": "Responses are not available in {environment}",
+  "ops.unavailable.responsesElsewhere":
+    "You have View responses in {environments} only. {group} gives it in {environment}.",
+  "ops.unavailable.responsesSuspended":
+    "Your View responses in {environment} is suspended until a Workspace administrator re-confirms it.",
+  "ops.unavailable.myAccess": "My access",
+  "ops.unavailable.responsesNone":
+    "View responses in {environment} comes from {group}. Ask a Workspace administrator.",
   "ops.erase.known.sessionLabel": "Session id",
   "ops.erase.known.find": "Find this session",
   "ops.erase.known.required": "Enter a session id.",
@@ -2339,6 +2408,8 @@ export const messages = {
   "ops.webhooks.addTitle": "Add a webhook endpoint",
   "ops.webhooks.url": "Endpoint URL",
   "ops.webhooks.urlHint": "https, unless this deployment allows private targets.",
+  "ops.webhooks.maskedNote":
+    "The query string is hidden. Edit forms and Publish forms see the whole address.",
   "ops.webhooks.activeNow": "Deliver to it straight away",
   "ops.webhooks.create": "Create endpoint",
   "ops.webhooks.table": "Configured endpoints",
@@ -2606,6 +2677,8 @@ export const messages = {
   "membership.members.administratorRemoved":
     "Removed as Workspace administrator. Their access groups stay.",
   "membership.suspended.tag": "Suspended",
+  "membership.mine.suspended":
+    "Suspended until a Workspace administrator re-confirms it, and granting nothing until then: {groups}.",
   "membership.suspended.more": ", needs re-confirmation",
   "membership.person.administrator": "Workspace administrator",
   "membership.person.appoint": "Appoint",

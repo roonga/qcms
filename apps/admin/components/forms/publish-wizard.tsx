@@ -19,7 +19,9 @@ import { HelpTip } from "@/components/help-tip";
 import { environmentCookie } from "@/lib/environment";
 import type { PublishBatchState } from "@/lib/forms/builder-state";
 import { IDLE_PUBLISH_BATCH } from "@/lib/forms/builder-state";
+import { expirySentence } from "@/lib/forms/held-publish";
 import { freezeSummary } from "@/lib/forms/publish";
+import { DEFAULT_LOCALE, formatList } from "@/lib/i18n/format";
 import type { DraftForm } from "@/lib/forms/types";
 import type {
   PublishDestination,
@@ -287,6 +289,8 @@ function ConfirmControls({
   state,
   isPending,
   canConfirm,
+  label,
+  pendingLabel,
   onConfirm,
   onLookup,
   onRefresh,
@@ -294,10 +298,14 @@ function ConfirmControls({
   readonly state: PublishBatchState;
   readonly isPending: boolean;
   readonly canConfirm: boolean;
+  readonly label: string;
+  readonly pendingLabel: string;
   readonly onConfirm: () => void;
   readonly onLookup: () => void;
   readonly onRefresh: () => void;
 }) {
+  // A held request is waiting for an Approver; asking again would be refused.
+  if (state.status === "held") return null;
   if (state.status === "uncertain") {
     return (
       <>
@@ -305,7 +313,7 @@ function ConfirmControls({
           {t("forms.publish.lookup")}
         </Button>
         <Button variant="ghost" size="md" isDisabled={isPending} onPress={onConfirm}>
-          {t("forms.publish.wizardConfirm")}
+          {label}
         </Button>
       </>
     );
@@ -319,7 +327,7 @@ function ConfirmControls({
   }
   return (
     <Button variant="primary" size="md" isDisabled={!canConfirm || isPending} onPress={onConfirm}>
-      {isPending ? t("forms.publish.wizardPending") : t("forms.publish.wizardConfirm")}
+      {isPending ? pendingLabel : label}
     </Button>
   );
 }
@@ -431,6 +439,23 @@ export function PublishWizard({
     };
   });
   const canConfirm = destinations.length > 0;
+  const heldTarget =
+    review?.source.kind === "draft"
+      ? selected.find((target) => target.twoPerson.heldForApproval)
+      : undefined;
+  const confirmLabel =
+    heldTarget === undefined
+      ? t("forms.publish.wizardConfirm", {
+          environments: formatList(
+            selected.map((target) => target.environment),
+            DEFAULT_LOCALE,
+          ),
+        })
+      : t("forms.publish.held.request", { environment: heldTarget.environment });
+  const pendingLabel =
+    heldTarget === undefined
+      ? t("forms.publish.wizardPending")
+      : t("forms.publish.held.requesting");
 
   const run = useCallback(() => {
     if (review === undefined || !canConfirm) return;
@@ -490,8 +515,12 @@ export function PublishWizard({
           </div>
         )}
         {state.status === "held" && (
-          <div data-testid="qcms-publish-held">
-            <Alert variant="info">{t("forms.publish.held")}</Alert>
+          <div className="flex flex-col gap-2" data-testid="qcms-publish-held">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="qcms-tag qcms-tag--draft">{t("forms.publish.held.waiting")}</span>
+              <span className="text-sm text-(--color-text-muted)">{expirySentence(7)}</span>
+            </div>
+            <p className="text-sm">{t("forms.publish.held")}</p>
           </div>
         )}
         {state.status === "rejected" && (
@@ -727,6 +756,19 @@ export function PublishWizard({
           {review.source.kind === "draft" && draft !== null && (
             <FreezeSummary draft={draft} agentAssisted={agentAssisted} />
           )}
+          {heldTarget !== undefined && (
+            <div
+              className="flex flex-col gap-1 rounded-md border border-(--color-border-strong) p-3"
+              data-testid="qcms-publish-held-request"
+            >
+              <p className="font-semibold">
+                {t("forms.publish.held.requestHeading", { environment: heldTarget.environment })}
+              </p>
+              <p className="text-sm">
+                {t("forms.publish.held.requestNote", { environment: heldTarget.environment })}
+              </p>
+            </div>
+          )}
           <ul className="flex flex-col gap-2">
             {selected.map((target) => (
               <li
@@ -761,7 +803,7 @@ export function PublishWizard({
                     })}
                   </span>
                 ))}
-                {target.twoPerson.applies && (
+                {target.twoPerson.applies && !target.twoPerson.heldForApproval && (
                   <span className="text-sm" data-testid="qcms-publish-second-person">
                     {t("forms.publish.review.secondPerson", { environment: target.environment })}
                   </span>
@@ -774,6 +816,8 @@ export function PublishWizard({
               state={state}
               isPending={isPending}
               canConfirm={canConfirm}
+              label={confirmLabel}
+              pendingLabel={pendingLabel}
               onConfirm={run}
               onLookup={runLookup}
               onRefresh={() => {

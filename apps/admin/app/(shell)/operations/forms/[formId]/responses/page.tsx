@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
+import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
+import { responsesUnavailable } from "@/lib/forms/role-states";
 import { ResponseBrowser } from "@/components/ops/response-browser";
 import { formatList } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
@@ -13,6 +16,9 @@ import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
 import { appLocale } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
+import { shownEnvironment } from "@/lib/environment";
+import { readMyAccess } from "@/lib/server/membership";
+import { resolvedEnvironment } from "@/lib/server/environments";
 import { listResponses } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -23,6 +29,46 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { formId } = await params;
   return pageMetadata(formSectionName("responses", formId));
+}
+
+function UnavailableResponses({
+  state,
+}: {
+  readonly state: { readonly heading: string; readonly body: string; readonly suspended: boolean };
+}) {
+  const { suspended, ...copy } = state;
+  return (
+    <EmptyState
+      {...copy}
+      testId="qcms-responses-unavailable"
+      {...(suspended
+        ? {
+            action: (
+              <Link href="/me/access" className="qcms-text-link">
+                {t("ops.unavailable.myAccess")}
+              </Link>
+            ),
+          }
+        : {})}
+    />
+  );
+}
+
+/* Why the list was refused, naming the environments where View responses is held. */
+async function unavailableHere(
+  session: Awaited<ReturnType<typeof requireAdminSession>>,
+  workspaceId: string | undefined,
+) {
+  const [access, resolved] = await Promise.all([
+    readMyAccess(session),
+    resolvedEnvironment(session),
+  ]);
+  return responsesUnavailable(
+    access.ok ? access.data : undefined,
+    workspaceId,
+    shownEnvironment(resolved) ?? t("environment.unknown"),
+    appLocale(),
+  );
 }
 
 export default async function FormResponsesPage({
@@ -88,6 +134,15 @@ export default async function FormResponsesPage({
       </span>
     </Alert>
   );
+
+  if (!responses.ok && responses.code === "FORBIDDEN") {
+    return (
+      <div className="flex flex-col gap-6">
+        {header}
+        <UnavailableResponses state={await unavailableHere(session, form?.workspaceId)} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">

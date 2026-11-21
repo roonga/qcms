@@ -77,6 +77,11 @@ export default async function FormAvailabilityPage({
         // The environment this render showed travels with the act, so a tab another tab has
         // since switched is refused rather than obeyed (A1).
         setStatus={setFormStatusAction.bind(null, form.formId, shown)}
+        unavailable={
+          form.workflow === undefined || form.workflow.canRelease
+            ? undefined
+            : t("ops.unavailable.availability", { environment })
+        }
       />
     </div>
   );

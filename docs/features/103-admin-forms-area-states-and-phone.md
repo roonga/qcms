@@ -27,7 +27,7 @@ Spec criteria owned: **115**. This task owns that and no other.
 
 ## Files and areas
 
-`apps/admin/app/(shell)/forms/`, `apps/admin/app/(shell)/operations/forms/[formId]/`, `apps/admin/components/`, `apps/admin/lib/i18n/en.ts`.
+`apps/admin/app/(shell)/forms/`, `apps/admin/app/(shell)/operations/forms/[formId]/`, `apps/admin/components/`, `apps/admin/lib/i18n/en.ts`. By Code Owner ruling (2026-11-21) also `apps/api/src/features/forms/held-publish.ts` and `apps/api/src/features/membership/` for the held publish's display names and the suspended places on `/me/access`, with their queries in `packages/db/src/queries/`.
 
 ## Migration
 
@@ -47,4 +47,4 @@ Yes: batches 6 and 7.
 
 ## Out of scope
 
-New API acts. The builder screens (113 to 117).
+New API acts, beyond the two read fields above. Bulk erase (#1386). The builder screens (113 to 117).

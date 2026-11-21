@@ -38,6 +38,9 @@ vi.mock("@/lib/server/workspace-context", () => ({
       current: { workspaceId: "org_default_workspace", name: "Default workspace" },
     }),
 }));
+vi.mock("@/lib/server/membership", () => ({
+  readMyAccess: () => Promise.resolve({ ok: false, code: "http_503", message: "", issues: [] }),
+}));
 vi.mock("@/lib/server/session", () => ({
   requireAdminSession: () => Promise.resolve(SESSION),
 }));

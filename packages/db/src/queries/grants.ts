@@ -154,6 +154,25 @@ export async function listGrantsForUser(
   exec: Executor,
   userId: string,
 ): Promise<readonly HeldGrant[]> {
+  return grantsForUser(exec, userId, false);
+}
+
+/**
+ * The caller's places in groups that are suspended until an administrator re-confirms
+ * them. They grant nothing; they are listed so the caller can be told why.
+ */
+export async function listSuspendedGrantsForUser(
+  exec: Executor,
+  userId: string,
+): Promise<readonly HeldGrant[]> {
+  return grantsForUser(exec, userId, true);
+}
+
+async function grantsForUser(
+  exec: Executor,
+  userId: string,
+  suspended: boolean,
+): Promise<readonly HeldGrant[]> {
   const rows = await exec
     .select({
       ...groupColumns,
@@ -168,7 +187,7 @@ export async function listGrantsForUser(
     .where(
       and(
         eq(authTeamMember.userId, userId),
-        isNull(authTeamMember.suspendedAt),
+        suspended ? isNotNull(authTeamMember.suspendedAt) : isNull(authTeamMember.suspendedAt),
         accountHoldsGrants(),
       ),
     )

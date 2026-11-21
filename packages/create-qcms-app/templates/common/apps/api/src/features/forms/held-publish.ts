@@ -8,6 +8,7 @@ import {
   getForm,
   getFormEnvironmentState,
   listApprovalRequests,
+  listDisplayNames,
   lockForm,
   type ApprovalRequestRow,
   type Executor,
@@ -19,7 +20,7 @@ import { ApiError } from "../../errors.js";
 import { errorResponses, withScopes, type ApiEnv } from "../../openapi.js";
 import { writeAgentStep, type AgentStepSite } from "../agent/audit.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
-import { decideInWorkspace } from "../membership/resolver.js";
+import { decideInWorkspace, holdsInstallationClaim } from "../membership/resolver.js";
 import {
   heldRequestFailures,
   holdWorkspaceRequest,
@@ -329,6 +330,10 @@ const ProdQuery = z.object({
 
 const HeldPublishView = ApprovalRequestView.extend({
   draftUnchanged: z.boolean(),
+  // Display names only, and only to the requester or a holder of Publish forms for prod
+  // in the form's workspace; null to anyone else, or where the account has no name.
+  requestedByName: z.string().nullable(),
+  decidedByName: z.string().nullable(),
 });
 
 const HeldPublishList = z
@@ -360,7 +365,8 @@ export const listHeldPublishesRoute = createRoute({
     "Newest first. `draft` is the draft as it now stands, given while a pending request " +
     "still binds it, so the approver sees exactly what would be published. A request an " +
     "approver could not apply carries status `lapsed`, not `rejected`, with that approver " +
-    "as `decidedBy`.",
+    "as `decidedBy`. `requestedByName` and `decidedByName` are display names, given only " +
+    "to the requester and to a holder of Publish forms for prod in the form's workspace.",
   tags,
   request: { params: HeldPublishParams.pick({ id: true }) },
   responses: {
@@ -433,13 +439,38 @@ export function makeListHeldPublishesHandler(
     });
     const draft = await getDraft(exec, formId);
     const hash = draft === undefined ? undefined : await draftContentHash(draft);
-    const requests = rows.map((row) => ({
-      ...requestView(row),
-      draftUnchanged:
-        draft !== undefined &&
-        draft.revision === row.payload.revision &&
-        hash === row.payload.contentHash,
-    }));
+    const viewer = c.get("adminPrincipal");
+    const form = await getForm(exec, formId);
+    const decides =
+      viewer !== undefined &&
+      form !== undefined &&
+      (
+        await decideInWorkspace(exec, {
+          userId: viewer.userId,
+          workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
+          claim: holdsInstallationClaim(viewer.role),
+          request: { resource: "release", action: "create", environment: PRODUCTION_ENVIRONMENT },
+        })
+      ).allowed;
+    const named = rows.filter((row) => decides || row.requestedBy === viewer?.userId);
+    const names = await listDisplayNames(
+      exec,
+      named.flatMap((row) =>
+        row.decidedBy === null ? [row.requestedBy] : [row.requestedBy, row.decidedBy],
+      ),
+    );
+    const requests = rows.map((row) => {
+      const shown = named.includes(row);
+      return {
+        ...requestView(row),
+        draftUnchanged:
+          draft !== undefined &&
+          draft.revision === row.payload.revision &&
+          hash === row.payload.contentHash,
+        requestedByName: shown ? (names.get(row.requestedBy) ?? null) : null,
+        decidedByName: shown && row.decidedBy !== null ? (names.get(row.decidedBy) ?? null) : null,
+      };
+    });
     const bound = requests.some((row) => row.status === "pending" && row.draftUnchanged);
     return c.json(
       {
