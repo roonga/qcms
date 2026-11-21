@@ -285,6 +285,6 @@ test("a response viewer is offered no Erase screen, and its address offers nothi
   await page.goto(`/operations/forms/${FORM_ID}/erase`);
   await expect(page.getByTestId("qcms-known-target-erasure")).toHaveCount(0);
   await expect(page.locator("main#main-content")).toContainText(
-    "You do not hold the erase role for this form in prod",
+    "Erasing responses in prod needs Erase responses there.",
   );
 });

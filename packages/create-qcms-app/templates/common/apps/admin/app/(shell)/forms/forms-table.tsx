@@ -12,11 +12,14 @@ export function FormsTable({
   rows,
   canOperate,
   canBuild = () => false,
+  readOnly = () => false,
 }: {
   readonly rows: readonly FormListItem[];
   readonly canOperate: boolean;
   /** Whether a row's form offers the agent builder. */
   readonly canBuild?: (form: FormListItem) => boolean;
+  /** Whether a row's form is read only to the caller; the list states why once. */
+  readonly readOnly?: (form: FormListItem) => boolean;
 }) {
   return (
     <div className="qcms-table qcms-table--forms">
@@ -66,7 +69,17 @@ export function FormsTable({
                   </span>
                 </th>
                 <td className="qcms-cell--drop">{form.defaultLocale}</td>
-                <td>{t(`forms.status.${form.status}`)}</td>
+                <td>
+                  {t(`forms.status.${form.status}`)}
+                  {readOnly(form) && (
+                    <>
+                      {" "}
+                      <span className="qcms-tag" data-testid="qcms-form-read-only">
+                        {t("forms.unavailable.readOnlyTag")}
+                      </span>
+                    </>
+                  )}
+                </td>
                 <td>{form.hasDraft ? t("forms.draft.present") : t("forms.draft.none")}</td>
                 <td className="qcms-cell--num">
                   <PublishedCell form={form} />
