@@ -13,6 +13,9 @@ const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   INVALID_FORM_SETTINGS: "forms.error.invalidSettings",
 
   NO_DRAFT: "forms.error.noDraft",
+  APPEARANCE_LOCKED: "forms.error.appearanceLocked",
+  APPEARANCE_CONTRAST: "forms.error.appearanceContrast",
+  INVALID_APPEARANCE: "forms.error.invalidAppearance",
   PUBLISH_REJECTED: "forms.error.publishRejected",
   PREVIEW_REJECTED: "forms.error.previewRejected",
   PREVIEW_UNAVAILABLE: "forms.error.previewUnavailable",

@@ -14,6 +14,7 @@ import type {
   PublishBatchState,
   ReleaseState,
   RevokeLinkState,
+  SaveAppearanceState,
   SaveDraftState,
   SettingsState,
   StartDraftState,
@@ -35,6 +36,7 @@ import {
   applyAgentEdit,
   createForm,
   getForm,
+  saveDraftAppearance,
   getFormVersion,
   previewCondition,
   previewDraft,
@@ -228,6 +230,48 @@ export async function saveDraftAction(
     agentAssisted: result.data.agentAssisted,
     updatedAt: result.data.updatedAt,
   };
+}
+
+/* The appearance travels on the draft save, so a locked workspace refuses it at the API and the
+   drawer never has to decide. The stored draft is read here rather than sent from the browser,
+   so an appearance change carries no definition the caller could have altered on the way. */
+export async function saveAppearanceAction(
+  formId: string,
+  appearance: unknown,
+): Promise<SaveAppearanceState> {
+  const session = await requireAdminSession();
+  if (!withinCap(appearance)) {
+    return {
+      status: "error",
+      code: MALFORMED_CODE,
+      message: messageForFormCode(MALFORMED_CODE),
+      failures: [],
+    };
+  }
+  const detail = await getForm(session, formId);
+  if (!detail.ok) {
+    return { status: "error", code: detail.code, message: detail.message, failures: [] };
+  }
+  const draft = detail.data.draft;
+  if (draft === null || draft === undefined) {
+    return {
+      status: "error",
+      code: "NO_DRAFT",
+      message: messageForFormCode("NO_DRAFT"),
+      failures: [],
+    };
+  }
+  const result = await saveDraftAppearance(session, formId, draft, appearance);
+  if (!result.ok) {
+    return {
+      status: "error",
+      code: result.code,
+      message: result.message,
+      failures: result.failures,
+    };
+  }
+  revalidatePath(`/forms/${formId}`, "layout");
+  return { status: "saved" };
 }
 
 /* The definition is passed through untouched: its edit token binds that exact post-state. */

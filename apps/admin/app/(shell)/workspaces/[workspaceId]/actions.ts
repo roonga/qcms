@@ -24,6 +24,13 @@ import {
   updateAccessGroup,
 } from "@/lib/server/membership";
 import { requireAdminSession } from "@/lib/server/session";
+import {
+  deleteWorkspaceTheme,
+  listWorkspaceThemes,
+  renameWorkspaceTheme,
+  setWorkspaceAppearanceLock,
+  uploadWorkspaceThemeLogo,
+} from "@/lib/server/themes";
 
 /* The API authorizes grants; hiding a control here cannot be the access boundary. */
 
@@ -201,6 +208,61 @@ export async function saveWorkspaceSettingsAction(
     status: "done",
     message: t("membership.settings.saved"),
     requireSecondApprover: result.data.requireSecondApprover,
+  };
+}
+
+export async function renameWorkspaceThemeAction(
+  workspaceId: string,
+  themeId: string,
+  name: string,
+): Promise<MembershipActionState> {
+  const session = await requireAdminSession();
+  const themes = await listWorkspaceThemes(session, workspaceId);
+  if (!themes.ok) return refused(themes, "themes.failed");
+  const theme = themes.data.find((candidate) => candidate.themeId === themeId);
+  if (theme === undefined) {
+    return { status: "error", message: t("themes.failed", { message: t("themes.gone") }) };
+  }
+  const result = await renameWorkspaceTheme(session, workspaceId, theme, name);
+  if (!result.ok) return refused(result, "themes.failed");
+  refresh(workspaceId);
+  return { status: "done", message: t("themes.renamed", { name }) };
+}
+
+export async function deleteWorkspaceThemeAction(
+  workspaceId: string,
+  themeId: string,
+): Promise<MembershipActionState> {
+  const session = await requireAdminSession();
+  const result = await deleteWorkspaceTheme(session, workspaceId, themeId);
+  if (!result.ok) return refused(result, "themes.failed");
+  refresh(workspaceId);
+  return { status: "done", message: t("themes.deleted") };
+}
+
+export async function uploadWorkspaceThemeLogoAction(
+  workspaceId: string,
+  themeId: string,
+  bytesBase64: string,
+): Promise<MembershipActionState> {
+  const session = await requireAdminSession();
+  const result = await uploadWorkspaceThemeLogo(session, workspaceId, themeId, bytesBase64);
+  if (!result.ok) return refused(result, "themes.failed");
+  refresh(workspaceId);
+  return { status: "done", message: t("themes.logo.uploaded") };
+}
+
+export async function setAppearanceLockAction(
+  workspaceId: string,
+  locked: boolean,
+): Promise<MembershipActionState> {
+  const session = await requireAdminSession();
+  const result = await setWorkspaceAppearanceLock(session, workspaceId, locked);
+  if (!result.ok) return refused(result, "themes.failed");
+  refresh(workspaceId);
+  return {
+    status: "done",
+    message: result.data.appearanceLocked ? t("themes.lock.set") : t("themes.lock.cleared"),
   };
 }
 
