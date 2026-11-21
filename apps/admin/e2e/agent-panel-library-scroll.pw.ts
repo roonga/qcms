@@ -3,9 +3,9 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { openPanel, propose } from "./support/agent-card.js";
+import { card, openPanel, propose } from "./support/agent-card.js";
 import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
-import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 
 // A library screen hosts the same panel as the builder, so a card longer than the panel has to stay
 // inside it there too rather than growing the document behind it.
@@ -90,6 +90,90 @@ test("holds a long card inside the panel on the forms library", async ({ page })
     found.pageHeight,
     "a card on the forms library should not make the page scroll",
   ).toBeLessThanOrEqual(found.viewport + 1);
+});
+
+interface Decision {
+  readonly confirmBottom: number;
+  readonly cancelBottom: number;
+  readonly confirmTop: number;
+  readonly listTop: number;
+  readonly listBottom: number;
+  readonly cardFits: boolean;
+  readonly cardHeight: number;
+  readonly cardBottom: number;
+  readonly listClientHeight: number;
+  readonly listScrollTop: number;
+  readonly listScrollHeight: number;
+}
+
+/* Where the card's own decision sits against the conversation's visible box. A card shorter
+   than the panel has no reason to leave its Confirm below the fold. */
+async function decision(page: Page): Promise<Decision> {
+  return page.evaluate(() => {
+    const list = document.querySelector('[data-testid="qcms-assistant-turns"]');
+    const foot = document.querySelector(".qcms-acard:not([data-held]) .qcms-acard__foot");
+    const buttons = [...(foot?.querySelectorAll("button") ?? [])];
+    const named = (word: string) =>
+      buttons.find((button) => (button.textContent ?? "").trim().startsWith(word));
+    const box = list?.getBoundingClientRect();
+    const cardBox = document.querySelector(".qcms-acard:not([data-held])")?.getBoundingClientRect();
+    return {
+      confirmBottom: Math.round(named("Confirm")?.getBoundingClientRect().bottom ?? 0),
+      cancelBottom: Math.round(named("Cancel")?.getBoundingClientRect().bottom ?? 0),
+      confirmTop: Math.round(named("Confirm")?.getBoundingClientRect().top ?? 0),
+      listTop: Math.round(box?.top ?? 0),
+      listBottom: Math.round(box?.bottom ?? 0),
+      cardFits: (cardBox?.height ?? 0) <= (box?.height ?? 0),
+      cardHeight: Math.round(cardBox?.height ?? 0),
+      cardBottom: Math.round(cardBox?.bottom ?? 0),
+      listClientHeight: list instanceof HTMLElement ? list.clientHeight : 0,
+      listScrollTop: list instanceof HTMLElement ? Math.round(list.scrollTop) : 0,
+      listScrollHeight: list instanceof HTMLElement ? list.scrollHeight : 0,
+    };
+  });
+}
+
+test("brings an arriving card's Confirm and Cancel into view on the forms library", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  // Tall enough that a one-step card fits the panel, which is the case where its foot has no
+  // business being below the fold, and short enough that the turns above it do not.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/forms?q=fake-new-${RUN}d`);
+  await openPanel(page);
+
+  for (const message of ["one", "two", "three"]) {
+    await fillStable(
+      page.getByTestId("qcms-assistant-composer"),
+      `#qcms-fake:no-proposal tell me ${message}`,
+    );
+    await page.getByTestId("qcms-assistant-send").locator("button").click();
+    await expect(page.getByTestId("qcms-assistant-turns")).toContainText(`tell me ${message}`);
+  }
+
+  await propose(page, "propose-form-create", `start one here #qcms-fake-new:${RUN}d`);
+  await expect(card(page)).toBeVisible();
+
+  await expect
+    .poll(async () => (await decision(page)).confirmBottom - (await decision(page)).listBottom, {
+      message: "the arriving card's Confirm should settle inside the conversation",
+    })
+    .toBeLessThanOrEqual(1);
+
+  const found = await decision(page);
+  expect(
+    found.cardFits,
+    `the card should fit the panel, or its top wins over its foot: ${JSON.stringify(found)}`,
+  ).toBe(true);
+  expect(found.cancelBottom, "Cancel should sit inside the conversation too").toBeLessThanOrEqual(
+    found.listBottom + 1,
+  );
+  expect(
+    found.confirmTop,
+    "the decision should not be scrolled above the panel",
+  ).toBeGreaterThanOrEqual(found.listTop - 1);
 });
 
 test("holds a long card inside the panel on the question library", async ({ page }) => {

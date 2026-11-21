@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { card, cardChip, openPanel, propose } from "./support/agent-card.js";
+import { card, cardChip, confirm, openPanel, propose } from "./support/agent-card.js";
 import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
@@ -196,6 +196,37 @@ test("expires a waiting card when the operator leaves the screen it was proposed
   await expect(cardChip(page), "the card can no longer be confirmed").toHaveText("Expired");
   await expect(card(page).getByRole("button", { name: /^Confirm/u })).toBeDisabled();
   await expect(turns(page), "the dialogue itself is untouched").toContainText("start a form here");
+});
+
+test("puts the promised second card up on its own once the first has run", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: WIDE, height: 900 });
+  // Closing intake is a card of its own, and reopening it is the card that has to follow.
+  await page.goto(`/operations/forms/${FORM_ID}/availability`);
+  await openPanel(page);
+
+  await propose(page, "plan-then-another", "close intake here");
+  // A plan of one step titles the card with that step, so the heading is where it reads.
+  await expect(card(page)).toContainText(/Close Vehicle insurance quote to new responses/u);
+
+  await confirm(page, /^Done\./u);
+
+  // No message of the operator's between the two: the browser runs that turn itself.
+  await expect(cardChip(page), "the promised card arrives without being asked for").toHaveText(
+    "Proposed",
+    { timeout: 60_000 },
+  );
+  await expect(card(page)).toContainText(/Reopen Vehicle insurance quote/u);
+  await expect(
+    page.locator('.qcms-assistant__turn[data-role="user"]'),
+    "the operator typed once and the second card still came",
+  ).toHaveCount(1);
+
+  // The follow-up is still the person's to confirm: nothing ran on its own.
+  await expect(card(page).locator(".qcms-acard__result")).toHaveCount(0);
+  await confirm(page, /^Done\./u);
+  await expect(page.getByRole("button", { name: /^Close to new responses in/u })).toBeVisible();
 });
 
 test("holds the newest reply in view as the conversation outgrows the panel", async ({ page }) => {

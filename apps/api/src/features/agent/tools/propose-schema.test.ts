@@ -74,6 +74,15 @@ describe("the propose tool's advertised schema", () => {
     expect(schema.safeParse({ steps, title: "x".repeat(MAX_PLAN_TITLE + 1) }).success).toBe(false);
   });
 
+  it("offers an optional thenAnother, which a plan promising nothing leaves out", () => {
+    const schema = proposePlanSchema([{ kind: "form.publish", environments: ["test"] }]);
+    const steps = [{ kind: "form.publish", args: { formId: "frm_a", environment: "test" } }];
+
+    expect(schema.safeParse({ steps }).success).toBe(true);
+    expect(schema.safeParse({ steps, thenAnother: true }).success).toBe(true);
+    expect(schema.safeParse({ steps, thenAnother: "yes" }).success).toBe(false);
+  });
+
   it("accepts a plan of one step, which is how a single action is proposed", () => {
     const parsed = proposePlanSchema([{ kind: "form.publish", environments: ["test"] }]).safeParse({
       steps: [{ kind: "form.publish", args: { formId: "frm_a", environment: "test" } }],

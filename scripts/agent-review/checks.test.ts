@@ -423,6 +423,27 @@ describe("the card, which the person reads as closely as the reply", () => {
       "Only first-time patients are asked why they are coming in, and test gets that change.";
     expect(checkCardReason({ turns: [{ reply: "", cards: [{ reason, steps: [] }] }] })).toEqual([]);
   });
+
+  it("leaves a card the form itself asks about alone, which is not the one they confirm", () => {
+    const reasons = [
+      "The form asks for a Medicare card number, which keeps its leading zero as text.",
+      "Each thing answered for shows as a card per instance.",
+      "Card details are never stored, so the question asks for the last four digits.",
+    ];
+    const findings = checkCardReason({
+      turns: reasons.map((reason) => ({ reply: "", cards: [{ reason, steps: [] }] })),
+    });
+
+    expect(findings).toEqual([]);
+  });
+
+  it("still catches the Confirm named as a control to press", () => {
+    const reason = "Three questions are added. Press Confirm to put them in the draft.";
+    const findings = checkCardReason({ turns: [{ reply: "", cards: [{ reason, steps: [] }] }] });
+
+    expect(findings.map((entry) => entry.check)).toEqual(["reason.names-the-card"]);
+    expect(findings[0]?.text).toContain("Confirm will do");
+  });
 });
 
 describe("the reply against what the cards show", () => {

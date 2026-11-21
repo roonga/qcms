@@ -398,17 +398,31 @@ export function checkCardText(transcript) {
 }
 
 /**
+ * What follows "card" where it is the form's subject rather than the plan's own card: a
+ * Medicare card number is a question's title, and a card per instance is a group's layout.
+ */
+const CARD_IS_NOT_THE_PLANS =
+  "numbers?|details?|holders?|expiry|types?|payments?|scheme|reader|machine|per";
+
+/**
  * The quoted reason says WHY the plan does what it does, and nothing the card says for
  * itself. Naming the card or its state reads as stale the moment the person confirms.
  */
 const REASON_FAULTS = [
-  { pattern: /\bcards?\b/giu, text: "names the card" },
+  {
+    pattern: new RegExp(`\\bcards?\\b(?!\\s+(?:${CARD_IS_NOT_THE_PLANS})\\b)`, "giu"),
+    text: "names the card",
+  },
   {
     pattern: /\b(?:until|unless|once|when|before)\s+you\s+confirm\b/giu,
     text: "says what their Confirm will do",
   },
   {
     pattern: /\b(?:waiting\s+for|for\s+you\s+to)\s+(?:your\s+)?confirm\b/giu,
+    text: "says what their Confirm will do",
+  },
+  {
+    pattern: /\b(?:press|click|hit|tap)\s+(?:the\s+)?confirm\b/giu,
     text: "says what their Confirm will do",
   },
 ];

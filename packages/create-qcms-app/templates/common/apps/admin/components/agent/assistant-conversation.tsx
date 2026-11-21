@@ -229,6 +229,15 @@ function ScreenConversation({
   const turnsRef = useRef<HTMLOListElement>(null);
   const openCardRef = useRef<HTMLLIElement>(null);
   const followsNewest = useRef(true);
+  // Where the last reveal left the list, so the scroll it causes is told from the reader's own.
+  const revealedAt = useRef<number | null>(null);
+  const revealing = useRef(false);
+  const reveal = useCallback((item: HTMLElement): void => {
+    const list = turnsRef.current;
+    if (list === null) return;
+    revealIn(list, item);
+    revealedAt.current = list.scrollTop;
+  }, []);
   const known = useMemo(() => builderNames(builder), [builder]);
   const names = useSubjectTitles(proposal, known);
 
@@ -249,16 +258,24 @@ function ScreenConversation({
     if (newest instanceof HTMLElement) revealIn(list, newest);
   }, [shown]);
 
-  // An arriving card brings its decision into view rather than leaving the panel pinned past
-  // its foot. Declared after the follows above, so it is this one that decides where an
-  // arriving card leaves the panel.
+  // An arriving card brings its decision into view, and this effect is declared last so it
+  // decides where the card leaves the panel. Measured again until the reader scrolls: a card
+  // settles taller than it first rendered, and one measure strands the Confirm by that much.
   useEffect(() => {
     const list = turnsRef.current;
     const item = openCardRef.current;
     if (list === null || item === null) return;
     followsNewest.current = false;
-    revealIn(list, item);
-  }, [cards.open?.proposal.proposalId]);
+    revealing.current = true;
+    reveal(item);
+    const observer = new ResizeObserver(() => {
+      if (revealing.current) reveal(item);
+    });
+    observer.observe(item);
+    return () => {
+      observer.disconnect();
+    };
+  }, [cards.open?.proposal.proposalId, reveal]);
 
   useEffect(() => {
     if (publish === undefined) return;
@@ -563,6 +580,12 @@ function ScreenConversation({
         ref={turnsRef}
         onScroll={(event) => {
           const list = event.currentTarget;
+          // A scroll the reveal itself caused lands where the reveal left it; anything else is
+          // the reader taking over, and the card stops being followed as it settles.
+          if (revealedAt.current === null || Math.abs(list.scrollTop - revealedAt.current) > 1) {
+            revealing.current = false;
+          }
+          revealedAt.current = null;
           followsNewest.current =
             list.scrollHeight - list.scrollTop - list.clientHeight <= BOTTOM_SLACK_PX;
         }}

@@ -51,6 +51,7 @@ export const FAKE_SCRIPTS = [
   "plan-two-envs",
   "plan-pending-at-1",
   "two-proposals",
+  "plan-then-another",
   "plan-26-steps",
   "unknown-tool",
   "injection-follow",
@@ -1218,6 +1219,34 @@ const READ_ONLY_REASON =
   "Your account cannot change anything here or anywhere else, so I can only explain what " +
   "is here and point you at it.";
 
+/**
+ * The close carries `thenAnother`; the reopen goes up in the turn the browser runs once it has
+ * run. Branching on the confirmed run rather than this turn's own tool calls, which the loop
+ * would step through inside one turn.
+ */
+function thenAnotherStep(prompt: readonly PromptMessage[]): StreamPart[] {
+  const formId = factFormId(prompt);
+  const proposed = toolCallCount(prompt, "propose_plan") > 0;
+  if (closeJustRan(prompt)) {
+    if (proposed) return [...textParts("Intake is open again.", "t2"), finishPart("stop")];
+    const reopen = { steps: [{ kind: "form.reopen", args: { formId } }] };
+    return [
+      ...textParts("Intake is closed, so this reopens it.", "t1"),
+      ...toolInputParts("propose_plan", reopen, "_1"),
+      toolCallPart("propose_plan", reopen, "_1"),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (proposed) return [...textParts("The close is on the card.", "t3"), finishPart("stop")];
+  const close = { steps: [{ kind: "form.close", args: { formId } }], thenAnother: true };
+  return [
+    ...textParts("Intake closes here, and reopening it takes a card of its own.", "t0"),
+    ...toolInputParts("propose_plan", close),
+    toolCallPart("propose_plan", close),
+    finishPart("tool-calls"),
+  ];
+}
+
 function planActionStep(script: FakeScript, prompt: readonly PromptMessage[]): StreamPart[] {
   if (script === "read-only-user") {
     return [...textParts(READ_ONLY_REASON, "t0"), finishPart("stop")];
@@ -1262,6 +1291,8 @@ function planActionStep(script: FakeScript, prompt: readonly PromptMessage[]): S
     return [...textParts("I have put the first one up for review.", "t2"), finishPart("stop")];
   }
 
+  if (script === "plan-then-another") return thenAnotherStep(prompt);
+
   if (toolCallCount(prompt, "propose_plan") === 0) {
     const input = { steps: actionPlanSteps(script, prompt) };
     return [
@@ -1281,6 +1312,7 @@ const ACTION_SCRIPTS: readonly FakeScript[] = [
   "plan-two-envs",
   "plan-pending-at-1",
   "two-proposals",
+  "plan-then-another",
   "plan-26-steps",
   "unknown-tool",
   "injection-follow",
@@ -1943,6 +1975,12 @@ function factUnpublishedPins(
 
 function draftApplied(prompt: readonly PromptMessage[]): boolean {
   return userText(prompt).includes("apply-draft: done");
+}
+
+/** The turn the panel posts by itself once a `thenAnother` card's close has run. */
+function closeJustRan(prompt: readonly PromptMessage[]): boolean {
+  const latest = prompt.filter((m) => m.role === "user").at(-1);
+  return latest !== undefined && messageText(latest.content).includes("form.close: done");
 }
 
 /** The newest user turn is the result of a card whose draft was applied, not a new request. */
