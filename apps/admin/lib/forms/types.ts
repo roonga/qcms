@@ -182,6 +182,8 @@ export interface FormDetail {
   readonly releasedDefinition?: DraftForm | null;
   readonly formId: string;
   readonly slug: string;
+  /** The workspace that owns the form, which Move form names as the source. */
+  readonly workspaceId: string;
   readonly defaultLocale: string;
   readonly status: FormAvailability;
   readonly draft: DraftForm | null;

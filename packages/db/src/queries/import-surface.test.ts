@@ -44,6 +44,8 @@ describe("query helper import surface", () => {
     "listActiveWorkspaces",
     "getWorkspace",
     "getWorkspaceForShare",
+    "getWorkspaceForUpdate",
+    "lockSharedAndWorkspace",
     "getWorkspaceBySlug",
     "getSharedWorkspace",
     "setWorkspaceShared",

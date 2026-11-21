@@ -1,6 +1,6 @@
 import { SiteAuditFilters } from "@/components/site/site-filters";
 import { SiteRail } from "@/components/site/site-rail";
-import { loadSiteScreen } from "@/components/site/site-screen";
+import { loadSiteScreen, offersSharedLibrary } from "@/components/site/site-screen";
 import { readSiteAuditFilters } from "@/lib/site/audit";
 
 export default async function SiteAuditRailSlot({
@@ -14,6 +14,7 @@ export default async function SiteAuditRailSlot({
   return (
     <SiteRail
       current="siteAudit"
+      offersLibrary={await offersSharedLibrary(screen.session)}
       screenFilters={{
         activeCount: filters.activeCount,
         node: <SiteAuditFilters filters={filters} />,

@@ -115,6 +115,7 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
       data: {
         formId: asString(raw["formId"], formId),
         slug: asString(raw["slug"], formId),
+        workspaceId: asString(raw["workspaceId"], ""),
         defaultLocale,
         status: parseAvailability(raw["status"]),
         draft: parseDraft(raw["draft"], formId, defaultLocale),

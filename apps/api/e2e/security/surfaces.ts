@@ -386,6 +386,15 @@ export const SURFACES: readonly Surface[] = [
     body: { workspaceId: "org_probe_target" },
     anonymousReachable: false,
   },
+  {
+    // The move's preview names the two workspaces' people, so it is probed like the act.
+    name: "GET /admin/forms/{id}/workspace/preview",
+    row: "authoring",
+    group: "admin",
+    method: "GET",
+    path: (ctx) => `/admin/forms/${ctx.formId}/workspace/preview?workspaceId=org_probe_target`,
+    anonymousReachable: false,
+  },
   // `GET /admin/me/access` needs no grant: it is the answer to what the caller holds, and
   // the one route the grant middleware exempts (Q35).
   {

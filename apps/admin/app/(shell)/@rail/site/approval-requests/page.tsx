@@ -1,6 +1,6 @@
 import { ApprovalRequestFilters } from "@/components/site/site-filters";
 import { SiteRail } from "@/components/site/site-rail";
-import { loadSiteScreen } from "@/components/site/site-screen";
+import { loadSiteScreen, offersSharedLibrary } from "@/components/site/site-screen";
 import { readApprovalFilters } from "@/lib/site/approvals";
 
 export default async function ApprovalRequestsRailSlot({
@@ -14,6 +14,7 @@ export default async function ApprovalRequestsRailSlot({
   return (
     <SiteRail
       current="approvalRequests"
+      offersLibrary={await offersSharedLibrary(screen.session)}
       screenFilters={{
         activeCount: filters.activeCount,
         node: <ApprovalRequestFilters filters={filters} />,

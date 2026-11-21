@@ -273,6 +273,7 @@ export function makeListQuestionsHandler(
       deps.databases.control,
       await readableWorkspaces(deps, c.get("grantContext"), workspaceId, shared),
     );
+    const library = await getSharedWorkspace(deps.databases.control);
 
     const byStatus =
       status === undefined ? summaries : summaries.filter((s) => s.latestStatus === status);
@@ -300,6 +301,7 @@ export function makeListQuestionsHandler(
         questionId: s.questionId,
         slug: s.slug,
         workspaceId: s.workspaceId,
+        shared: s.workspaceId === library?.id,
         createdAt: s.createdAt.toISOString(),
         latestVersion: s.latestVersion,
         latestStatus: s.latestStatus,

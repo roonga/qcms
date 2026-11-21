@@ -25,7 +25,8 @@ let erasable = "";
 let announceable = "";
 
 test.beforeAll(async () => {
-  await createTestAdmin(EMAIL);
+  // The revalidated page reads its tombstone from the installation-only erasure list; without the claim it 404s.
+  await createTestAdmin(EMAIL, { siteAdministrator: true });
   const deliverer = openDeliverer();
   try {
     flagged = await submitResponse(

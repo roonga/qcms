@@ -6,6 +6,7 @@ import { activeFilterCount, RailFilters } from "@/components/rail-filters";
 import { RailCount, RailFrame } from "@/components/rail-frame";
 import { t, type MessageKey } from "@/lib/i18n/en";
 import { ALL_WORKSPACES_PATH } from "@/lib/membership/sections";
+import { SHARED_LIBRARY_PATH } from "@/lib/membership/site";
 import { NEW_WORKSPACE_PATH } from "@/lib/shell/modes";
 import {
   ACCOUNT_SEARCH_MAX_LENGTH,
@@ -19,7 +20,13 @@ import { APPROVAL_REQUESTS_PATH } from "@/lib/site/approvals";
 import { SITE_AUDIT_PATH } from "@/lib/site/audit";
 
 export type SiteRailRow =
-  "accounts" | "newAccount" | "administrators" | "approvalRequests" | "siteAudit" | "newWorkspace";
+  | "accounts"
+  | "newAccount"
+  | "administrators"
+  | "approvalRequests"
+  | "siteAudit"
+  | "sharedLibrary"
+  | "newWorkspace";
 
 /** The level-1 rows after Accounts, in the order Site configuration lists its screens. */
 const LATER_ROWS: readonly {
@@ -43,14 +50,20 @@ const LATER_ROWS: readonly {
   { row: "siteAudit", href: SITE_AUDIT_PATH, item: "audit", label: "site.audit.title" },
 ];
 
-/** The Site configuration rail: its rows, and on the Accounts list the directory filters. */
+/**
+ * The Site configuration rail: its rows, and on the Accounts list the directory filters. The
+ * Shared question library row is drawn at two or more workspaces only (`docs/WORKSPACE_ACCESS.md`
+ * section 9).
+ */
 export function SiteRail({
   current,
+  offersLibrary,
   filters,
   screenFilters,
   account,
 }: {
   readonly current: SiteRailRow;
+  readonly offersLibrary: boolean;
   readonly filters?: AccountFilters;
   /** Another screen's own rail filters, with how many are set. */
   readonly screenFilters?: { readonly activeCount: number; readonly node: ReactNode };
@@ -127,6 +140,18 @@ export function SiteRail({
               </li>
             </ul>
           </li>
+          {offersLibrary ? (
+            <li>
+              <Link
+                href={SHARED_LIBRARY_PATH}
+                className="qcms-rail__link"
+                data-rail-item="section:shared-library"
+                {...status("sharedLibrary")}
+              >
+                {t("site.library.title")}
+              </Link>
+            </li>
+          ) : null}
         </ul>
       }
       {...(screenFilters !== undefined ? { filters: screenFilters.node } : {})}

@@ -5,6 +5,7 @@ import {
   getApprovalRequest,
   getDraft,
   getDraftForUpdate,
+  getForm,
   getFormEnvironmentState,
   listApprovalRequests,
   lockForm,
@@ -60,6 +61,13 @@ export const heldPublishFailures = {
       409,
       "The person who asked no longer holds Edit forms and Publish forms for prod in this " +
         "workspace, so nothing is published",
+    ),
+  formLeftWorkspace: (): ApiError =>
+    new ApiError(
+      "PUBLISH_FORM_LEFT_WORKSPACE",
+      409,
+      "The form is no longer in the workspace this publish was asked in, so nothing is " +
+        "published and this request has ended",
     ),
   onlyProd: (): ApiError =>
     new ApiError("ENVIRONMENT_NOT_PROD", 400, "A held publish is decided under environment=prod"),
@@ -213,8 +221,8 @@ async function rejectWithin(
 /**
  * Freeze the draft as it was requested and make it live in `prod`, in one transaction under
  * the form's lock, the requester recorded as having frozen the version. A draft saved since
- * the request freezes nothing and ends the request as `lapsed`, naming the approver who
- * tried, so the requester can ask again.
+ * the request, or a form moved out of the request's workspace, freezes nothing and ends the
+ * request as `lapsed`, naming the approver who tried, so the requester can ask again.
  */
 export async function approveDraftPublish(
   deps: Deps,
@@ -228,20 +236,18 @@ export async function approveDraftPublish(
   // Compiling a draft an unlocked read already says the request no longer binds would be
   // wasted; the locked read inside the transaction is what decides, so a save landing in
   // between ends the request rather than leaving it pending for a second attempt.
-  const frozen = (await draftMatches(exec, input.formId, request))
-    ? await freezeDraft(deps, input.formId)
-    : undefined;
+  const frozen =
+    (await getForm(exec, input.formId))?.workspaceId === workspaceId &&
+    (await draftMatches(exec, input.formId, request))
+      ? await freezeDraft(deps, input.formId)
+      : undefined;
 
   const applied = await exec.transaction(async (tx) => {
-    await lockForm(tx, input.formId);
+    const form = await lockForm(tx, input.formId);
     const current = await heldRequestOf(tx, input.formId, input.requestId);
     const at = deps.clock.now();
     refuseHeldDecision(current, input.approverId, at);
-    if (
-      frozen === undefined ||
-      frozen.draftRevision !== current.payload.revision ||
-      !(await draftMatches(tx, input.formId, current, { lock: true }))
-    ) {
+    const lapse = async (ending: ApiError): Promise<ApiError> => {
       await lapseHeldRequest(tx, {
         request: current,
         actor: input.approverId,
@@ -249,7 +255,15 @@ export async function approveDraftPublish(
         environment: PRODUCTION_ENVIRONMENT,
         formId: input.formId,
       });
-      return undefined;
+      return ending;
+    };
+    if (form?.workspaceId !== workspaceId) return lapse(heldPublishFailures.formLeftWorkspace());
+    if (
+      frozen === undefined ||
+      frozen.draftRevision !== current.payload.revision ||
+      !(await draftMatches(tx, input.formId, current, { lock: true }))
+    ) {
+      return lapse(heldPublishFailures.draftChanged());
     }
     if (!(await requesterCanPublish(tx, { userId: current.requestedBy, workspaceId }))) {
       throw heldPublishFailures.requesterCannotPublish();
@@ -284,7 +298,7 @@ export async function approveDraftPublish(
     });
     return decided;
   });
-  if (applied === undefined) throw heldPublishFailures.draftChanged();
+  if (applied instanceof ApiError) throw applied;
   return applied;
 }
 

@@ -31,6 +31,7 @@ const FORM_SECTIONS: Readonly<Record<string, MessageKey>> = {
   preview: "forms.tab.preview",
   versions: "forms.tab.versions",
   publish: "forms.tab.publish",
+  move: "forms.tab.move",
 };
 
 const OPERATIONS_SECTIONS: Readonly<Record<string, MessageKey>> = {
@@ -130,6 +131,7 @@ function site(rest: readonly string[], names: CrumbNames): Crumb[] {
   const [section, item] = rest;
   const named = section === undefined ? undefined : SITE_SECTIONS[section];
   if (named !== undefined) return [area, { label: t(named) }];
+  if (section === "shared-library") return [area, { label: t("site.library.title") }];
   if (section !== "accounts") return [area];
   const accounts: Crumb = { label: t("site.accounts.title"), href: "/site/accounts" };
   if (item === undefined) return [area, accounts];

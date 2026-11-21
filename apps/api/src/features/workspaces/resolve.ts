@@ -1,4 +1,4 @@
-import { getWorkspace, listActiveWorkspaces } from "@roonga/qcms-db";
+import { getWorkspace, getWorkspaceForShare, listActiveWorkspaces } from "@roonga/qcms-db";
 import type { Executor, WorkspaceRow } from "@roonga/qcms-db";
 
 import { ApiError } from "../../errors.js";
@@ -48,6 +48,20 @@ export async function requireOpenWorkspace(
   workspaceId: string,
 ): Promise<WorkspaceRow> {
   const workspace = await getWorkspace(exec, workspaceId);
+  if (workspace === undefined) throw fail.notFound();
+  if (workspace.archivedAt !== null) throw fail.archived();
+  return workspace;
+}
+
+/**
+ * {@link requireOpenWorkspace} holding the row `FOR SHARE` until the transaction ends, so an
+ * archive cannot commit between this read and the act's own commit.
+ */
+export async function requireOpenWorkspaceForShare(
+  tx: Executor,
+  workspaceId: string,
+): Promise<WorkspaceRow> {
+  const workspace = await getWorkspaceForShare(tx, workspaceId);
   if (workspace === undefined) throw fail.notFound();
   if (workspace.archivedAt !== null) throw fail.archived();
   return workspace;

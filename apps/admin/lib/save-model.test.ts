@@ -400,6 +400,26 @@ const SCREENS: readonly ScreenRow[] = [
     why: "The two workspace settings, saved together by one press: a switch that saved on every toggle would put a row in the audit for a change nobody finished making.",
   },
   {
+    route: "app/(shell)/forms/[formId]/move/page.tsx",
+    model: "action",
+    why: "One act on one press, with the API's preview of who gains and who loses in front of the person first. The chooser stores nothing: it is a query parameter the preview is read for.",
+  },
+  {
+    route: "app/(shell)/@rail/forms/[formId]/move/page.tsx",
+    model: "readonly",
+    why: "The form rail beside the screen.",
+  },
+  {
+    route: "app/(shell)/site/shared-library/page.tsx",
+    model: "action",
+    why: "One act on one press, confirmed first: marking a workspace changes what every other workspace may pin, so a chooser that saved on selection would audit a change nobody finished making.",
+  },
+  {
+    route: "app/(shell)/@rail/site/shared-library/page.tsx",
+    model: "readonly",
+    why: "Site configuration's rail beside the screen.",
+  },
+  {
     route: "app/(shell)/workspaces/[workspaceId]/archive/page.tsx",
     model: "action",
     why: "One irreversible act, held behind the typed workspace name: nothing on the screen is stored until it is pressed.",

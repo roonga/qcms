@@ -5,30 +5,49 @@ import {
   findArchiveBlockers,
   findUserByEmail,
   getForm,
-  getWorkspace,
   getWorkspaceBySlug,
+  getWorkspaceForUpdate,
   isAccountActive,
   listWorkspaces,
-  moveFormToWorkspace,
+  lockSharedAndWorkspace,
+  lockWorkspaceMembership,
   renameWorkspace,
   setWorkspaceShared,
   writeAccessAuditRow,
+  writeSiteAuditWithMirror,
 } from "@roonga/qcms-db";
-import type { ArchiveBlockers, WorkspaceRow } from "@roonga/qcms-db";
+import type { ArchiveBlockers, Executor, WorkspaceRow } from "@roonga/qcms-db";
 
-import { parseFormId } from "@roonga/qcms-core";
+import { parseFormId, type FormId } from "@roonga/qcms-core";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { holdsStatement } from "../membership/policy.js";
 import { decideInWorkspace, holdsInstallationClaim } from "../membership/resolver.js";
+import { holdWorkspaceRequest } from "../membership/two-person.js";
+import { requestView } from "../site-admins/schema.js";
 import { createWorkspaceWithStarterGroups } from "./create.js";
-import { requireOpenWorkspace, requireWorkspace, workspaceFail } from "./resolve.js";
+import {
+  applyFormMove,
+  lockFormInSource,
+  moveAccessPreview,
+  moveFail,
+  moveHoldReason,
+  type MoveHoldReason,
+  type MovePreviewPerson,
+} from "./move.js";
+import {
+  requireOpenWorkspace,
+  requireOpenWorkspaceForShare,
+  requireWorkspace,
+  workspaceFail,
+} from "./resolve.js";
 import type {
   archiveWorkspaceRoute,
   createWorkspaceRoute,
   listWorkspacesRoute,
+  moveFormPreviewRoute,
   moveFormRoute,
   renameWorkspaceRoute,
   setSharedWorkspaceRoute,
@@ -96,25 +115,6 @@ const fail = {
   alreadyArchived: (): ApiError =>
     new ApiError("WORKSPACE_ARCHIVED", 409, "That workspace is already archived"),
   invalidFormId: (): ApiError => new ApiError("INVALID_FORM_ID", 400, "Malformed form id"),
-  formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
-  /** The destination half of the move, which the route row cannot name. */
-  notInDestination: (): ApiError =>
-    new ApiError(
-      "FORBIDDEN",
-      403,
-      "Moving a form needs Edit forms in the destination workspace as well as the source.",
-    ),
-  /**
-   * Until the move becomes a held approval request, second approval in the source refuses
-   * it outright rather than applying it with nobody to approve.
-   */
-  moveNeedsApproval: (): ApiError =>
-    new ApiError(
-      "MOVE_NEEDS_APPROVAL",
-      409,
-      "The source workspace requires a second approver, and a held move is not built yet. " +
-        "Turn the setting off to move this form, or move it before turning it on.",
-    ),
 } as const;
 
 function isUniqueViolation(err: unknown): boolean {
@@ -271,23 +271,62 @@ export function makeSetSharedWorkspaceHandler(
 ): RouteHandler<typeof setSharedWorkspaceRoute, ApiEnv> {
   return async (c) => {
     const workspaceId = c.req.valid("param").id;
-    const { shared } = c.req.valid("json");
+    const { shared, handOn = false } = c.req.valid("json");
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
     // Unmarking does not require an open workspace: one archived while it held the
     // library would otherwise keep it with no way to hand it on.
-    const workspace = shared
-      ? await requireOpenWorkspace(deps.databases.control, workspaceId)
-      : await requireWorkspace(deps.databases.control, workspaceId);
+    if (shared) await requireOpenWorkspace(deps.databases.control, workspaceId);
+    else await requireWorkspace(deps.databases.control, workspaceId);
 
-    if (shared && !workspace.isShared) {
-      // Read for the refusal's sake: the unique index would refuse the write anyway, and
-      // would name no workspace in doing so.
-      const rows = await listWorkspaces(deps.databases.control);
-      const holder = rows.find((row) => row.isShared);
-      if (holder !== undefined) throw fail.alreadyShared(holder);
+    const holderOf = async (exec: Executor): Promise<WorkspaceRow | undefined> =>
+      (await listWorkspaces(exec)).find((row) => row.isShared && row.id !== workspaceId);
+
+    const audit = async (tx: Executor, subject: string, marked: boolean): Promise<void> => {
+      await writeSiteAuditWithMirror(
+        tx,
+        {
+          actor: principal.userId,
+          subject,
+          workspaceId: subject,
+          kind: "library",
+          detail: `library=${marked ? "marked" : "unmarked"}`,
+          occurredAt: deps.clock.now(),
+        },
+        [subject],
+      );
+    };
+
+    let updated: WorkspaceRow;
+    try {
+      updated = await deps.databases.control.transaction(async (tx) => {
+        // Both rows are read under their locks, so each audit row records a change this
+        // transaction made, never one a concurrent marking already made.
+        const locked = await lockSharedAndWorkspace(tx, workspaceId);
+        const target = locked.find((row) => row.id === workspaceId);
+        if (target === undefined) throw workspaceFail.notFound();
+        if (shared && target.archivedAt !== null) throw workspaceFail.archived();
+        const holder = shared
+          ? locked.find((row) => row.isShared && row.id !== workspaceId)
+          : undefined;
+        if (holder !== undefined) {
+          if (!handOn) throw fail.alreadyShared(holder);
+          await setWorkspaceShared(tx, holder.id, false);
+          await audit(tx, holder.id, false);
+        }
+        if (target.isShared === shared) return target;
+        const row = await setWorkspaceShared(tx, workspaceId, shared);
+        if (row === undefined) throw workspaceFail.notFound();
+        await audit(tx, workspaceId, shared);
+        return row;
+      });
+    } catch (err: unknown) {
+      // Another marking committed between the read and the write.
+      if (!isUniqueViolation(err)) throw err;
+      const holder = await holderOf(deps.databases.control);
+      if (holder === undefined) throw err;
+      throw fail.alreadyShared(holder);
     }
-
-    const updated = await setWorkspaceShared(deps.databases.control, workspaceId, shared);
-    if (updated === undefined) throw new ApiError("WORKSPACE_NOT_FOUND", 404, "No such workspace");
     return c.json({ workspace: await workspaceView(deps, updated) }, 200);
   };
 }
@@ -304,20 +343,18 @@ export function makeArchiveWorkspaceHandler(
     const workspaceId = c.req.valid("param").id;
     const principal = c.get("adminPrincipal");
     if (principal === undefined) throw fail.noPrincipal();
-    const workspace = await getWorkspace(deps.databases.control, workspaceId);
-    if (workspace === undefined)
-      throw new ApiError("WORKSPACE_NOT_FOUND", 404, "No such workspace");
-    if (workspace.archivedAt !== null) throw fail.alreadyArchived();
-
-    const blockers = await findArchiveBlockers(deps.databases.control, workspaceId);
-    if (blockers.forms.length > 0 || blockers.shared) {
-      throw fail.archiveBlocked(blockers);
-    }
-
     const archived = await deps.databases.control.transaction(async (tx) => {
+      // `FOR UPDATE` waits out a move or marking holding the row, so the blockers read
+      // next include what it committed, and anything arriving later sees the archive.
+      const workspace = await getWorkspaceForUpdate(tx, workspaceId);
+      if (workspace === undefined)
+        throw new ApiError("WORKSPACE_NOT_FOUND", 404, "No such workspace");
+      if (workspace.archivedAt !== null) throw fail.alreadyArchived();
+      const blockers = await findArchiveBlockers(tx, workspaceId);
+      if (blockers.forms.length > 0 || blockers.shared) {
+        throw fail.archiveBlocked(blockers);
+      }
       const row = await archiveWorkspace(tx, workspaceId, deps.clock.now());
-      // `archiveWorkspace` matches only an unarchived row, so `undefined` here is the
-      // concurrent-archive race the pre-read cannot close.
       if (row === undefined) throw fail.alreadyArchived();
       await writeAccessAuditRow(tx, {
         actor: principal.userId,
@@ -332,38 +369,159 @@ export function makeArchiveWorkspaceHandler(
   };
 }
 
+async function editsFormsIn(
+  exec: Executor,
+  mover: { readonly userId: string; readonly claim: boolean },
+  workspaceId: string,
+): Promise<boolean> {
+  const decision = await decideInWorkspace(exec, {
+    userId: mover.userId,
+    workspaceId,
+    claim: mover.claim,
+    request: { resource: "form", action: "write" },
+  });
+  return decision.allowed;
+}
+
+interface MoveContext {
+  readonly formId: FormId;
+  readonly moverId: string;
+  readonly claim: boolean;
+  readonly source: WorkspaceRow;
+  readonly destination: WorkspaceRow;
+  readonly hold: MoveHoldReason | undefined;
+}
+
 /**
- * One `UPDATE` on the identity row: the slug is unique installation-wide, so an ownership
- * change re-points no public address. The route row carries the source half; the
- * destination's own Edit forms cell is checked here, because one row names one workspace.
+ * The whole move act's authority: the route row carries the source's Edit forms cell, the
+ * destination's own is checked here because one row names one workspace, and the hold is
+ * read from the source's rule and the mover's standing in it.
+ */
+async function moveContext(
+  deps: Deps,
+  input: {
+    readonly formId: string;
+    readonly principal: { readonly userId: string; readonly role?: string | null } | undefined;
+    readonly destinationWorkspaceId: string;
+  },
+): Promise<MoveContext> {
+  const parsed = parseFormId(input.formId);
+  if (!parsed.ok) throw fail.invalidFormId();
+  const principal = input.principal;
+  if (principal === undefined) throw fail.noPrincipal();
+  const exec = deps.databases.control;
+  const destination = await requireOpenWorkspace(exec, input.destinationWorkspaceId);
+
+  const form = await getForm(exec, parsed.value);
+  if (form === undefined) throw moveFail.formNotFound();
+  if (form.workspaceId === destination.id) throw moveFail.sameWorkspace();
+  const source = await requireWorkspace(exec, form.workspaceId);
+
+  const claim = holdsInstallationClaim(principal.role);
+  if (!(await editsFormsIn(exec, { userId: principal.userId, claim }, destination.id))) {
+    throw moveFail.notInDestination();
+  }
+
+  return {
+    formId: parsed.value,
+    moverId: principal.userId,
+    claim,
+    source,
+    destination,
+    hold: await moveHoldReason(exec, { source, moverId: principal.userId }),
+  };
+}
+
+/**
+ * One `UPDATE` on the identity row, so no public address moves; a held move moves nothing
+ * until approved. Hold and apply run under the source's membership lock with the form row
+ * locked, as an approval does, so a switch, role change or other move in between is seen.
  */
 export function makeMoveFormHandler(deps: Deps): RouteHandler<typeof moveFormRoute, ApiEnv> {
   return async (c) => {
-    const parsed = parseFormId(c.req.valid("param").id);
-    if (!parsed.ok) throw fail.invalidFormId();
-    const principal = c.get("adminPrincipal");
-    if (principal === undefined) throw fail.noPrincipal();
-    const target = await requireOpenWorkspace(
-      deps.databases.control,
-      c.req.valid("json").workspaceId,
-    );
-
-    const form = await getForm(deps.databases.control, parsed.value);
-    if (form === undefined) throw fail.formNotFound();
-
-    const source = await getWorkspace(deps.databases.control, form.workspaceId);
-    if (source?.requireSecondApprover === true) throw fail.moveNeedsApproval();
-
-    const inDestination = await decideInWorkspace(deps.databases.control, {
-      userId: principal.userId,
-      workspaceId: target.id,
-      claim: holdsInstallationClaim(principal.role),
-      request: { resource: "form", action: "write" },
+    const move = await moveContext(deps, {
+      formId: c.req.valid("param").id,
+      principal: c.get("adminPrincipal"),
+      destinationWorkspaceId: c.req.valid("json").workspaceId,
     });
-    if (!inDestination.allowed) throw fail.notInDestination();
 
-    const moved = await moveFormToWorkspace(deps.databases.control, parsed.value, target.id);
-    if (moved === undefined) throw fail.formNotFound();
-    return c.json({ id: moved.formId, workspaceId: moved.workspaceId }, 200);
+    const outcome = await deps.databases.control.transaction(async (tx) => {
+      await lockWorkspaceMembership(tx, move.source.id);
+      const leftSource = await lockFormInSource(tx, {
+        formId: move.formId,
+        sourceWorkspaceId: move.source.id,
+      });
+      if (leftSource !== undefined) throw leftSource;
+      const destination = await requireOpenWorkspaceForShare(tx, move.destination.id);
+      const source = await requireWorkspace(tx, move.source.id);
+      const mover = { userId: move.moverId, claim: move.claim };
+      for (const workspaceId of [source.id, destination.id]) {
+        if (!(await editsFormsIn(tx, mover, workspaceId))) throw moveFail.notInDestination();
+      }
+      const hold = await moveHoldReason(tx, { source, moverId: move.moverId });
+
+      if (hold !== undefined) {
+        const held = await holdWorkspaceRequest(tx, deps.clock.now(), {
+          kind: "move-form",
+          workspaceId: source.id,
+          target: move.formId,
+          requester: move.moverId,
+          payload: { destinationWorkspaceId: destination.id },
+          formId: move.formId,
+        });
+        return { held } as const;
+      }
+      const workspaceId = await applyFormMove(tx, deps, {
+        formId: move.formId,
+        sourceWorkspaceId: source.id,
+        destinationWorkspaceId: destination.id,
+        actorId: move.moverId,
+      });
+      return { workspaceId } as const;
+    });
+
+    if ("held" in outcome) return c.json({ request: requestView(outcome.held) }, 202);
+    return c.json({ id: move.formId, workspaceId: outcome.workspaceId }, 200);
+  };
+}
+
+function previewPeople(people: readonly MovePreviewPerson[]): {
+  name: string;
+  acts: { act: string; environments: string[] }[];
+}[] {
+  return people.map((person) => ({
+    name: person.name,
+    acts: person.acts.map((entry) => ({
+      act: entry.act,
+      environments: [...entry.environments],
+    })),
+  }));
+}
+
+export function makeMoveFormPreviewHandler(
+  deps: Deps,
+): RouteHandler<typeof moveFormPreviewRoute, ApiEnv> {
+  return async (c) => {
+    const move = await moveContext(deps, {
+      formId: c.req.valid("param").id,
+      principal: c.get("adminPrincipal"),
+      destinationWorkspaceId: c.req.valid("query").workspaceId,
+    });
+    const preview = await moveAccessPreview(deps.databases.control, {
+      sourceWorkspaceId: move.source.id,
+      destinationWorkspaceId: move.destination.id,
+    });
+    return c.json(
+      {
+        formId: String(move.formId),
+        sourceWorkspaceId: move.source.id,
+        destinationWorkspaceId: move.destination.id,
+        requiresApproval: move.hold !== undefined,
+        holdReason: move.hold ?? null,
+        gains: previewPeople(preview.gains),
+        losses: previewPeople(preview.losses),
+      },
+      200,
+    );
   };
 }

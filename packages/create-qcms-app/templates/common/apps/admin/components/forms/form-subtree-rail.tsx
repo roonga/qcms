@@ -21,6 +21,7 @@ export function FormSubtreeRail({
   steps,
   issueCounts,
   current,
+  offersMove,
   renderSteps,
   actions,
 }: {
@@ -31,10 +32,12 @@ export function FormSubtreeRail({
   readonly steps: readonly DraftStep[];
   readonly issueCounts: ReadonlyMap<string, number>;
   readonly current: RailCurrent;
+  /** Move form is a row only where there is another workspace to move to. */
+  readonly offersMove: boolean;
   readonly renderSteps?: (item: RailItem, steps: readonly RailItem[]) => ReactNode;
   readonly actions?: ReactNode;
 }) {
-  const groups = formSubtreeRail({ formId, slug, title, steps, issueCounts, current });
+  const groups = formSubtreeRail({ formId, slug, title, steps, issueCounts, current, offersMove });
   const issues = railIssueTotal(groups);
   const name = formDisplayName(title, slug);
 
