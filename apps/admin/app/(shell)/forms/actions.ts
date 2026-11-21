@@ -478,9 +478,7 @@ export async function decideHeldPublishAction(
   revalidatePath("/forms");
   revalidatePath("/operations");
   const form = await getForm(session, formId);
-  const latest = form.ok
-    ? Math.max(0, ...form.data.versions.map((version) => version.version))
-    : 0;
+  const latest = form.ok ? Math.max(0, ...form.data.versions.map((version) => version.version)) : 0;
   return { status: "approved", version: latest > 0 ? latest : undefined };
 }
 

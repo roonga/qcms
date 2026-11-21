@@ -37,6 +37,8 @@ export function FormAvailability({
   const [isPending, startTransition] = useTransition();
   // Close and reopen act in one environment, so they wait until one is known (A12).
   const environmentUnknown = useEnvironmentUnknown();
+  const describedBy =
+    unavailable === undefined ? {} : { "aria-describedby": "qcms-form-availability-unavailable" };
 
   const runStatus = useCallback(
     (action: "close" | "reopen") => {
@@ -79,9 +81,7 @@ export function FormAvailability({
               variant="secondary"
               size="md"
               isDisabled={isPending || environmentUnknown || unavailable !== undefined}
-              {...(unavailable === undefined
-                ? {}
-                : { "aria-describedby": "qcms-form-availability-unavailable" })}
+              {...describedBy}
               onPress={() => {
                 setLifecycle(IDLE_FORM_STATUS);
                 setDialog(status === "open" ? "close" : "reopen");

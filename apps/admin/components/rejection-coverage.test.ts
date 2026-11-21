@@ -14,6 +14,7 @@ const HANDLERS: Readonly<Record<string, readonly string[]>> = {
     "read the stored draft a replayed accept left (forms/form-builder.test.tsx)",
   ],
   "forms/release-panel.tsx": ["release (forms/release-panel-rejects.test.tsx)"],
+  "forms/held-publish-panel.tsx": ["approve and reject (forms/held-publish-panel.test.tsx)"],
   "forms/publish-wizard.tsx": [
     "read the review (forms/publish-wizard-rejects.test.tsx)",
     "confirm, whose lost answer is uncertain (forms/publish-wizard-rejects.test.tsx)",
@@ -77,13 +78,13 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     expect(found).toStrictEqual(declared);
   });
 
-  it("number twenty, of which seventeen are action rejections (nine at issue #352)", () => {
+  it("number twenty-one, of which eighteen are action rejections (nine at issue #352)", () => {
     const entries = Object.values(HANDLERS).flat();
-    expect(entries).toHaveLength(20);
+    expect(entries).toHaveLength(21);
 
     const clipboard = entries.filter((entry) => entry.startsWith("copy"));
     expect(clipboard).toHaveLength(3);
 
-    expect(entries.length - clipboard.length).toBe(17);
+    expect(entries.length - clipboard.length).toBe(18);
   });
 });

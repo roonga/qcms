@@ -25,7 +25,9 @@ function workspaceOf(
 }
 
 function covers(environments: readonly string[], environment: string | undefined): boolean {
-  return environment === undefined || environments.length === 0 || environments.includes(environment);
+  return (
+    environment === undefined || environments.length === 0 || environments.includes(environment)
+  );
 }
 
 /** Whether a role is held in the workspace, in the environment when one is named. */
@@ -42,15 +44,16 @@ export function holdsRole(
 
 /** The starter group that carries a role in an environment in a new workspace. */
 export function starterGroupFor(role: string, environment?: string): string {
-  const key: MessageKey =
-    role === ERASE_RESPONSES_ROLE
-      ? "forms.unavailable.group.responseErasers"
-      : role === EDIT_FORMS_ROLE || environment !== PRODUCTION
-        ? "forms.unavailable.group.authors"
-        : role === VIEW_RESPONSES_ROLE
-          ? "forms.unavailable.group.responseViewers"
-          : "forms.unavailable.group.publishers";
-  return t(key);
+  return t(starterGroupKey(role, environment));
+}
+
+function starterGroupKey(role: string, environment: string | undefined): MessageKey {
+  if (role === ERASE_RESPONSES_ROLE) return "forms.unavailable.group.responseErasers";
+  if (role === EDIT_FORMS_ROLE || environment !== PRODUCTION) {
+    return "forms.unavailable.group.authors";
+  }
+  if (role === VIEW_RESPONSES_ROLE) return "forms.unavailable.group.responseViewers";
+  return "forms.unavailable.group.publishers";
 }
 
 function workspaceName(workspace: MyAccessWorkspace | undefined): string {

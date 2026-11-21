@@ -20,6 +20,7 @@ const SESSION = {
 
 const FORM_DETAIL = {
   formId: "frm_one",
+  canWriteDraft: true,
   slug: "one",
   defaultLocale: "en",
   status: "open",

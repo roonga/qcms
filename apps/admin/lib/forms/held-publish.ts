@@ -62,6 +62,11 @@ export function parseHeldPublishes(value: unknown): readonly HeldPublishRequest[
   });
 }
 
+function blockOf(expired: boolean, draftUnchanged: boolean): HeldPublishBlock | undefined {
+  if (expired) return "expired";
+  return draftUnchanged ? undefined : "changed";
+}
+
 /**
  * The pending requests as one viewer sees them. `canApprove` is whether the viewer holds
  * Publish forms in `prod`; the API still decides the approval itself.
@@ -75,12 +80,12 @@ export function heldPublishViews(
     .map((request) => {
       const remaining = Date.parse(request.expiresAt) - input.now;
       const own = request.requestedBy === input.viewerId;
-      const expired = !(remaining > 0);
+      const expired = Number.isNaN(remaining) || remaining <= 0;
       return {
         requestId: request.requestId,
         own,
         decides: !own && input.canApprove,
-        block: expired ? "expired" : request.draftUnchanged ? undefined : "changed",
+        block: blockOf(expired, request.draftUnchanged),
         expiresInDays: expired ? 0 : Math.floor(remaining / DAY),
         requestedAt: request.requestedAt,
       };

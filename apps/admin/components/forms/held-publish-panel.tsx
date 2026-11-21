@@ -14,6 +14,11 @@ import {
 import { t } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
+function viewerOf(view: HeldPublishView): "requester" | "approver" | "observer" {
+  if (view.own) return "requester";
+  return view.decides ? "approver" : "observer";
+}
+
 function Waiting({ view }: { readonly view: HeldPublishView }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -85,7 +90,11 @@ function Decision({
         )}
       </div>
       {(refusal ?? block) !== undefined && (
-        <p className="text-sm text-(--color-danger-fg)" role="alert" data-testid="qcms-held-publish-refusal">
+        <p
+          className="text-sm text-(--color-danger-fg)"
+          role="alert"
+          data-testid="qcms-held-publish-refusal"
+        >
           {refusal ?? block}
         </p>
       )}
@@ -151,7 +160,7 @@ export function HeldPublishPanel({
           className="flex flex-col gap-2 rounded-md border border-(--color-border-strong) bg-(--color-surface) p-4"
           data-testid="qcms-held-publish"
           data-request-id={view.requestId}
-          data-viewer={view.own ? "requester" : view.decides ? "approver" : "observer"}
+          data-viewer={viewerOf(view)}
         >
           <h2 id={`qcms-held-${view.requestId}`} className="text-base font-semibold">
             {t("forms.publish.requests.label", { environment })}

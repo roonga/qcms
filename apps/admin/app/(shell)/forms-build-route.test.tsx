@@ -116,6 +116,9 @@ vi.mock("@/lib/server/forms", () => ({
 vi.mock("@/lib/server/membership", () => ({
   readMyAccess: () => Promise.resolve(accessResult),
 }));
+vi.mock("@/lib/server/releases", () => ({
+  listHeldPublishes: () => Promise.resolve({ ok: true, data: [] }),
+}));
 vi.mock("@/lib/server/shell", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   shellAccess: () => Promise.resolve({ status: "unknown" }),
@@ -155,12 +158,14 @@ vi.mock("./forms/actions", () => ({
   reviewReleaseAction: () => Promise.resolve({ ok: false }),
   confirmPublishAction: () => Promise.resolve({ status: "idle" }),
   lookupPublishResultAction: () => Promise.resolve({ status: "idle" }),
+  decideHeldPublishAction: () => Promise.resolve({ status: "idle" }),
 }));
 vi.mock("./forms/new/create-form", () => ({
   CreateForm: () => <form data-testid="qcms-create-form-stub" />,
 }));
 vi.mock("@/components/kit", () => ({
   Alert: ({ children }: { children?: ReactNode }) => <div data-testid="qcms-alert">{children}</div>,
+  Button: ({ children }: { children?: ReactNode }) => <button type="button">{children}</button>,
   Card: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 

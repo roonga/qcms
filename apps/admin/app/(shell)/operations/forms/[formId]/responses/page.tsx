@@ -30,6 +30,23 @@ export async function generateMetadata({
   return pageMetadata(formSectionName("responses", formId));
 }
 
+/* Why the list was refused, naming the environments where View responses is held. */
+async function unavailableHere(
+  session: Awaited<ReturnType<typeof requireAdminSession>>,
+  workspaceId: string | undefined,
+) {
+  const [access, resolved] = await Promise.all([
+    readMyAccess(session),
+    resolvedEnvironment(session),
+  ]);
+  return responsesUnavailable(
+    access.ok ? access.data : undefined,
+    workspaceId,
+    shownEnvironment(resolved) ?? t("environment.unknown"),
+    appLocale(),
+  );
+}
+
 export default async function FormResponsesPage({
   params,
   searchParams,
@@ -95,22 +112,11 @@ export default async function FormResponsesPage({
   );
 
   if (!responses.ok && responses.code === "FORBIDDEN") {
-    const [access, resolved] = await Promise.all([
-      readMyAccess(session),
-      resolvedEnvironment(session),
-    ]);
-    const unavailable = responsesUnavailable(
-      access.ok ? access.data : undefined,
-      form?.workspaceId,
-      shownEnvironment(resolved) ?? t("environment.unknown"),
-      appLocale(),
-    );
     return (
       <div className="flex flex-col gap-6">
         {header}
         <EmptyState
-          heading={unavailable.heading}
-          body={unavailable.body}
+          {...await unavailableHere(session, form?.workspaceId)}
           testId="qcms-responses-unavailable"
         />
       </div>
