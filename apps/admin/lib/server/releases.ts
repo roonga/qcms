@@ -3,6 +3,7 @@ import {
   type PublishDestination,
   type ReleaseReview,
 } from "../forms/release-candidate.ts";
+import { parseHeldPublishes, type HeldPublishRequest } from "../forms/held-publish.ts";
 import { parseReleases, type ReleaseRecord } from "../forms/releases.ts";
 import { t } from "../i18n/en.ts";
 
@@ -165,6 +166,36 @@ export async function publishBatch(
     return { ...result, message: t("forms.publish.blocked.draftSecondApproval") };
   }
   return result;
+}
+
+const PROD = "prod";
+
+/** The form's held draft publishes to `prod`, newest first. */
+export async function listHeldPublishes(
+  session: AdminSession,
+  formId: string,
+): Promise<ApiResult<readonly HeldPublishRequest[]>> {
+  const result = await readResult<unknown>(
+    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/publish-requests`),
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: parseHeldPublishes(result.data) };
+}
+
+/** Approve or reject a held draft publish; both are decided under `prod` only. */
+export async function decideHeldPublish(
+  session: AdminSession,
+  formId: string,
+  requestId: string,
+  decision: "approve" | "reject",
+): Promise<ApiResult<unknown>> {
+  return readResult<unknown>(
+    await adminApiFetch(
+      session,
+      `/forms/${encodeURIComponent(formId)}/publish-requests/${encodeURIComponent(requestId)}/${decision}?environment=${PROD}`,
+      { method: "POST", environment: PROD },
+    ),
+  );
 }
 
 /** A 404 means this key never committed and may be resent; it never calls for creating another version. */

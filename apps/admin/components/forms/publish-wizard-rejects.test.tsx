@@ -15,7 +15,7 @@ const PROD_TARGET = {
   closed: false,
   evidence: [],
   blockers: [],
-  twoPerson: { applies: true, refusedAsAuthor: false },
+  twoPerson: { applies: true, refusedAsAuthor: false, heldForApproval: false },
   protected: true,
 } as const;
 
@@ -84,7 +84,7 @@ describe("a confirmation whose answer is lost", () => {
   it("is uncertain rather than failed, and offers the result lookup", async () => {
     const user = await toReview({ confirm: transportFailure });
 
-    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await user.click(screen.getByRole("button", { name: /^Publish to /u }));
 
     expect(await screen.findByTestId("qcms-publish-uncertain")).toBeTruthy();
     expect(screen.getByRole("button", { name: t("forms.publish.lookup") })).toBeTruthy();
@@ -97,9 +97,9 @@ describe("a confirmation whose answer is lost", () => {
       .mockResolvedValueOnce({ status: "done", version: 3, releases: [], replayed: true });
     const user = await toReview({ confirm });
 
-    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await user.click(screen.getByRole("button", { name: /^Publish to /u }));
     await screen.findByTestId("qcms-publish-uncertain");
-    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await user.click(screen.getByRole("button", { name: /^Publish to /u }));
 
     await screen.findByTestId("qcms-publish-result");
     const first = confirm.mock.calls[0]?.[0];
@@ -111,7 +111,7 @@ describe("a confirmation whose answer is lost", () => {
   it("reports a rejected lookup as uncertain too, leaving the key resendable", async () => {
     const user = await toReview({ confirm: transportFailure, lookup: transportFailure });
 
-    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await user.click(screen.getByRole("button", { name: /^Publish to /u }));
     await screen.findByTestId("qcms-publish-uncertain");
     await user.click(screen.getByRole("button", { name: t("forms.publish.lookup") }));
 
@@ -125,13 +125,13 @@ describe("a confirmation whose answer is lost", () => {
       lookup: () => Promise.resolve({ status: "not-committed" }),
     });
 
-    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await user.click(screen.getByRole("button", { name: /^Publish to /u }));
     await screen.findByTestId("qcms-publish-uncertain");
     await user.click(screen.getByRole("button", { name: t("forms.publish.back") }));
     expect(screen.queryByTestId("qcms-publish-nothing-committed")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
-    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await user.click(screen.getByRole("button", { name: /^Publish to /u }));
     await screen.findByTestId("qcms-publish-uncertain");
     await user.click(screen.getByRole("button", { name: t("forms.publish.lookup") }));
 
@@ -148,11 +148,11 @@ describe("a confirmation whose answer is lost", () => {
       lookup: () => Promise.resolve({ status: "not-committed" }),
     });
 
-    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await user.click(screen.getByRole("button", { name: /^Publish to /u }));
     await screen.findByTestId("qcms-publish-uncertain");
     await user.click(screen.getByRole("button", { name: t("forms.publish.lookup") }));
     await screen.findByTestId("qcms-publish-nothing-committed");
-    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await user.click(screen.getByRole("button", { name: /^Publish to /u }));
 
     await screen.findByTestId("qcms-publish-result");
     expect(confirm.mock.calls[1]?.[0].idempotencyKey).toBe(

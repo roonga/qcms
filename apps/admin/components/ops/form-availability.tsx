@@ -21,7 +21,10 @@ export function FormAvailability({
   status,
   setStatus,
   environment,
+  unavailable,
 }: {
+  /** Set while the caller lacks Publish forms here: the door is disabled with this reason. */
+  readonly unavailable?: string | undefined;
   readonly slug: string;
   readonly status: FormAvailability;
   /** Bound by the page to the environment this screen showed; refused if that has changed. */
@@ -75,7 +78,10 @@ export function FormAvailability({
             <Button
               variant="secondary"
               size="md"
-              isDisabled={isPending || environmentUnknown}
+              isDisabled={isPending || environmentUnknown || unavailable !== undefined}
+              {...(unavailable === undefined
+                ? {}
+                : { "aria-describedby": "qcms-form-availability-unavailable" })}
               onPress={() => {
                 setLifecycle(IDLE_FORM_STATUS);
                 setDialog(status === "open" ? "close" : "reopen");
@@ -86,6 +92,15 @@ export function FormAvailability({
                 : t("forms.lifecycle.reopen", { environment })}
             </Button>
           </HeadingMarker>
+          {unavailable !== undefined && (
+            <span
+              id="qcms-form-availability-unavailable"
+              className="text-sm text-(--color-text-muted)"
+              data-testid="qcms-form-availability-unavailable"
+            >
+              {unavailable}
+            </span>
+          )}
         </div>
       )}
 

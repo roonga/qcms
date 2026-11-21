@@ -14,9 +14,12 @@ import { releaseVersionAction, reviewFormVersionAction } from "@/app/(shell)/for
 export async function FormProductionReview({
   form,
   environments,
+  notice,
 }: {
   readonly form: FormDetail;
   readonly environments: readonly string[];
+  /** Why the draft is read only to the caller. */
+  readonly notice?: string;
 }) {
   const session = await requireAdminSession();
   const workflow = form.workflow;
@@ -33,7 +36,9 @@ export async function FormProductionReview({
         form={form}
         heading={{ id: "qcms-published-form-heading", text: t("forms.workflow.publishedForm") }}
       />
-      <Alert variant="info">{t("forms.workflow.noEditPermission")}</Alert>
+      <div data-testid="qcms-form-read-only-notice">
+        <Alert variant="warning">{notice ?? t("forms.workflow.noEditPermission")}</Alert>
+      </div>
       {!history.ok ? (
         <Alert variant="error">{history.message}</Alert>
       ) : (

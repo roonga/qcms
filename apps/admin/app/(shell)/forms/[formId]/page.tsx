@@ -15,7 +15,9 @@ import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
 import { agentAuthoringEnabled } from "@/lib/server/agent";
 import { resolvedEnvironment } from "@/lib/server/environments";
+import { readOnlyNotice } from "@/lib/forms/role-states";
 import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
+import { readMyAccess } from "@/lib/server/membership";
 import { requireAdminSession } from "@/lib/server/session";
 import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
@@ -78,11 +80,13 @@ export default async function FormBuilderPage({
 
   const form = seedTitle(detail.data, firstValue(query["title"]).trim());
   // A permission matter only: the selected environment never decides whether the draft may be authored.
-  if (form.workflow?.enabled && !form.workflow.canEdit) {
+  if (!form.canWriteDraft || (form.workflow?.enabled === true && !form.workflow.canEdit)) {
+    const access = await readMyAccess(session);
     return (
       <FormProductionReview
         form={form}
         environments={resolved.status === "known" ? resolved.environments : []}
+        notice={readOnlyNotice(access.ok ? access.data : undefined, form.workspaceId)}
       />
     );
   }

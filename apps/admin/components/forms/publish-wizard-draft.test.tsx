@@ -35,7 +35,7 @@ const TEST_ONLY: ReleaseReview = {
       closed: false,
       evidence: [],
       blockers: [],
-      twoPerson: { applies: false, refusedAsAuthor: false },
+      twoPerson: { applies: false, refusedAsAuthor: false, heldForApproval: false },
       protected: false,
     },
   ],
@@ -132,7 +132,7 @@ describe("the review step of a draft publish", () => {
         }),
     });
 
-    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await user.click(screen.getByRole("button", { name: /^Publish to /u }));
 
     const rejected = await screen.findByTestId("qcms-publish-rejected");
     expect(rejected.textContent).toContain(
@@ -186,7 +186,7 @@ describe("the recorded outcome's way into Operations", () => {
         }),
     });
 
-    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await user.click(screen.getByRole("button", { name: /^Publish to /u }));
     await screen.findByTestId("qcms-publish-result");
     await user.click(
       screen.getByRole("button", {
@@ -241,7 +241,7 @@ describe("a promotion's recorded source", () => {
                     },
                   ],
                   blockers: [],
-                  twoPerson: { applies: false, refusedAsAuthor: false },
+                  twoPerson: { applies: false, refusedAsAuthor: false, heldForApproval: false },
                   protected: true,
                 },
               ],
@@ -257,7 +257,7 @@ describe("a promotion's recorded source", () => {
     await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
     await user.click(await screen.findByRole("checkbox", { name: "prod" }));
     await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
-    await user.click(await screen.findByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await user.click(await screen.findByRole("button", { name: /^Publish to /u }));
 
     await screen.findByTestId("qcms-publish-result");
     expect(confirm.mock.calls[0]?.[0].targets[0]).toMatchObject({

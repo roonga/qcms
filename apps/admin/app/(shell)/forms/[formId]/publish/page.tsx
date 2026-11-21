@@ -4,22 +4,48 @@ import type { Metadata } from "next";
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { publishChangesFor } from "@/components/forms/publish-changes";
+import { HeldPublishPanel } from "@/components/forms/held-publish-panel";
 import { PublishWizard } from "@/components/forms/publish-wizard";
+import { builderFormName } from "@/lib/forms/build-access";
 import { publishReturnHref } from "@/lib/forms/build-return";
-import { canFreezeDraft } from "@/lib/forms/publish";
-import { t } from "@/lib/i18n/en";
+import { heldPublishViews } from "@/lib/forms/held-publish";
+import { canFreezeDraft, freezeSummary } from "@/lib/forms/publish";
+import type { FormDetail } from "@/lib/forms/types";
+import { t, tPlural } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { agentAuthoringEnabled } from "@/lib/server/agent";
 import { secureCookies } from "@/lib/server/config";
 import { getAgentChanges, getForm } from "@/lib/server/forms";
+import { listHeldPublishes } from "@/lib/server/releases";
 import { requireAdminSession } from "@/lib/server/session";
 import { builderPath } from "@/lib/shell/modes";
 
 import {
   confirmPublishAction,
+  decideHeldPublishAction,
   lookupPublishResultAction,
   reviewReleaseAction,
 } from "../../actions";
+
+const PROD = "prod";
+
+/* The stored draft is the one a request still bound to it would publish. */
+function draftSubject(form: FormDetail): string {
+  const summary = freezeSummary(form.draft);
+  return t("forms.publish.requests.subject", {
+    form: builderFormName(form),
+    questions: tPlural(
+      "forms.publish.requests.questions.one",
+      "forms.publish.requests.questions.other",
+      summary.pins,
+    ),
+    steps: tPlural(
+      "forms.publish.requests.steps.one",
+      "forms.publish.requests.steps.other",
+      summary.steps,
+    ),
+  });
+}
 
 export async function generateMetadata({
   params,
@@ -54,8 +80,23 @@ export default async function FormPublishPage({
     : undefined;
   const toBuilder = back !== undefined && back === builderPath(form.formId);
   // The audit rows, never the draft's own mark, say whether the assistant changed it.
-  const read = await getAgentChanges(session, form.formId);
+  const [read, held] = await Promise.all([
+    getAgentChanges(session, form.formId),
+    listHeldPublishes(session, form.formId),
+  ]);
   const changes = publishChangesFor(read, toBuilder);
+  const views = held.ok
+    ? heldPublishViews(held.data, {
+        viewerId: session.userId,
+        // Publish forms in the environment the request is decided in, which this read names.
+        canApprove: form.workflow?.environment === PROD && form.workflow.canRelease,
+        now: Date.now(),
+      })
+    : [];
+  const subject = draftSubject(form);
+  const summaries = Object.fromEntries(
+    views.map((view) => [view.requestId, view.block === "changed" ? "" : subject]),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -64,6 +105,12 @@ export default async function FormPublishPage({
         section="publish"
         form={form}
         help={t("forms.publish.intro")}
+      />
+      <HeldPublishPanel
+        views={views}
+        summaries={summaries}
+        environment={PROD}
+        decide={decideHeldPublishAction.bind(null, form.formId)}
       />
       <PublishWizard
         formId={form.formId}

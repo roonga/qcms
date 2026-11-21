@@ -49,7 +49,9 @@ import {
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
 import type { AgentProposalRef } from "@/lib/server/agent-proposal";
 import type { BatchOutcome } from "@/lib/server/releases";
+import { heldDecisionRefusal, type HeldDecisionState } from "@/lib/forms/held-publish";
 import {
+  decideHeldPublish,
   lookupReleaseBatch,
   publishBatch,
   releaseBatch,
@@ -458,6 +460,28 @@ export async function confirmPublishAction(
   if (!result.ok) return refusedPublish(result);
   if ("held" in result.data) return { status: "held" };
   return committedPublish(formId, result.data);
+}
+
+/* The approver is shown the version the approval froze, read back from the form once it has. */
+export async function decideHeldPublishAction(
+  formId: string,
+  requestId: string,
+  decision: "approve" | "reject",
+): Promise<HeldDecisionState> {
+  const session = await requireAdminSession();
+  const result = await decideHeldPublish(session, formId, requestId, decision);
+  revalidatePath(`/forms/${formId}`, "layout");
+  if (!result.ok) {
+    return { status: "error", message: heldDecisionRefusal(result.code, result.message, "prod") };
+  }
+  if (decision === "reject") return { status: "rejected" };
+  revalidatePath("/forms");
+  revalidatePath("/operations");
+  const form = await getForm(session, formId);
+  const latest = form.ok
+    ? Math.max(0, ...form.data.versions.map((version) => version.version))
+    : 0;
+  return { status: "approved", version: latest > 0 ? latest : undefined };
 }
 
 /* A lookup 404 means no confirmation committed, so the same idempotency key may be resent. */

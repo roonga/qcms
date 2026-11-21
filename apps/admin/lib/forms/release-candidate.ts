@@ -21,7 +21,12 @@ export interface ReviewTarget {
   readonly closed: boolean;
   readonly evidence: readonly ReleaseEvidenceRecord[];
   readonly blockers: readonly ReleaseBlockerRecord[];
-  readonly twoPerson: { readonly applies: boolean; readonly refusedAsAuthor: boolean };
+  readonly twoPerson: {
+    readonly applies: boolean;
+    readonly refusedAsAuthor: boolean;
+    /** A draft publish here is held as a request until another holder approves it. */
+    readonly heldForApproval: boolean;
+  };
   readonly protected: boolean;
 }
 
@@ -111,7 +116,11 @@ function readTargets(value: unknown): readonly ReviewTarget[] {
   return value.flatMap((entry) => {
     const row = entry as Record<string, unknown>;
     if (typeof row.environment !== "string") return [];
-    const twoPerson = (row.twoPerson ?? {}) as { applies?: unknown; refusedAsAuthor?: unknown };
+    const twoPerson = (row.twoPerson ?? {}) as {
+      applies?: unknown;
+      refusedAsAuthor?: unknown;
+      heldForApproval?: unknown;
+    };
     return [
       {
         environment: row.environment,
@@ -123,6 +132,7 @@ function readTargets(value: unknown): readonly ReviewTarget[] {
         twoPerson: {
           applies: twoPerson.applies === true,
           refusedAsAuthor: twoPerson.refusedAsAuthor === true,
+          heldForApproval: twoPerson.heldForApproval === true,
         },
         protected: row.protected === true,
       },
