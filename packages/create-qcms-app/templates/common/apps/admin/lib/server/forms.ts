@@ -7,6 +7,8 @@ import type {
   PreviewRoster,
 } from "../forms/builder-state.ts";
 import { parseIssues } from "../forms/issues.ts";
+import { messageForFormCode } from "../forms/errors.ts";
+import { parseContrastFailures, type ContrastFailureView } from "../forms/appearance-report.ts";
 import { parseDraftAppearance } from "../forms/preview-appearance.ts";
 import { readDraftRules, readDraftSteps } from "../forms/draft-payload.ts";
 import { FORM_AVAILABILITIES } from "../forms/types.ts";
@@ -132,6 +134,7 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
 
         canWriteDraft: raw["canWriteDraft"] === true,
         appearance: parseDraftAppearance(raw["appearance"]),
+        appearanceLocked: raw["appearanceLocked"] === true,
         ...readWorkflow(raw["workflow"]),
       },
     };
@@ -209,6 +212,46 @@ export async function saveDraft(
       agentAssisted: result.data.agentAssisted === true,
       updatedAt: asString(result.data.updatedAt, ""),
     },
+  };
+}
+
+export type AppearanceSaveResult =
+  | { readonly ok: true; readonly updatedAt: string }
+  | {
+      readonly ok: false;
+      readonly code: string;
+      readonly message: string;
+      /** 107's correction report, which the shared reader drops because no other refusal carries it. */
+      readonly failures: readonly ContrastFailureView[];
+    };
+
+/**
+ * An appearance change, sent on the one draft save path with the definition the screen holds,
+ * so it takes one revision like any other edit. The envelope is read here rather than through
+ * the shared reader, which keeps no detail beyond the issue list.
+ */
+export async function saveDraftAppearance(
+  session: AdminSession,
+  formId: string,
+  definition: DraftForm,
+  appearance: unknown,
+): Promise<AppearanceSaveResult> {
+  const response = await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft`, {
+    method: "PUT",
+    body: { definition, appearance },
+  });
+  const body: unknown = await response.json().catch(() => undefined);
+  if (response.ok) {
+    return { ok: true, updatedAt: asString((body as { updatedAt?: unknown })?.updatedAt, "") };
+  }
+  const envelope = (body as { error?: { code?: unknown; details?: unknown } } | undefined)?.error;
+  const code =
+    typeof envelope?.code === "string" ? envelope.code : `http_${String(response.status)}`;
+  return {
+    ok: false,
+    code,
+    message: messageForFormCode(code),
+    failures: parseContrastFailures(envelope?.details),
   };
 }
 

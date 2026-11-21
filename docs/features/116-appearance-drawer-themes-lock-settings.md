@@ -15,7 +15,7 @@ The human editing surface for appearance. The drawer opens from the builder and 
   - Locked state: every control disabled with the reason and who can clear the lock.
   - 107's correction report worded when a choice fails contrast.
 - U6:
-  - Workspace themes on workspace settings: list, create, rename, change, delete, logo upload (raster only), for Edit forms holders.
+  - Workspace themes on workspace settings: list, rename, delete, logo upload (raster only), for Edit forms holders. A theme is created from the drawer's "Save as workspace theme", which is 117's (Code Owner, 2026-11-22).
   - The appearance lock switch for a Workspace administrator or Site administrator, with its explanation.
 - Strings in `apps/admin/lib/i18n/en.ts`.
 
@@ -49,6 +49,13 @@ Opus first round; Sonnet delta.
 ## Design gate
 
 Yes: the Appearance drawer (with its locked state) and the settings additions on the Agent Builder canvas, seen by the Code Owner before dispatch.
+
+Cleared by ruling (Code Owner, 2026-11-22). The drawer is drawn on the Agent Builder canvas (Appearance, Appearance-Panel, TextSize-Card) and the lock switch on the Workspaces Area canvas (Settings-States, Screens-C, design batch 3). The ruling settles the rest without new boards:
+
+- A theme is created only from the drawer's "Save as workspace theme" (117). Settings lists, renames, deletes and takes a logo.
+- The logo upload sits on the theme row in Settings; the drawer shows the logo read-only.
+- The drawer's locked state applies the text-size card's locked language to every control, with one reason line, "Locked by your workspace. A Workspace administrator can unlock it in Settings.", wired with `aria-describedby`.
+- The contrast correction report is worded from 107's `APPEARANCE_CONTRAST` failures in the drawer's own style; it is not drawn.
 
 ## Out of scope
 

@@ -117,6 +117,10 @@ vi.mock("@/lib/server/forms", () => ({
 vi.mock("@/lib/server/membership", () => ({
   readMyAccess: () => Promise.resolve(accessResult),
 }));
+vi.mock("@/lib/server/themes", () => ({
+  listWorkspaceThemes: () => Promise.resolve({ ok: true, data: [] }),
+  themeOption: (theme: unknown) => theme,
+}));
 vi.mock("@/lib/server/releases", () => ({
   listHeldPublishes: () => Promise.resolve({ ok: true, data: [] }),
 }));
@@ -156,6 +160,7 @@ vi.mock("./forms/actions", () => ({
   applyAgentEditAction: () => Promise.resolve({ status: "saved", undoToken: null }),
   readStoredDraftAction: () => Promise.resolve({ status: "read", definition: null }),
   previewDraftAction: () => Promise.resolve({ status: "idle" }),
+  saveAppearanceAction: () => Promise.resolve({ status: "saved" }),
   reviewReleaseAction: () => Promise.resolve({ ok: false }),
   confirmPublishAction: () => Promise.resolve({ status: "idle" }),
   lookupPublishResultAction: () => Promise.resolve({ status: "idle" }),

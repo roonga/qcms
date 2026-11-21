@@ -1,7 +1,7 @@
-import { deriveAppearance } from "@roonga/qcms-core";
 import type { Appearance } from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
+import { shippedThemeOptions } from "../server/appearance-options.ts";
 import {
   DEFAULT_CORNERS,
   DEFAULT_DENSITY,
@@ -16,21 +16,25 @@ import {
 } from "./appearance-edit.ts";
 import { DEFAULT_TEXT_SIZE } from "./text-size.ts";
 
-function theme(key: string, primary: string): ThemeOption {
-  const derived = deriveAppearance({ primary });
-  return {
-    key,
-    name: key,
-    palettes: derived.palettes,
-    face: "lexend",
-    corners: "pill",
-    pageTint: true,
-    logo: null,
-  };
+const SHIPPED = shippedThemeOptions();
+
+function dressed(key: string, from: ThemeOption | undefined): ThemeOption {
+  if (from === undefined) throw new Error("the shipped themes are missing an option");
+  return { ...from, key, name: key, face: "lexend", corners: "pill", pageTint: true };
 }
 
-const PLUM = theme(shippedThemeKey("plum"), "#6d28a8");
-const HARBOR = theme(workspaceThemeKey("thm_1"), "#1f5eb8");
+const PLUM = dressed(
+  shippedThemeKey("plum"),
+  SHIPPED.find((theme) => theme.key === shippedThemeKey("plum")),
+);
+const HARBOR = dressed(
+  workspaceThemeKey("thm_1"),
+  SHIPPED.find((theme) => theme.key === shippedThemeKey("harbor")),
+);
+const SAND = dressed(
+  "other",
+  SHIPPED.find((theme) => theme.key === shippedThemeKey("sand")),
+);
 
 describe("applying a theme", () => {
   it("takes the look from the theme and the defaults for the rest", () => {
@@ -67,8 +71,7 @@ describe("the current theme", () => {
 
   it("names none for the deployment's look or for colours of its own", () => {
     expect(currentThemeKey(null, [PLUM, HARBOR])).toBeUndefined();
-    const own = appearanceFromTheme(theme("other", "#2e7d32"), null);
-    expect(currentThemeKey(own, [PLUM, HARBOR])).toBeUndefined();
+    expect(currentThemeKey(appearanceFromTheme(SAND, null), [PLUM, HARBOR])).toBeUndefined();
   });
 });
 

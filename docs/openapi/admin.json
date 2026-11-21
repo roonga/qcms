@@ -4564,13 +4564,17 @@
               "administrator",
               "publisher"
             ]
+          },
+          "appearanceLocked": {
+            "type": "boolean"
           }
         },
         "required": [
           "workspaceId",
           "requireSecondApprover",
           "nobodyElseCouldApprove",
-          "missingApprover"
+          "missingApprover",
+          "appearanceLocked"
         ]
       },
       "WorkspaceApprovalRequestList": {

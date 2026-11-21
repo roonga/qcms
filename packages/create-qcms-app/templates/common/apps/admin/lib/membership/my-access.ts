@@ -3,8 +3,15 @@ import type { MyAccess, MyAccessWorkspace } from "./types.ts";
 
 export const WORKSPACE_ADMINISTRATOR_ROLE = "forms.owner";
 
+/** Workspace themes are an Edit forms act: no other role reaches them, a Site administrator's included. */
+export const EDIT_FORMS_ROLE = "forms.editor";
+
 export function isWorkspaceAdministrator(workspace: MyAccessWorkspace): boolean {
   return workspace.memberRole === WORKSPACE_ADMINISTRATOR_ROLE;
+}
+
+export function holdsEditForms(workspace: MyAccessWorkspace): boolean {
+  return workspace.grants.some((grant) => grant.roles.includes(EDIT_FORMS_ROLE));
 }
 
 /** No Site administrator role, no Workspace administrator role and no group anywhere. */

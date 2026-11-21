@@ -253,7 +253,7 @@ export async function saveAppearanceAction(
     return { status: "error", code: detail.code, message: detail.message, failures: [] };
   }
   const draft = detail.data.draft;
-  if (draft === null || draft === undefined) {
+  if (draft === null) {
     return {
       status: "error",
       code: "NO_DRAFT",

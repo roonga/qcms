@@ -1,4 +1,3 @@
-import { deriveAppearance } from "@roonga/qcms-core";
 import type { Appearance } from "@roonga/qcms-core";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -10,20 +9,17 @@ import {
   type ThemeOption,
 } from "@/lib/forms/appearance-edit";
 import type { SaveAppearanceState } from "@/lib/forms/builder-state";
+import { shippedThemeOptions } from "@/lib/server/appearance-options";
 
 import { AppearanceDrawer } from "./appearance-drawer";
 
 const SAVED: SaveAppearanceState = { status: "saved" };
 
-const PLUM: ThemeOption = {
-  key: shippedThemeKey("plum"),
-  name: "Plum",
-  palettes: deriveAppearance({ primary: "#6d28a8" }).palettes,
-  face: "system",
-  corners: "subtle",
-  pageTint: false,
-  logo: null,
-};
+const PLUM: ThemeOption = (() => {
+  const found = shippedThemeOptions().find((theme) => theme.key === shippedThemeKey("plum"));
+  if (found === undefined) throw new Error("Plum is not a shipped theme");
+  return { ...found, name: "Plum" };
+})();
 
 const FACES = [
   { key: "system", label: "System default" },

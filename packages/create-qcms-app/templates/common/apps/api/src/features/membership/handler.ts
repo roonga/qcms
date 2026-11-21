@@ -1257,6 +1257,7 @@ export function makeReadWorkspaceSettingsHandler(
         requireSecondApprover: workspace.requireSecondApprover,
         nobodyElseCouldApprove: nobodyElseCouldApprove(shortfall),
         missingApprover: shortfall,
+        appearanceLocked: workspace.appearanceLocked,
       },
       200,
     );

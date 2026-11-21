@@ -7,8 +7,10 @@ import { builderFormName, mayBuildForm } from "@/lib/forms/build-access";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { agentAuthoringEnabled } from "@/lib/server/agent";
+import { faceOptions, shippedThemeOptions } from "@/lib/server/appearance-options";
 import { previewPortalBrand, previewPortalTheme } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
+import { listWorkspaceThemes, themeOption } from "@/lib/server/themes";
 import { requireAdminSession } from "@/lib/server/session";
 import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
@@ -16,6 +18,7 @@ import {
   applyAgentEditAction,
   previewDraftAction,
   readStoredDraftAction,
+  saveAppearanceAction,
   startBuildDraftAction,
 } from "../../actions";
 
@@ -52,6 +55,10 @@ export default async function FormBuildPage({
   const form = detail.data;
   if (!mayBuildForm(form)) notFound();
 
+  /* A refused themes read leaves the shipped themes, which every workspace may use anyway. */
+  const saved = await listWorkspaceThemes(session, form.workspaceId);
+  const themes = [...shippedThemeOptions(), ...(saved.ok ? saved.data.map(themeOption) : [])];
+
   return (
     <BuilderShell
       formId={form.formId}
@@ -70,6 +77,10 @@ export default async function FormBuildPage({
         defaultTheme: previewPortalTheme(),
         appearance: form.appearance ?? null,
         brand: previewPortalBrand(),
+        themes,
+        faces: faceOptions(),
+        appearanceLocked: form.appearanceLocked === true,
+        saveAppearance: saveAppearanceAction.bind(null, form.formId),
       }}
       {...(form.draftSource === "open"
         ? {}

@@ -1,37 +1,25 @@
-import { APPEARANCE_FACES, deriveAppearance } from "@roonga/qcms-core";
+import type { Appearance } from "@roonga/qcms-core";
 
-import { DEFAULT_CORNERS, shippedThemeKey, type ThemeOption } from "../forms/appearance-edit.ts";
+import {
+  DEFAULT_CORNERS,
+  shippedThemeKey,
+  type ThemeOption,
+  type ThemePalettes,
+} from "../forms/appearance-edit.ts";
+import { SHIPPED_THEMES } from "../forms/shipped-themes.ts";
 import { t, type MessageKey } from "../i18n/en.ts";
-import { PREVIEW_THEMES, type PreviewTheme } from "../preview-theme.ts";
 
-/**
- * The accents of the shipped portal themes. Those themes exist as CSS alone, so a form that
- * pins one carries palettes derived from its accent by 107's module rather than the
- * stylesheet's own values.
- */
-const SHIPPED_ACCENTS: Readonly<
-  Record<PreviewTheme, { readonly primary: string; readonly secondary: string }>
-> = {
-  slate: { primary: "#2c6e63", secondary: "#4f5b70" },
-  harbor: { primary: "#1f5eb8", secondary: "#4a5a75" },
-  sand: { primary: "#a24e2c", secondary: "#6d6152" },
-  plum: { primary: "#6d28a8", secondary: "#5f5470" },
-};
-
-/** Derived on the server, so the browser loads neither the core runtime nor zod for the drawer. */
+/** The shipped respondent themes, which every workspace may dress a form in. */
 export function shippedThemeOptions(): readonly ThemeOption[] {
-  return PREVIEW_THEMES.map((theme): ThemeOption => {
-    const derived = deriveAppearance(SHIPPED_ACCENTS[theme]);
-    return {
-      key: shippedThemeKey(theme),
-      name: t(`preview.island.theme.${theme}` as MessageKey),
-      palettes: derived.palettes,
-      face: derived.face,
-      corners: DEFAULT_CORNERS,
-      pageTint: false,
-      logo: null,
-    };
-  });
+  return SHIPPED_THEMES.map((theme): ThemeOption => ({
+    key: shippedThemeKey(theme.key),
+    name: t(`preview.island.theme.${theme.key}` as MessageKey),
+    palettes: theme.palettes as ThemePalettes,
+    face: theme.face as Appearance["face"],
+    corners: DEFAULT_CORNERS,
+    pageTint: false,
+    logo: null,
+  }));
 }
 
 export interface FaceOption {
@@ -40,9 +28,36 @@ export interface FaceOption {
   readonly label: string;
 }
 
+/** The registry faces, restated here because the admin loads no kernel runtime (R2). */
+const FACE_FAMILIES: readonly (readonly [string, string | null])[] = [
+  ["system", null],
+  ["atkinson", "Atkinson Hyperlegible"],
+  ["lexend", "Lexend"],
+  ["opendyslexic", "OpenDyslexic"],
+  ["inter", "Inter"],
+  ["roboto", "Roboto"],
+  ["opensans", "Open Sans"],
+  ["lato", "Lato"],
+  ["poppins", "Poppins"],
+  ["montserrat", "Montserrat"],
+  ["andika", "Andika"],
+  ["fredoka", "Fredoka"],
+  ["baloo2", "Baloo 2"],
+  ["comicneue", "Comic Neue"],
+  ["patrickhand", "Patrick Hand"],
+  ["merriweather", "Merriweather"],
+  ["lora", "Lora"],
+  ["ptserif", "PT Serif"],
+  ["librebaskerville", "Libre Baskerville"],
+  ["ibmplexserif", "IBM Plex Serif"],
+  ["publicsans", "Public Sans"],
+  ["jetbrainsmono", "JetBrains Mono"],
+  ["geistmono", "Geist Mono"],
+];
+
 export function faceOptions(): readonly FaceOption[] {
-  return APPEARANCE_FACES.map((face) => ({
-    key: face.key,
-    label: face.family ?? t("appearance.face.system"),
+  return FACE_FAMILIES.map(([key, family]) => ({
+    key,
+    label: family ?? t("appearance.face.system"),
   }));
 }

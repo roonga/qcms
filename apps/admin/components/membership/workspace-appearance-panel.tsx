@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition, type ReactNode } from "react";
 
 import { Alert, SwitchButton, SwitchField, TextField } from "@/components/kit";
 import { themeSwatch, type ThemePalettes } from "@/lib/forms/appearance-edit";
@@ -58,22 +58,9 @@ function ThemeRow({
   const logoInput = useRef<HTMLInputElement>(null);
   const reason = canEdit ? {} : { "aria-describedby": THEME_REASON_ID };
 
-  return (
-    <li className="qcms-themes__row" data-testid="qcms-theme-row" data-theme-id={theme.themeId}>
-      <div className="qcms-themes__identity">
-        <Swatch palettes={theme.palettes} />
-        <span className="font-medium">{theme.name}</span>
-        {theme.sourceHost !== null && (
-          <span className="text-xs text-(--color-text-muted)">
-            {t("themes.source", { host: theme.sourceHost })}
-          </span>
-        )}
-        <span className="text-xs text-(--color-text-muted)">
-          {theme.logoKey === null ? t("themes.logo.none") : t("themes.logo.set")}
-        </span>
-      </div>
-
-      {renaming ? (
+  function body(): ReactNode {
+    if (renaming) {
+      return (
         <div className="qcms-themes__rename">
           <TextField label={t("themes.rename.label")} value={name} onChange={setName} />
           <button
@@ -99,7 +86,10 @@ function ThemeRow({
             {t("themes.rename.cancel")}
           </button>
         </div>
-      ) : confirming ? (
+      );
+    }
+    if (confirming) {
+      return (
         <div className="qcms-themes__confirm" data-testid="qcms-theme-delete-confirm">
           <p className="text-sm">{t("themes.delete.confirm", { name: theme.name })}</p>
           <button
@@ -124,59 +114,78 @@ function ThemeRow({
             {t("themes.delete.no")}
           </button>
         </div>
-      ) : (
-        <div className="qcms-themes__actions">
-          <button
-            type="button"
-            className="qcms-themes__action"
-            disabled={!canEdit || pending}
-            {...reason}
-            onClick={() => {
-              setName(theme.name);
-              setRenaming(true);
-            }}
-          >
-            {t("themes.rename")}
-          </button>
-          <button
-            type="button"
-            className="qcms-themes__action"
-            disabled={!canEdit || pending}
-            {...reason}
-            onClick={() => {
-              logoInput.current?.click();
-            }}
-          >
-            {t("themes.logo.change")}
-          </button>
-          <button
-            type="button"
-            className="qcms-themes__action qcms-themes__action--danger"
-            disabled={!canEdit || pending}
-            {...reason}
-            onClick={() => {
-              setConfirming(true);
-            }}
-          >
-            {t("themes.delete")}
-          </button>
-          {/* Raster only: an SVG can carry script, so the API sniffs the bytes and refuses one. */}
-          <input
-            ref={logoInput}
-            type="file"
-            className="sr-only"
-            accept="image/png,image/jpeg,image/webp"
-            aria-label={t("themes.logo.input", { name: theme.name })}
-            data-testid="qcms-theme-logo-input"
-            disabled={!canEdit || pending}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (file !== undefined) onLogo(theme.themeId, file);
-            }}
-          />
-        </div>
-      )}
+      );
+    }
+    return (
+      <div className="qcms-themes__actions">
+        <button
+          type="button"
+          className="qcms-themes__action"
+          disabled={!canEdit || pending}
+          {...reason}
+          onClick={() => {
+            setName(theme.name);
+            setRenaming(true);
+          }}
+        >
+          {t("themes.rename")}
+        </button>
+        <button
+          type="button"
+          className="qcms-themes__action"
+          disabled={!canEdit || pending}
+          {...reason}
+          onClick={() => {
+            logoInput.current?.click();
+          }}
+        >
+          {t("themes.logo.change")}
+        </button>
+        <button
+          type="button"
+          className="qcms-themes__action qcms-themes__action--danger"
+          disabled={!canEdit || pending}
+          {...reason}
+          onClick={() => {
+            setConfirming(true);
+          }}
+        >
+          {t("themes.delete")}
+        </button>
+        {/* Raster only: an SVG can carry script, so the API sniffs the bytes and refuses one. */}
+        <input
+          ref={logoInput}
+          type="file"
+          className="sr-only"
+          accept="image/png,image/jpeg,image/webp"
+          aria-label={t("themes.logo.input", { name: theme.name })}
+          data-testid="qcms-theme-logo-input"
+          disabled={!canEdit || pending}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file !== undefined) onLogo(theme.themeId, file);
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <li className="qcms-themes__row" data-testid="qcms-theme-row" data-theme-id={theme.themeId}>
+      <div className="qcms-themes__identity">
+        <Swatch palettes={theme.palettes} />
+        <span className="font-medium">{theme.name}</span>
+        {theme.sourceHost !== null && (
+          <span className="text-xs text-(--color-text-muted)">
+            {t("themes.source", { host: theme.sourceHost })}
+          </span>
+        )}
+        <span className="text-xs text-(--color-text-muted)">
+          {theme.logoKey === null ? t("themes.logo.none") : t("themes.logo.set")}
+        </span>
+      </div>
+      {body()}
     </li>
   );
 }
@@ -226,6 +235,36 @@ export function WorkspaceAppearancePanel({
     });
   };
 
+  function list(): ReactNode {
+    if (themes === undefined) {
+      return <p className="text-sm text-(--color-text-muted)">{t("themes.unavailable")}</p>;
+    }
+    if (themes.length === 0) {
+      return <p className="text-sm text-(--color-text-muted)">{t("themes.empty")}</p>;
+    }
+    return (
+      <ul className="qcms-themes" data-testid="qcms-themes">
+        {themes.map((theme) => (
+          <ThemeRow
+            key={theme.themeId}
+            theme={theme}
+            canEdit={canEditForms}
+            pending={pending}
+            onRename={(themeId, name) => {
+              run(() => rename(workspaceId, themeId, name));
+            }}
+            onRemove={(themeId) => {
+              run(() => remove(workspaceId, themeId));
+            }}
+            onLogo={(themeId, file) => {
+              run(async () => uploadLogo(workspaceId, themeId, await base64Of(file)));
+            }}
+          />
+        ))}
+      </ul>
+    );
+  }
+
   return (
     <section
       aria-labelledby="qcms-workspace-appearance-heading"
@@ -274,31 +313,7 @@ export function WorkspaceAppearancePanel({
             {t("themes.needs")}
           </p>
         )}
-        {themes === undefined ? (
-          <p className="text-sm text-(--color-text-muted)">{t("themes.unavailable")}</p>
-        ) : themes.length === 0 ? (
-          <p className="text-sm text-(--color-text-muted)">{t("themes.empty")}</p>
-        ) : (
-          <ul className="qcms-themes" data-testid="qcms-themes">
-            {themes.map((theme) => (
-              <ThemeRow
-                key={theme.themeId}
-                theme={theme}
-                canEdit={canEditForms}
-                pending={pending}
-                onRename={(themeId, name) => {
-                  run(() => rename(workspaceId, themeId, name));
-                }}
-                onRemove={(themeId) => {
-                  run(() => remove(workspaceId, themeId));
-                }}
-                onLogo={(themeId, file) => {
-                  run(async () => uploadLogo(workspaceId, themeId, await base64Of(file)));
-                }}
-              />
-            ))}
-          </ul>
-        )}
+        {list()}
         <p className="text-xs text-(--color-text-muted)">{t("themes.create.note")}</p>
       </div>
     </section>

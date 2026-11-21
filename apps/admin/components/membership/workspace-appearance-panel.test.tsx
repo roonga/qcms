@@ -1,18 +1,21 @@
-import { deriveAppearance } from "@roonga/qcms-core";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { MembershipActionState } from "@/lib/membership/types";
+import { shippedThemeOptions } from "@/lib/server/appearance-options";
 
 import { WorkspaceAppearancePanel, type WorkspaceThemeRow } from "./workspace-appearance-panel";
 
 const DONE: MembershipActionState = { status: "done", message: "ok" };
 
+const PALETTES = shippedThemeOptions()[0]?.palettes;
+if (PALETTES === undefined) throw new Error("no shipped theme to borrow palettes from");
+
 const THEME: WorkspaceThemeRow = {
   themeId: "thm_1",
   name: "Clinical blue",
-  palettes: deriveAppearance({ primary: "#1f5eb8" }).palettes,
+  palettes: PALETTES,
   logoKey: null,
   sourceHost: null,
 };
@@ -32,9 +35,13 @@ function panel(
     readonly locked?: boolean | undefined;
     readonly canEditForms?: boolean;
     readonly canSetLock?: boolean;
-    readonly rename?: ReturnType<typeof vi.fn>;
-    readonly remove?: ReturnType<typeof vi.fn>;
-    readonly setLock?: ReturnType<typeof vi.fn>;
+    readonly rename?: (
+      workspaceId: string,
+      themeId: string,
+      name: string,
+    ) => Promise<MembershipActionState>;
+    readonly remove?: (workspaceId: string, themeId: string) => Promise<MembershipActionState>;
+    readonly setLock?: (workspaceId: string, locked: boolean) => Promise<MembershipActionState>;
   } = {},
 ) {
   return (
