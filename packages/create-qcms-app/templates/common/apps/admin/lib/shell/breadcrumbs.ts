@@ -1,5 +1,6 @@
 import { t, type MessageKey } from "../i18n/en.ts";
 import {
+  ALL_WORKSPACES_PATH,
   ALL_WORKSPACES_SEGMENT,
   WORKSPACE_SECTION_LABELS,
   WORKSPACE_SECTIONS,
@@ -103,6 +104,13 @@ function workspaces(rest: readonly string[], names: CrumbNames): Crumb[] {
   };
   const [workspaceId, section] = rest;
   if (workspaceId === undefined) return [area];
+  if (workspaceId === "new") {
+    return [
+      { label: t("site.title") },
+      { label: t("site.workspaces.title"), href: ALL_WORKSPACES_PATH },
+      { label: t("site.workspaces.new") },
+    ];
+  }
   if (workspaceId === ALL_WORKSPACES_SEGMENT) {
     return [area, { label: t("membership.workspace.allWorkspaces") }];
   }
@@ -112,9 +120,17 @@ function workspaces(rest: readonly string[], names: CrumbNames): Crumb[] {
   return [area, workspace, { label: t(WORKSPACE_SECTION_LABELS[section]) }];
 }
 
+const SITE_SECTIONS: Readonly<Record<string, MessageKey>> = {
+  administrators: "site.administrators.title",
+  "approval-requests": "site.requests.title",
+  audit: "site.audit.title",
+};
+
 function site(rest: readonly string[], names: CrumbNames): Crumb[] {
   const area: Crumb = { label: t("site.title") };
   const [section, item] = rest;
+  const named = section === undefined ? undefined : SITE_SECTIONS[section];
+  if (named !== undefined) return [area, { label: t(named) }];
   if (section === "shared-library") return [area, { label: t("site.library.title") }];
   if (section !== "accounts") return [area];
   const accounts: Crumb = { label: t("site.accounts.title"), href: "/site/accounts" };

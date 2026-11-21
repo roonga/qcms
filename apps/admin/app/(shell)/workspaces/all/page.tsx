@@ -12,7 +12,7 @@ import { listWorkspaces } from "@/lib/server/membership";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
 import { currentWorkspaceContext } from "@/lib/server/workspace-context";
-import { permitsPath, WORKSPACES_PATH } from "@/lib/shell/modes";
+import { NEW_WORKSPACE_PATH, permitsPath, WORKSPACES_PATH } from "@/lib/shell/modes";
 import { offersWorkspaceChoice } from "@/lib/shell/workspace-context";
 
 export function generateMetadata(): Metadata {
@@ -40,9 +40,18 @@ export default async function AllWorkspacesPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <h1 className="text-xl font-semibold text-(--color-text)">
-        {t("membership.workspace.allWorkspaces")}
-      </h1>
+      <div className="qcms-page-header">
+        <h1 className="text-xl font-semibold text-(--color-text)">
+          {t("membership.workspace.allWorkspaces")}
+        </h1>
+        {capabilities.siteConfiguration && (
+          <div className="qcms-page-header__actions">
+            <Link href={NEW_WORKSPACE_PATH} className="qcms-button-link">
+              {t("site.workspaces.new")}
+            </Link>
+          </div>
+        )}
+      </div>
 
       {!workspaces.ok && (
         <Alert variant="error">
@@ -85,6 +94,11 @@ export default async function AllWorkspacesPage() {
                     >
                       {workspace.name}
                     </Link>
+                    {workspace.isShared === true && (
+                      <span className="qcms-tag qcms-tag--draft">
+                        {t("membership.allWorkspaces.shared")}
+                      </span>
+                    )}
                     {workspace.archivedAt !== null && (
                       <span className="qcms-tag qcms-tag--deprecated">
                         {t("membership.allWorkspaces.archived")}

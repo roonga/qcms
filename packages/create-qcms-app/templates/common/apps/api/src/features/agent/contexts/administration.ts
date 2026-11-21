@@ -7,6 +7,8 @@ import {
   listAccessAudit,
   listAccessGroups,
   listAccountDirectory,
+  listApprovalRequests,
+  listSiteAudit,
   listWorkspaceMembers,
   listWorkspaces,
   SITE_ADMINISTRATOR_ROLE,
@@ -289,9 +291,89 @@ async function buildSiteAccountDetail(
   return siteAccountsFor(input, accountId);
 }
 
+export const siteApprovalRequestsFacts = z.strictObject({
+  requests: z.array(
+    z.strictObject({
+      requestId: z.string(),
+      scope: z.string(),
+      workspaceId: z.string().nullable(),
+      kind: z.string(),
+      target: z.string(),
+      requestedBy: z.string(),
+      requestedAt: Instant,
+      expiresAt: Instant,
+      status: z.string(),
+      decidedBy: z.string().nullable(),
+    }),
+  ),
+  total: z.number(),
+});
+
+/** The screen's own list: a held publish is decided on its form, so it is left out here too. */
+async function buildSiteApprovalRequests(
+  input: ScreenBuildInput,
+): Promise<z.infer<typeof siteApprovalRequestsFacts>> {
+  if (!input.principal.claim) throw forbidden("Site configuration is for Site administrators");
+  const { rows, total } = await listApprovalRequests(input.deps.databases.control, {
+    excludeKinds: ["draft-publish"],
+    limit: FACT_ROW_LIMIT,
+    offset: 0,
+  });
+  return {
+    requests: rows.map((row) => ({
+      requestId: row.requestId,
+      scope: row.scope,
+      workspaceId: row.workspaceId,
+      kind: row.kind,
+      target: row.target,
+      requestedBy: row.requestedBy,
+      requestedAt: iso(row.requestedAt),
+      expiresAt: iso(row.expiresAt),
+      status: row.status,
+      decidedBy: row.decidedBy,
+    })),
+    total,
+  };
+}
+
+export const siteAuditFacts = z.strictObject({
+  rows: z.array(
+    z.strictObject({
+      kind: z.string(),
+      actor: z.string(),
+      subject: z.string().nullable(),
+      workspaceId: z.string().nullable(),
+      occurredAt: Instant,
+      detail: z.string().nullable(),
+    }),
+  ),
+  total: z.number(),
+});
+
+async function buildSiteAudit(input: ScreenBuildInput): Promise<z.infer<typeof siteAuditFacts>> {
+  if (!input.principal.claim) throw forbidden("Site configuration is for Site administrators");
+  const { rows, total } = await listSiteAudit(input.deps.databases.control, {
+    limit: FACT_ROW_LIMIT,
+    offset: 0,
+  });
+  return {
+    rows: rows.map((row) => ({
+      kind: row.kind,
+      actor: row.actor,
+      subject: row.subject,
+      workspaceId: row.workspaceId,
+      occurredAt: iso(row.occurredAt),
+      detail: row.detail,
+    })),
+    total,
+  };
+}
+
 export const administrationContexts = {
   workspaces: { facts: workspacesFacts, build: buildWorkspaces },
   siteAccounts: { facts: siteAccountsFacts, build: buildSiteAccounts },
+  siteApprovalRequests: { facts: siteApprovalRequestsFacts, build: buildSiteApprovalRequests },
+  siteAudit: { facts: siteAuditFacts, build: buildSiteAudit },
   siteAccountDetail: { facts: siteAccountsFacts, build: buildSiteAccountDetail },
   workspaceDetail: { facts: workspaceDetailFacts, build: buildWorkspaceDetail },
   myAccess: { facts: myAccessFacts, build: buildMyAccess },

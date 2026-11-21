@@ -8,12 +8,14 @@ import { t } from "@/lib/i18n/en";
 import { workspaceAreaLabel } from "@/lib/membership/sections";
 import {
   AUTHORING_PATH,
+  declaredMode,
   OPERATIONS_PATH,
   permitsMode,
   SITE_CONFIGURATION_LANDING,
   SITE_CONFIGURATION_PATH,
   WORKSPACES_PATH,
   type ShellCapabilities,
+  type ShellMode,
 } from "@/lib/shell/modes";
 
 /* Omit inaccessible areas rather than naming them in disabled navigation. */
@@ -32,19 +34,27 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/** An area's item is current wherever the shell places the address in that area, New workspace included. */
+function inArea(pathname: string, mode: ShellMode): boolean {
+  return declaredMode(pathname) === mode;
+}
+
 function NavLink({
   href,
   label,
   pathname,
   area = href,
+  mode,
 }: {
   readonly href: string;
   readonly label: string;
   readonly pathname: string;
   /** The address prefix the item stands for, where it lands somewhere beneath it. */
   readonly area?: string;
+  /** The shell area the item stands for, which outranks the address prefix. */
+  readonly mode?: ShellMode;
 }) {
-  const active = isActive(pathname, area);
+  const active = mode === undefined ? isActive(pathname, area) : inArea(pathname, mode);
   return (
     <Link href={href} aria-current={active ? "page" : undefined} className="qcms-nav__link">
       {label}
@@ -79,6 +89,7 @@ export function AdminNav({
               href={WORKSPACES_PATH}
               label={t(workspaceAreaLabel(multipleWorkspaces))}
               pathname={pathname}
+              mode="workspaces"
             />
           </li>
         )}
@@ -89,6 +100,7 @@ export function AdminNav({
               area={SITE_CONFIGURATION_PATH}
               label={t("site.title")}
               pathname={pathname}
+              mode="site"
             />
           </li>
         )}

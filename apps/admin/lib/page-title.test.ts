@@ -80,6 +80,9 @@ describe("every route titles its own browser tab", () => {
       "/site/accounts",
       "/site/accounts/[accountId]",
       "/site/accounts/new",
+      "/site/administrators",
+      "/site/approval-requests",
+      "/site/audit",
       "/site/shared-library",
       "/two-factor/challenge",
       "/two-factor/enroll",
@@ -95,6 +98,7 @@ describe("every route titles its own browser tab", () => {
       "/workspaces/[workspaceId]/members",
       "/workspaces/[workspaceId]/settings",
       "/workspaces/all",
+      "/workspaces/new",
     ]);
   });
 

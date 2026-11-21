@@ -119,3 +119,25 @@ describe("the Site configuration trail", () => {
     ]);
   });
 });
+
+describe("the rest of the Site configuration trail", () => {
+  it("names each screen under the area", () => {
+    expect(labels(breadcrumbTrail("/site/administrators"))).toEqual([
+      "Site configuration",
+      "Site administrators",
+    ]);
+    expect(labels(breadcrumbTrail("/site/approval-requests"))).toEqual([
+      "Site configuration",
+      "Approval requests",
+    ]);
+    expect(labels(breadcrumbTrail("/site/audit"))).toEqual(["Site configuration", "Site audit"]);
+  });
+
+  it("puts New workspace under Site configuration, its Workspaces crumb linking the list", () => {
+    expect(breadcrumbTrail("/workspaces/new")).toEqual([
+      { label: "Site configuration" },
+      { label: "Workspaces", href: "/workspaces/all" },
+      { label: "New workspace" },
+    ]);
+  });
+});
