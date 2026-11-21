@@ -1,10 +1,7 @@
 /**
- * Criterion 114: search over people, groups and accounts returns in under 300 ms at 1,000
- * accounts. The budget is a property of the query, so each read is measured several times
- * and the fastest sample is the one asserted: a slower sample on a host running other
- * lanes says what the machine was doing and not what the read costs (issue #812). Every
- * sample is printed, so a regression in the body is visible rather than hidden behind the
- * minimum.
+ * Criterion 114: search over people, groups and accounts under 300 ms at 1,000 accounts.
+ * The fastest of several samples is asserted and every sample printed, because a slower
+ * sample on a host running other lanes measures the machine rather than the query.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

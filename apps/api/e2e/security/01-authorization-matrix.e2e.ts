@@ -1929,11 +1929,8 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
 
 /**
  * Criterion 1 for the administrative and the site columns, by route rather than by the
- * policy unit: every row the table marks as workspace administration or site
- * administration, called by an actor the matrix leaves that cell blank for. The probe set
- * is derived from `ROUTE_POLICIES` and the paths are built by substitution, so a route
- * added later is probed here or fails the placeholder assertion rather than going
- * unasserted.
+ * policy unit: every row the table marks as administration, called by an actor the matrix
+ * leaves blank. The set is derived from `ROUTE_POLICIES`, so a route added later is probed.
  */
 describe("every administrative and site act refuses an actor the matrix leaves blank (criterion 1)", () => {
   /** The three resources the matrix's two administrator columns own; the rest are data. */
@@ -1970,6 +1967,15 @@ describe("every administrative and site act refuses an actor the matrix leaves b
       .replace("{key}", ABSENT_LOGO_KEY);
   }
 
+  /** The error envelope's code, or "" for a body that is not one. */
+  function codeOf(text: string): string {
+    try {
+      return String((JSON.parse(text) as { error?: { code?: string } }).error?.code ?? "");
+    } catch {
+      return "";
+    }
+  }
+
   async function call(row: RoutePolicy, token: string): Promise<{ status: number; code: string }> {
     const writes = row.method !== "GET";
     const res = await all.app.request(pathFor(row), {
@@ -1983,13 +1989,7 @@ describe("every administrative and site act refuses an actor the matrix leaves b
     });
     const text = await res.text();
     expectNoPayload(text);
-    let code = "";
-    try {
-      code = String((JSON.parse(text) as { error?: { code?: string } }).error?.code ?? "");
-    } catch {
-      code = "";
-    }
-    return { status: res.status, code };
+    return { status: res.status, code: codeOf(text) };
   }
 
   beforeAll(async () => {
