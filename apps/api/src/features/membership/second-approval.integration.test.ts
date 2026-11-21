@@ -304,6 +304,7 @@ describe("the Settings warning (criterion 44)", () => {
       requireSecondApprover: true,
       nobodyElseCouldApprove: false,
       missingApprover: { administrator: false, publisher: false },
+      appearanceLocked: false,
     });
 
     await disableSeededAccount(testDb.db, second.userId, new Date());
