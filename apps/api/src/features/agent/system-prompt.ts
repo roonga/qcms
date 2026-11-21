@@ -7,7 +7,7 @@ export const SYSTEM_PROMPT_VERSION = 31;
 
 /** The sha256 `pnpm check:prompts` holds the Markdown sources to at this version. */
 export const PROMPT_SOURCE_HASH =
-  "192cdff2efddb977d5ad10d6c9b58247ffdf675c1261356eb9ea615fa5a20c05";
+  "e1f6f4cfe4c147c50f636572e697bb225eb7a60a5ab8c453227f0d734e07458c";
 
 /** Written out because the `Condition` union exports no name list; the test keeps it in step. */
 export const CONDITION_OPERATORS = [

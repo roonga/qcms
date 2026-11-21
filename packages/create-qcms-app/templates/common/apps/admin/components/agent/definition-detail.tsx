@@ -1,5 +1,6 @@
 "use client";
 
+import { localeName } from "@/lib/agent/card-copy";
 import { t, type MessageKey } from "@/lib/i18n/en";
 
 /* A question definition is authoring content, so the card shows every field of it: the digest binds the whole
@@ -11,12 +12,19 @@ interface Line {
   readonly mono: boolean;
 }
 
+/* One locale is the form's own, so its text stands alone; several are told apart by the
+   language's name rather than by the tag the definition carries. */
 function localized(value: unknown): string | undefined {
   if (typeof value === "string") return value;
   if (typeof value !== "object" || value === null) return undefined;
-  return Object.entries(value as Record<string, unknown>)
-    .filter(([, text]) => typeof text === "string")
-    .map(([locale, text]) => `${locale}: ${String(text)}`)
+  const entries = Object.entries(value as Record<string, unknown>).filter(
+    ([, text]) => typeof text === "string",
+  );
+  const [sole] = entries;
+  if (sole === undefined) return undefined;
+  if (entries.length === 1) return String(sole[1]);
+  return entries
+    .map(([locale, text]) => `${localeName(locale) ?? locale}: ${String(text)}`)
     .join(" / ");
 }
 
@@ -27,7 +35,6 @@ function scalar(value: unknown): string {
 }
 
 const FIELD_LABELS: Readonly<Record<string, MessageKey>> = {
-  questionId: "forms.assist.definition.questionId",
   type: "forms.assist.definition.type",
   label: "forms.assist.definition.label",
   help: "forms.assist.definition.help",
@@ -41,7 +48,7 @@ function headLines(definition: Readonly<Record<string, unknown>>): readonly Line
     if (raw === undefined) continue;
     const value = name === "label" || name === "help" ? localized(raw) : scalar(raw);
     if (value === undefined || value === "") continue;
-    lines.push({ label: t(key), value, mono: name === "questionId" });
+    lines.push({ label: t(key), value, mono: false });
   }
   return lines;
 }
@@ -95,6 +102,7 @@ function options(raw: unknown): readonly Option[] {
 
 const GROUPED: readonly string[] = [
   ...Object.keys(FIELD_LABELS),
+  "questionId",
   "constraints",
   "messages",
   "options",
@@ -116,13 +124,48 @@ function Group({
   return (
     <>
       <dt className="qcms-acard__subhead">{heading}</dt>
-      {lines.map((line) => (
-        <dd key={`${heading}:${line.label}`}>
-          <span className="qcms-acard__label">{line.label}</span>{" "}
+      {lines.map((line, at) => (
+        <dd key={`${heading}:${String(at)}:${line.label}`}>
+          {line.label === "" ? null : (
+            <>
+              <span className="qcms-acard__label">{line.label}</span>{" "}
+            </>
+          )}
           {line.mono ? <code>{line.value}</code> : <span>{line.value}</span>}
         </dd>
       ))}
     </>
+  );
+}
+
+/* The question is named by its label and its answers by theirs, as the step above it is named
+   by its title; the ids behind them stay reachable for support. */
+function DefinitionIds({
+  questionId,
+  choices,
+}: {
+  readonly questionId: unknown;
+  readonly choices: readonly Option[];
+}): React.ReactElement | null {
+  const id = typeof questionId === "string" && questionId !== "" ? questionId : undefined;
+  const withIds = choices.filter((option) => option.optionId !== "");
+  if (id === undefined && withIds.length === 0) return null;
+  return (
+    <details className="qcms-acard__ids" data-testid="qcms-acard-definition-ids">
+      <summary>{t("agent.card.ids")}</summary>
+      <p className="qcms-acard__args">
+        {id === undefined ? null : (
+          <span>
+            {t("forms.assist.definition.questionId")} <code>{id}</code>
+          </span>
+        )}
+        {withIds.map((option, at) => (
+          <span key={`${option.optionId}:${String(at)}`}>
+            {option.label} <code>{option.optionId}</code>
+          </span>
+        ))}
+      </p>
+    </details>
   );
 }
 
@@ -150,17 +193,14 @@ export function DefinitionDetail({
         />
         <Group
           heading={t("forms.assist.definition.options")}
-          lines={choices.map((option) => ({
-            label: option.optionId,
-            value: option.label,
-            mono: true,
-          }))}
+          lines={choices.map((option) => ({ label: "", value: option.label, mono: false }))}
         />
         <Group
           heading={t("forms.assist.definition.other")}
           lines={mapLines(remainder(fields), fields["type"])}
         />
       </dl>
+      <DefinitionIds questionId={fields["questionId"]} choices={choices} />
       <details>
         <summary>{t("forms.assist.definition.raw")}</summary>
         <pre>{JSON.stringify(definition, null, 2)}</pre>

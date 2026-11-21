@@ -1929,7 +1929,7 @@ export const messages = {
     "Starts a new version, copied from the latest one and not published yet. Nothing published changes, and no form moves to it until a form uses it.",
   "agent.card.form.create.title": "Create the {form} form",
   "agent.card.form.create.consequence":
-    "Creates the form and its first empty draft. The address below is fixed when the form is created and cannot be changed afterwards. Nobody can answer the form until you publish it to an environment.",
+    "Creates the form and its first empty draft. The address is fixed when the form is created and cannot be changed afterwards. Nobody can answer the form until you publish it to an environment.",
   "agent.card.form.publish.title": "Publish {form} to {environment}",
   "agent.card.form.publish.consequence":
     "Freezes the working draft as a version that never changes and makes that version live in {environment}, in one step. Anyone starting from now gets it there.",
@@ -1943,7 +1943,7 @@ export const messages = {
     "The draft is marked as carrying assistant-written changes, and keeps that mark until it is published.",
   "agent.card.form.saveDraft.title": "Save the draft of {form}",
   "agent.card.form.saveDraft.consequence":
-    "Replaces the form's working draft with the one below, through the same save the builder uses. It publishes nothing: nobody answering the form sees a change until you publish it.",
+    "Replaces the form's working draft with the one this plan carries, through the same save the builder uses. It publishes nothing: nobody answering the form sees a change until you publish it.",
   "agent.card.form.settings.title": "Change the settings of {form}",
   "agent.card.form.settings.consequence":
     "Abuse controls for this form. They take effect the next time it is published.",

@@ -757,13 +757,14 @@ async function propose(
   ctx: AgentContext,
   state: ProposalState,
 ): Promise<Record<string, unknown>> {
-  const title = (input ?? {}) as { title?: unknown };
+  const plan = (input ?? {}) as { title?: unknown; thenAnother?: unknown };
   const outcome = await port(
     ctx.propose,
     "propose_plan",
   )({
     steps: stepsOf(input),
-    ...(typeof title.title === "string" ? { title: title.title } : {}),
+    ...(typeof plan.title === "string" ? { title: plan.title } : {}),
+    ...(plan.thenAnother === true ? { thenAnother: true } : {}),
     proposalsThisTurn: state.actionProposals.length,
     // Present only once `propose_draft` has recorded one, which is what the kind that
     // applies a draft is refused without.

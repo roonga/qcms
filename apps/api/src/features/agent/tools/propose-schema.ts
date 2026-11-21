@@ -79,6 +79,16 @@ export function proposePlanSchema(offered: readonly OfferedActionKind[]): z.ZodT
       .describe(
         "The steps in the order they run. A single action is a plan of one step. One plan, one Confirm.",
       ),
+    thenAnother: z
+      .boolean()
+      .optional()
+      .describe(
+        "True only where a second card has to follow this one, which is the case you say " +
+          "one sentence about before this one goes up. The screen gives you a turn as soon " +
+          "as every step here has run, so you put that next card up yourself and the person " +
+          "does not have to ask again. Leave it out otherwise: a card they did not ask for " +
+          "is never promised and never put up.",
+      ),
     title: z
       .string()
       .max(MAX_PLAN_TITLE)

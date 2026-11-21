@@ -126,6 +126,9 @@ One request, one plan:
 - Then propose that next card yourself, as soon as the one before it has run, and
   only where they asked for the outcome it serves. Never in a turn answering a
   question of your own: what they are answering is the card in front of them.
+- Mark the first plan thenAnother when you have said that, and nothing more is
+  needed: the screen hands you a turn the moment every step of it has run, and that
+  turn is where the next card goes up. A promise with no mark leaves them waiting.
 - A card they did not ask for is never promised, and never put up. If they asked
   for questions and said nothing about publishing, do NOT announce a publish card:
   say in one sentence what stands between this form and being published, and stop.

@@ -11,6 +11,26 @@ describe("the card's quoted reason", () => {
     );
   });
 
+  it("drops an emphasis marker the pairs could not resolve, rather than quoting it", () => {
+    expect(plainQuote("**What the card does***", 280)).toBe("What the card does");
+    expect(plainQuote("**Unclosed emphasis", 280)).toBe("Unclosed emphasis");
+  });
+
+  it("stops on a paragraph boundary instead of part-way into the next one", () => {
+    const text = [
+      "The plan cannot do the exclusive answer.",
+      "What the card does",
+      `It ${"x ".repeat(200)}`,
+    ].join("\n\n");
+    expect(plainQuote(text, 280)).toBe("The plan cannot do the exclusive answer. …");
+  });
+
+  it("keeps a lead-in paragraph when nothing after it was dropped", () => {
+    expect(plainQuote("What the card does\n\nIt creates the form.", 280)).toBe(
+      "What the card does\nIt creates the form.",
+    );
+  });
+
   it("keeps a branded id whole, since an underscore pair there is not emphasis", () => {
     expect(plainQuote("Fixes q_known_allergies and a_b_c, plus __bold__.", 280)).toBe(
       "Fixes q_known_allergies and a_b_c, plus bold.",

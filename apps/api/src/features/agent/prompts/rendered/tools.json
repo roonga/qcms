@@ -4573,6 +4573,10 @@
           },
           "description": "The steps in the order they run. A single action is a plan of one step. One plan, one Confirm."
         },
+        "thenAnother": {
+          "description": "True only where a second card has to follow this one, which is the case you say one sentence about before this one goes up. The screen gives you a turn as soon as every step here has run, so you put that next card up yourself and the person does not have to ask again. Leave it out otherwise: a card they did not ask for is never promised and never put up.",
+          "type": "boolean"
+        },
         "title": {
           "description": "What this plan leaves behind, in a few plain words, which the card uses as its heading: \"Ask about allergies, then publish to test\". Name the outcome rather than the last step. No id and none of the words you may never write to the person, or the plan is refused. Leave it out and the card titles itself.",
           "type": "string",

@@ -19,6 +19,8 @@ function inline(text: string): string {
     .replaceAll(/\[([^\][]*)\]\(([^()]*)\)/g, "$1")
     .replaceAll(/\*\*([^*]*)\*\*/g, "$1")
     .replaceAll(/\*([^*]*)\*/g, "$1")
+    // Whatever emphasis the pairs above could not resolve is still a marker, never a word.
+    .replaceAll(/\*+/g, "")
     .replaceAll(/(^|\W)__([^_]*)__(?=\W|$)/g, "$1$2")
     .replaceAll(/(^|\W)_([^_]*)_(?=\W|$)/g, "$1$2")
     .replaceAll(/^ {0,3}#{1,6} +/g, "")
@@ -26,14 +28,21 @@ function inline(text: string): string {
     .trim();
 }
 
-/** One line of the quote per line the writer wrote, markers and empty lines dropped. */
-function lines(text: string): readonly string[] {
-  const kept: string[] = [];
+/** One line of the quote per line the writer wrote, grouped by the blank lines between them. */
+function paragraphs(text: string): readonly (readonly string[])[] {
+  const blocks: string[][] = [];
+  let current: string[] = [];
   for (const raw of text.split(/\r?\n/)) {
+    if (raw.trim() === "") {
+      if (current.length > 0) blocks.push(current);
+      current = [];
+      continue;
+    }
     const body = inline(MARKER.test(raw) ? raw.replace(MARKER, "") : raw).replaceAll(/\s+/g, " ");
-    if (body !== "") kept.push(body);
+    if (body !== "") current.push(body);
   }
-  return kept;
+  if (current.length > 0) blocks.push(current);
+  return blocks;
 }
 
 /* Separators that are never an ending. A full stop is one, so it is not in either set. */
@@ -68,7 +77,7 @@ function cutLine(line: string, max: number): string {
 }
 
 /* Keep whole lines: a quote that stops mid-thought reads as the writer trailing off. */
-function shorten(kept: readonly string[], max: number): string {
+function cutLines(kept: readonly string[], max: number): string {
   const whole: string[] = [];
   let used = 0;
   for (const line of kept) {
@@ -82,12 +91,42 @@ function shorten(kept: readonly string[], max: number): string {
   return whole.length === kept.length ? text : marked(trimEnd(text, TRAILING));
 }
 
+const joined = (block: readonly string[]): string => block.join("\n");
+
+/* A paragraph the quote stopped part-way through reads as cut mid-thought, so the quote
+   stops on a paragraph boundary wherever one fits, and a lead-in to what was dropped goes
+   with it. */
+function wholeParagraphs(
+  blocks: readonly (readonly string[])[],
+  max: number,
+): string | undefined {
+  const kept: (readonly string[])[] = [];
+  let used = 0;
+  for (const block of blocks) {
+    const size = joined(block).length;
+    const next = used === 0 ? size : used + 1 + size;
+    if (next > max) break;
+    kept.push(block);
+    used = next;
+  }
+  if (kept.length === 0) return undefined;
+  if (kept.length === blocks.length) return kept.map(joined).join("\n");
+  const tail = trimEnd(joined(kept[kept.length - 1] ?? []), TRAILING);
+  const leadIn = !ENDS_SENTENCE.test(tail) && kept.length > 1;
+  const body = (leadIn ? kept.slice(0, -1) : kept).map(joined).join("\n");
+  return marked(trimEnd(body, TRAILING));
+}
+
+function shorten(blocks: readonly (readonly string[])[], max: number): string {
+  return wholeParagraphs(blocks, max) ?? cutLines(blocks[0] ?? [], max);
+}
+
 /** The reason as a card may quote it, or `undefined` when there is nothing to quote. */
 export function plainQuote(reason: string | undefined, max: number): string | undefined {
   if (reason === undefined) return undefined;
-  const kept = lines(reason);
-  if (kept.length === 0) return undefined;
-  const shortened = shorten(kept, max);
+  const blocks = paragraphs(reason);
+  if (blocks.length === 0) return undefined;
+  const shortened = shorten(blocks, max);
   const quoted = shortened.endsWith(ELLIPSIS) ? shortened : trimEnd(shortened, TRAILING);
   return quoted === "" ? undefined : quoted;
 }

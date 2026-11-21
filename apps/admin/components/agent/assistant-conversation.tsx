@@ -46,6 +46,7 @@ import {
   useExpiryTick,
   type ProposalWindow,
 } from "@/lib/agent/proposal-window";
+import { revealIn } from "@/lib/agent/panel-scroll";
 import { runPlan } from "@/lib/agent/runner";
 import { displayText, planNames, stepTitle } from "@/lib/agent/card-copy";
 import { useProposalSeam } from "@/lib/agent/waiting";
@@ -239,15 +240,24 @@ function ScreenConversation({
     list.scrollTop = list.scrollHeight;
   }, [cards, live, shown]);
 
-  // A card is read from its title down, so an arriving one brings its own top into view
-  // instead of leaving the panel pinned past its foot. Declared after the follow above,
-  // so it is this one that decides where an arriving card leaves the panel.
+  // The open card is the list's last child whatever turn proposed it, so a turn that produced
+  // no card leaves its reply above it: follow the reply rather than the list's foot.
+  useEffect(() => {
+    const list = turnsRef.current;
+    if (list === null || !followsNewest.current) return;
+    const newest = list.children.item(shown.length - 1);
+    if (newest instanceof HTMLElement) revealIn(list, newest);
+  }, [shown]);
+
+  // An arriving card brings its decision into view rather than leaving the panel pinned past
+  // its foot. Declared after the follows above, so it is this one that decides where an
+  // arriving card leaves the panel.
   useEffect(() => {
     const list = turnsRef.current;
     const item = openCardRef.current;
     if (list === null || item === null) return;
     followsNewest.current = false;
-    list.scrollTop += item.getBoundingClientRect().top - list.getBoundingClientRect().top;
+    revealIn(list, item);
   }, [cards.open?.proposal.proposalId]);
 
   useEffect(() => {
@@ -381,7 +391,13 @@ function ScreenConversation({
     settle(plan, settled);
     const created = createdFormId(plan, settled);
     if (created !== undefined) turnHooks?.onFormCreated?.(created);
-    if (saved === undefined || !ranCleanly(settled)) return;
+    if (!ranCleanly(settled)) return;
+    if (saved === undefined) {
+      // The card the assistant said would follow this one: it gets the turn here, so the
+      // person is not left holding a promise they have to ask for.
+      if (plan.thenAnother === true) await runTurn(undefined, undefined, []);
+      return;
+    }
     const token = await saved;
     if (token !== undefined) await runTurn(undefined, token, []);
   };

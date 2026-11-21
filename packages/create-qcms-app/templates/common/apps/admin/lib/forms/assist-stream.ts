@@ -84,6 +84,10 @@ export interface AgentProposal {
   /* The plan's outcome as the assistant wrote it. The API refuses one carrying an id or a
      builder word, so a card that has it can show it as its heading. */
   readonly title?: string;
+
+  /* The assistant said a second card has to follow this one, so the panel runs another turn
+     once every step has run rather than waiting to be asked again. */
+  readonly thenAnother?: boolean;
 }
 
 export const BUILDER_EDIT_OPS = ["question", "step", "rule", "copy"] as const;
@@ -414,6 +418,7 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
   const currentEnvironment = raw["currentEnvironment"];
   const workspaces = toWorkspaceNames(raw["workspaces"]);
   const title = raw["title"];
+  const thenAnother = raw["thenAnother"];
   // Do not invent a missing destination environment: confirmation is bound to the selection under which the turn ran.
   if (typeof currentEnvironment !== "string" || currentEnvironment === "") return undefined;
   return {
@@ -426,6 +431,7 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
     currentEnvironment,
     ...(workspaces.length === 0 ? {} : { workspaces }),
     ...(typeof title === "string" && title.trim() !== "" ? { title: title.trim() } : {}),
+    ...(thenAnother === true ? { thenAnother: true } : {}),
   };
 }
 

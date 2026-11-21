@@ -415,6 +415,18 @@ comes from a `#qcms-fake-new:<word>` directive, because accepting **creates** th
 question and a `questionId` is never reused (R6), so a canned id would work once
 against the shared harness database and fail every run after.
 
+## A card that promised another takes its own turn
+
+`propose_plan` carries an optional `thenAnother`, which the assistant sets on the first
+of two cards it has already said one sentence about: a test link that cannot ride with
+the publish, a publish that needs the draft saved first. The flag travels on the proposal
+to the browser, and the panel runs one more turn as soon as every step of that card has
+run cleanly, posting the conversation ending in the card's own `action-result` with no
+message of the person's, exactly as the accept's continuation does. The next card
+therefore goes up without the person asking again. A card whose step failed takes no such
+turn, and a plan without the flag takes none either, so a card nobody asked for is still
+never put up.
+
 ## Accepting a proposal
 
 Every accept goes through `POST /admin/forms/:id/draft/assist/accept`, with or
