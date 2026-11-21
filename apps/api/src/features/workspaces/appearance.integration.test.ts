@@ -517,9 +517,9 @@ describe(
 
       // The settings read an administrator makes is refused to this holder, so the list is
       // the only place the lock can reach them.
-      expect((await as(onlyEditor.token, "GET", `/workspaces/${workspaceId}/settings`)).status).toBe(
-        403,
-      );
+      expect(
+        (await as(onlyEditor.token, "GET", `/workspaces/${workspaceId}/settings`)).status,
+      ).toBe(403);
       const locked = await as(onlyEditor.token, "GET", `/workspaces/${workspaceId}/themes`);
       expect(locked.status).toBe(200);
       expect((await locked.json()) as unknown).toMatchObject({ appearanceLocked: true });

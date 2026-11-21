@@ -198,10 +198,7 @@ export function makeListWorkspaceThemesHandler(
     const workspaceId = c.req.valid("param").id;
     const workspace = await requireWorkspace(deps.databases.control, workspaceId);
     const rows = await listWorkspaceThemes(deps.databases.control, workspaceId);
-    return c.json(
-      { themes: rows.map(view), appearanceLocked: workspace.appearanceLocked },
-      200,
-    );
+    return c.json({ themes: rows.map(view), appearanceLocked: workspace.appearanceLocked }, 200);
   };
 }
 
