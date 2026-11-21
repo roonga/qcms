@@ -45,6 +45,7 @@ export default defineConfig({
         {
           label: "Concepts",
           items: [
+            { slug: "concepts/glossary" },
             { slug: "concepts/questions" },
             { slug: "concepts/forms-and-versions" },
             { slug: "concepts/rules" },
