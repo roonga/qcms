@@ -191,7 +191,7 @@ describe("createInitialAdmin against an empty database", () => {
   });
 });
 
-describe("createInitialAdmin re-run after a first run that never promoted its account", () => {
+describe("createInitialAdmin re-run after a first run that never promoted its account (criterion 85)", () => {
   let recoveryDb: TestDb;
   let recoveryAuth: AdminAuth;
   const ORPHAN = "orphan.admin@example.test";

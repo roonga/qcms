@@ -28,10 +28,10 @@ above acts in **one environment**, chosen by the administrator's environment swi
 a `prod` change is a `forms.publisher`'s - see
 [The endpoint URL](#the-endpoint-url-not-a-secret-and-not-a-place-for-a-credential).
 
-The role names on this page are the ones the API enforces today. The decided model, in
-which endpoint acts need Publish forms for the environment, is
-[`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) and is not built yet; its
-[status table](WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
+The role names on this page are the identifiers the policy code uses. The model they
+belong to, in which endpoint acts need Publish forms for the environment, is
+[`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) and is built; its
+[status table](WORKSPACE_ACCESS.md#1-status-and-authority) says what remains.
 
 ### A production endpoint change may need two accounts (task 070)
 

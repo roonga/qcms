@@ -7,7 +7,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 - This document is the single source of truth for workspace access in QCMS: accounts, administrators, workspaces, access groups, roles, environments, second approval, audit and the screens that manage them.
 - Decision records (ADR-41, SEC-1, SEC-3, SEC-15, SEC-17, `plan/environments-and-workspaces.md`, `plan/workspaces-review.md`) link here for anything this document covers. Where one of them disagrees with this document, this document holds; section 15 lists what this document replaced.
 - QCMS is green field for this model: schema changes take the new shape directly, with no data migration, upgrade path or backward compatibility.
-- Tests are written against the real policy code as each task lands. Section 14 lists the cases they must cover, and `plan/work-order-sequence.md` names the one task that owns each.
+- Tests are written against the real policy code as each task lands. Section 14 lists the cases they must cover, and `plan/work-order-sequence.md` names the one task that owns each and the test that proves it.
 - The access rules for workspace themes and the appearance lock come from agent-builder rulings Q10 and Q18 (`plan/agent-builder-decisions.md`) and are stated here.
 
 | Area                                                              | Status       |
@@ -27,14 +27,17 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Workspace audit (SEC-15)                                          | Built        |
 | Site audit and mirroring                                          | Built        |
 | Workspace list narrowed to the caller's own                       | Built        |
-| Workspace rename, Move form screen, shared library screen         | Partly built |
+| Workspace rename, Move form screen, shared library screen         | Built        |
 | Archive refused while any form remains                            | Built        |
 | Assistant tools follow the user's grants (SEC-17)                 | Built        |
-| Workspace themes and the workspace appearance lock                | Not built    |
+| Workspace themes and the workspace appearance lock                | Partly built |
 
 - The workspace list admits every grant holder and returns only the workspaces the caller holds something in. A caller who holds no `workspace: read` there is given the workspace's identity alone, with no setting and no counts (criterion 26).
 - Account creation, the claim, disable, reactivation, reset and re-confirmation are built in the API, with the claim screen the emailed link lands on. The Accounts screens are built under Site configuration: list, create, the account page, disable, reactivate and reset, with the step-up asked for inside the disable and reset dialogs. Promoting, demoting, disabling and resetting a Site administrator carry the step-up and approval guards of section 8, and the site approval requests are built in the API. The Site administrators, Approval requests, Site audit and New workspace screens are built under Site configuration, with the step-up asked for in a dialog named for the act.
 - Turning second approval off, a self-grant and a held draft publish to `prod` are built in the API, with their stored requests, their re-checks at approval and their audit rows. The Requests row of the workspace Audit screen and the Approval requests screen in Site configuration both list them.
+- The Workspace area screens are built: Members with the person side sheet, Access groups with the new-group rail row and the group side sheet, Settings with the rename and the second-approval switch, Audit with its Requests row, and Archive. Move form and the shared question library screens are built, and the account menu carries My account and My access.
+- Workspace themes are built in the API: a draft and a version carry appearance by value, the appearance lock refuses every draft save that changes appearance, the logo route serves a stored raster logo without a session, and the derive route writes one audit row per fetch. The Workspace themes list and the lock control in Settings are not built; they are task 116.
+- The Availability, Responses and Erase responses screens stay partly built: the routes and the role gating are built, and the states the access programme specified for them are part of the forms-area work that follows.
 - Records that describe what is built (`docs/SECURITY_DESIGN.md`, the operator guides, the built-task notes in ADR-41) keep that description until the code changes, with a line pointing here.
 - The SEC-3 role table in `docs/SECURITY_DESIGN.md` §3.2 carries the policy code, because `apps/api/e2e/security/matrix-coverage.e2e.ts` reads it. It changes with the roles in code.
 
@@ -370,7 +373,7 @@ The Code Owner reviewed design batch 7 on 2026-11-17, which clears the design ga
 
 | Flow                                                                                            | Who                                                                            | Route or location                                                | Design artboard                                      | Status       |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------- | ------------ |
-| My account                                                                                      | Everyone                                                                       | `settings/`                                                      | Account-Menu, Phone-E                                | Partly built |
+| My account                                                                                      | Everyone                                                                       | `settings/`                                                      | Account-Menu, Phone-E                                | Built        |
 | My access                                                                                       | Everyone                                                                       | `me/access/`                                                     | Account-Menu, Phone-E                                | Built        |
 | No access yet home                                                                              | Account with no access                                                         | `me/access/`                                                     | First-Signin, Patterns-B, Phone-E                    | Built        |
 | Claim an account: set password, enrol second factor                                             | Holder of a sign-in link                                                       | new (opened from the emailed link)                               | First-Signin                                         | Built        |
@@ -405,6 +408,8 @@ The Code Owner reviewed design batch 7 on 2026-11-17, which clears the design ga
 | Availability, links, webhooks                                                                   | Publish forms                                                                  | `operations/forms/[formId]/availability/`, `links/`, `webhooks/` | Operations-Unavailable                               | Partly built |
 | Responses and export                                                                            | View responses                                                                 | `operations/forms/[formId]/responses/`                           | Operations-Unavailable, Phone-F                      | Partly built |
 | Erase responses                                                                                 | Erase responses                                                                | `operations/forms/[formId]/erase/`                               | Operations-Unavailable                               | Partly built |
+
+Every row above is built except five. Workspace themes is task 116. The Workspaces list stays partly built until issue #1384 adds its Workspace administrators column. Availability, Responses and Erase responses keep the routes and the role gating they have, and stay partly built: the states this programme specified for them belong to the forms-area work that follows it (Code Owner, 2026-11-21).
 
 ## 13. Shared UX patterns
 

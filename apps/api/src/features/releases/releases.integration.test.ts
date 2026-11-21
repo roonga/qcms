@@ -706,7 +706,7 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
   });
 
-  it("records no approval and compares nothing with the switch off (criterion 3)", async () => {
+  it("records no approval and compares nothing with the switch off", async () => {
     await post(`/forms/${RULE_FORM}/releases`, { environment: "test", version: 1 });
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
     const res = await post(`/forms/${RULE_FORM}/releases`, { environment: "prod", version: 1 });
@@ -715,7 +715,7 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
     expect(body.release.approvedBy).toBeNull();
   });
 
-  it("refuses the publishing account and records the approver otherwise (criteria 1, 2)", async () => {
+  it("refuses the publishing account and records the approver otherwise (criterion 27)", async () => {
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
 
     const refused = await post(`/forms/${RULE_FORM}/releases`, { environment: "prod", version: 1 });
@@ -765,7 +765,7 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
     expect(reopened.status, await reopened.clone().text()).toBe(200);
   });
 
-  it("leaves a non-prod release alone with the switch on (criterion 4)", async () => {
+  it("leaves a non-prod release alone with the switch on (criterion 30)", async () => {
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
     const res = await post(`/forms/${RULE_FORM}/releases`, { environment: "test", version: 1 });
     expect(res.status).toBe(200);

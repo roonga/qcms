@@ -201,8 +201,28 @@ passed the second factor when it was issued.
 On the next sign-in better-auth issues a session with no challenge and the SEC-1 default
 then forces enrolment before the account reaches anything else.
 
-The command refuses to run once any admin account exists, so it is safe in a runbook and
-safe to re-run by accident. **The password it sets is provisional** (SEC-1, task 061): on
+**Together these two commands are the whole break-glass path** for a site where no Site
+administrator can sign in (`docs/WORKSPACE_ACCESS.md`, criterion 85). Which one you want
+depends on what is missing.
+
+- **No Site administrator exists.** `pnpm qcms:create-admin` creates the first account,
+  and it is refused while a Site administrator already exists. Where none exists and
+  exactly one account does, a re-run whose `QCMS_ADMIN_EMAIL` names that account
+  **promotes** it, seeds the first workspace and writes the audit row, in one
+  transaction (Code Owner, 2026-11-15): that covers a first run that created its account
+  and stopped before promoting it. With two accounts and no Site administrator it is
+  refused, because it cannot tell which to promote.
+- **A Site administrator exists but cannot pass its second factor.** `pnpm qcms:reset-2fa`
+  clears that one account's factor and recovery codes, above. The account keeps its Site
+  administrator role, its workspace memberships and its access groups, and signs in on
+  its password alone.
+
+Neither command reveals a password, grants a role to anybody else, or reaches a response.
+Everything else - creating, disabling, reactivating and resetting an account in the app -
+is a Site administrator's act under the guards of `docs/WORKSPACE_ACCESS.md` section 7,
+and needs no command.
+
+**The password `qcms:create-admin` sets is provisional** (SEC-1, task 061): on
 first sign-in you are sent to `/change-password` and reach nothing else until you replace
 it, then you must enroll a TOTP factor, and the recovery codes are shown once.
 `QCMS_ADMIN_2FA=optional` skips enrollment for development; the API reads the same
@@ -562,6 +582,18 @@ The API sends mail through one SMTP relay, using `nodemailer`. Account creation,
 - **Tests:** `apps/api/src/features/email/*.test.ts` cover configuration, templates and failure handling against a stand-in transport. `apps/api/e2e/06-outbound-mail.e2e.ts` sends through a real Mailpit container (`startMailpit()` in `apps/api/e2e/support/mailpit.ts`, which reads messages back over Mailpit's HTTP API), and also proves a `starttls` mailer will not send through a relay that offers no STARTTLS. `QCMS_TEST_MAILPIT_IMAGE` points the helper at a mirror.
 - **Full stack:** `pnpm up:e2e` adds `docker-compose.e2e.yml`, a Mailpit relay on the Compose network with no published port, and points the API at it.
 - **Trying it locally:** run a Mailpit container yourself, publishing its SMTP and web ports on loopback, then start the API with `QCMS_SMTP_HOST=localhost`, `QCMS_SMTP_PORT` set to the published SMTP port, `QCMS_SMTP_SECURITY=none`, `QCMS_SMTP_ALLOW_INSECURE=true` and a `QCMS_SMTP_FROM`. Those are Mailpit's ports on a container you run, not a QCMS allocation (`docs/PORTS.md`).
+- **Mail is not needed to get in the first time.** `qcms:create-admin` sets the password it hands over, so the first account is exempt; every account created in the app afterwards is refused while mail is unconfigured (criterion 51). A development database with no relay therefore still signs in, and `POST /admin/accounts` answers a refusal naming the configuration rather than creating an account nobody can claim.
+
+## Adding an environment
+
+The operator recipe is `docs/operations.md` ("Adding an environment later"): `pnpm qcms:environment create <name> --password ...` under the migration credential, then a new `QCMS_DATABASE_URL_<NAME>`, then the name in `QCMS_ENVIRONMENTS`, then **restart** every API instance. A running process validated its environment set at boot and refuses to serve one it has no credential for, and it refuses to start when the configured set and `control.environments` disagree (ADR-24). The dev stack and the shipped Compose topology serve `test,prod`.
+
+What the access model adds to that, and the part a developer meets first:
+
+- **A new environment is covered by no access group.** There is no value meaning every environment, so a person in every existing group is refused every environment-scoped act in the new one until an administrator adds it to a group (`docs/WORKSPACE_ACCESS.md`, criterion 14). Publish forms, View responses and Erase responses are the roles this governs; View forms and Edit forms ignore the environment set.
+- **The switcher is an offer, not a gate.** `GET /admin/environments` serves a Site administrator the whole live set, and serves a group holder the environments their groups name plus every live environment where a group of theirs names none, which is any group carrying only View forms or Edit forms (`apps/api/src/features/releases/handler.ts`). A new environment therefore appears at once for those two, and stays out of the switcher only for a holder whose groups name environments explicitly. Being offered one grants nothing in it: the environment-scoped acts still need a group that names it.
+- **Starter groups are seeded per workspace at creation**, from the environments the site had then. Adding an environment changes no existing workspace's groups; a workspace created afterwards gets it in Authors.
+- **Access groups shows the gap.** With a role or an environment left uncovered, that screen carries the "no group covers it yet" notice naming it (spec section 13).
 
 ## Driving the authoring assistant from a script: `pnpm agent:converse`
 

@@ -181,9 +181,9 @@ decisions recorded in ADR-41, and the permissions matrix in
 satisfy. So the work is a data migration and a re-implementation of one evaluation
 function, against a written specification, rather than a redesign.
 
-This page describes what is built. The decided workspace access model, which a later
-replacement would satisfy instead, is [`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) and
-is not built yet; its [status table](WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
+This page describes what is built. The workspace access model a later replacement would
+satisfy instead is [`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) and is built; its
+[status table](WORKSPACE_ACCESS.md#1-status-and-authority) says what remains.
 
 ## What a swap must not change
 

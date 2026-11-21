@@ -274,7 +274,7 @@ describe("SSRF guardrail (SEC-6): default-deny, override-allow", () => {
   });
 });
 
-describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
+describe("the pending `prod` endpoint change (criterion 28; task 070, Q30, Q51)", () => {
   let secondToken = "";
   let secondUserId = "";
   let viewerToken = "";
