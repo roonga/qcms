@@ -66,8 +66,8 @@ un-archive it.
 The helper that works beside you on an admin screen. It reads what you can read, proposes what you
 could do yourself, and changes nothing until you confirm a [card](#card).
 
-The assistant never publishes and never sees respondent answers. The form-editing screen it works on
-is labelled **Agent builder**.
+The assistant never publishes and never sees respondent answers, and a change it made to a
+[draft](#draft) is yours to undo.
 
 ## Audit
 
@@ -137,8 +137,8 @@ closed state, over the same forms and questions. Most sites run a test environme
 one; the names are chosen per site.
 
 A [version](#version) is **live** in an environment once it has been published there, and the same
-version can be live in two environments at once. The workspace settings screen calls the protected
-environment **production**.
+version can be live in two environments at once. The environment chooser shows whatever name your
+site gave each one.
 
 ## Erase
 
@@ -170,7 +170,7 @@ Exporting is recorded in the [audit](#audit).
 
 A marking on a [response](#response) that came in looking automated, for instance submitted faster
 than the form's minimum time. A flagged response is held back from
-[webhook](#webhook) delivery until somebody releases it.
+[webhook](#webhook) delivery until somebody looks at it and releases the withheld message.
 
 ## Form
 
@@ -197,6 +197,15 @@ The opposite is [Revoke](#revoke).
 
 The line under a [question's](#question) [label](#label) that tells a respondent how to answer it.
 Optional, and it travels with the question wherever it is used.
+
+## Identifier
+
+The short, fixed name a [question](#question), [form](#form), [option](#option) or
+[workspace](#workspace) is known by for life. It is set when the thing is created and never changes,
+even when the name people read does, which is what lets an [export](#export) or a
+[rule](#rule) keep pointing at the same thing.
+
+Workspace settings shows it as **Stored identifier**, and says it cannot change.
 
 ## Instance
 
@@ -246,9 +255,9 @@ one-time can be opened again until it expires or is [revoked](#revoke).
 
 ## Option
 
-One of the choices offered by a single-choice or multiple-choice [question](#question). Options are
-ordered, and each one keeps its identity when it is renamed, so a [rule](#rule) that reads it keeps
-working.
+One of the choices offered by a **Choose one** or **Choose several**
+[question](#question). Options are ordered, and each one keeps its
+[identifier](#identifier) when it is renamed, so a [rule](#rule) that reads it keeps working.
 
 ## Pin
 
@@ -282,7 +291,8 @@ freezes it as the next version and makes that version live, in one act; publishi
 version to another environment moves the same version across and freezes nothing.
 
 Where a site has a test environment, production only accepts a version that has already been
-published to a non-production one. Some screens still show this as **releasing** a version.
+published to a non-production one. Going back is the same act: publishing an earlier version makes
+it live again, freezing nothing and losing nothing.
 
 ## Publish forms
 
@@ -313,13 +323,13 @@ See also [Shared question library](#shared-question-library).
 What kind of answer a [question](#question) takes. There are seven, and the type is fixed when the
 question is created:
 
-- **Short text**, a line of writing
-- **Long text**, a paragraph or more
+- **Short answer**, a line of writing
+- **Longer answer**, a paragraph or more
 - **Number**
 - **Date**
 - **Yes or no**, whose two labels you can reword
-- **Single choice**, one [option](#option) from a list
-- **Multiple choice**, any number of options from a list
+- **Choose one**, a single [option](#option) from a list
+- **Choose several**, any number of options from a list
 
 Each type offers its own [constraints](#constraint).
 
@@ -377,12 +387,6 @@ View forms and Edit forms apply everywhere; the other three apply only in the gr
 [environments](#environment). Administering a workspace is not a role: see
 [Workspace administrator](#workspace-administrator).
 
-## Rollback
-
-Putting an earlier [version](#version) back [live](#live) in an [environment](#environment). It is an
-ordinary [publish](#publish) of a version that already exists, so nothing is frozen and nothing is
-lost.
-
 ## Rule
 
 A sentence of the form _when this, show that_: a [condition](#condition) over earlier answers, and
@@ -407,10 +411,9 @@ A link issued to one person so they, and only they, can open one form in one
 [environment](#environment). It can be [one-time](#one-time-link), it has an
 [expiry](#expiry), and it can be [revoked](#revoke).
 
-The web addresses are shown once, when the links are made, and cannot be shown again, so copy or
-download them then. The Links screen calls making them **Mint links**; the
-[assistant](#assistant) calls the same act creating test links or respondent links, depending on the
-environment.
+You make them with **Create** on the Links screen. The web addresses are shown once, then, and cannot
+be shown again, so copy or download them before you leave. A secure link for a test
+[environment](#environment) is often called a test link, which is the same thing said shorter.
 
 ## Session
 
@@ -472,9 +475,8 @@ colours, typeface, corners and logo into the form's [draft](#draft); afterwards 
 itself, so changing the theme later changes no existing form.
 
 A workspace administrator can set an **appearance lock**, which stops a form's
-[appearance](#appearance) being changed at all. The word also has two narrower uses: the look of the
-portal that an operator configures for the whole deployment, and the named palette you pick when
-previewing a form.
+[appearance](#appearance) being changed at all. The named sets you try a form against while
+[previewing](#preview) it are palettes, not themes, and nothing you pick there is saved to the form.
 
 ## Unclaimed account
 

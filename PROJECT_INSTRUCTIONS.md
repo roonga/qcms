@@ -43,6 +43,7 @@ Node LTS, pnpm, Turborepo, Zod, Hono, Next.js, Postgres, Drizzle, better-auth, `
 - The admin agent is governed by `docs/agent-principle.md` (ADR-25 as amended 2026-10-19, SEC-17). The kernel validates, and no LLM enters the serving path or respondent data path.
 - No CORS headers. Never log answer values or expose secrets.
 - User-facing strings are localized. The portal uses an explicit Continue, Back, and Submit cursor.
+- User-facing text uses the terms in `apps/site/src/content/docs/concepts/glossary.mdx`: admin and portal strings, assistant prompts and recipes, the docs site, and error messages. A new term, or a change to what an existing one means, updates the glossary in the same PR.
 - Retraction is a tombstone append. The API is the sole domain-data client; both frontends proxy through BFF handlers.
 - Observability follows the OTel baseline and security redaction allowlist.
 
