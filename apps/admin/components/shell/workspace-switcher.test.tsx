@@ -33,13 +33,11 @@ describe("the workspace switcher", () => {
         secureCookies={false}
       />,
     );
-    await userEvent
-      .setup()
-      .click(
-        screen.getByRole("button", {
-          name: t("workspace.switcher.trigger", { name: CURRENT.name }),
-        }),
-      );
+    await userEvent.setup().click(
+      screen.getByRole("button", {
+        name: t("workspace.switcher.trigger", { name: CURRENT.name }),
+      }),
+    );
     const tags = await screen.findAllByTestId("qcms-workspace-suspended");
     expect(tags.map((tag) => tag.textContent)).toEqual([t("membership.suspended.tag")]);
   });
