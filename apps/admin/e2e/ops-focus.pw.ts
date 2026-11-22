@@ -46,7 +46,7 @@ test.beforeAll(async () => {
   }
 });
 
-test("releasing a withheld event leaves focus on the response, not on the body", async ({
+test("sending on a withheld event leaves focus on the response, not on the body", async ({
   page,
 }) => {
   totpSecret = await enrollNewAdmin(page, EMAIL);

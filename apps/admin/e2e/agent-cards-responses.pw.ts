@@ -74,7 +74,7 @@ async function focusIsInDialog(page: Page): Promise<boolean> {
   });
 }
 
-test("confirms a release and then an erasure, each changing the screen it was proposed on", async ({
+test("confirms a send-on and then an erasure, each changing the screen it was proposed on", async ({
   page,
 }) => {
   test.setTimeout(600_000);
