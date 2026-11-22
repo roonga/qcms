@@ -3929,6 +3929,38 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   gap: 0.5rem;
   min-inline-size: 0;
 }
+/* The decision a tall card keeps below the fold, repeated at the panel's foot. The card's own
+   Confirm is the control the keyboard and a screen reader reach; this is the pointer's. */
+.qcms-assistant__decide {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: 0.75rem;
+  border-block-start: 1px solid var(--color-border);
+  padding-block-start: 0.75rem;
+}
+.qcms-assistant__decide button {
+  border-radius: var(--radius-control);
+  padding: 0.5rem 1rem;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.qcms-assistant__decide button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.qcms-assistant__decide-confirm {
+  border: 1px solid var(--color-primary);
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+.qcms-assistant__decide-cancel {
+  border: 1px solid var(--color-border);
+  background-color: var(--color-ghost);
+  color: var(--color-text);
+}
 .qcms-assistant__composer {
   display: flex;
   flex: none;

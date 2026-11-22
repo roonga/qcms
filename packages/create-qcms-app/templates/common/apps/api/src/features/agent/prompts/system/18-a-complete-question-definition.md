@@ -17,4 +17,4 @@ A complete question definition:
 - options for a choice question, each with its own localized label and a stable
   optionId; yesLabel and noLabel for a boolean where "Yes" and "No" are not
   what the question asks.
-- A question carries no placeholder field. Put that guidance in help.
+- A question carries no placeholder field. Put that wording in its help text.

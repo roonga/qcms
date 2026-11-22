@@ -28,6 +28,7 @@ import {
 import { screenIdentity, type ConversationScreen } from "@/lib/agent/screens";
 import {
   actionResultTurn,
+  canConfirm,
   cancelCard,
   dismissReveal,
   expireCard,
@@ -47,8 +48,9 @@ import {
   type ProposalWindow,
 } from "@/lib/agent/proposal-window";
 import { revealIn } from "@/lib/agent/panel-scroll";
+import { pinsDecision } from "@/lib/agent/pinned-confirm";
 import { runPlan } from "@/lib/agent/runner";
-import { displayText, planNames, stepTitle } from "@/lib/agent/card-copy";
+import { displayText, planNames, stepTitle, typedConfirmation } from "@/lib/agent/card-copy";
 import { useProposalSeam } from "@/lib/agent/waiting";
 import { errorForResponse, messageForError, type AssistError } from "@/lib/forms/assist-errors";
 import {
@@ -73,6 +75,12 @@ const REASON_SOURCE_CHARS = 4 * REASON_CHARS;
 export function viewerDay(now: Date): string {
   const pad = (value: number): string => String(value).padStart(2, "0");
   return `${String(now.getFullYear())}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** The zone that day and that instant are read in, where this browser reports one. */
+export function viewerZone(): string | undefined {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return zone === "" ? undefined : zone;
 }
 
 /* The builder holds the open draft's title, so a card about that form can name it. */
@@ -238,6 +246,9 @@ function ScreenConversation({
     revealIn(list, item);
     revealedAt.current = list.scrollTop;
   }, []);
+  // Layout, so it is measured rather than assumed: a card taller than the panel keeps its own
+  // Confirm below the fold, and the panel pins one at its foot.
+  const [boxes, setBoxes] = useState({ cardHeight: 0, viewHeight: 0 });
   const known = useMemo(() => builderNames(builder), [builder]);
   const names = useSubjectTitles(proposal, known);
 
@@ -268,10 +279,16 @@ function ScreenConversation({
     followsNewest.current = false;
     revealing.current = true;
     reveal(item);
+    const measure = (): void => {
+      setBoxes({ cardHeight: item.offsetHeight, viewHeight: list.clientHeight });
+    };
+    measure();
     const observer = new ResizeObserver(() => {
       if (revealing.current) reveal(item);
+      measure();
     });
     observer.observe(item);
+    observer.observe(list);
     return () => {
       observer.disconnect();
     };
@@ -430,6 +447,8 @@ function ScreenConversation({
     waitingCard: readonly WaitingProposalTurn[],
   ): Promise<Response> => {
     const draftUpdatedAt = savedDraft ?? builder?.draftUpdatedAt;
+    const sentAt = new Date();
+    const zone = viewerZone();
     return fetch(builder?.endpoint ?? "/assist", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -440,7 +459,9 @@ function ScreenConversation({
         params: on.params,
         conversationId: conversation.id,
         visitId: conversation.visitId,
-        viewerToday: viewerDay(new Date()),
+        viewerToday: viewerDay(sentAt),
+        viewerNow: sentAt.toISOString(),
+        ...(zone === undefined ? {} : { viewerZone: zone }),
         ...(draftUpdatedAt === undefined ? {} : { clientState: draftUpdatedAt }),
       }),
     });
@@ -674,6 +695,42 @@ function ScreenConversation({
           </li>
         )}
       </ol>
+      {proposal === undefined ||
+      card === undefined ||
+      !pinsDecision({
+        waiting,
+        typedConfirmation: typedConfirmation(proposal.steps) !== undefined,
+        ...boxes,
+      }) ? null : (
+        /* The card's own Confirm and Cancel stay the controls: these two repeat them where a
+           tall card has pushed them out of view, so they are hidden from the accessibility
+           tree and out of the tab order rather than offering a second Confirm to announce. */
+        <div
+          aria-hidden="true"
+          className="qcms-assistant__decide"
+          data-testid="qcms-assistant-pinned-decision"
+        >
+          <button
+            className="qcms-assistant__decide-confirm"
+            type="button"
+            tabIndex={-1}
+            disabled={!canConfirm(card)}
+            onClick={() => void confirmCard(proposal, card)}
+          >
+            {proposal.steps.length > 1
+              ? t("agent.card.confirmAll", { count: proposal.steps.length })
+              : t("agent.card.confirm")}
+          </button>
+          <button
+            className="qcms-assistant__decide-cancel"
+            type="button"
+            tabIndex={-1}
+            onClick={() => settle(proposal, cancelCard(card, new Date().toISOString()))}
+          >
+            {t("agent.card.cancel")}
+          </button>
+        </div>
+      )}
       {shown.length === 0 && live === undefined && (
         <p className="qcms-assistant__empty" data-testid="qcms-assistant-empty">
           {t("agent.empty")}

@@ -1,7 +1,13 @@
 import type { NextRequest } from "next/server";
 
 import { agentAuthoringEnabled } from "@/lib/server/agent";
-import { isDay, parseAssistConversation, parseAssistParams } from "@/lib/server/assist-request";
+import {
+  isDay,
+  isViewerInstant,
+  isViewerZone,
+  parseAssistConversation,
+  parseAssistParams,
+} from "@/lib/server/assist-request";
 import { assist } from "@/lib/server/forms";
 import { isSameOriginPost } from "@/lib/server/route-helpers";
 import { requireAdminSessionForRequest } from "@/lib/server/session";
@@ -28,6 +34,8 @@ export async function POST(
         readonly conversationId?: unknown;
         readonly visitId?: unknown;
         readonly viewerToday?: unknown;
+        readonly viewerNow?: unknown;
+        readonly viewerZone?: unknown;
       }
     | undefined;
 
@@ -41,6 +49,8 @@ export async function POST(
     ...(typeof body?.conversationId === "string" ? { conversationId: body.conversationId } : {}),
     ...(typeof body?.visitId === "string" ? { visitId: body.visitId } : {}),
     ...(isDay(body?.viewerToday) ? { viewerToday: body.viewerToday } : {}),
+    ...(isViewerInstant(body?.viewerNow) ? { viewerNow: body.viewerNow } : {}),
+    ...(isViewerZone(body?.viewerZone) ? { viewerZone: body.viewerZone } : {}),
   });
 
   return new Response(upstream.body, {

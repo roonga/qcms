@@ -34,21 +34,47 @@ function scalar(value: unknown): string {
   return JSON.stringify(value) ?? "";
 }
 
+const HEAD_FIELDS: readonly string[] = ["type", "label", "help", "required"];
+
+/* `required` carries the editor's whole sentence, so it takes no label of its own. */
 const FIELD_LABELS: Readonly<Record<string, MessageKey>> = {
   type: "forms.assist.definition.type",
   label: "forms.assist.definition.label",
   help: "forms.assist.definition.help",
-  required: "forms.assist.definition.required",
 };
+
+const QUESTION_TYPES: readonly string[] = [
+  "shortText",
+  "longText",
+  "number",
+  "date",
+  "boolean",
+  "singleChoice",
+  "multiChoice",
+];
+
+/* The card writes a question the way the question screens write it, so a type is its own name
+   and whether an answer is required is the editor's own sentence. */
+function headValue(name: string, raw: unknown): string | undefined {
+  if (name === "label" || name === "help") return localized(raw);
+  if (name === "type" && typeof raw === "string" && QUESTION_TYPES.includes(raw)) {
+    return t(`questions.type.${raw}` as MessageKey);
+  }
+  if (name === "required" && typeof raw === "boolean") {
+    return t(raw ? "forms.assist.definition.requiredYes" : "forms.assist.definition.requiredNo");
+  }
+  return scalar(raw);
+}
 
 function headLines(definition: Readonly<Record<string, unknown>>): readonly Line[] {
   const lines: Line[] = [];
-  for (const [name, key] of Object.entries(FIELD_LABELS)) {
+  for (const name of HEAD_FIELDS) {
     const raw = definition[name];
     if (raw === undefined) continue;
-    const value = name === "label" || name === "help" ? localized(raw) : scalar(raw);
+    const value = headValue(name, raw);
     if (value === undefined || value === "") continue;
-    lines.push({ label: t(key), value, mono: false });
+    const key = FIELD_LABELS[name];
+    lines.push({ label: key === undefined ? "" : t(key), value, mono: false });
   }
   return lines;
 }
@@ -101,7 +127,7 @@ function options(raw: unknown): readonly Option[] {
 }
 
 const GROUPED: readonly string[] = [
-  ...Object.keys(FIELD_LABELS),
+  ...HEAD_FIELDS,
   "questionId",
   "constraints",
   "messages",

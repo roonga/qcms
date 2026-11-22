@@ -48,6 +48,26 @@ dev:fresh`, which takes this seat's stack down with its database and brings it b
 named command, rather than a lane dropping a Docker volume by hand. `seed.requires` is the
 prose beside it, and `seed.expect` is the half the checks read.
 
+**The chain starting from `publish-and-test-link` runs in one order, and the counts are
+written for it:**
+
+1. `publish-and-test-link`, which leaves the form on test with one link
+2. `why-did-you-stop`
+3. `ambiguous-request`
+4. `production-release`
+5. `a-step-that-fails`
+6. `did-you-create-a-link`, the one that adds the second link
+7. `change-a-published-rule`, the one that changes the form, so it goes last
+
+A scenario run out of that order fails on a link count rather than on the assistant, which is
+what happened the first time `a-step-that-fails` created a link of its own.
+
+A turn's own reply is read before its card directive is applied, because a plan marked
+`thenAnother` is answered by a turn nobody typed and a later read would record that one's words
+as this turn's. The run waits for that follow-up before sending the next message, and records it
+beside the reply it followed as `followUpReply` and `followUpSteps`; `checks.mjs` reads both
+halves wherever it reads what the assistant said.
+
 Every scenario invents its data. No scenario sends a real person's details, and a scenario's end state is read back from the API rather than taken from what the assistant said.
 
 A scenario names the environment its screen is set to, and a message may name how many

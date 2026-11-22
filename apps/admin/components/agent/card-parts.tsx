@@ -8,6 +8,7 @@ import type { AgentPlanStep } from "@/lib/forms/assist-stream";
 import { copyMintedUrl, downloadMintedLinks, linkExpiryInstant } from "@/lib/forms/links";
 import {
   createdHref,
+  environmentLabel,
   hasIrreversibleStep,
   isProductionStep,
   productionSentence,
@@ -134,7 +135,7 @@ function EnvironmentLine({ step }: { readonly step: AgentPlanStep }): React.Reac
     <span>
       {t("agent.card.environmentLabel")}{" "}
       <span className="qcms-envchip" data-kind={production ? "prod" : "nonprod"}>
-        {step.environment}
+        {environmentLabel(step.environment)}
       </span>
       {production ? (
         <>

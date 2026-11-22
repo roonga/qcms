@@ -96,12 +96,16 @@ export function readPanel() {
   return {
     context: text(document.querySelector('[data-testid="qcms-assistant-context"]')),
     panelError: text(document.querySelector('[data-testid="qcms-assistant-error"]')),
-    turns: [...document.querySelectorAll('[data-testid="qcms-assistant-turns"] > li')].flatMap(
-      (turn) =>
+    // The streaming turn is a placeholder, not a reply: reading it records "the assistant is
+    // working" as what the assistant said. A caller waits for the stream before reading.
+    streaming: document.querySelector('[data-testid="qcms-assistant-streaming"]') !== null,
+    turns: [...document.querySelectorAll('[data-testid="qcms-assistant-turns"] > li')]
+      .filter((turn) => turn.getAttribute("data-testid") !== "qcms-assistant-streaming")
+      .flatMap((turn) =>
         turn.getAttribute("data-role") === "user"
           ? [{ role: "user", text: text(turn), thinking: [], steps: [] }]
           : assistantTurn(turn),
-    ),
+      ),
     cards: [...document.querySelectorAll(".qcms-acard")].map((card, index) =>
       planCard(card, index),
     ),

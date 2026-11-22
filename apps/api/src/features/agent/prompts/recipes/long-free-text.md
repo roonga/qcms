@@ -18,6 +18,6 @@
 
 **Say this**
 
-> It is a box of several lines with a 2000 character ceiling, and a shortest answer of 40 characters so a one word reply is turned away. That floor counts characters rather than sentences, so it cannot insist on a whole sentence; the guidance line is what says what you are after.
+> It is a box of several lines with a 2000 character ceiling, and fewest characters set to 40 so a one word reply is turned away. That floor counts characters rather than sentences, so it cannot insist on a whole sentence; the help text is what says what you are after.
 
 **Corpus sources:** Course evaluation survey (optional comments), NHS new-patient questionnaire, Australian passport B11 general declaration (free text statement), Council customer satisfaction survey (comments), ahm travel insurance claim.

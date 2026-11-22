@@ -212,6 +212,35 @@ async function waitForReply(page, timeoutMs) {
 }
 
 /**
+ * How long a `thenAnother` follow-up has to begin before the panel counts as settled. The
+ * screen hands the assistant that turn as soon as the last step has run, so the wait starts
+ * the moment the card settles.
+ */
+const FOLLOW_UP_MS = 8_000;
+
+/**
+ * A plan marked `thenAnother` is answered by a turn nobody typed, which arrives after the card
+ * it belongs to has settled. Wait for it rather than sending the next message into the middle
+ * of it, and say whether one came.
+ *
+ * @param {import("@playwright/test").Page} page
+ * @param {number} timeoutMs
+ * @returns {Promise<boolean>}
+ */
+async function waitForFollowUp(page, timeoutMs) {
+  const started = await page
+    .getByTestId("qcms-assistant-streaming")
+    .waitFor({ state: "attached", timeout: FOLLOW_UP_MS })
+    .then(
+      () => true,
+      () => false,
+    );
+  if (!started) return false;
+  await waitForReply(page, timeoutMs);
+  return true;
+}
+
+/**
  * @param {import("@playwright/test").Page} page
  * @param {number} index
  * @param {number} timeoutMs
@@ -312,6 +341,9 @@ async function converse(page, run, target, vault) {
     await waitForReply(page, run.timeoutMs);
 
     const before = await page.evaluate(readPanel);
+    // This turn's own reply, read before the directive: a confirmed card can be followed by a
+    // turn nobody typed, and a later read would record that one's words as this turn's.
+    const reply = before.turns.filter((turn) => turn.role === "assistant").at(-1);
 
     // The card as the person decides on it, which a shot taken after Confirm cannot show.
     const proposed = `turn-${String(at).padStart(2, "0")}-proposed.png`;
@@ -323,15 +355,20 @@ async function converse(page, run, target, vault) {
       before.cards,
       run.timeoutMs,
     );
-    const panel =
-      action === "confirmed" || action === "declined" ? await page.evaluate(readPanel) : before;
+    const settled = action === "confirmed" || action === "declined";
+    const followed = settled ? await waitForFollowUp(page, run.timeoutMs) : false;
+    // Read after the card has settled and after any follow-up has finished, so the card states
+    // and the follow-up's own reply are both this one read of the panel.
+    const panel = settled ? await page.evaluate(readPanel) : before;
+    const followUp = followed
+      ? panel.turns.filter((turn) => turn.role === "assistant").at(-1)
+      : undefined;
 
     // The viewport rather than the whole page: the app fills one and scrolls inside it, so a
     // full-page shot is the panel stretched to a height nobody ever sees.
     const shot = `turn-${String(at).padStart(2, "0")}.png`;
     await page.screenshot({ path: join(target, shot) });
 
-    const reply = panel.turns.filter((turn) => turn.role === "assistant").at(-1);
     const cards = recordCards(panel.cards, vault, at);
     turns.push({
       turn: at,
@@ -344,6 +381,16 @@ async function converse(page, run, target, vault) {
       reply: redactAddresses(reply?.text ?? null, vault, `turn ${String(at)} reply`),
       thinking: reply?.thinking ?? [],
       replySteps: reply?.steps ?? [],
+      ...(followUp === undefined
+        ? {}
+        : {
+            followUpReply: redactAddresses(
+              followUp.text,
+              vault,
+              `turn ${String(at)} follow-up reply`,
+            ),
+            followUpSteps: followUp.steps,
+          }),
       cards,
       card: cards.find((entry) => entry.index === acted) ?? cards[0] ?? null,
       panelError: panel.panelError,

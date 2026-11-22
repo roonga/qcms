@@ -551,6 +551,10 @@ export interface AgentContext {
   readonly today?: string;
   /** The date on the viewer's own clock, which is the one their screen writes dates in. */
   readonly viewerToday?: string;
+  /** The instant on that same clock, which an expiry the model works out is counted from. */
+  readonly viewerNow?: string;
+  /** The zone the viewer reads both of those in, as an IANA name. */
+  readonly viewerZone?: string;
   readonly maxSteps: number;
   /** The tools this caller holds a cell for; the door refuses every other name. */
   readonly tools: readonly string[];

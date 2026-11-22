@@ -3,13 +3,13 @@
   "name": "agent-review-11-a-step-that-fails",
   "goal": "A confirmed step the route refuses, so the failed-step path is exercised rather than described.",
   "mode": "scripted",
-  "brief": "You want a link that has already stopped working, because you are testing what the clinic sees when a link expires.",
+  "brief": "You want a colleague who starts next week to be able to edit the clinic's forms.",
   "screen": "/forms",
   "environment": "test",
   "cards": "confirm",
   "messages": [
     {
-      "text": "Make me a test link for the Larkmead new patient sign-up that stops working yesterday afternoon. I want to see what the clinic gets when a link has expired.",
+      "text": "Put sarah.whitlock@larkmead.test in the Authors group so she can edit our forms.",
       "cards": "confirm",
       "expectCards": 1
     },
@@ -21,7 +21,7 @@
   ],
   "seed": {
     "reset": "after:publish-and-test-link",
-    "requires": "The form published to test with one link on it, and the signed-in person holding Publish forms for test.",
+    "requires": "The form published to test with one link on it, the signed-in person administering the workspace, and no account for sarah.whitlock@larkmead.test. Nothing here touches the form, so the chain is left exactly as it was found.",
     "expect": [
       {
         "check": "released",
@@ -40,13 +40,18 @@
         "exactly": 1
       }
     ],
-    "fixtures": "Fake clinic data only."
+    "fixtures": "All data is invented: Larkmead Clinic is not a real practice and sarah.whitlock@larkmead.test belongs to nobody."
   },
   "budget": {
     "turns": 2
   },
   "expect": {
     "endState": [
+      {
+        "check": "released",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test"
+      },
       {
         "check": "linkCount",
         "title": "Larkmead new patient sign-up",
@@ -58,8 +63,8 @@
       "say plainly that the step did not run and that the reason is on the card beside it",
       "not invent a cause and not guess at one",
       "read its own earlier words back when asked why it stopped, rather than composing a new reason",
-      "offer the next move, which is a link with an expiry that has not passed"
+      "offer the next move by role: somebody has to create an account for that address first"
     ]
   },
-  "notes": "Scenario 3 is the same question over a step that never ran. This one is the other half: the route refuses an expiry in the past at Confirm, so a step genuinely fails and the card carries the reason. The message asks for a link to be made rather than for one that already exists, because a look-up can only answer and never fail. Turn 2 states no card count, because a question about what already happened is answered from the conversation. What fails is a confirmed failure the reply does not own, a reason invented rather than read back, or a second link created to paper over it."
+  "notes": "The failure has to be one the assistant cannot pre-empt, which is why this is a grant rather than a link. Nothing offered to the assistant reads the people on the site, so it cannot tell whether an address has an account, and the route refuses the step at Confirm. An expiry already past no longer reaches this path: the guidance tells the assistant to correct one, and it does. Scenario 3 is the same question over a step that never ran; this one is the other half. Turn 2 states no card count, because a question about what already happened is answered from the conversation. What fails is a confirmed failure the reply does not own, a reason invented rather than read back, or a second card put up to paper over it."
 }

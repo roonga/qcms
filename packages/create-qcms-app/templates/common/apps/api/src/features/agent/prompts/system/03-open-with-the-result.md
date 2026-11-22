@@ -19,3 +19,6 @@ answer whenever you already have one:
   two. Having looked, give the answer straight: no second announcement, no account
   of the looking, and never the same answer twice in one reply.
   Having to look again is not a reason for a second clause: look, and answer.
+  The commonest shape of the fault gives part of the answer and then names the next
+  look-up in the same breath: "Two existing questions may fit: the full name and date
+  of birth ones. I'm reading both." Drop the clause and keep the answer.

@@ -139,6 +139,13 @@ function vocabularyText(name: string, raw: unknown): string | undefined {
 /** The arguments a card names by title; their ids are support detail rather than the subject. */
 const NAMED_ID_ARGUMENTS: ReadonlySet<string> = new Set(["formId", "questionId", "workspaceId"]);
 
+/**
+ * Arguments that ARE an identifier rather than one standing in for a title. The step's own
+ * title names the subject in the person's words, so these belong behind the disclosure with
+ * the branded ids rather than in the open beside them.
+ */
+const IDENTIFIER_ARGUMENTS: ReadonlySet<string> = new Set(["slug"]);
+
 /** The arguments whose title the plan can work out for itself. */
 const TITLED_ID_ARGUMENTS: readonly string[] = ["formId", "questionId"];
 
@@ -162,13 +169,14 @@ export function stepArguments(
     const named = displayName(name, value, names) ?? plannedSubject(name, reference, names);
     const literal = literalId(raw) ?? (reference === undefined ? undefined : literalId(resolved));
     const branded = NAMED_ID_ARGUMENTS.has(name) && literal !== undefined;
+    const identifier = IDENTIFIER_ARGUMENTS.has(name) && value !== "";
     return {
       name,
       label: argumentLabel(name),
       value: named ?? value,
       mono: named === undefined && MONO_ARGUMENTS.has(name),
-      id: branded ? literal : undefined,
-      idOnly: branded && named === undefined,
+      id: branded ? literal : identifier ? value : undefined,
+      idOnly: (branded && named === undefined) || identifier,
       ...(reference === undefined ? { fromStep: undefined } : { fromStep: reference.fromStep }),
     };
   });
@@ -392,7 +400,7 @@ function titleParams(
   steps: readonly AgentPlanStep[],
   names: PlanNames,
 ): Record<string, string> {
-  const params: Record<string, string> = { environment: step.environment };
+  const params: Record<string, string> = { environment: environmentLabel(step.environment) };
   for (const line of stepArguments(step, reported)) {
     const reference = asReference(step.args[line.name]);
     const resolved =
@@ -465,7 +473,7 @@ const PRODUCTION_KEY = "agent.card.environment.production";
 export function stepConsequences(step: AgentPlanStep): readonly string[] {
   return step.card.consequenceKeys
     .filter((key) => key !== PRODUCTION_KEY)
-    .map((key) => t(key as MessageKey, { environment: step.environment }));
+    .map((key) => t(key as MessageKey, { environment: environmentLabel(step.environment) }));
 }
 
 /** Derive irreversible gates from registered step templates so callers cannot omit them. Matching is trimmed and case-sensitive, like the screen dialog. */
@@ -489,6 +497,15 @@ export function hasIrreversibleStep(steps: readonly AgentPlanStep[]): boolean {
 
 export function isProductionStep(step: AgentPlanStep): boolean {
   return step.environment === PROD_ENVIRONMENT;
+}
+
+/**
+ * What a card calls an environment. Production is the one name every installation shares, so
+ * the card writes the word the glossary and the reply both use; every other name is the
+ * site's own and is shown as it was given.
+ */
+export function environmentLabel(environment: string): string {
+  return environment === PROD_ENVIRONMENT ? t("environment.production") : environment;
 }
 
 /**

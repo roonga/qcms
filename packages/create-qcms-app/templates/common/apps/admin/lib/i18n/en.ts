@@ -80,6 +80,8 @@ export const messages = {
   "appearance.contrast.off": "Off",
 
   /** Environment names are API data, never a closed catalog vocabulary. */
+  /** The glossary's own word for production; every other environment is named by the site. */
+  "environment.production": "Production",
   "environment.legend": "Environment",
   /** The trigger's own visible text has to appear in its name, in order and unbroken (WCAG 2.5.3). */
   "environment.trigger": "Environment {environment}",
@@ -1882,8 +1884,10 @@ export const messages = {
   "forms.assist.definition.questionId": "Id",
   "forms.assist.definition.type": "Type",
   "forms.assist.definition.label": "Label",
-  "forms.assist.definition.help": "Help",
-  "forms.assist.definition.required": "Required",
+  "forms.assist.definition.help": "Help text",
+  /** The question editor's own sentence, so the card and the editor read the same. */
+  "forms.assist.definition.requiredYes": "An answer is required",
+  "forms.assist.definition.requiredNo": "An answer is optional",
   "forms.assist.definition.constraints": "Constraints",
   "forms.assist.definition.messages": "Validation messages",
   "forms.assist.definition.options": "Options",
@@ -1937,7 +1941,7 @@ export const messages = {
     "Starts a new version, copied from the latest one and not published yet. Nothing published changes, and no form moves to it until a form uses it.",
   "agent.card.form.create.title": "Create the {form} form",
   "agent.card.form.create.consequence":
-    "Creates the form and its first empty draft. The address is fixed when the form is created and cannot be changed afterwards. Nobody can answer the form until you publish it to an environment.",
+    "Creates the form and its first empty draft. Its identifier is fixed when the form is created and cannot be changed afterwards. Nobody can answer the form until you publish it to an environment.",
   "agent.card.form.publish.title": "Publish {form} to {environment}",
   "agent.card.form.publish.consequence":
     "Freezes the working draft as a version that never changes and makes that version live in {environment}, in one step. Anyone starting from now gets it there.",
@@ -2037,7 +2041,7 @@ export const messages = {
   /** Ids are support detail, not the subject of a sentence; the card names its subject by title. */
   "agent.card.ids": "Identifiers",
   "agent.card.arg.formId": "Form",
-  "agent.card.arg.slug": "Address",
+  "agent.card.arg.slug": "Identifier",
   "agent.card.arg.questionId": "Question",
   "agent.card.arg.definition": "Definition",
   "agent.card.arg.defaultLocale": "Language you write in",

@@ -128,6 +128,20 @@ export function isDay(raw: unknown): raw is string {
   return typeof raw === "string" && DAY.test(raw);
 }
 
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/u;
+
+/** The viewer's own instant, in the browser's own UTC spelling and nothing else. */
+export function isViewerInstant(raw: unknown): raw is string {
+  return typeof raw === "string" && INSTANT.test(raw);
+}
+
+const ZONE = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+){0,2}$/u;
+
+/** The zone the viewer reads a date and an instant in, held to the shape of an IANA name. */
+export function isViewerZone(raw: unknown): raw is string {
+  return typeof raw === "string" && raw.length <= 64 && ZONE.test(raw);
+}
+
 const ID_KEYS = ["formId", "questionId", "workspaceId", "sessionId"] as const;
 
 export function parseAssistParams(raw: unknown): AssistParamsRelay | undefined {

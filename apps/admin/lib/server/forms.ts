@@ -366,6 +366,8 @@ export function assist(
     readonly conversationId?: string;
     readonly visitId?: string;
     readonly viewerToday?: string;
+    readonly viewerNow?: string;
+    readonly viewerZone?: string;
   },
 ): Promise<Response> {
   return adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft/assist`, {
@@ -384,6 +386,8 @@ export function screenAssist(
     readonly conversationId: string;
     readonly visitId?: string;
     readonly viewerToday?: string;
+    readonly viewerNow?: string;
+    readonly viewerZone?: string;
   },
 ): Promise<Response> {
   return adminApiFetch(session, "/assist", { method: "POST", body });
