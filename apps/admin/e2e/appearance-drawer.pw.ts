@@ -226,7 +226,8 @@ test("the lock is the administrator's and the themes are the Edit forms holder's
 }) => {
   test.setTimeout(300_000);
   await setLock(true);
-  await enrollNewAdmin(page, ADMIN_ONLY_EMAIL);
+  // Holding no form or question grant, this account lands in the Workspaces area, not authoring.
+  await enrollNewAdmin(page, ADMIN_ONLY_EMAIL, /\/workspaces\//u);
   await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
   await waitForHydration(page);
 
