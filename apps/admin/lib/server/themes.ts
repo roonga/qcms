@@ -63,8 +63,8 @@ function themePath(workspaceId: string, themeId: string): `/${string}` {
 }
 
 /**
- * The lock travels with the list because an Edit forms holder who is no administrator cannot
- * read workspace settings, and the drawer and the Settings switch both have to show it.
+ * The lock travels with the list so a caller who reads themes learns it without a read of
+ * workspace settings, which is an administrator's to make.
  */
 export interface WorkspaceThemeList {
   readonly themes: readonly WorkspaceTheme[];
