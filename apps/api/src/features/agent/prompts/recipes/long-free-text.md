@@ -1,4 +1,4 @@
-# A longer typed answer
+# Longer answer
 
 **Use for:** a reason for a visit, a description of what happened, comments, a free text statement on a declaration, other information.
 

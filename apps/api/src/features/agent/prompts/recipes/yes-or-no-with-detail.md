@@ -12,7 +12,7 @@
 
 **Cannot be expressed**
 
-- A follow-up revealed by a select all that apply answer on the same step. That answer is only committed when the respondent leaves the group of tick boxes, so the reveal cannot happen while they are still in it. Put the follow-up on the next step. The product warns about this when the form is published.
+- A follow-up revealed by a choose several answer on the same step. That answer is only committed when the respondent leaves the group of tick boxes, so the reveal cannot happen while they are still in it. Put the follow-up on the next step. The product warns about this when the form is published.
 - A rule reading a question that comes later in the form.
 
 **Say this**

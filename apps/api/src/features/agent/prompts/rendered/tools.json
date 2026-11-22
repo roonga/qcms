@@ -2799,7 +2799,7 @@
   },
   {
     "name": "list_workspaces",
-    "description": "List the workspaces this caller administers, with whether each is the shared library and whether it has Second approval on for a publish to prod.",
+    "description": "List the workspaces this caller administers, with whether each is the shared library and whether it has Second approval on for a publish to production.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -2934,7 +2934,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Apply the draft you proposed with propose_draft to this form's working draft, for the user to review as a diff and confirm. Call propose_draft first. It publishes nothing and puts nothing live: the draft is stored as a draft and marked agent-assisted."
+                "description": "Apply the draft you proposed with propose_draft to this form's working draft, for the user to review as a diff and confirm. Call propose_draft first. It publishes nothing and puts nothing live: the draft is stored as a draft and marked as changed by the assistant."
               },
               {
                 "type": "object",
@@ -2987,7 +2987,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Save a complete draft to a form, through the same save path every edit in the builder takes. It publishes nothing and puts nothing live: the draft is stored as a draft and marked agent-assisted. This is how a form goes from blank to a reviewable draft, after form.create and any question.create steps of the same plan."
+                "description": "Save a complete draft to a form, through the same save path every edit in the builder takes. It publishes nothing and puts nothing live: the draft is stored as a draft and marked as changed by the assistant. This is how a form goes from blank to a reviewable draft, after form.create and any question.create steps of the same plan."
               },
               {
                 "type": "object",
@@ -3038,7 +3038,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Publish the form's working draft to one environment: freeze it as the next version and make that version live there, in one act. Needs Edit forms and Publish forms for that environment. Where a non-prod environment exists a draft is never published straight to prod. The workflow and second approval apply exactly as they do on the screen."
+                "description": "Publish the form's working draft to one environment: freeze it as the next version and make that version live there, in one act. Needs Edit forms and Publish forms for that environment. Where a non-production environment exists a draft is never published straight to production. The workflow and second approval apply exactly as they do on the screen."
               },
               {
                 "type": "object",
@@ -3114,7 +3114,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Publish an existing version to one environment, including an earlier one (rollback). Nothing is frozen. Prod accepts only a version already live in a non-prod environment, where one exists. The workflow revision, the destination's current state and second approval are all rechecked at confirmation, so a stale review is refused and writes nothing, exactly as on the screen."
+                "description": "Publish an existing version to one environment, including an earlier one, which makes that earlier version live again. Nothing is frozen. Production accepts only a version already live in a non-production environment, where one exists. The workflow revision, the destination's current state and second approval are all rechecked at confirmation, so a stale review is refused and writes nothing, exactly as on the screen."
               },
               {
                 "type": "object",
@@ -3493,7 +3493,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Let one flagged response's withheld submission event through, so its consumers receive it."
+                "description": "Send one flagged response's withheld submission event on, so its consumers receive it."
               },
               {
                 "type": "object",
@@ -4279,7 +4279,7 @@
                         "anyOf": [
                           {
                             "type": "boolean",
-                            "description": "Whether a publish to prod and a response self-grant need a second account."
+                            "description": "Whether a publish to production and a response self-grant need a second account."
                           },
                           {
                             "$ref": "#/$defs/StepReference_d3"
@@ -4299,7 +4299,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Change the workspace's Second approval switch: whether a publish to prod and a response self-grant need a second account."
+                "description": "Change the workspace's Second approval switch: whether a publish to production and a response self-grant need a second account."
               },
               {
                 "type": "object",

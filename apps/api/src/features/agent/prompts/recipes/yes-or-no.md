@@ -13,7 +13,7 @@
 
 - An answer forced to be Yes. See the consent and acknowledgement recipe.
 - A third value. Yes or no holds two.
-- Leaving it genuinely blank once answered, where the form is filled in with scripting on. Say so if the person wants a "no answer" state, and use a single choice with its own option for that.
+- Leaving it genuinely blank once answered, where the form is filled in with scripting on. Say so if the person wants a "no answer" state, and use a choose one with its own option for that.
 
 **Say this when the person wants a third answer**
 

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { LOGO_MAX_BYTES } from "@/lib/forms/logo";
+import { t } from "@/lib/i18n/en";
 import type { MembershipActionState } from "@/lib/membership/types";
 import { shippedThemeOptions } from "@/lib/server/appearance-options";
 
@@ -181,8 +182,6 @@ describe("the themes list", () => {
 
   it("names where a theme is created, since Settings does not create one", () => {
     render(panel({ themes: [] }));
-    expect(
-      screen.getByText("A theme is saved from a form's Appearance drawer in the agent builder."),
-    ).not.toBeNull();
+    expect(screen.getByText(t("themes.create.note"))).not.toBeNull();
   });
 });

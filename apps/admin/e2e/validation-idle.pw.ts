@@ -78,7 +78,7 @@ test("a stored, checked, clean draft still says it has not been checked after a 
   await signInWithTotp(page, EMAIL, totpSecret);
 
   const questionSlug = `e2e-idle-${RUN}`;
-  await createDraft(page, questionSlug, "Short text");
+  await createDraft(page, questionSlug, "shortText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   await createForm(page, `idle-${RUN}`, "Untouched draft");

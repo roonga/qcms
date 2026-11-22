@@ -1,9 +1,9 @@
 ---
 title: Environments
-description: Release states over shared versions, and what is shared rather than copied.
+description: Which version is live where over shared versions, and what is shared rather than copied.
 ---
 
-An environment is a release state over shared authoring content, not a separate copy of it.
+An environment is a live-version state over shared authoring content, not a separate copy of it.
 Environment names are configurable: `dev`, `test`, `stg` and `prod` are an example deployment, not
 four mandatory environments.
 
@@ -14,7 +14,7 @@ reporting schema per environment.
 
 | Shared across the deployment                                 | Separate for each environment                  |
 | ------------------------------------------------------------ | ---------------------------------------------- |
-| Workspaces, memberships and access grants                    | The form version currently released            |
+| Workspaces, memberships and access grants                    | The form version currently live                |
 | Question identities and version history                      | Whether a form accepts new sessions            |
 | Form identities, editable drafts and immutable versions      | Respondent sessions, answers and submissions   |
 | A form version's exact question-version references and rules | Secure-link destination and access             |
@@ -24,13 +24,13 @@ The rules that follow from that split:
 
 - Editing a question or form draft changes shared authoring content. There is no independent copy of
   that draft per environment.
-- Publishing creates an immutable version. Releasing makes an existing version available in an
-  environment. The combined operation can do both atomically.
-- Promotion releases the same version in another environment. It copies neither content nor
+- Publishing creates an immutable version. Putting one live makes an existing version available in
+  an environment. The combined operation can do both atomically.
+- Promotion makes the same version live in another environment. It copies neither content nor
   respondent data.
-- A new session uses its environment's released version. Existing sessions keep the version they
-  started with, including after a promotion or a rollback.
-- Closing a form is per form and per environment. Releasing another version does not automatically
+- A new session uses the version live in its environment. Existing sessions keep the version they
+  started with, including after a promotion or a publish of an earlier version.
+- Closing a form is per form and per environment. Publishing another version does not automatically
   reopen a closed form.
 
 ## The registry
@@ -47,25 +47,25 @@ pnpm qcms:environment create <name> --password ...
 Then add a matching `QCMS_DATABASE_URL_<NAME>` and a new entry in `QCMS_ENVIRONMENTS`, and restart
 every API instance.
 
-An environment that anything was ever released to cannot be dropped, permanently, because the
-release history is append-only.
+An environment that anything was ever published to cannot be dropped, permanently, because the
+publish history is append-only.
 
-## Release constraints
+## Publishing constraints
 
-Where production is served beside any non-production environment, a production candidate must have a
-prior release in one of them, or a prior production release for rollback. An unreleased draft cannot
-be a production candidate. This floor is fixed and no workflow revision lifts it. On a
+Where production is served beside any non-production environment, a production candidate must
+already be live in one of them, or have been live in production before. A draft that is live nowhere
+cannot be a production candidate. This floor is fixed and no workflow revision lifts it. On a
 production-only deployment a draft publishes to production.
 
-A test release records availability, not a successful manual test. There is no separate persisted
-test-pass gate.
+Putting a version live in test records availability, not a successful manual test. There is no
+separate persisted test-pass gate.
 
 A workspace can turn on a second-approver requirement for production. The approver must then differ
-from the account that froze that version, including for a rollback, and production webhook changes
-become a proposal followed by confirmation from another eligible account.
+from the account that froze that version, including when an earlier version is published, and
+production webhook changes become a proposal followed by confirmation from another eligible account.
 
-Release history records the version, the destination, the actor, the time, and the applicable source
-and approval information. A rollback adds another release record.
+Publish history records the version, the destination, the actor, the time, and the applicable source
+and approval information. Publishing an earlier version adds another row.
 
 ## In the admin
 
@@ -75,8 +75,8 @@ area shows none.
 Availability is where a form is closed to new responses and reopened, and it reads as Open, Closed
 or Not live.
 
-The screens call the one act Publish and never Release: release stays an API path, a record name and
-a code, not a word the forms UI shows.
+The screens call the one act Publish: the older word stays an API path, a record name and a code,
+not a word the forms UI shows.
 
 To serve non-production links from the portal, set `QCMS_PORTAL_ENVIRONMENTS` and recreate the
 portal container. The portal serves only production when that setting is empty.

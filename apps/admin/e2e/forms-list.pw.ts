@@ -14,6 +14,7 @@ import {
   waitForSaved,
 } from "./support/forms.js";
 import { publishDraftThroughWizard } from "./support/publish.js";
+import { t } from "../lib/i18n/en.js";
 
 test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
@@ -133,7 +134,7 @@ test("ends each row with a menu of that form's own screens", async ({ page }) =>
     "href",
     `/operations/forms/${formId}/links`,
   );
-  await expect(menu.getByRole("menuitem", { name: "Edit with the agent builder" })).toHaveAttribute(
+  await expect(menu.getByRole("menuitem", { name: t("forms.menu.agentBuilder") })).toHaveAttribute(
     "href",
     `/forms/${formId}/build`,
   );
@@ -215,7 +216,11 @@ test("sorts the library from the toolbar", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await openLibrary(page);
 
-  await chooseOption(page.locator("form.qcms-filters"), "Sort by", "Slug (Z to A)");
+  await chooseOption(
+    page.locator("form.qcms-filters"),
+    t("forms.filter.sort"),
+    t("forms.filter.sort.slug-desc"),
+  );
   await page.getByRole("button", { name: "Apply" }).click();
 
   await expect(page).toHaveURL(/[?&]sort=slug-desc/);
@@ -234,7 +239,9 @@ test("reopens a filtered library from its URL alone, controls and all", async ({
   await expect(field(page, "Search")).toHaveValue(SCOPE);
 
   await expect(toolbar.getByRole("button", { name: /Availability$/ })).toContainText("Not live");
-  await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toContainText("Slug (Z to A)");
+  await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toContainText(
+    t("forms.filter.sort.slug-desc"),
+  );
 });
 
 test("says something useful when the filters match nothing, and offers the way back", async ({

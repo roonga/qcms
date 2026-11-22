@@ -40,8 +40,16 @@ import {
   refuseDraftThroughWizard,
   releaseThroughWizard,
 } from "./support/publish.js";
-import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
+import {
+  confirmLifecycle,
+  createDraft,
+  draftLabel,
+  fillDate,
+  optionIds,
+} from "./support/questions.js";
+import type { QuestionType } from "../lib/questions/types.js";
 import { waitForHydration } from "./support/hydration.js";
+import { t } from "../lib/i18n/en.js";
 
 // Keep the reveal rule within one step and after its condition so missing output cannot be mistaken for an unreached step.
 
@@ -66,9 +74,9 @@ function questionIdFor(slug: string): string {
   return `q_${slug.replaceAll("-", "_")}`;
 }
 
-const AT_FAULT_LABEL = "E2E Single choice question";
-const COUNT_LABEL = "E2E Number question";
-const NOTES_LABEL = "E2E Long text question";
+const AT_FAULT_LABEL = draftLabel("singleChoice");
+const COUNT_LABEL = draftLabel("number");
+const NOTES_LABEL = draftLabel("longText");
 
 const YES_LABEL = "Yes, always";
 const NO_LABEL = "No, never";
@@ -91,8 +99,8 @@ test.beforeAll(async () => {
 
 const NEEDS_BOTH_ROLES = "Publishing a draft needs Edit forms and Publish forms in this workspace.";
 
-async function publishQuestion(page: Page, slug: string, typeLabel: string): Promise<void> {
-  await createDraft(page, slug, typeLabel);
+async function publishQuestion(page: Page, slug: string, type: QuestionType): Promise<void> {
+  await createDraft(page, slug, type);
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 }
 
@@ -110,13 +118,13 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await publishQuestion(page, AT_FAULT, "Single choice");
+  await publishQuestion(page, AT_FAULT, "singleChoice");
   const options = await optionIds(page);
   atFaultYesOption = options[0] ?? "";
   expect(atFaultYesOption, "the choice question should carry minted option ids").toMatch(/^opt_/u);
 
-  await publishQuestion(page, ACCIDENT_COUNT, "Number");
-  await publishQuestion(page, CLAIM_NOTES, "Long text");
+  await publishQuestion(page, ACCIDENT_COUNT, "number");
+  await publishQuestion(page, CLAIM_NOTES, "longText");
 
   formId = await createForm(page, FORM_SLUG, FORM_TITLE);
 
@@ -398,7 +406,7 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   await chooseEnvironment(page, "prod");
 
   await expect(page.getByTestId("qcms-links-empty")).toBeVisible();
-  await page.getByRole("button", { name: "Mint links" }).click();
+  await page.getByRole("button", { name: t("forms.links.mint") }).click();
 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -410,11 +418,18 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   const count = dialog.getByRole("textbox", { name: "How many" });
   await count.click();
   await count.fill("2");
-  await dialog.getByRole("button", { name: "Mint for prod", exact: true }).click();
+  await dialog
+    .getByRole("button", {
+      name: t("forms.links.confirmMint", { environment: "prod" }),
+      exact: true,
+    })
+    .click();
 
   const minted = page.getByTestId("qcms-minted-links");
   await expect(minted).toBeVisible({ timeout: 30_000 });
-  await expect(minted.getByRole("heading", { name: "2 links minted" })).toBeVisible();
+  await expect(
+    minted.getByRole("heading", { name: t("forms.links.mintedTitle.other", { count: 2 }) }),
+  ).toBeVisible();
   await expect(minted).toContainText("cannot be shown again");
 
   // Poll focus after the mint dialog closes: React Aria restores focus a frame after the panel mounts.
@@ -430,7 +445,7 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   await expect(linksStatus).toBeAttached();
 
   await expect(linksStatus).toHaveAttribute("aria-live", "polite");
-  await expect(linksStatus).toContainText("2 secure links minted");
+  await expect(linksStatus).toContainText(t("forms.links.mintedAnnounce.other", { count: 2 }));
   // Keep token URLs out of live announcements; only the outcome sentence should be spoken.
   await expect(linksStatus).not.toContainText("/l/");
   await expect(linksStatus.getByTestId("qcms-minted-links")).toHaveCount(0);
@@ -459,7 +474,7 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   await expect
     .poll(() => activeElementId(page), { message: "focus should leave the dismissed panel" })
     .not.toBe("qcms-minted-heading");
-  await expect(page.getByRole("button", { name: "Mint links" })).toBeFocused();
+  await expect(page.getByRole("button", { name: t("forms.links.mint") })).toBeFocused();
 
   const table = page.getByTestId("qcms-links-table");
   await expect(table.getByRole("row")).toHaveCount(3);
@@ -516,9 +531,7 @@ test("the destinations step states the fixed prod floor and offers no freeze on 
   // This harness serves test beside prod, so the floor is in force.
   const floor = page.getByTestId("qcms-publish-prod-floor");
   await expect(floor).toHaveAttribute("data-floor", "true");
-  await expect(floor).toHaveText(
-    "Prod accepts only a version already live in a non-prod environment. This is fixed, not a setting.",
-  );
+  await expect(floor).toHaveText(t("forms.publish.destinations.prodFloor"));
   await expect(page.getByTestId("qcms-publish-only")).toHaveCount(0);
 });
 

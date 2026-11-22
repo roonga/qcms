@@ -1,6 +1,7 @@
 import { TABLE_COLUMN_TYPES } from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
+import { t } from "../i18n/en.ts";
 import {
   ALLOWED_COLUMN_TYPES,
   columnTypeNote,
@@ -96,8 +97,8 @@ describe("the column view's rows", () => {
 describe("the sentence the refusal says", () => {
   it("names every allowed type and the stacked presentation as the way out", () => {
     const note = columnTypeNote();
-    for (const label of ["Short text", "Number", "Date", "Yes or no", "Single choice"]) {
-      expect(note).toContain(label);
+    for (const type of ALLOWED_COLUMN_TYPES) {
+      expect(note).toContain(t(`questions.type.${type}`));
     }
 
     expect(note).toContain("stacked");

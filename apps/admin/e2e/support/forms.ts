@@ -3,6 +3,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { chooseEnvironment } from "./environment.js";
 import { fillStable } from "./flow.js";
 import { waitForHydration } from "./hydration.js";
+import { t } from "../../lib/i18n/en.js";
 import { chooseDestination, chooseSource, openPublishWizard } from "./publish.js";
 
 // Autosave pauses on empty drafts, empty steps and rules without targets.
@@ -16,7 +17,7 @@ export async function createForm(page: Page, slug: string, title: string): Promi
   await page.goto("/forms/new");
   await waitForHydration(page);
 
-  await fillStable(field(page, "Slug"), slug);
+  await fillStable(field(page, t("forms.create.slug")), slug);
   await fillStable(field(page, "Title"), title);
   await Promise.all([
     page.waitForURL(/\/forms\/frm_/),

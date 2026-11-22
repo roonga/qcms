@@ -29,7 +29,7 @@ test("1011 the option grid's insert point and grip are visible where nothing can
 }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, `e2e-touch-${Date.now().toString(36)}`, "Single choice");
+  await createDraft(page, `e2e-touch-${Date.now().toString(36)}`, "singleChoice");
   const detail = new URL(page.url()).pathname;
   expect(detail, "the created question owns the URL").toMatch(/^\/questions\/q_/u);
 

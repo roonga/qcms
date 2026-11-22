@@ -40,7 +40,7 @@ test.beforeAll(async ({ browser }) => {
   await createTestAdmin(EMAIL);
   const page = await browser.newPage({ baseURL: ADMIN_BASE_URL });
   secret = await enrollNewAdmin(page, EMAIL);
-  await createDraft(page, CHOICE_SLUG, "Single choice");
+  await createDraft(page, CHOICE_SLUG, "singleChoice");
   questionId = new URL(page.url()).pathname.split("/").pop() ?? "";
   await page.close();
 });

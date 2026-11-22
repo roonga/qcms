@@ -1,4 +1,4 @@
-# Pick one from a list
+# Choose one from a list
 
 **Use for:** a licence class, a filing status, a tax code, a country, a relationship, a contact channel, a reason for a claim: any question with one answer out of a set list.
 

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { t } from "../../lib/i18n/en.ts";
 import type { DraftForm, DraftPin, PinnableQuestion } from "../../lib/forms/types.ts";
 import { LibraryPicker } from "./library-picker.tsx";
 import { TableColumnView } from "./table-column-view.tsx";
@@ -57,15 +58,15 @@ describe("the column view", () => {
         0,
       );
     }
-    expect(rows[0]?.textContent).toContain("Short text");
-    expect(rows[1]?.textContent).toContain("Number");
+    expect(rows[0]?.textContent).toContain(t("questions.type.shortText"));
+    expect(rows[1]?.textContent).toContain(t("questions.type.number"));
     expect(rows[0]?.querySelector('th[scope="row"]')?.textContent).toBe("The q_plate");
   });
 
   it("says which five types a column may be, and names the stacked presentation", () => {
     render(<TableColumnView members={[pin("q_plate")]} library={LIBRARY} />);
     const note = screen.getByTestId("column-type-note").textContent ?? "";
-    expect(note).toContain("Short text");
+    expect(note).toContain(t("questions.type.shortText"));
     expect(note).toContain("stacked");
   });
 
@@ -128,7 +129,7 @@ describe("the filtered library picker (acceptance case 62's substance)", () => {
   it("says why the others are absent, and names the stacked presentation", () => {
     openPicker(true);
     const note = document.querySelector('[data-testid="qcms-picker-column-note"]');
-    expect(note?.textContent).toContain("Long text");
+    expect(note?.textContent).toContain(t("questions.type.longText"));
     expect(note?.textContent).toContain("stacked");
   });
 

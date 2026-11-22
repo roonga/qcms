@@ -11,13 +11,13 @@
   - `fixed` with a count, where the source form has exactly that many slots. The count is the limit, and no maximum is declared.
   - `fromAnswer`, naming a number question that comes strictly before the group and is not itself inside a group. A maximum must be declared.
   - `open`, which the respondent adds to and removes from. A maximum must be declared.
-- A `presentation`: `stacked` for a card per thing, `perInstanceStep` for a page per thing, `table` for a row per thing. The table layout takes only short text, number, date, yes or no and pick-one columns, so a longer typed answer or a select all that apply cannot be a column.
+- A `presentation`: `stacked` for a card per thing, `perInstanceStep` for a page per thing, `table` for a row per thing. The table layout takes only short answer, number, date, yes or no and choose one columns, so a longer answer or a choose several cannot be a column.
 - A rule whose target sits inside the group is applied once per thing, and a reference to another question in the same group means that thing's answer. Write it as an ordinary rule.
 
 **Cannot be expressed**
 
 - A group inside a group. The nesting depth is one, so a household of people each with several jobs cannot be built as written. Flatten it, or ask the jobs of one person only.
-- A longer typed answer or a select all that apply as a table column. Use the stacked layout where the source form needs one.
+- A longer answer or a choose several as a table column. Use the stacked layout where the source form needs one.
 - A rule comparing one thing with another within a set, or asking whether two of them are the same.
 - An unbounded set. A maximum is needed for both the counted and the open sources, and it is the only limit on how many a respondent can create.
 

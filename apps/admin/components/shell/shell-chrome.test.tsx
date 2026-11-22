@@ -2,6 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ShellChrome } from "./shell-chrome.tsx";
+import { t } from "../../lib/i18n/en.ts";
 import { BUILDER_RETURN_KEY } from "../../lib/forms/build-return.ts";
 import { setBuilderSubjectName } from "../../lib/shell/builder-subject.ts";
 import { OPERATIONS_RETURN_KEY } from "../../lib/shell/leave-operations.ts";
@@ -85,19 +86,19 @@ describe("the top bar", () => {
   });
 });
 
-describe("the agent builder's top bar group", () => {
+describe("the assistant mode's top bar group", () => {
   it("replaces the navigation with the title, the form's name and Exit, with no environment", () => {
     location.pathname = "/forms/frm_a/build";
     render(chrome());
     act(() => {
       setBuilderSubjectName("Patient intake");
     });
-    const group = screen.getByRole("group", { name: "Agent builder" });
+    const group = screen.getByRole("group", { name: t("shell.mode.builder.name") });
     expect(group.getAttribute("data-mode")).toBe("builder");
     expect(screen.getByTestId("qcms-builder-subject").textContent).toBe("Patient intake");
     expect(screen.queryByRole("navigation", { name: "Primary" })).toBeNull();
     expect(screen.queryByTestId("qcms-environment-switcher")).toBeNull();
-    const exit = screen.getByRole("link", { name: "Exit the agent builder" });
+    const exit = screen.getByRole("link", { name: t("shell.mode.builder.exit") });
     expect(exit.textContent).toBe("Exit");
     act(() => {
       setBuilderSubjectName("");
@@ -111,7 +112,7 @@ describe("the agent builder's top bar group", () => {
 
     location.pathname = "/forms/frm_a/build";
     view.rerender(chrome());
-    expect(screen.getByRole("group", { name: "Agent builder" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: t("shell.mode.builder.name") })).toBeTruthy();
     expect(screen.queryByTestId("qcms-workspace-switcher")).toBeNull();
     expect(screen.queryByTestId("qcms-tools-stub")).toBeNull();
     expect(view.container.querySelector(".qcms-topbar__tools")).toBeNull();

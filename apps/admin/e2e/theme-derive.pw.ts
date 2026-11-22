@@ -7,7 +7,7 @@ import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { addStep, createForm, pinQuestion, waitForSaved } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
-import { confirmLifecycle, createDraft } from "./support/questions.js";
+import { confirmLifecycle, createDraft, draftLabel } from "./support/questions.js";
 
 /*
  * The derive flow against the local TLS fixture origin the harness points the SEC-18 fetcher
@@ -22,7 +22,7 @@ const EMAIL = uniqueAdminEmail("derive117");
 const RUN = Date.now().toString(36);
 const TEXT_SLUG = `e2e-derive-text-${RUN}`;
 const TEXT_ID = `q_${TEXT_SLUG.replaceAll("-", "_")}`;
-const TEXT_LABEL = "E2E Long text question";
+const TEXT_LABEL = draftLabel("longText");
 const THEME_NAME = `From the site ${RUN}`;
 
 const SITE = "https://brand.example/";
@@ -86,7 +86,7 @@ test.beforeAll(async () => {
 test("builds a draft the derive can dress", async ({ page }) => {
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
-  await createDraft(page, TEXT_SLUG, "Long text");
+  await createDraft(page, TEXT_SLUG, "longText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   formId = await createForm(page, `e2e-derive-${RUN}`, "Derive intake");

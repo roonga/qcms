@@ -643,9 +643,9 @@ function secondApproverRefusal(
   );
   if (!sameAct && release < 0) return undefined;
   return (
-    "This workspace has Second approval on for a publish to prod, and ADR-41 refuses a " +
-    "publish by the account that froze the version. Propose the publish into a lower " +
-    "environment on its own; the publish to prod is a card another account puts up."
+    "This workspace has Second approval on for a publish to production, and ADR-41 refuses " +
+    "a publish by the account that froze the version. Propose the publish into a lower " +
+    "environment on its own; the publish to production is a card another account puts up."
   );
 }
 

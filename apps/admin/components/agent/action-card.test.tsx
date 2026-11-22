@@ -3,6 +3,7 @@ import { useRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgentPlanStep, AgentProposal } from "@/lib/forms/assist-stream";
+import { t } from "@/lib/i18n/en";
 import { DEFAULT_LOCALE, formatDateTime } from "@/lib/i18n/format";
 import {
   cancelCard,
@@ -282,10 +283,12 @@ describe("rule 3: never weaker than the screen's dialog", () => {
     const rows = container.querySelectorAll(".qcms-acard__step");
 
     const production = rows[0] as HTMLElement;
-    expect(production.textContent).toContain("This is prod. Real respondents get this");
+    expect(production.textContent).toContain(t("agent.card.environment.production"));
     expect(production.querySelectorAll(".qcms-envchip")).toHaveLength(1);
     expect(production.querySelector(".qcms-acard__band")).toBeNull();
-    expect((rows[1] as HTMLElement).textContent).not.toContain("This is prod.");
+    expect((rows[1] as HTMLElement).textContent).not.toContain(
+      t("agent.card.environment.production"),
+    );
   });
 
   it("keeps Confirm disabled until a step's typed confirmation is entered", () => {

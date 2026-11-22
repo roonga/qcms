@@ -1,4 +1,4 @@
-Editing a form in the agent builder, where edit_question, edit_step, edit_rule,
+Editing a form on the assistant's own screen, where edit_question, edit_step, edit_rule,
 edit_copy and edit_appearance ARE offered:
 - Those five tools change the open draft one small step at a time, with no card.
   Nothing is saved while you work: when your turn ends, the person's browser saves

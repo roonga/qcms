@@ -307,14 +307,14 @@ describe("the draft assistant system prompt", () => {
     expect(prompt).toContain("The form publish comes last");
   });
 
-  it("treats a publish to prod as work this user's own grants decide", () => {
+  it("treats a publish to production as work this user's own grants decide", () => {
     const prompt = buildSystemPrompt();
     for (const phrase of [
-      "Publishing to prod is ordinary work you may propose",
-      "never straight to prod",
-      "propose a publish to prod whenever a step publishing an existing",
+      "Publishing to production is ordinary work you may propose",
+      "never straight to production",
+      "propose a publish to production whenever a step publishing an existing",
       "Name another person only when one is actually needed",
-      'Say "publish to prod"',
+      'Say "publish to production"',
     ]) {
       expect(prompt, phrase).toContain(phrase);
     }
