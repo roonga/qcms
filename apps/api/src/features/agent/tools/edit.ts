@@ -115,7 +115,9 @@ export const EditAppearanceInput = z.strictObject({
     "The brand colour all four palettes are derived from, as #rrggbb. Required for a form " +
       "that has no appearance yet.",
   ),
-  secondary: HexColor.optional().describe("A second brand colour, as #rrggbb. Derived when absent."),
+  secondary: HexColor.optional().describe(
+    "A second brand colour, as #rrggbb. Derived when absent.",
+  ),
   face: AppearanceFace.optional().describe("The type face, from the registry."),
   corners: z.enum(APPEARANCE_CORNERS).optional(),
   density: z.enum(APPEARANCE_DENSITIES).optional(),
@@ -328,9 +330,7 @@ function applyCopy(draft: FormDefinition, input: z.infer<typeof EditCopyInput>):
   }
 }
 
-const APPLY: Readonly<
-  Record<DefinitionEditOp, (draft: FormDefinition, input: unknown) => void>
-> = {
+const APPLY: Readonly<Record<DefinitionEditOp, (draft: FormDefinition, input: unknown) => void>> = {
   question: (draft, input) => {
     applyQuestion(draft, EditQuestionInput.parse(input));
   },
@@ -463,4 +463,3 @@ export function applyAppearanceEdit(
   }
   return { ok: true, appearance: parsed.data };
 }
-

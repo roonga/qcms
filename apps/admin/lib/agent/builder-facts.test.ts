@@ -180,9 +180,7 @@ describe("the derived-theme fact", () => {
       face: "lexend",
       pageTint: true,
       hasLogo: true,
-      corrections: [
-        { palette: "light", role: "primary", from: MOVED_FROM, to: MOVED_TO },
-      ],
+      corrections: [{ palette: "light", role: "primary", from: MOVED_FROM, to: MOVED_TO }],
       tintDropped: ["darkHighContrast"],
     });
   });

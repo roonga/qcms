@@ -1,9 +1,4 @@
-import type {
-  Appearance,
-  FormDefinition,
-  QuestionDefinition,
-  QuestionId,
-} from "@roonga/qcms-core";
+import type { Appearance, FormDefinition, QuestionDefinition, QuestionId } from "@roonga/qcms-core";
 
 import type { PendingQuestionVersion, PublishIssue, PublishWarning } from "../forms/handler.js";
 import type { OfferedActionKind } from "./grant-filter.js";

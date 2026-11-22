@@ -220,7 +220,12 @@ export async function deriveWorkspaceTheme(
   if (!result.ok) return result;
   const derived = parseDerived(result.data.derived);
   if (derived === undefined) {
-    return { ok: false, code: "INVALID_THEME", message: messageForFormCode("INVALID_THEME"), issues: [] };
+    return {
+      ok: false,
+      code: "INVALID_THEME",
+      message: messageForFormCode("INVALID_THEME"),
+      issues: [],
+    };
   }
   return { ok: true, data: derived };
 }

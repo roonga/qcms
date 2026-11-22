@@ -302,7 +302,13 @@ function toBuilderEdit(raw: unknown): BuilderEdit | undefined {
   if (!isKeyedObject(definition) || Array.isArray(definition)) return undefined;
   const look = isKeyedObject(appearance) && !Array.isArray(appearance) ? appearance : undefined;
   if (known === "appearance" && look === undefined) return undefined;
-  return { index, op: known, token, definition, ...(look === undefined ? {} : { appearance: look }) };
+  return {
+    index,
+    op: known,
+    token,
+    definition,
+    ...(look === undefined ? {} : { appearance: look }),
+  };
 }
 
 // An unreadable edit drops the whole set: a later edit's token binds the state an earlier one left.

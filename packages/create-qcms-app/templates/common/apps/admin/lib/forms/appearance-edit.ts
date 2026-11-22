@@ -49,10 +49,7 @@ export interface NewWorkspaceTheme {
 }
 
 /** The derived look over the appearance the drawer is showing, which Done then saves. */
-export function appearanceFromDerived(
-  derived: DerivedTheme,
-  base: Appearance | null,
-): Appearance {
+export function appearanceFromDerived(derived: DerivedTheme, base: Appearance | null): Appearance {
   return appearanceFromTheme(
     {
       key: "",

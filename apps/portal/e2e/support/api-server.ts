@@ -137,7 +137,8 @@ const BRAND_PAGE = `<!doctype html><html><head><title>Bright Start</title>
 </head><body><h1>Bright Start Early Learning</h1></body></html>`;
 
 /** A page that declares no colour at all, which is the route's `nothing found`. */
-const PLAIN_PAGE = "<!doctype html><html><head><title>Plain</title></head><body>Hello</body></html>";
+const PLAIN_PAGE =
+  "<!doctype html><html><head><title>Plain</title></head><body>Hello</body></html>";
 
 /* A one-pixel PNG, so the derive exercises the sniff and the re-encode with no fixture file. */
 const LOGO_PNG =
@@ -148,9 +149,7 @@ function serveBrandSite(site: BrandFixtureServer): void {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(BRAND_PAGE);
   });
   site.route("brand.example", "/logo.png", (_request, response) => {
-    response
-      .writeHead(200, { "content-type": "image/png" })
-      .end(Buffer.from(LOGO_PNG, "base64"));
+    response.writeHead(200, { "content-type": "image/png" }).end(Buffer.from(LOGO_PNG, "base64"));
   });
   site.route("other-site.example", "/", (_request, response) => {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(PLAIN_PAGE);

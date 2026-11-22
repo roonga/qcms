@@ -166,8 +166,7 @@ export function BuilderAssistant({
                 ? { definition: stored.definition, appearance: stored.appearance }
                 : undefined;
             },
-            save: (definition, token, appearance) =>
-              actions.apply(definition, token, appearance),
+            save: (definition, token, appearance) => actions.apply(definition, token, appearance),
           },
     [actions],
   );
