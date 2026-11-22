@@ -216,7 +216,11 @@ test("sorts the library from the toolbar", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await openLibrary(page);
 
-  await chooseOption(page.locator("form.qcms-filters"), "Sort by", "Slug (Z to A)");
+  await chooseOption(
+    page.locator("form.qcms-filters"),
+    t("forms.filter.sort"),
+    t("forms.filter.sort.slug-desc"),
+  );
   await page.getByRole("button", { name: "Apply" }).click();
 
   await expect(page).toHaveURL(/[?&]sort=slug-desc/);

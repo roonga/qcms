@@ -427,7 +427,9 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
 
   const minted = page.getByTestId("qcms-minted-links");
   await expect(minted).toBeVisible({ timeout: 30_000 });
-  await expect(minted.getByRole("heading", { name: "2 links minted" })).toBeVisible();
+  await expect(
+    minted.getByRole("heading", { name: t("forms.links.mintedTitle.other", { count: 2 }) }),
+  ).toBeVisible();
   await expect(minted).toContainText("cannot be shown again");
 
   // Poll focus after the mint dialog closes: React Aria restores focus a frame after the panel mounts.

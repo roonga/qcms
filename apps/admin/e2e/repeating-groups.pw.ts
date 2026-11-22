@@ -48,6 +48,7 @@ import {
 } from "./support/publish.js";
 import { confirmLifecycle, createDraft, draftLabel, typeLabel } from "./support/questions.js";
 import type { QuestionType } from "../lib/questions/types.js";
+import { ALLOWED_COLUMN_TYPES } from "../lib/forms/table-columns.js";
 
 test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
@@ -469,7 +470,7 @@ test("filters the column picker to the allowed cell types, and says why (case 62
   await expect(columns.getByTestId("column-types-refused")).toBeVisible();
 
   const note = columns.getByTestId("column-type-note");
-  await expect(note).toContainText("Short text, Number, Date, Yes or no, Single choice");
+  await expect(note).toContainText(ALLOWED_COLUMN_TYPES.map((type) => typeLabel(type)).join(", "));
   await expect(note).toContainText("Present this group as stacked instead");
 
   await columns.getByRole("button", { name: "Add column" }).click();
