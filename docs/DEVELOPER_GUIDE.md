@@ -680,6 +680,7 @@ Each turn records what happened as `cardAction`: `confirmed`, `declined`, `left 
 - `transcript.json` - the whole conversation: each turn's message and reply, the assistant's thinking blocks and its own step timeline, then `cards`, every plan card the turn showed, each with its `index` on the page, its state, and its steps, step arguments, notes and advisory issues. `cardIndex` names the card the directive acted on, and `card` repeats that one so a reader written against a single card still works.
 
   **A turn's `reply` is read before its directive is applied**, because a plan marked `thenAnother` is answered by a turn nobody typed: the screen hands the assistant that turn the moment the last step has run, and a later read of the panel would record its words as this turn's reply. The run then waits for that follow-up rather than sending the next message into the middle of it, and records it on the same turn as `followUpReply` and `followUpSteps`. `scripts/agent-review/checks.mjs` reads both halves wherever it reads what the assistant said.
+
 - `turn-NN.png` - a full-page capture after each turn, plus `failure.png` if the run dies.
 - `secrets.json`, owner-only - one-time values, see below.
 

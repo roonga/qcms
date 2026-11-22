@@ -15,9 +15,7 @@ describe("the panel's pinned decision", () => {
   });
 
   it("pins nothing once the card is no longer waiting", () => {
-    expect(
-      pinsDecision({ ...open, waiting: false, cardHeight: 900, viewHeight: 400 }),
-    ).toBe(false);
+    expect(pinsDecision({ ...open, waiting: false, cardHeight: 900, viewHeight: 400 })).toBe(false);
   });
 
   it("pins nothing where the card asks for a typed confirmation", () => {
