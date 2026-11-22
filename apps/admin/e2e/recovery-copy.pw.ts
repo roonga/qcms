@@ -4,6 +4,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { readSetupKey, submitSignIn, submitTotp } from "./support/flow.js";
+import { waitForHydration } from "./support/hydration.js";
 
 // The reveal is spent once confirmed; each test needs a newly enrolled account and its own issued set.
 async function landOnTheReveal(page: Page, label: string): Promise<void> {
@@ -13,6 +14,7 @@ async function landOnTheReveal(page: Page, label: string): Promise<void> {
   await expect(page).toHaveURL(/\/two-factor\/enroll$/);
   await submitTotp(page, await readSetupKey(page));
   await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
+  await waitForHydration(page);
 }
 
 const status = (page: Page) => page.getByTestId("qcms-recovery-copy-status");
