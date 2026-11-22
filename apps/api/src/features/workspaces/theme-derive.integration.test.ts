@@ -303,6 +303,47 @@ describe("deriving a theme (criterion 119)", { timeout: TIMEOUT_MS }, () => {
   });
 });
 
+describe("a derived theme is a savable theme", { timeout: TIMEOUT_MS }, () => {
+  it("saves the derive's own output, logo key and all, and reads it back unchanged", async () => {
+    const workspaceId = await newWorkspace("derive-round-trip");
+    const res = await derive(workspaceId, "https://brand.example/");
+    expect(res.status, await res.clone().text()).toBe(200);
+    const { derived } = (await res.json()) as { derived: unknown };
+    const parsed = DeriveResult.parse(derived);
+    expect(parsed.logoKey).toMatch(/^[0-9a-f]{64}$/u);
+
+    // The body the drawer sends: the derive's colours, face and logo, under a name.
+    const saved = await as(on.app, editor.token, "POST", `/workspaces/${workspaceId}/themes`, {
+      name: "From the site",
+      palettes: parsed.palettes,
+      face: parsed.face,
+      corners: "subtle",
+      pageTint: parsed.pageTint,
+      logoKey: parsed.logoKey,
+      sourceHost: "brand.example",
+    });
+    expect(saved.status, await saved.clone().text()).toBe(201);
+    const { theme } = (await saved.json()) as {
+      theme: { themeId: string; name: string; palettes: unknown; face: string; logoKey: string };
+    };
+    expect(theme.name).toBe("From the site");
+    expect(theme.palettes).toStrictEqual(parsed.palettes);
+    expect(theme.face).toBe(parsed.face);
+    expect(theme.logoKey).toBe(parsed.logoKey);
+
+    const read = await as(
+      on.app,
+      editor.token,
+      "GET",
+      `/workspaces/${workspaceId}/themes/${theme.themeId}`,
+    );
+    expect(read.status).toBe(200);
+    expect(((await read.json()) as { theme: { palettes: unknown } }).theme.palettes).toStrictEqual(
+      parsed.palettes,
+    );
+  });
+});
+
 describe("one refusal for every cause (SEC-18 F10)", { timeout: TIMEOUT_MS }, () => {
   it("answers byte-identical bodies whatever refused the fetch", async () => {
     const workspaceId = await newWorkspace("derive-uniform");

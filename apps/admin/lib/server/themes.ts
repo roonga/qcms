@@ -230,16 +230,33 @@ export async function deriveWorkspaceTheme(
   return { ok: true, data: derived };
 }
 
+/**
+ * The route answers the saved row under `theme`, and the name it answers is the stored one, which
+ * is what the drawer tells the person it kept. A body without that row is a refusal here rather
+ * than a success sentence naming nothing.
+ */
 export async function createWorkspaceTheme(
   session: AdminSession,
   workspaceId: string,
   theme: NewWorkspaceTheme,
 ): Promise<ApiResult<{ readonly themeId: string; readonly name: string }>> {
-  const result = await readResult<{ themeId?: unknown; name?: unknown }>(
+  const result = await readResult<{ theme?: unknown }>(
     await adminApiFetch(session, themesPath(workspaceId), { method: "POST", body: theme }),
   );
   if (!result.ok) return result;
-  return { ok: true, data: { themeId: str(result.data.themeId), name: str(result.data.name) } };
+  const row = result.data.theme;
+  const saved = typeof row === "object" && row !== null ? (row as Record<string, unknown>) : {};
+  const themeId = str(saved["themeId"]);
+  const name = str(saved["name"]);
+  if (themeId === "" || name === "") {
+    return {
+      ok: false,
+      code: "INVALID_THEME",
+      message: messageForFormCode("INVALID_THEME"),
+      issues: [],
+    };
+  }
+  return { ok: true, data: { themeId, name } };
 }
 
 export function themeOption(theme: WorkspaceTheme): ThemeOption {
