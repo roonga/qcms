@@ -1866,6 +1866,7 @@ export const messages = {
   "forms.assist.step.edit_step": "Changing a step of the draft",
   "forms.assist.step.edit_rule": "Changing a rule of the draft",
   "forms.assist.step.edit_copy": "Rewording the draft",
+  "forms.assist.step.edit_appearance": "Changing how the draft looks",
   "forms.assist.step.open_publish_wizard": "Opening the publish screen",
 
   "forms.assist.diffCount.one": "1 change proposed.",
