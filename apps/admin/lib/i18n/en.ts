@@ -80,9 +80,9 @@ export const messages = {
   "appearance.contrast.off": "Off",
 
   /** Environment names are API data, never a closed catalog vocabulary. */
+  "environment.legend": "Environment",
   /** The glossary's own word for production; every other environment is named by the site. */
   "environment.production": "Production",
-  "environment.legend": "Environment",
   /** The trigger's own visible text has to appear in its name, in order and unbroken (WCAG 2.5.3). */
   "environment.trigger": "Environment {environment}",
   /** Announce switches only; first render already names the environment. */
