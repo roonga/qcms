@@ -16,6 +16,7 @@ import {
   submitResponse,
   submitSession,
 } from "./support/ops.js";
+import { t } from "../lib/i18n/en.js";
 
 // Serial tests advance shared enrollment and response state but get fresh browser contexts.
 // Include enrollment when filtering: later tests need its secret.
@@ -287,9 +288,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     try {
       await deactivateExistingWebhooks(page, FORM_ID);
 
-      await expect(page.getByTestId("qcms-webhook-config")).toContainText(
-        "withheld until an operator releases it",
-      );
+      await expect(page.getByTestId("qcms-webhook-config")).toContainText(t("ops.webhooks.intro"));
       const broken = await deadUrl();
       await page.getByRole("button", { name: "Add endpoint" }).click();
       const create = page.getByTestId("qcms-webhook-url-dialog");
