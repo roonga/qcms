@@ -33,9 +33,9 @@ export async function createRailFixture(page: Page, run: string): Promise<RailFi
   const secondSlug = `e2e-rail-two-${run}`;
   const secondId = `q_${secondSlug.replaceAll("-", "_")}`;
 
-  await createDraft(page, questionSlug, "Short text");
+  await createDraft(page, questionSlug, "shortText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
-  await createDraft(page, secondSlug, "Number");
+  await createDraft(page, secondSlug, "number");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   const slug = `rail-${run}`;

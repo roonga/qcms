@@ -1,4 +1,4 @@
-# A short typed answer, with a length limit
+# Short answer, with a length limit
 
 **Use for:** a job title, an occupation, a place of birth, a short reason, an enquiry capped at a number of characters.
 

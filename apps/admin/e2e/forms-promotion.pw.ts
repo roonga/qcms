@@ -23,13 +23,20 @@ import {
   waitForSaveAfter,
 } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
+import { t } from "../lib/i18n/en.js";
 import {
   chooseDestination,
   chooseSource,
   openPublishWizard,
   publishDraftThroughWizard,
 } from "./support/publish.js";
-import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
+import {
+  confirmLifecycle,
+  createDraft,
+  draftLabel,
+  fillDate,
+  optionIds,
+} from "./support/questions.js";
 
 const EMAIL = uniqueAdminEmail("promotion");
 const RUN = Date.now().toString(36);
@@ -38,7 +45,7 @@ const DETAILS_SLUG = `e2e-promotion-details-${RUN}`;
 const FORM_SLUG = `e2e-promotion-${RUN}`;
 const CHOICE_ID = `q_${CHOICE_SLUG.replaceAll("-", "_")}`;
 const DETAILS_ID = `q_${DETAILS_SLUG.replaceAll("-", "_")}`;
-const DETAILS_LABEL = "E2E Short text question";
+const DETAILS_LABEL = draftLabel("shortText");
 const PORTAL_ORIGIN = `http://localhost:${String(PORTAL_PORT)}`;
 
 test.beforeAll(async () => {
@@ -97,11 +104,11 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   test.setTimeout(300_000);
   await enrollNewAdmin(page, EMAIL);
 
-  await createDraft(page, CHOICE_SLUG, "Single choice");
+  await createDraft(page, CHOICE_SLUG, "singleChoice");
   await confirmLifecycle(page, /^Publish version 1$/u, "Publish");
   const yesOption = (await optionIds(page))[0] ?? "";
   expect(yesOption).toMatch(/^opt_/u);
-  await createDraft(page, DETAILS_SLUG, "Short text");
+  await createDraft(page, DETAILS_SLUG, "shortText");
   await confirmLifecycle(page, /^Publish version 1$/u, "Publish");
 
   await chooseEnvironment(page, "test");
@@ -122,7 +129,7 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   await page.goto(`/forms/${formId}/preview`);
   await expect(page.getByTestId("qcms-preview-banner")).toHaveText("Preview - not published");
   await expect(
-    page.getByTestId("qcms-draft-preview").getByText("E2E Single choice question"),
+    page.getByTestId("qcms-draft-preview").getByText(draftLabel("singleChoice")),
   ).toBeVisible();
 
   await page.goto(`/forms/${formId}`);
@@ -159,11 +166,14 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
 
   await page.goto(`/operations/forms/${formId}/links`);
   await waitForHydration(page);
-  await page.getByRole("button", { name: "Mint links", exact: true }).click();
+  await page.getByRole("button", { name: t("forms.links.mint"), exact: true }).click();
   await fillDate(page, "Expires", "12312030");
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Mint for test", exact: true })
+    .getByRole("button", {
+      name: t("forms.links.confirmMint", { environment: "test" }),
+      exact: true,
+    })
     .click();
   const minted = page.getByTestId("qcms-minted-links");
   await expect(minted).toBeVisible();

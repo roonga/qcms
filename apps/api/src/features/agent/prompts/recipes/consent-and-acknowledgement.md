@@ -20,7 +20,7 @@ Offer a yes or no only where they say recording a refusal matters more than bloc
 **Cannot be expressed**
 
 - A yes or no whose answer must be Yes. Marking a yes or no question required means it must be answered, not that it must be agreed to; a respondent may answer No and send the form. There is no required-true setting anywhere in the product.
-- A tick box that must be ticked. A tick box list left empty is refused, but a list with one option is the nearest thing there is, and it shows as a single choice rather than a tick box.
+- A tick box that must be ticked. A tick box list left empty is refused, but a list with one option is the nearest thing there is, and it shows as a choose one rather than a tick box.
 - A record of when they agreed, or of which version of the notice they saw, as part of the answer. The response records the form version it was filled in against, which is the closest there is.
 
 **Say this**

@@ -1,10 +1,20 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+import { t } from "../../lib/i18n/en.js";
+import type { QuestionType } from "../../lib/questions/types.js";
 import { fillStable } from "./flow.js";
 import { waitForHydration } from "./hydration.js";
 
 export function field(page: Page, name: string): Locator {
   return page.getByRole("textbox", { name, exact: true });
+}
+
+export function typeLabel(type: QuestionType): string {
+  return t(`questions.type.${type}`);
+}
+
+export function draftLabel(type: QuestionType): string {
+  return `E2E ${typeLabel(type)} question`;
 }
 
 export type QuestionPanelName =
@@ -36,21 +46,22 @@ async function openPanelRow(page: Page, row: Locator): Promise<void> {
   await expect(row).toHaveAttribute("aria-current", "page");
 }
 
-export async function chooseType(page: Page, label: string): Promise<void> {
+export async function chooseType(page: Page, type: QuestionType): Promise<void> {
   await waitForHydration(page);
+  const label = typeLabel(type);
   const picker = page.getByRole("button", { name: /Type$/ });
   await picker.click();
   await page.getByRole("option", { name: label, exact: true }).click();
   await expect(picker).toContainText(label);
 }
 
-export async function createDraft(page: Page, slug: string, typeLabel: string): Promise<void> {
+export async function createDraft(page: Page, slug: string, type: QuestionType): Promise<void> {
   await page.goto("/questions/new");
-  await fillStable(field(page, "Slug"), slug);
-  await chooseType(page, typeLabel);
-  await fillStable(field(page, "Label"), `E2E ${typeLabel} question`);
+  await fillStable(field(page, t("questions.create.slug")), slug);
+  await chooseType(page, type);
+  await fillStable(field(page, t("questions.editor.label")), draftLabel(type));
   // Option IDs mint from labels, and the kernel requires at least one option before a choice question can be created.
-  if (typeLabel.includes("choice") || typeLabel.includes("Choice")) {
+  if (type === "singleChoice" || type === "multiChoice") {
     await addOption(page, "Yes, always");
     await addOption(page, "No, never");
   }

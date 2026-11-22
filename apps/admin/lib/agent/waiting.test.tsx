@@ -53,7 +53,7 @@ function Host({ waiting }: { readonly waiting: WaitingProposal | undefined }) {
         <button type="button">Release a version</button>
       </HeadingMarker>
       <HeadingMarker control="links.mint">
-        <button type="button">Mint links</button>
+        <button type="button">{t("forms.links.mint")}</button>
       </HeadingMarker>
     </ProposalSeamProvider>
   );
@@ -66,7 +66,9 @@ describe("the proposal seam", () => {
     expect(screen.getByRole("button", { name: "Release a version" }).dataset["proposed"]).toBe(
       "true",
     );
-    expect(screen.getByRole("button", { name: "Mint links" }).dataset["proposed"]).toBe(undefined);
+    expect(screen.getByRole("button", { name: t("forms.links.mint") }).dataset["proposed"]).toBe(
+      undefined,
+    );
   });
 
   it("shows no marker once nothing waits", () => {

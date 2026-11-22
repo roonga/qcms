@@ -7,6 +7,7 @@ import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, openMenu, signInWithTotp } from "./support/flow.js";
 import { createForm } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
+import { t } from "../lib/i18n/en.js";
 
 test.describe.configure({ mode: "serial" });
 
@@ -29,7 +30,7 @@ async function axeClean(page: Page, where: string): Promise<void> {
 }
 
 async function expectBuilderMode(page: Page, subject: string): Promise<void> {
-  const group = page.getByRole("group", { name: "Agent builder" });
+  const group = page.getByRole("group", { name: t("shell.mode.builder.name") });
   await expect(group).toBeVisible();
   await expect(page.getByTestId("qcms-builder-subject")).toHaveText(subject);
   await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
@@ -48,7 +49,7 @@ function buildPath(id: string): string {
 }
 
 function exit(page: Page) {
-  return page.getByRole("link", { name: "Exit the agent builder" });
+  return page.getByRole("link", { name: t("shell.mode.builder.exit") });
 }
 
 test.beforeAll(async () => {
@@ -91,7 +92,7 @@ test("enters from a form's menu, Exit returns to the list, and Edit by hand open
   await openMenu(page.getByRole("button", { name: `Actions for form ${TITLE}` }));
   await Promise.all([
     page.waitForURL(new RegExp(`/forms/${formId}/build$`, "u")),
-    page.getByRole("menuitem", { name: "Edit with the agent builder" }).click(),
+    page.getByRole("menuitem", { name: t("forms.menu.agentBuilder") }).click(),
   ]);
   await waitForHydration(page);
   await expectBuilderMode(page, TITLE);

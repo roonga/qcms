@@ -1,4 +1,4 @@
-# Select all that apply
+# Choose several
 
 **Use for:** which services you used, which reasons apply to this claim, which conditions you have, which languages you speak.
 

@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { t } from "../../lib/i18n/en.ts";
 import type {
   QuestionDefinitionView,
   QuestionStatus,
@@ -36,9 +37,9 @@ function facts(versions: readonly QuestionVersion[], selected: number): HTMLElem
 }
 
 describe("the question's own facts, in the page body", () => {
-  it("states the slug, the created day and the locked type", () => {
+  it("states the identifier, the created day and the locked type", () => {
     const text = facts([version(1, "published")], 1).textContent ?? "";
-    expect(text).toContain("Slug");
+    expect(text).toContain(t("questions.detail.slug"));
     expect(text).toContain("smoking-status");
     expect(text).toContain("Created");
     expect(text).toContain("Type");

@@ -731,7 +731,7 @@ is rejected explicitly, because it starts with `/` but points off-origin.
 
 Before this, the header was `<span>QCMS</span>` and the title was the same literal
 (issue #25): an adopter could only rebrand by editing source, and a respondent
-opening a registration link was shown the engine's name rather than the name of
+opening a secure link was shown the engine's name rather than the name of
 whoever sent them the link.
 
 ## Per-form appearance (task 118)

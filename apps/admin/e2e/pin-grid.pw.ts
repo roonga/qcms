@@ -65,7 +65,7 @@ test("authors the library and the step the rest of this file edits", async ({ pa
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await createDraft(page, COVER, "Single choice");
+  await createDraft(page, COVER, "singleChoice");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   await confirmLifecycle(page, /^New version$/, "Create draft");
   await page.waitForURL(/\?v=2$/);
@@ -78,11 +78,11 @@ test("authors the library and the step the rest of this file edits", async ({ pa
   await expect(page.getByText("Draft saved.")).toBeVisible();
   await confirmLifecycle(page, /^Publish version 2$/, "Publish");
 
-  await createDraft(page, COUNT, "Number");
+  await createDraft(page, COUNT, "number");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
-  await createDraft(page, NOTES, "Long text");
+  await createDraft(page, NOTES, "longText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
-  await createDraft(page, EXTRA, "Short text");
+  await createDraft(page, EXTRA, "shortText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   await createForm(page, `pin-grid-${RUN}`, "Vehicle insurance");

@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { t } from "@/lib/i18n/en";
+
 import { FieldHelp, HelpTip } from "./help-tip.tsx";
 
 const trigger = () => screen.getByRole("button", { name: "More information" });
@@ -228,12 +230,12 @@ describe("the help tip", () => {
   it("puts a field's help beside the field, outside its label", () => {
     render(
       <FieldHelp help="Only published versions can be pinned.">
-        <label htmlFor="slug">Slug</label>
+        <label htmlFor="slug">{t("questions.create.slug")}</label>
         <input id="slug" />
       </FieldHelp>,
     );
 
-    expect(screen.getByLabelText("Slug")).not.toBeNull();
+    expect(screen.getByLabelText(t("questions.create.slug"))).not.toBeNull();
     expect(trigger().closest("label")).toBeNull();
   });
 });

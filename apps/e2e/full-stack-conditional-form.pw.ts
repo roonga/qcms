@@ -22,7 +22,14 @@ import { chooseEnvironment } from "../admin/e2e/support/environment.js";
 import { publishDraftThroughWizard } from "../admin/e2e/support/publish.js";
 import { waitForHydration as waitForAdminHydration } from "../admin/e2e/support/hydration.js";
 import { waitForHydration as waitForPortalHydration } from "../portal/e2e/support/hydration.js";
-import { confirmLifecycle, createDraft, fillDate } from "../admin/e2e/support/questions.js";
+import {
+  confirmLifecycle,
+  createDraft,
+  draftLabel,
+  fillDate,
+} from "../admin/e2e/support/questions.js";
+import { t } from "../admin/lib/i18n/en.js";
+import type { QuestionType } from "../admin/lib/questions/types.js";
 import { FULL_STACK_ADMIN_URL, FULL_STACK_PORTAL_URL } from "./support/full-stack-config.js";
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -48,14 +55,14 @@ const CHOSEN_PASSWORD = `e2e-chosen-${Buffer.from(crypto.getRandomValues(new Uin
 const RUN = Date.now().toString(36);
 const FORM_SLUG = `full-stack-e2e-conditional-${RUN}`;
 const QUESTION_TYPES = [
-  { slug: "short-text", type: "Short text" },
-  { slug: "long-text", type: "Long text" },
-  { slug: "number", type: "Number" },
-  { slug: "date", type: "Date" },
-  { slug: "boolean", type: "Yes or no" },
-  { slug: "single-choice", type: "Single choice" },
-  { slug: "multi-choice", type: "Multiple choice" },
-] as const;
+  { slug: "short-text", type: "shortText" },
+  { slug: "long-text", type: "longText" },
+  { slug: "number", type: "number" },
+  { slug: "date", type: "date" },
+  { slug: "boolean", type: "boolean" },
+  { slug: "single-choice", type: "singleChoice" },
+  { slug: "multi-choice", type: "multiChoice" },
+] as const satisfies readonly { slug: string; type: QuestionType }[];
 const QUESTION_IDS = Object.fromEntries(
   QUESTION_TYPES.map((question) => [question.slug, questionId(question.slug)]),
 ) as Record<(typeof QUESTION_TYPES)[number]["slug"], string>;
@@ -66,8 +73,8 @@ function questionId(slug: string): string {
   return `q_full_stack_e2e_${slug}_${RUN}`.replaceAll("-", "_");
 }
 
-function questionLabel(type: string): string {
-  return `E2E ${type} question`;
+function questionLabel(type: QuestionType): string {
+  return draftLabel(type);
 }
 
 async function continueOrSubmit(page: Page): Promise<void> {
@@ -234,11 +241,14 @@ test.describe.serial("conditional form journey", () => {
     }) => {
       await page.goto(`/operations/forms/${formId}/links`);
       await waitForAdminHydration(page);
-      await page.getByRole("button", { name: "Mint links", exact: true }).click();
+      await page.getByRole("button", { name: t("forms.links.mint"), exact: true }).click();
       await fillDate(page, "Expires", "12312030");
       await page
         .getByRole("dialog")
-        .getByRole("button", { name: "Mint for test", exact: true })
+        .getByRole("button", {
+          name: t("forms.links.confirmMint", { environment: "test" }),
+          exact: true,
+        })
         .click();
       const minted = page.getByTestId("qcms-minted-links");
       await expect(minted).toBeVisible();
@@ -249,7 +259,7 @@ test.describe.serial("conditional form journey", () => {
       await expect(page).toHaveURL(
         (url) => url.origin === PORTAL_URL && url.pathname.startsWith("/test/s/ses_"),
       );
-      await expect(page.getByText(questionLabel("Short text"))).toBeVisible();
+      await expect(page.getByText(questionLabel("shortText"))).toBeVisible();
       await waitForPortalHydration(page);
       const answered = page.waitForResponse(
         (response) =>
@@ -261,7 +271,7 @@ test.describe.serial("conditional form journey", () => {
       await page.getByText("Yes", { exact: true }).click();
       await answered;
       await continueOrSubmit(page);
-      await expect(page.getByRole("textbox", { name: questionLabel("Number") })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: questionLabel("number") })).toBeVisible();
       await continueOrSubmit(page);
       await expect(page).toHaveURL(`${PORTAL_URL}/test/done`);
       await expect(page.getByTestId("content-hash")).toHaveText(/^[0-9a-f]{64}$/u);
@@ -290,11 +300,14 @@ test.describe.serial("conditional form journey", () => {
       expect(publicAddress.origin).toBe(PORTAL_URL);
       expect(publicAddress.pathname).toBe(`/f/${FORM_SLUG}`);
 
-      await page.getByRole("button", { name: "Mint links", exact: true }).click();
+      await page.getByRole("button", { name: t("forms.links.mint"), exact: true }).click();
       await fillDate(page, "Expires", "12312030");
       await page
         .getByRole("dialog")
-        .getByRole("button", { name: "Mint for prod", exact: true })
+        .getByRole("button", {
+          name: t("forms.links.confirmMint", { environment: "prod" }),
+          exact: true,
+        })
         .click();
       const minted = page.getByTestId("qcms-minted-links");
       await expect(minted).toBeVisible();
@@ -307,7 +320,7 @@ test.describe.serial("conditional form journey", () => {
         (url) => url.origin === PORTAL_URL && url.pathname.startsWith("/s/ses_"),
       );
       await waitForPortalHydration(page);
-      await expect(page.getByText(questionLabel("Short text"))).toBeVisible();
+      await expect(page.getByText(questionLabel("shortText"))).toBeVisible();
     });
 
     test("refuses a cross-site Start and creates no session (SEC-9, issue #487)", async ({
@@ -390,11 +403,11 @@ test.describe.serial("conditional form journey", () => {
     test("completes the affirmative respondent route", async ({ page }) => {
       await page.goto(`${PORTAL_URL}/f/${FORM_SLUG}`);
       await startPortalSession(page, FORM_SLUG);
-      await expect(page.getByText(questionLabel("Short text"))).toBeVisible();
+      await expect(page.getByText(questionLabel("shortText"))).toBeVisible();
       await page.getByText("Yes", { exact: true }).click();
       await continueOrSubmit(page);
-      await expect(page.getByRole("textbox", { name: questionLabel("Number") })).toBeVisible();
-      await expect(page.getByRole("textbox", { name: questionLabel("Long text") })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: questionLabel("number") })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: questionLabel("longText") })).toBeVisible();
       await expect(page.getByRole("checkbox", { name: "Yes, always" })).toHaveCount(0);
       await expect(page.getByRole("radio", { name: "Yes, always" })).toHaveCount(0);
       await continueOrSubmit(page);
@@ -433,13 +446,13 @@ test.describe.serial("conditional form journey", () => {
     test("completes the negative respondent route", async ({ page }) => {
       await page.goto(`${PORTAL_URL}/f/${FORM_SLUG}`);
       await startPortalSession(page, FORM_SLUG);
-      await expect(page.getByText(questionLabel("Short text"))).toBeVisible();
+      await expect(page.getByText(questionLabel("shortText"))).toBeVisible();
       await page.getByText("No", { exact: true }).click();
       await continueOrSubmit(page);
       await expect(page.getByRole("checkbox", { name: "Yes, always" })).toBeVisible();
       await expect(page.getByRole("radio", { name: "Yes, always" })).toBeVisible();
-      await expect(page.getByRole("textbox", { name: questionLabel("Number") })).toHaveCount(0);
-      await expect(page.getByRole("textbox", { name: questionLabel("Long text") })).toHaveCount(0);
+      await expect(page.getByRole("textbox", { name: questionLabel("number") })).toHaveCount(0);
+      await expect(page.getByRole("textbox", { name: questionLabel("longText") })).toHaveCount(0);
       // React Aria hides the native input under its painted control, so the label text is
       // the respondent's hit target rather than the input the role locator returns.
       const yesAlways = page.getByText("Yes, always", { exact: true });

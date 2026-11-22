@@ -99,7 +99,7 @@ describe("grammatical number", () => {
       "1 step",
     );
     expect(tPlural("forms.links.mintedTitle.one", "forms.links.mintedTitle.other", 1)).toBe(
-      "1 link minted",
+      "1 link created",
     );
   });
 

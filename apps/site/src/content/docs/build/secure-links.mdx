@@ -3,8 +3,8 @@ title: Secure links
 description: Signed, expiring links that open one form in one environment.
 ---
 
-A secure link is a compact signed token that opens one form. It is minted by the admin, carried in a
-URL, and redeemed once by the portal to start a session.
+A secure link is a compact signed token that opens one form. The admin creates it, a URL carries it,
+and the portal redeems it once to start a session.
 
 ## The token
 
@@ -22,14 +22,14 @@ A link token carries four claims.
 | Claim       | Meaning                                                             |
 | ----------- | ------------------------------------------------------------------- |
 | `formId`    | the single form this link opens                                     |
-| `linkId`    | the minted-link row, so storage can revoke and enforce one-time use |
+| `linkId`    | the stored link row, so storage can revoke and enforce one-time use |
 | `expiresAt` | hard expiry in ISO 8601 UTC; valid strictly before this instant     |
 | `oneTime`   | optional single-use marker, carried for the verifier                |
 
 The payload is encoded, not encrypted: anyone holding a link can decode and read its claims. That is
 why no personal data ever goes in a token. Claims are opaque ids and an expiry.
 
-## Minting
+## Creating a link
 
 ```sh
 curl -sX POST "$API/admin/forms/frm_auto_quote/links" \
@@ -38,7 +38,7 @@ curl -sX POST "$API/admin/forms/frm_auto_quote/links" \
   -d '{"expiresAt":"2030-01-01T00:00:00.000Z","oneTime":false,"count":1,"environment":"prod"}'
 ```
 
-The response carries one entry per minted row: `linkId`, `environment`, `url` and `expiresAt`.
+The response carries one entry per created row: `linkId`, `environment`, `url` and `expiresAt`.
 
 - `environment` is required and has no default. A script that omits the field and silently gets a
   production link is the failure that rule exists to prevent.
@@ -72,7 +72,8 @@ A verified signature is never sufficient on its own. The API must also consult t
 for revocation and for atomic one-time consumption. Verification uses WebCrypto and compares in
 constant time.
 
-Once a link is verified a session is minted, and from then on the session token is the credential.
+Once a link is verified the API starts a session, and from then on the session token is the
+credential.
 A secure-link session expires with its link, never after it.
 
 Secure links are the one deliberate case of a token appearing in a URL, mitigated by expiry plus
@@ -81,14 +82,14 @@ that server-side row.
 ## Rotating the signing key
 
 `QCMS_LINK_KEYS` is a comma or whitespace separated list, each entry at least 32 bytes. The first
-entry signs new mints; every entry verifies. Generate one with `openssl rand -base64 32`.
+entry signs new links; every entry verifies. Generate one with `openssl rand -base64 32`.
 
 1. Prepend the new key and redeploy.
 2. Keep the old key listed until every link signed with it has passed its longest expiry.
 3. Drop the old key.
 
 For a compromise, skip the grace period: drop the compromised key immediately, accept that
-outstanding links die, and re-mint.
+outstanding links die, and create replacements.
 
 :::caution[Keep link identity opaque]
 Do not encode personal data in how you distribute links, such as a per-recipient link identity that

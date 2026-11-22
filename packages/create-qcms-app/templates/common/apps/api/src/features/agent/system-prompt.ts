@@ -3,11 +3,11 @@ import { QUESTION_TYPES, SEMANTICS_VERSION, VALIDATION_MESSAGE_KEYS } from "@roo
 import { SYSTEM_PROMPT_SECTIONS } from "./prompts/prompts.generated.js";
 
 /** Bump on every change to the prompt text; it is logged with each turn, never inferred. */
-export const SYSTEM_PROMPT_VERSION = 32;
+export const SYSTEM_PROMPT_VERSION = 35;
 
 /** The sha256 `pnpm check:prompts` holds the Markdown sources to at this version. */
 export const PROMPT_SOURCE_HASH =
-  "c6da6984afa231fc2413274f308e0fcf473e278f1108e17d4c9476628897733e";
+  "59c7e09676a2484c61aca93b83be0b7d4b25a6c53c257668e0523b56d3c6a1ae";
 
 /** Written out because the `Condition` union exports no name list; the test keeps it in step. */
 export const CONDITION_OPERATORS = [

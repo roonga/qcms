@@ -1,5 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 
+import type { QuestionType } from "../lib/questions/types.js";
+
 import { families } from "../../portal/e2e/support/font-families.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
@@ -72,8 +74,8 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-async function publishQuestion(page: Page, slug: string, typeLabel: string): Promise<void> {
-  await createDraft(page, slug, typeLabel);
+async function publishQuestion(page: Page, slug: string, type: QuestionType): Promise<void> {
+  await createDraft(page, slug, type);
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 }
 
@@ -83,13 +85,13 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await publishQuestion(page, AT_FAULT, "Single choice");
+  await publishQuestion(page, AT_FAULT, "singleChoice");
   const options = await optionIds(page);
   atFaultYesOption = options[0] ?? "";
   expect(atFaultYesOption, "the choice question should carry minted option ids").toMatch(/^opt_/u);
 
-  await publishQuestion(page, ACCIDENT_COUNT, "Number");
-  await publishQuestion(page, CLAIM_NOTES, "Long text");
+  await publishQuestion(page, ACCIDENT_COUNT, "number");
+  await publishQuestion(page, CLAIM_NOTES, "longText");
 
   insuranceFormId = await createForm(page, `e2e-vehicle-insurance-${RUN}`, "Vehicle insurance");
 
@@ -257,7 +259,7 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  await publishQuestion(page, COVER_LEVEL, "Single choice");
+  await publishQuestion(page, COVER_LEVEL, "singleChoice");
   const v1Options = await optionIds(page);
   coverV1Option = v1Options[0] ?? "";
   expect(coverV1Option).toMatch(/^opt_/u);

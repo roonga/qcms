@@ -19,7 +19,7 @@ export async function createQuestionRailFixture(
   const slug = `e2e-qrail-${run}`;
   const questionId = `q_${slug.replaceAll("-", "_")}`;
 
-  await createDraft(page, slug, "Short text");
+  await createDraft(page, slug, "shortText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   await confirmLifecycle(page, /^New version$/, "Create draft");
   await page.waitForURL(/\?v=2$/);

@@ -30,7 +30,7 @@ export const messages = {
   /** Use route identity for tab titles to avoid a second upstream read solely for metadata. */
   "title.formSection": "{section}: {formId}",
   "title.workspaceSection": "{section}: {workspace}",
-  "title.builder": "Agent builder: {subject}",
+  "title.builder": "Assistant: {subject}",
 
   /** The admin requires JavaScript; name enabling it and reloading as the actionable remedy. */
   "requiresJs.title": "JavaScript is required",
@@ -64,7 +64,7 @@ export const messages = {
   "ids.copied.group": "Copied group id {id}",
 
   "appearance.title": "Appearance",
-  "appearance.theme.legend": "Theme",
+  "appearance.theme.legend": "Mode",
   "appearance.polarity.auto": "Auto",
   "appearance.polarity.light": "Light",
   "appearance.polarity.dark": "Dark",
@@ -117,11 +117,11 @@ export const messages = {
   "shell.mode.operations.exit": "Exit Operations",
   "shell.mode.operations.exitText": "Exit",
   "shell.mode.operations.announce": "Operations. Links out of it ask before leaving.",
-  "shell.mode.builder.name": "Agent builder",
+  "shell.mode.builder.name": "Assistant",
   /** Starts with the visible "Exit" so speech input reaches it by what it shows (WCAG 2.5.3). */
-  "shell.mode.builder.exit": "Exit the agent builder",
+  "shell.mode.builder.exit": "Exit the assistant",
   "shell.mode.builder.exitText": "Exit",
-  "shell.mode.builder.announce": "Agent builder.",
+  "shell.mode.builder.announce": "Assistant.",
   "shell.leave.title": "Leave Operations?",
   "shell.leave.goes": "This link opens {area}, outside Operations.",
   "shell.leave.environment":
@@ -273,7 +273,7 @@ export const messages = {
   "questions.new": "New question",
 
   "questions.filter.search": "Search",
-  "questions.filter.searchHint": "Matches the slug and the label text.",
+  "questions.filter.searchHint": "Matches the identifier and the label text.",
   "questions.filter.status": "Status",
   "questions.filter.statusAll": "Any status",
   "questions.filter.type": "Type",
@@ -300,22 +300,22 @@ export const messages = {
   "questions.status.published": "Published",
   "questions.status.deprecated": "Deprecated",
 
-  "questions.type.shortText": "Short text",
-  "questions.type.longText": "Long text",
+  "questions.type.shortText": "Short answer",
+  "questions.type.longText": "Longer answer",
   "questions.type.number": "Number",
   "questions.type.date": "Date",
   "questions.type.boolean": "Yes or no",
-  "questions.type.singleChoice": "Single choice",
-  "questions.type.multiChoice": "Multiple choice",
+  "questions.type.singleChoice": "Choose one",
+  "questions.type.multiChoice": "Choose several",
 
   "questions.create.title": "New question",
-  "questions.create.slug": "Slug",
+  "questions.create.slug": "Identifier",
   "questions.create.slugHint":
     "Lower-case words separated by hyphens, for example at-fault-accident.",
   "questions.create.id": "Question ID",
-  "questions.create.idPending": "Enter a slug to see the ID this question will carry.",
+  "questions.create.idPending": "Enter an identifier to see the ID this question will carry.",
   "questions.create.idNote":
-    "Generated from the slug and permanent from the moment you create it. An ID is never reused for a different meaning, so a question with the wrong ID is replaced by a new one, never renamed (R6).",
+    "Generated from the identifier and permanent from the moment you create it. An ID is never reused for a different meaning, so a question with the wrong ID is replaced by a new one, never renamed (R6).",
   "questions.create.type": "Type",
   "questions.create.typeNote":
     "Locked once the question exists. A different type is a different answer shape, so changing it means creating a new question rather than editing this one (R6).",
@@ -459,8 +459,8 @@ export const messages = {
   "questions.preview.stale":
     "This preview is the version that was last saved. Save the draft to see your latest changes here.",
 
-  /** Theme names identify shipped palettes; preserve identity while permitting transliteration. Mode names are ordinary translated prose. */
-  "preview.island.theme": "Preview theme",
+  /** Palette names are product identity; preserve them while permitting transliteration. Mode names are ordinary translated prose. */
+  "preview.island.theme": "Preview palette",
   "preview.island.theme.slate": "Slate",
   "preview.island.theme.harbor": "Harbor",
   "preview.island.theme.sand": "Sand",
@@ -474,7 +474,7 @@ export const messages = {
   "questions.detail.version": "Version {version}",
   "questions.detail.publishedAt": "Published {date}",
   "questions.detail.unpublished": "Never published",
-  "questions.detail.slug": "Slug",
+  "questions.detail.slug": "Identifier",
   "questions.detail.type": "Type",
   "questions.detail.created": "Created",
 
@@ -512,8 +512,8 @@ export const messages = {
     "The engine rejected this draft. The details are on the fields below.",
   "questions.error.idMismatch": "This draft names a different question than the one being edited.",
   "questions.error.idReused":
-    "That ID has been used before. IDs are never reused for a different meaning, so choose a different slug (R6).",
-  "questions.error.slugTaken": "Another question already uses that slug.",
+    "That ID has been used before. IDs are never reused for a different meaning, so choose a different identifier (R6).",
+  "questions.error.slugTaken": "Another question already uses that identifier.",
   "questions.error.notFound": "That question does not exist.",
   "questions.error.versionNotFound": "That version does not exist.",
   "questions.error.versionImmutable":
@@ -530,7 +530,7 @@ export const messages = {
   "forms.new": "New form",
 
   "builder.newForm": "New form",
-  "builder.heading": "Agent builder: {name}",
+  "builder.heading": "Assistant: {name}",
   "builder.editByHand": "Edit by hand",
   "builder.sharePreview": "Share preview",
   "builder.publish": "Publish",
@@ -611,7 +611,7 @@ export const messages = {
   "builder.selection.announce": "Selected {label}.",
   "builder.newDraft.heading": "This form has no open draft",
   "builder.newDraft.body":
-    "The agent builder edits an open draft only. Start a new draft from the newest version to continue.",
+    "The assistant edits an open draft only. Start a new draft from the newest version to continue.",
   "builder.newDraft.start": "Start a new draft",
   "builder.newDraft.starting": "Starting the draft...",
   "builder.newDraft.failed": "The draft was not started. {message}",
@@ -621,7 +621,7 @@ export const messages = {
   "forms.open": "Open form {name}",
   /** Name the row's own form: a column of triggers is otherwise a column of identical names. */
   "forms.rowActions": "Actions for form {name}",
-  "forms.menu.agentBuilder": "Edit with the agent builder",
+  "forms.menu.agentBuilder": "Edit with the assistant",
   "forms.column.form": "Form",
   "forms.column.locale": "Locale",
   "forms.column.status": "Availability",
@@ -638,12 +638,12 @@ export const messages = {
   "forms.version.valueAt": "v{version} on {date}",
 
   "forms.filter.search": "Search",
-  "forms.filter.searchHint": "Matches the slug and the form title.",
+  "forms.filter.searchHint": "Matches the identifier and the form title.",
   "forms.filter.status": "Availability",
   "forms.filter.statusAll": "Any",
   "forms.filter.sort": "Sort by",
-  "forms.filter.sort.slug-asc": "Slug (A to Z)",
-  "forms.filter.sort.slug-desc": "Slug (Z to A)",
+  "forms.filter.sort.slug-asc": "Identifier (A to Z)",
+  "forms.filter.sort.slug-desc": "Identifier (Z to A)",
   "forms.filter.sort.published-desc": "Newest published",
   "forms.filter.sort.published-asc": "Oldest published",
   "forms.filter.clear": "Clear filters",
@@ -675,12 +675,12 @@ export const messages = {
   "forms.create.assistant": "Build with the assistant",
   "forms.create.assistantHint":
     "Describe the form and the assistant drafts it. Nothing is created until you confirm the first step.",
-  "forms.create.slug": "Slug",
+  "forms.create.slug": "Identifier",
   "forms.create.slugHint": "Lower-case words separated by hyphens, for example vehicle-insurance.",
   "forms.create.id": "Form ID",
-  "forms.create.idPending": "Enter a slug to see the ID this form will carry.",
+  "forms.create.idPending": "Enter an identifier to see the ID this form will carry.",
   "forms.create.idNote":
-    "Generated from the slug and permanent from the moment you create it. An ID is never reused for a different meaning, so a form with the wrong ID is replaced by a new one, never renamed (R6).",
+    "Generated from the identifier and permanent from the moment you create it. An ID is never reused for a different meaning, so a form with the wrong ID is replaced by a new one, never renamed (R6).",
   "forms.create.formTitle": "Title",
   "forms.create.locale": "Default locale",
   "forms.create.localeHint": "The locale every step and question must have text for.",
@@ -911,7 +911,7 @@ export const messages = {
   "forms.columns.empty": "No columns yet. Add a question to this group and it becomes a column.",
 
   "forms.columns.typeNote":
-    "A table column holds one of {types}. Long text and multiple choice do not fit a cell, and they are worse again on the phone, where the table becomes one card per row. Present this group as stacked instead: that presentation allows every question type.",
+    "A table column holds one of {types}. Longer answer and Choose several do not fit a cell, and they are worse again on the phone, where the table becomes one card per row. Present this group as stacked instead: that presentation allows every question type.",
   /** Keep unsupported existing members visible so authors can repair the publish refusal. */
   "forms.columns.refused": "Not allowed as a column",
   "forms.columns.refusedHint":
@@ -1154,7 +1154,7 @@ export const messages = {
     "These rules depend on each other in a loop, so no order of evaluation resolves them.",
   "forms.issue.depthExceeded": "This condition is nested deeper than the engine evaluates.",
   "forms.issue.typeMismatch":
-    "This operator does not apply to the type of the question it reads. On a multiple-choice question, equals compares the whole answer and contains tests membership (ADR-21).",
+    "This operator does not apply to the type of the question it reads. On a Choose several question, equals compares the whole answer and contains tests membership (ADR-21).",
   "forms.issue.duplicateQuestion":
     "A question can appear in a form once. Remove one of the two pins.",
   "forms.issue.duplicateStep": "Two steps share an ID, so a rule targeting it would be ambiguous.",
@@ -1208,14 +1208,14 @@ export const messages = {
   "forms.warning.countOne": "1 thing would publish but may not behave as written.",
   "forms.warning.count": "{count} things would publish but may not behave as written.",
   "forms.warning.multiChoiceSameStep":
-    "A multiple-choice answer is only counted once the respondent leaves the group, so a question revealed on the same step appears after they move on rather than as they tick. A target on a later step reveals when they continue.",
+    "A Choose several answer is only counted once the respondent leaves the group, so a question revealed on the same step appears after they move on rather than as they tick. A target on a later step reveals when they continue.",
   "forms.warning.patternClassSet":
     "This pattern uses a character class the browser and the engine read differently, so it can accept different answers in each. Rewrite the class if the two characters were meant literally.",
 
   "forms.error.invalidId": "That is not a valid form ID.",
   "forms.error.invalidLocale": "That is not a locale the engine recognises.",
   "forms.error.idTaken":
-    "A form already uses that ID. IDs are never reused for a different meaning, so choose a different slug (R6).",
+    "A form already uses that ID. IDs are never reused for a different meaning, so choose a different identifier (R6).",
   "forms.error.notFound": "That form does not exist.",
   "forms.error.idMismatch": "This draft names a different form than the one being edited.",
   "forms.error.invalidDefinition":
@@ -1231,13 +1231,13 @@ export const messages = {
   "forms.error.proposedQuestionIdReused":
     "Nothing was saved. The question ID \u201c{question}\u201d has been used before, and an ID is never reused for a different meaning (R6). Ask the assistant for a different ID.",
   "forms.error.proposedQuestionSlugTaken":
-    "Nothing was saved. The library slug for the proposed question \u201c{question}\u201d is already in use. Rename the existing question, or ask the assistant for a different ID.",
+    "Nothing was saved. The library identifier for the proposed question \u201c{question}\u201d is already in use. Rename the existing question, or ask the assistant for a different ID.",
   "forms.error.unknownEnvironment":
     "This deployment serves no such environment. Pick one from the environment switcher.",
   "forms.error.unknown": "The request failed ({code}).",
 
   "forms.error.approverIsAuthor":
-    "You froze this version, so another person with Publish forms in prod publishes it.",
+    "You froze this version, so another person with Publish forms in production publishes it.",
   "forms.error.approverUnknownAuthor":
     "Who froze this version was not recorded, so Second approval cannot be checked against it. Publish the draft again and use that version.",
   "forms.error.unknownCreate": "The form could not be created. Try again.",
@@ -1385,8 +1385,8 @@ export const messages = {
   "forms.releases.notPublished":
     "There is no frozen version yet. Publish the draft, and that version can then go to another environment.",
 
-  "forms.releases.rollback": "Rollback",
-  "forms.releases.rollbackFrom": "Rolled back from v{replaced}",
+  "forms.releases.rollback": "Earlier version",
+  "forms.releases.rollbackFrom": "Back from v{replaced}",
   "forms.releases.replaced": "Replaced v{replaced}",
   "forms.releases.first": "First here",
   "forms.releases.action": "Publish a version…",
@@ -1394,7 +1394,7 @@ export const messages = {
   "forms.releases.dialogBody":
     "Respondents starting in {environment} from now get this version. Sessions already under way stay on the version they pinned, and every earlier publish stays in the history.",
   "forms.releases.rollbackWarning":
-    "This is a rollback: {environment} is on v{current}, and v{version} is older.",
+    "This publishes an earlier version: {environment} is on v{current}, and v{version} is older.",
   /** Second approval compares two accounts, not job titles. */
   "forms.releases.twoPersonSelf":
     "You froze v{version}, so another person with Publish forms in {environment} publishes it.",
@@ -1410,7 +1410,7 @@ export const messages = {
   "forms.releases.pending": "Publishing...",
   "forms.releases.released": "v{version} is now live in {environment}.",
   "forms.releases.failed": "Nothing was published. {message}",
-  "forms.releases.rollbackDone": "v{version} is live in {environment} again, as a rollback.",
+  "forms.releases.rollbackDone": "v{version} is live in {environment} again.",
 
   /** Live in means serving now; historical destinations must not appear live. */
   "forms.versions.availableIn": "Live in",
@@ -1448,9 +1448,9 @@ export const messages = {
     "This form is closed here, and publishing leaves it closed.",
   "forms.publish.destinations.protected": "Production",
   "forms.publish.destinations.prodFloor":
-    "Prod accepts only a version already live in a non-prod environment. This is fixed, not a setting.",
+    "Production accepts only a version already live in a non-production environment. This is fixed, not a setting.",
   "forms.publish.destinations.prodOnly":
-    "Prod is the only environment this deployment serves, so a draft is published straight to prod.",
+    "Production is the only environment this deployment serves, so a draft is published straight to production.",
   "forms.publish.destinations.rollbackNote": "This moves {environment} back from v{current}.",
   "forms.publish.destinations.evidence": "Satisfied by v{version} being live in {environment}.",
   "forms.publish.destinations.pickOne": "Choose at least one destination.",
@@ -1460,7 +1460,7 @@ export const messages = {
   "forms.publish.blocked.priorRelease":
     "Not yet: this version has to be live in {environments} first.",
   "forms.publish.blocked.draftNotAllowedProd":
-    "A draft is never published straight to {environment}. Publish it to a non-prod environment first, then publish that version here.",
+    "A draft is never published straight to {environment}. Publish it to a non-production environment first, then publish that version here.",
   "forms.publish.blocked.draftNotAllowed":
     "The publishing workflow does not let a draft go straight to {environment}. Publish it to another environment first, then publish that version here.",
   "forms.publish.blocked.draftNotAllowedOnly":
@@ -1468,7 +1468,7 @@ export const messages = {
   "forms.publish.blocked.alreadyReleased": "Already live here.",
   "forms.publish.blocked.approverIsAuthor":
     "You froze this version, so another person with Publish forms in {environment} publishes it.",
-  /** Only where a draft publish to prod is refused under second approval; on a prod-only site it is held instead. */
+  /** Only where a draft publish to production is refused under second approval; on a production-only site it is held instead. */
   "forms.publish.blocked.draftSecondApproval":
     "Second approval is on for production, so a draft cannot be published there: publish an existing version instead.",
   "forms.publish.blocked.approverUnknownAuthor":
@@ -1552,11 +1552,11 @@ export const messages = {
   "forms.publish.result.replayed":
     "This is the recorded result of the confirmation you already sent, not a second one.",
   "forms.publish.result.releasedIn": "Live in {environment}",
-  "forms.publish.result.rolledBackIn": "Live in {environment}, as a rollback",
+  "forms.publish.result.rolledBackIn": "Live in {environment} again",
   "forms.publish.result.noRelease": "Live nowhere.",
   "forms.publish.result.operations": "Open {environment} operations",
   "forms.publish.result.versions": "Back to versions",
-  "forms.publish.result.backToBuilder": "Back to the agent builder",
+  "forms.publish.result.backToBuilder": "Back to the assistant",
   "forms.publish.result.backToForm": "Back to the form",
   "forms.publish.wizardFailed": "Nothing was published. {message}",
   "forms.publish.wizardBlockedCount.one":
@@ -1580,10 +1580,10 @@ export const messages = {
   "forms.workflow.noReleasePermission":
     "Needs Publish forms in {environment}. The Publishers group carries it; ask a Workspace administrator.",
   "forms.workflow.noCandidate":
-    "No version can go to {environment} yet. Publish a version to a non-prod environment first.",
+    "No version can go to {environment} yet. Publish a version to a non-production environment first.",
   "forms.workflow.reviewVersion": "Review v{version}",
   "forms.workflow.testRequired":
-    "Publish this version to a non-prod environment first, then switch to prod and publish that version.",
+    "Publish this version to a non-production environment first, then switch to production and publish that version.",
   "forms.workflow.noEditPermission":
     "You do not have permission to edit form drafts in this workspace.",
   "forms.workflow.noReleasedVersion":
@@ -1663,35 +1663,35 @@ export const messages = {
 
   "forms.links.heading": "Secure links",
   "forms.links.needsPublish":
-    "Publish this form before minting links: a link opens the newest version, and there is not one yet.",
+    "Publish this form before creating links: a link opens the newest version, and there is not one yet.",
   /** Also the screen and card copy for the API's FORM_NOT_RELEASED, so it has to stand alone. */
   "forms.links.notLiveHere":
     "This form is not live in this environment, so a link here would lead nowhere. Publish a version to this environment first.",
-  "forms.links.mint": "Mint links",
-  /** Restate mint environment in title and confirmation because links determine where respondent answers land. */
-  "forms.links.mintTitle": "Mint secure links for {environment}",
+  "forms.links.mint": "Create links",
+  /** Restate the environment in title and confirmation because links determine where respondent answers land. */
+  "forms.links.mintTitle": "Create secure links for {environment}",
   "forms.links.mintEnvironment":
     "These links will start sessions in {environment}, and nowhere else. A non-production link carries the environment's name in its address.",
   "forms.links.expiresAt": "Expires",
-  /** Mint expiry is end-of-day UTC; operator-local table display must not change that promise. */
+  /** Link expiry is end-of-day UTC; operator-local table display must not change that promise. */
   "forms.links.expiresAtHint": "The link stops working at the end of this day, UTC, used or not.",
   "forms.links.oneTime": "One-time (stops working after the first use)",
   "forms.links.count": "How many",
   "forms.links.countHint": "Up to {max} at a time.",
-  "forms.links.confirmMint": "Mint for {environment}",
-  "forms.links.pending": "Minting...",
+  "forms.links.confirmMint": "Create for {environment}",
+  "forms.links.pending": "Creating...",
   "forms.links.cancel": "Cancel",
-  "forms.links.mintFailed": "No links were minted. {message}",
-  "forms.links.mintedTitle.one": "1 link minted",
-  "forms.links.mintedTitle.other": "{count} links minted",
+  "forms.links.mintFailed": "No links were created. {message}",
+  "forms.links.mintedTitle.one": "1 link created",
+  "forms.links.mintedTitle.other": "{count} links created",
   "forms.links.mintedOnce":
     "Copy these now. The server stores a link's state, never its token, so these URLs cannot be shown again.",
   "forms.links.mintedEnvironment": "These links are for {environment}.",
   /** Never announce bearer URLs aloud; announce success and the one-time opportunity to copy them. */
   "forms.links.mintedAnnounce.one":
-    "1 secure link minted. It is listed below and cannot be shown again.",
+    "1 secure link created. It is listed below and cannot be shown again.",
   "forms.links.mintedAnnounce.other":
-    "{count} secure links minted. They are listed below and cannot be shown again.",
+    "{count} secure links created. They are listed below and cannot be shown again.",
   "forms.links.copy": "Copy link",
   "forms.links.copyNumbered": "Copy link {number}",
   "forms.publicLink.heading": "Public form link",
@@ -1712,10 +1712,10 @@ export const messages = {
   "forms.links.column.state": "State",
   "forms.links.column.oneTime": "One-time",
   "forms.links.column.expiresAt": "Expires",
-  "forms.links.column.createdAt": "Minted",
+  "forms.links.column.createdAt": "Created",
   "forms.links.column.usedAt": "Used",
   "forms.links.emptyTitle": "No links yet",
-  "forms.links.empty": "No links have been minted for this form.",
+  "forms.links.empty": "No links have been created for this form.",
   "forms.links.yes": "Yes",
   "forms.links.no": "No",
   "forms.links.none": "-",
@@ -1733,7 +1733,7 @@ export const messages = {
   "forms.links.noPublicAddress":
     "{environment} has no public form address. A non-production environment is reached through secure links only, which is what keeps a non-production version off the open internet.",
   "forms.links.environmentScope":
-    "This table lists {environment}'s links. A link minted for another environment is listed, and revocable, under that environment.",
+    "This table lists {environment}'s links. A link created for another environment is listed, and revocable, under that environment.",
   "forms.links.listFailed": "The links could not be loaded. {message}",
 
   "forms.error.invalidLinkId": "That is not a valid link.",
@@ -1994,7 +1994,7 @@ export const messages = {
     "The answers and the submission are deleted. There is no undo, no archive and no restore.",
   "agent.card.response.erase.tombstone":
     "A tombstone records that the session existed, who erased it, when and why. It carries no answer.",
-  "agent.card.response.unflag.title": "Release the withheld submission for {sessionId}",
+  "agent.card.response.unflag.title": "Send on the withheld submission for {sessionId}",
   "agent.card.response.unflag.consequence":
     "The withheld submission event is sent to this form's consumers. The response itself is unchanged.",
   "agent.card.response.export.title": "Export this form's responses as {format}",
@@ -2019,15 +2019,15 @@ export const messages = {
     "A Workspace administrator looks after this workspace: its access groups, its members and its settings. Removing the last one is refused.",
   "agent.card.workspace.settings.title": "Change this workspace's settings",
   "agent.card.workspace.settings.consequence":
-    "This switch decides whether a publish to prod, a prod endpoint change and a response self-grant need a second account.",
+    "This switch decides whether a publish to production, a production endpoint change and a response self-grant need a second account.",
   "agent.card.link.revoke.title": "Revoke link {linkId}",
   "agent.card.link.revoke.consequence":
     "The link stops working from now on. A session already in progress is unaffected.",
 
   "agent.card.environment.production":
-    "This is prod. Real respondents get this from the moment you confirm, and what they have already sent is untouched.",
-  /** Every other prod step: the environment is worth naming, a warning about the form is not. */
-  "agent.card.environment.prodNote": "This is prod, where real respondents answer.",
+    "This is production. Real respondents get this from the moment you confirm, and what they have already sent is untouched.",
+  /** Every other production step: the environment is worth naming, a warning about the form is not. */
+  "agent.card.environment.prodNote": "This is production, where real respondents answer.",
   "agent.card.environmentLabel": "Environment",
   "agent.card.usesStep": "Uses what step {step} makes",
 
@@ -2188,7 +2188,7 @@ export const messages = {
     "This draft changed since the conversation started. Reload the builder and try again.",
   "forms.assist.error.HTTP": "That request did not reach the assistant. {message}",
 
-  "forms.assist.provenance": "draft includes agent-assisted changes",
+  "forms.assist.provenance": "draft includes changes from the assistant",
 
   /** Erasure copy states irreversible answer deletion and retained tombstones without claiming recall from consumers. Webhook secrets are revealed only once and cannot be recovered. */
 
@@ -2321,15 +2321,15 @@ export const messages = {
   "ops.detail.secureLinkGo": "Open the Links screen",
   "ops.detail.flagged": "Flagged: {reason}",
   "ops.detail.flaggedNote":
-    "The response is stored, and its webhook event is withheld until it is released.",
-  "ops.detail.unflag": "Release the withheld event",
-  "ops.detail.unflagTitle": "Release this response to webhook consumers?",
+    "The response is stored, and its webhook event is withheld until somebody sends it on.",
+  "ops.detail.unflag": "Send on the withheld event",
+  "ops.detail.unflagTitle": "Send this response on to webhook consumers?",
   "ops.detail.unflagBody":
     "The withheld response.submitted event is queued for delivery. Once a consumer has it, it cannot be recalled.",
-  "ops.detail.confirmUnflag": "Release it",
+  "ops.detail.confirmUnflag": "Send it on",
   "ops.detail.unflagged": "The withheld event is queued for delivery.",
-  "ops.detail.unflagNoop": "There was no withheld event to release.",
-  "ops.detail.unflagFailed": "The event was not released. {message}",
+  "ops.detail.unflagNoop": "There was no withheld event to send on.",
+  "ops.detail.unflagFailed": "The event was not sent on. {message}",
   "ops.detail.loadFailed": "This response could not be loaded. {message}",
   "ops.detail.labelsFailed":
     "Question wording could not be loaded, so answers are captioned with their question ids.",
@@ -2409,9 +2409,9 @@ export const messages = {
   "ops.erasures.loadFailed": "The erasure log could not be loaded. {message}",
 
   "ops.webhooks.heading": "Webhook endpoints",
-  /** Flagged submissions withhold webhook events until explicit unflagging; never promise delivery for every submission. */
+  /** Flagged submissions withhold webhook events until an operator sends them on; never promise delivery for every submission. */
   "ops.webhooks.intro":
-    "Each active endpoint receives a signed response.submitted request for every submission except a flagged one, whose event is withheld until an operator releases it on the response.",
+    "Each active endpoint receives a signed response.submitted request for every submission except a flagged one, whose event is withheld until an operator sends it on from the response.",
   "ops.webhooks.add": "Add endpoint",
   "ops.webhooks.addTitle": "Add a webhook endpoint",
   "ops.webhooks.url": "Endpoint URL",
@@ -3003,7 +3003,7 @@ export const messages = {
   "membership.agentAudit.act.link.mint": "Created respondent links",
   "membership.agentAudit.act.link.revoke": "Revoked a respondent link",
   "membership.agentAudit.act.response.erase": "Erased a respondent's data",
-  "membership.agentAudit.act.response.unflag": "Released a withheld submission",
+  "membership.agentAudit.act.response.unflag": "Sent on a withheld submission",
   "membership.agentAudit.act.response.export": "Exported responses",
   "membership.agentAudit.act.webhook.create": "Added a delivery endpoint",
   "membership.agentAudit.act.webhook.rotate": "Rotated an endpoint's signing secret",
@@ -3426,10 +3426,11 @@ export const messages = {
   "appearance.respondent.contrast": "High contrast",
   "appearance.respondent.textSize": "Text size, up to 200%",
   "appearance.respondent.note": "Respondents always keep these, because they are access needs.",
-  "appearance.palette.light": "Light",
-  "appearance.palette.dark": "Dark",
-  "appearance.palette.lightHighContrast": "Light high contrast",
-  "appearance.palette.darkHighContrast": "Dark high contrast",
+  /** Palette means the preview set; these are modes. */
+  "appearance.palette.light": "Light mode",
+  "appearance.palette.dark": "Dark mode",
+  "appearance.palette.lightHighContrast": "Light, high contrast",
+  "appearance.palette.darkHighContrast": "Dark, high contrast",
   "appearance.contrastFailure":
     "{foreground} on {background} in {palette} reaches {ratio}:1, short of {required}:1.",
 
@@ -3445,7 +3446,7 @@ export const messages = {
   "themes.needs": "Needs Edit forms.",
   "themes.empty": "This workspace has no themes yet.",
   "themes.unavailable": "Themes are not available to you in this workspace.",
-  "themes.create.note": "A theme is saved from a form's Appearance drawer in the agent builder.",
+  "themes.create.note": "A theme is saved from a form's Appearance drawer in the assistant.",
   "themes.source": "From {host}",
   "themes.logo.none": "No logo",
   "themes.logo.set": "Logo set",

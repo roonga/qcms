@@ -12,7 +12,7 @@ import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { addStep, createForm, pinQuestion, waitForSaved } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
-import { confirmLifecycle, createDraft } from "./support/questions.js";
+import { confirmLifecycle, createDraft, draftLabel } from "./support/questions.js";
 
 test.describe.configure({ mode: "serial" });
 
@@ -22,7 +22,7 @@ const ADMIN_ONLY_EMAIL = uniqueAdminEmail("appearance116admin");
 const RUN = Date.now().toString(36);
 const TEXT_SLUG = `e2e-appearance-text-${RUN}`;
 const TEXT_ID = `q_${TEXT_SLUG.replaceAll("-", "_")}`;
-const TEXT_LABEL = "E2E Long text question";
+const TEXT_LABEL = draftLabel("longText");
 const THEME_NAME = `Clinical blue ${RUN}`;
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
@@ -119,7 +119,7 @@ test.afterAll(async () => {
 test("builds a draft the drawer can dress", async ({ page }) => {
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
-  await createDraft(page, TEXT_SLUG, "Long text");
+  await createDraft(page, TEXT_SLUG, "longText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   formId = await createForm(page, `e2e-appearance-${RUN}`, "Appearance intake");

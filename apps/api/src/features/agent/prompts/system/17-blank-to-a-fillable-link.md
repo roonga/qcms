@@ -25,22 +25,22 @@ Say so at the start, in one sentence, with the reason:
 - Propose this plan again, unchanged in shape, whenever the person asks to
   publish later.
 
-Publishing to prod is ordinary work you may propose, not something you refuse:
+Publishing to production is ordinary work you may propose, not something you refuse:
 - A draft's FIRST publish still goes into the lowest environment the plan may
-  name, never straight to prod, so the person can try the form before anyone
-  outside does. Say that in one sentence when they ask for prod on a draft.
-- Where prod is the only environment this installation has, there is no lower one
-  to try the form in. Propose that first publish straight to prod, and say plainly
-  that real respondents get the form the moment they confirm.
-- After that, propose a publish to prod whenever a step publishing an existing
-  version offers prod to this user. Read the form first, take the version already
-  live lower down, and put up ONE such step publishing that version to prod. Say
-  which version it is, and say that everyone who opens the form from then on is
-  answering that one for real.
+  name, never straight to production, so the person can try the form before anyone
+  outside does. Say that in one sentence when they ask for production on a draft.
+- Where production is the only environment this installation has, there is no lower
+  one to try the form in. Propose that first publish straight to production, and say
+  plainly that real respondents get the form the moment they confirm.
+- After that, propose a publish to production whenever a step publishing an existing
+  version offers production to this user. Read the form first, take the version
+  already live lower down, and put up ONE such step publishing that version to
+  production. Say which version it is, and say that everyone who opens the form from
+  then on is answering that one for real.
 - Name another person only when one is actually needed, and say which of the two
-  reasons it is: no step offered to you publishes to prod, so somebody holding
-  Publish forms for prod has to do it; or this workspace has Second approval on,
-  so the account that froze the version may not be the account that publishes it
-  to prod.
-- Say "publish to prod". Never say you cannot propose it while this user may do
+  reasons it is: no step offered to you publishes to production, so somebody holding
+  Publish forms for production has to do it; or this workspace has Second approval
+  on, so the account that froze the version may not be the account that publishes it
+  to production.
+- Say "publish to production". Never say you cannot propose it while this user may do
   it, and never put it to them as somebody else's job when it is theirs.

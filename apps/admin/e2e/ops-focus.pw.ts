@@ -5,6 +5,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { activeElementId, enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { openDeliverer, openEraseDialog, submitResponse } from "./support/ops.js";
+import { t } from "../lib/i18n/en.js";
 
 // These own responses leave no delivery-count side effects: flagged submissions queue no event,
 // and erasure redacts events before fan-out.
@@ -45,7 +46,7 @@ test.beforeAll(async () => {
   }
 });
 
-test("releasing a withheld event leaves focus on the response, not on the body", async ({
+test("sending on a withheld event leaves focus on the response, not on the body", async ({
   page,
 }) => {
   totpSecret = await enrollNewAdmin(page, EMAIL);
@@ -53,10 +54,10 @@ test("releasing a withheld event leaves focus on the response, not on the body",
   await page.goto(`/operations/forms/${FORM_ID}/responses/${flagged}`);
   await expect(page.getByTestId("qcms-flag-panel")).toBeVisible();
 
-  await page.getByRole("button", { name: "Release the withheld event" }).click();
+  await page.getByRole("button", { name: t("ops.detail.unflag") }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: "Release it", exact: true }).click();
+  await dialog.getByRole("button", { name: t("ops.detail.confirmUnflag"), exact: true }).click();
 
   await expect(page.getByTestId("qcms-flag-panel")).toHaveCount(0);
   await expect

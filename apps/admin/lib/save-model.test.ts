@@ -213,7 +213,7 @@ const SCREENS: readonly ScreenRow[] = [
   {
     route: "app/(shell)/operations/forms/[formId]/links/page.tsx",
     model: "action",
-    why: "Mint and revoke. Its live region reports the outcome of a completed action, not a save state.",
+    why: "Create and revoke. Its live region reports the outcome of a completed action, not a save state.",
   },
   {
     route: "app/(shell)/operations/forms/[formId]/responses/page.tsx",

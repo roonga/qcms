@@ -14,6 +14,8 @@ import {
 } from "./support/flow.js";
 import { chooseOption } from "./support/forms.js";
 import { createDraft, openPanel } from "./support/questions.js";
+import { t } from "../lib/i18n/en.js";
+import type { QuestionType } from "../lib/questions/types.js";
 
 // Measure descendant computed styles: carrier classes alone cannot prove that respondent tokens beat authoring styles.
 // Portalled overlays escape the carrier; use descendant controls for the isolation check.
@@ -58,7 +60,7 @@ const TYPE_FLOORS = {
   fontFamily: "ui-sans-serif",
 } as const;
 
-const THEME_LABEL = "Preview theme";
+const THEME_LABEL = t("preview.island.theme");
 const MODE_LABEL = "Preview mode";
 
 const ADMIN_POLARITY = { dark: "Dark" } as const;
@@ -106,8 +108,12 @@ function typeScaleOf(target: Locator): Promise<Record<string, string>> {
 }
 
 // Use checkboxes as real carrier descendants; use a segmented date field for locale order.
-async function openPreview(page: Page, name: string, typeLabel = "Multiple choice"): Promise<void> {
-  await createDraft(page, `e2e-island-${name}-${RUN}`, typeLabel);
+async function openPreview(
+  page: Page,
+  name: string,
+  type: QuestionType = "multiChoice",
+): Promise<void> {
+  await createDraft(page, `e2e-island-${name}-${RUN}`, type);
 
   await openPanel(page, "preview");
   await expect(island(page)).toBeVisible();
@@ -316,7 +322,7 @@ test("the switcher is localized, keyboard-operable and shows focus", async ({ pa
 test("the island lays out a date field the way the declared locale does", async ({ page }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await openPreview(page, "locale", "Date");
+  await openPreview(page, "locale", "date");
 
   const surface = island(page);
 

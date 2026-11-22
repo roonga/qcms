@@ -94,17 +94,16 @@ export const messages = {
   "announce.ready": "You have answered everything. You can now submit.",
 
   "link.expired.title": "This link has expired",
-  "link.expired.body": "The registration link is no longer valid. Please request a new one.",
+  "link.expired.body": "The secure link is no longer valid. Please request a new one.",
   "link.consumed.title": "This link has already been used",
   "link.consumed.body":
     "Each secure link can be opened once. Please request a new link to continue.",
   "link.revoked.title": "This link is no longer active",
-  "link.revoked.body":
-    "The registration link was withdrawn. Please contact whoever sent it to you.",
+  "link.revoked.body": "The secure link was withdrawn. Please contact whoever sent it to you.",
 
   "link.invalid.title": "This link is not valid",
   "link.invalid.body":
-    "The registration link could not be read. Please check the link or request a new one.",
+    "The secure link could not be read. Please check the link or request a new one.",
 
   "formClosed.title": "This form is not accepting responses",
   "formClosed.body": "The questionnaire is closed. Please check back later or contact the sender.",

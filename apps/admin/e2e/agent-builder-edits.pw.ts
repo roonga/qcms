@@ -7,6 +7,7 @@ import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { card } from "./support/agent-card.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
+import { t } from "../lib/i18n/en.js";
 
 test.describe.configure({ mode: "serial" });
 
@@ -58,7 +59,7 @@ test("abandoning the New form builder before Confirm leaves no form", async ({ p
   await expect(card(page)).toBeVisible({ timeout: 30_000 });
   await Promise.all([
     page.waitForURL(/\/forms\/new$/u),
-    page.getByRole("link", { name: "Exit the agent builder" }).click(),
+    page.getByRole("link", { name: t("shell.mode.builder.exit") }).click(),
   ]);
 
   const gone = await page.request.get(`/forms/${formIdFor(word)}/build`);
