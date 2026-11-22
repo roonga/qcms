@@ -137,7 +137,12 @@ function vocabularyText(name: string, raw: unknown): string | undefined {
 }
 
 /** The arguments a card names by title; their ids are support detail rather than the subject. */
-const NAMED_ID_ARGUMENTS: ReadonlySet<string> = new Set(["formId", "questionId", "workspaceId"]);
+const NAMED_ID_ARGUMENTS: ReadonlySet<string> = new Set([
+  "formId",
+  "questionId",
+  "workspaceId",
+  "teamId",
+]);
 
 /**
  * Arguments that ARE an identifier rather than one standing in for a title. The step's own
@@ -147,7 +152,7 @@ const NAMED_ID_ARGUMENTS: ReadonlySet<string> = new Set(["formId", "questionId",
 const IDENTIFIER_ARGUMENTS: ReadonlySet<string> = new Set(["slug"]);
 
 /** The arguments whose title the plan can work out for itself. */
-const TITLED_ID_ARGUMENTS: readonly string[] = ["formId", "questionId"];
+const TITLED_ID_ARGUMENTS: readonly string[] = ["formId", "questionId", "teamId"];
 
 export function stepArguments(
   step: AgentPlanStep,
@@ -364,6 +369,7 @@ function subjectName(
 const SUBJECTS: readonly (readonly [string, string, MessageKey])[] = [
   ["form", "formId", "agent.card.subject.form"],
   ["question", "questionId", "agent.card.subject.question"],
+  ["group", "teamId", "agent.card.subject.group"],
 ];
 
 const ID_SUFFIX_CHARS = 8;

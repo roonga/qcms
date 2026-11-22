@@ -264,6 +264,35 @@ describe("what a minted link is called", () => {
 });
 
 describe("the words a card uses for a thing the person reads", () => {
+  it("names an access group by its name and keeps its id behind the disclosure", () => {
+    const grant = step({
+      kind: "access.grant",
+      screen: "/workspaces/[workspaceId]/access-groups",
+      args: { workspaceId: "wsp_clinic", teamId: "tem_authors", email: "sarah@larkmead.test" },
+      card: { titleKey: "agent.card.access.grant.title", consequenceKeys: [] },
+    });
+    const known = new Map([["tem_authors", "Authors"]]);
+    const { steps, names } = plan([grant], known);
+    expect(stepTitle(grant, {}, steps, names)).toBe(
+      "Put sarah@larkmead.test in the access group Authors",
+    );
+    const [line] = stepArguments(grant, {}, names).filter((entry) => entry.name === "teamId");
+    expect(line?.value).toBe("Authors");
+    expect(line?.id).toBe("tem_authors");
+    expect(line?.idOnly).toBe(false);
+  });
+
+  it("falls back to the generic word rather than printing an id the screen cannot name", () => {
+    const remove = step({
+      kind: "access.groupRemove",
+      screen: "/workspaces/[workspaceId]/access-groups",
+      args: { workspaceId: "wsp_clinic", teamId: "tem_authors" },
+      card: { titleKey: "agent.card.access.groupRemove.title", consequenceKeys: [] },
+    });
+    const { steps, names } = plan([remove]);
+    expect(stepTitle(remove, {}, steps, names)).toBe("Remove the access group this access group");
+  });
+
   it("keeps an identifier behind the disclosure rather than in the step's own body", () => {
     const [line] = stepArguments(CREATE_FORM).filter((entry) => entry.name === "slug");
     expect(line?.label).toBe("Identifier");

@@ -1917,6 +1917,7 @@ export const messages = {
   /** A step naming no title of its own still has to read as a sentence about something. */
   "agent.card.subject.form": "this form",
   "agent.card.subject.question": "this question",
+  "agent.card.subject.group": "this access group",
   /** The tail of an id, when nothing the screen can read names the subject. */
   "agent.card.subject.ending": "\u2026{suffix}",
   /** The screen's own title stands; a plan writing another one is proposing a rename. */
@@ -2009,13 +2010,13 @@ export const messages = {
   "agent.card.access.groupCreate.title": "Create the access group {name} with the roles {roles}",
   "agent.card.access.groupCreate.consequence":
     "The group exists but grants nobody anything yet. Being in the group is the grant, so nobody's access changes until somebody is added to it.",
-  "agent.card.access.groupRemove.title": "Remove the access group {teamId}",
+  "agent.card.access.groupRemove.title": "Remove the access group {group}",
   "agent.card.access.groupRemove.consequence":
     "Everybody in this group loses the access it carried, at once. One revoke row is written for each of them.",
-  "agent.card.access.grant.title": "Grant the access group {teamId} to {email}",
+  "agent.card.access.grant.title": "Put {email} in the access group {group}",
   "agent.card.access.grant.consequence":
     "That person gains everything the group's role, environments and forms allow, from now on.",
-  "agent.card.access.revoke.title": "Revoke {userId} from the access group {teamId}",
+  "agent.card.access.revoke.title": "Revoke {userId} from the access group {group}",
   "agent.card.access.revoke.consequence":
     "That person loses the access this group carried. Everybody else in it keeps theirs.",
   "agent.card.member.role.title": "Set {userId} to {role} in this workspace",
