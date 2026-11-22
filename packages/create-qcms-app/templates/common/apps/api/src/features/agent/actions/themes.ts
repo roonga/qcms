@@ -2,13 +2,13 @@ import { z } from "zod";
 
 import { WorkspaceThemeBody } from "../../workspaces/schema.js";
 import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
-import { routeArgs, type StepArgs } from "./derive.js";
 import type { ActionKindDef } from "./types.js";
 
 /**
- * The builder's two theme acts. A derive reaches a website, so no proposal names the address:
- * the card collects it, shows it in full and hands it to the drawer, and the fetch is the
- * SEC-18 fetcher's (W2). A save is an ordinary tokened Confirm over the drawer's live look.
+ * The builder's two theme acts, both hand-offs to the appearance drawer, because what each
+ * acts on exists only there. A derive reaches a website, so no proposal names the address: the
+ * card collects it, shows it in full, and the fetch is the SEC-18 fetcher's (W2). A save keeps
+ * the look the drawer is showing, which is nobody's argument.
  */
 
 const WorkspaceIdArg = z
@@ -16,26 +16,6 @@ const WorkspaceIdArg = z
   .min(1)
   .max(200)
   .describe("The workspace whose themes this acts on.");
-
-const save = routeArgs(
-  WorkspaceThemeBody,
-  {
-    workspaceId: WorkspaceIdArg,
-    name: WorkspaceThemeBody.shape.name.describe(
-      "What to call the theme. A workspace cannot hold two themes of the same name.",
-    ),
-  } satisfies StepArgs<
-    typeof WorkspaceThemeBody.shape,
-    "palettes" | "face" | "corners" | "pageTint" | "logoKey" | "sourceHost",
-    "workspaceId"
-  >,
-  // The look is the one the drawer is showing when the person confirms, so none of it is a
-  // value a model chose and none of it is bound as an argument.
-  {
-    unnamed: ["palettes", "face", "corners", "pageTint", "logoKey", "sourceHost"],
-    params: { workspaceId: "id" },
-  },
-);
 
 /**
  * Reads one website and answers colours, a registry face and a stored logo, saving no theme.
@@ -76,10 +56,17 @@ export const deriveWorkspaceTheme: ActionKindDef = {
 export const saveWorkspaceTheme: ActionKindDef = {
   kind: "theme.save",
   screen: "/forms/[formId]/build",
-  route: { method: "POST", path: "/admin/workspaces/{id}/themes" },
   cell: { resource: "form", action: "write" },
   environmentFrom: "switcher",
-  ...save,
+  // The look is the one the drawer is showing when the person confirms, so none of it is a
+  // value a model chose and none of it is an argument at all.
+  args: z.strictObject({
+    workspaceId: WorkspaceIdArg,
+    name: WorkspaceThemeBody.shape.name.describe(
+      "What to call the theme. A workspace cannot hold two themes of the same name.",
+    ),
+  }),
+  recomputeArgs: () => ({}),
   references: [],
   resultAllowlist: ["themeId", "name"],
   handOff: true,

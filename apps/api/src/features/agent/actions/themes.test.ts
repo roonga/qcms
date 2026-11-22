@@ -63,34 +63,24 @@ describe("theme.save", () => {
       "name",
       "workspaceId",
     ]);
-    expect([...(save?.argsFrom?.unnamed ?? [])].sort()).toEqual([
-      "corners",
-      "face",
-      "logoKey",
-      "pageTint",
-      "palettes",
-      "sourceHost",
-    ]);
+    for (const named of ["palettes", "face", "corners", "pageTint", "logoKey", "sourceHost"]) {
+      expect(
+        save?.args.safeParse({ workspaceId: "org_a", name: "Harbour", [named]: {} }).success,
+        named,
+      ).toBe(false);
+    }
   });
 
-  it("gives back exactly what the card showed, whatever else the request carries", () => {
+  it("carries the name the card showed back as the step's own, and nothing else", () => {
     expect(
       save?.recomputeArgs({
-        path: "/admin/workspaces/{id}/themes",
+        path: "",
         method: "POST",
         params: { id: "org_a" },
-        body: {
-          name: "Bright Start",
-          palettes: { light: {} },
-          face: "system",
-          corners: "rounded",
-          pageTint: false,
-          logoKey: null,
-          sourceHost: "brand.example",
-        },
+        body: { name: "Bright Start", palettes: { light: {} } },
         environment: "test",
       }),
-    ).toEqual({ workspaceId: "org_a", name: "Bright Start" });
+    ).toEqual({});
   });
 });
 

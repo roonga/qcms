@@ -35,6 +35,7 @@ const CONFIRMED_THROUGH: Readonly<
   "apply-draft": { method: "POST", path: "/admin/forms/{id}/draft/assist/accept" },
   "response.export": { method: "GET", path: "/admin/forms/{id}/export" },
   "theme.derive": { method: "POST", path: "/admin/workspaces/{id}/themes/derive" },
+  "theme.save": { method: "POST", path: "/admin/workspaces/{id}/themes" },
 };
 
 describe("every action kind asks for exactly what its own route asks for (criterion 90)", () => {
