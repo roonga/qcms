@@ -2,6 +2,7 @@
 
 import { localeName } from "@/lib/agent/card-copy";
 import { t, type MessageKey } from "@/lib/i18n/en";
+import { QUESTION_TYPES, type QuestionType } from "@/lib/questions/types";
 
 /* A question definition is authoring content, so the card shows every field of it: the digest binds the whole
    object, and a field the card did not show is a field nobody confirmed. */
@@ -43,23 +44,15 @@ const FIELD_LABELS: Readonly<Record<string, MessageKey>> = {
   help: "forms.assist.definition.help",
 };
 
-const QUESTION_TYPES: readonly string[] = [
-  "shortText",
-  "longText",
-  "number",
-  "date",
-  "boolean",
-  "singleChoice",
-  "multiChoice",
-];
+function isQuestionType(raw: unknown): raw is QuestionType {
+  return typeof raw === "string" && (QUESTION_TYPES as readonly string[]).includes(raw);
+}
 
 /* The card writes a question the way the question screens write it, so a type is its own name
    and whether an answer is required is the editor's own sentence. */
 function headValue(name: string, raw: unknown): string | undefined {
   if (name === "label" || name === "help") return localized(raw);
-  if (name === "type" && typeof raw === "string" && QUESTION_TYPES.includes(raw)) {
-    return t(`questions.type.${raw}` as MessageKey);
-  }
+  if (name === "type" && isQuestionType(raw)) return t(`questions.type.${raw}` as MessageKey);
   if (name === "required" && typeof raw === "boolean") {
     return t(raw ? "forms.assist.definition.requiredYes" : "forms.assist.definition.requiredNo");
   }

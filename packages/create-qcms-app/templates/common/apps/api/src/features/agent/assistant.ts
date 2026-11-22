@@ -99,17 +99,14 @@ function defaultIds(defaults: AgentContext["defaults"]): readonly string[] {
   );
 }
 
-/**
- * The viewer's own date where the browser sent one, because that is the date they read, and
- * their current instant beside it, because an expiry is counted from a time of day and a
- * date alone cannot give one.
- */
+/** The viewer's own date where the browser sent one, because that is the date they read. */
 function dayLine(ctx: AgentContext): string | undefined {
   if (ctx.viewerToday !== undefined) return `Today is ${ctx.viewerToday} where the person is.`;
   if (ctx.today !== undefined) return `Today is ${ctx.today} where this installation runs.`;
   return undefined;
 }
 
+/** That day, and the instant beside it, because an expiry is counted from a time of day. */
 function dateLine(ctx: AgentContext): readonly string[] {
   const day = dayLine(ctx);
   const zone = ctx.viewerZone === undefined ? "" : `, in ${ctx.viewerZone}`;

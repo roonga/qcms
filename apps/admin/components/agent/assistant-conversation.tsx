@@ -242,8 +242,8 @@ function ScreenConversation({
     revealIn(list, item);
     revealedAt.current = list.scrollTop;
   }, []);
-  // One module reads the operator's zone (issue #279), and the turn context carries what it
-  // reports so a date the model works out is the one their screen writes.
+  // One module reads the operator's zone, and the turn context carries what it reports, so a
+  // date the model works out is the one their screen writes.
   const zone = useOperatorZone();
   // Layout, so it is measured rather than assumed: a card taller than the panel keeps its own
   // Confirm below the fold, and the panel pins one at its foot.
