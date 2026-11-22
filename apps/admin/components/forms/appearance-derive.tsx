@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
 import { Alert } from "@/components/kit";
 import { themeSwatch, type DerivedTheme, type ThemeCorrection } from "@/lib/forms/appearance-edit";
@@ -121,49 +121,143 @@ export interface AppearanceDeriveProps {
  * The drawer's derive flow: an address, the look it gave, and the choice to keep that look as a
  * workspace theme. Every fetch is the API's, behind SEC-18: nothing here reaches the website.
  */
+/** The look the drawer is showing, kept under a name. Also where a confirmed save card lands. */
+function KeepAsTheme({
+  locked,
+  describedBy,
+  pending,
+  naming,
+  name,
+  saving,
+  onName,
+  onOpen,
+  onCancel,
+  onSave,
+}: {
+  readonly locked: boolean;
+  readonly describedBy: string | undefined;
+  readonly pending: boolean;
+  readonly naming: boolean;
+  readonly name: string;
+  readonly saving: CreateThemeState | undefined;
+  readonly onName: (value: string) => void;
+  readonly onOpen: () => void;
+  readonly onCancel: () => void;
+  readonly onSave: () => void;
+}): ReactNode {
+  const field = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (naming) field.current?.focus();
+  }, [naming]);
+
+  if (saving?.status === "created") {
+    return (
+      <Alert variant="success">{t("appearance.themeSave.saved", { name: saving.name })}</Alert>
+    );
+  }
+  return (
+    <div className="qcms-aderive__keep">
+      {saving?.status === "error" && (
+        <div data-testid="qcms-appearance-theme-save-error">
+          <Alert variant="error">
+            {t("appearance.themeSave.failed", { message: saving.message })}
+          </Alert>
+        </div>
+      )}
+      {naming && (
+        <>
+          <label className="qcms-adrawer__label" htmlFor={NAME_FIELD_ID}>
+            {t("appearance.themeSave.label")}
+          </label>
+          <input
+            ref={field}
+            id={NAME_FIELD_ID}
+            type="text"
+            className="qcms-adrawer__name"
+            data-testid="qcms-appearance-theme-name"
+            disabled={locked}
+            {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
+            value={name}
+            onChange={(event) => {
+              onName(event.target.value);
+            }}
+          />
+        </>
+      )}
+      <div className="qcms-aderive__actions">
+        <button
+          type="button"
+          className="qcms-adrawer__done"
+          data-testid="qcms-appearance-theme-save"
+          disabled={locked || pending || (naming && name.trim() === "")}
+          {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
+          onClick={naming ? onSave : onOpen}
+        >
+          {t(saveLabel(pending, naming))}
+        </button>
+        {naming && (
+          <button
+            type="button"
+            className="qcms-adrawer__reset"
+            data-testid="qcms-appearance-theme-cancel"
+            onClick={onCancel}
+          >
+            {t("appearance.themeSave.cancel")}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function saveLabel(pending: boolean, naming: boolean): MessageKey {
+  if (!naming) return "appearance.themeSave";
+  return pending ? "appearance.themeSave.saving" : "appearance.themeSave.save";
+}
+
+/**
+ * The drawer's derive flow: an address, the look it gave, and the choice to keep that look as a
+ * workspace theme. Every fetch is the API's, behind SEC-18: nothing here reaches the website.
+ */
 export function AppearanceDerive(props: AppearanceDeriveProps): ReactNode {
-  const { locked, describedBy } = props;
+  const { locked, describedBy, handedOff, handedOffName, onDerive, onApply } = props;
   const [typed, setTyped] = useState("");
   const [state, setState] = useState<DeriveThemeState | undefined>(undefined);
   const [saving, setSaving] = useState<CreateThemeState | undefined>(undefined);
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
   const [pending, startTransition] = useTransition();
-  const nameField = useRef<HTMLInputElement>(null);
-  const handedOff = props.handedOff;
-  const handedOffName = props.handedOffName;
+  // Each hand-off is taken once, by nonce, however often its props arrive again.
+  const taken = useRef<{ derive?: number; save?: number }>({});
 
-  const derive = (url: string): void => {
-    setSaving(undefined);
-    setNaming(false);
-    startTransition(async () => {
-      const next = await props.onDerive(url);
-      setState(next);
-      if (next.status === "derived") props.onApply(next.derived, next.host);
-    });
-  };
+  const derive = useCallback(
+    (url: string): void => {
+      setSaving(undefined);
+      setNaming(false);
+      startTransition(async () => {
+        const next = await onDerive(url);
+        setState(next);
+        if (next.status === "derived") onApply(next.derived, next.host);
+      });
+    },
+    [onApply, onDerive],
+  );
 
-  // A confirmed card hands the address over already typed, so the person types it once.
   useEffect(() => {
-    if (handedOff === undefined || locked) return;
+    if (handedOff === undefined || locked || taken.current.derive === handedOff.nonce) return;
+    taken.current.derive = handedOff.nonce;
     setTyped(handedOff.url);
     if (isDerivableAddress(handedOff.url)) derive(handedOff.url);
-    // The nonce is the hand-off's identity: a second Confirm of the same address derives again.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handedOff?.nonce]);
+  }, [derive, handedOff, locked]);
 
-  // A confirmed save card opens the name field with the name on it; the person presses Save.
   useEffect(() => {
-    if (handedOffName === undefined || locked) return;
+    if (handedOffName === undefined || locked || taken.current.save === handedOffName.nonce) return;
+    taken.current.save = handedOffName.nonce;
     setSaving(undefined);
     setName(handedOffName.name);
     setNaming(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handedOffName?.nonce]);
-
-  useEffect(() => {
-    if (naming) nameField.current?.focus();
-  }, [naming]);
+  }, [handedOffName, locked]);
 
   const derived = state?.status === "derived" ? state.derived : undefined;
   const ready = isDerivableAddress(typed);
@@ -202,7 +296,7 @@ export function AppearanceDerive(props: AppearanceDeriveProps): ReactNode {
           derive(typed.trim());
         }}
       >
-        {pending ? t("appearance.derive.working") : t("appearance.derive.get")}
+        {t(pending ? "appearance.derive.working" : "appearance.derive.get")}
       </button>
 
       {state?.status === "error" && (
@@ -245,76 +339,30 @@ export function AppearanceDerive(props: AppearanceDeriveProps): ReactNode {
         </div>
       )}
 
-      {props.canSave &&
-        (saving?.status === "created" ? (
-          <Alert variant="success">{t("appearance.themeSave.saved", { name: saving.name })}</Alert>
-        ) : (
-          <div className="qcms-aderive__keep">
-            {saving?.status === "error" && (
-              <div data-testid="qcms-appearance-theme-save-error">
-                <Alert variant="error">
-                  {t("appearance.themeSave.failed", { message: saving.message })}
-                </Alert>
-              </div>
-            )}
-            {naming && (
-              <>
-                <label className="qcms-adrawer__label" htmlFor={NAME_FIELD_ID}>
-                  {t("appearance.themeSave.label")}
-                </label>
-                <input
-                  ref={nameField}
-                  id={NAME_FIELD_ID}
-                  type="text"
-                  className="qcms-adrawer__name"
-                  data-testid="qcms-appearance-theme-name"
-                  disabled={locked}
-                  {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
-                  value={name}
-                  onChange={(event) => {
-                    setName(event.target.value);
-                  }}
-                />
-              </>
-            )}
-            <div className="qcms-aderive__actions">
-              <button
-                type="button"
-                className="qcms-adrawer__done"
-                data-testid="qcms-appearance-theme-save"
-                disabled={locked || pending || (naming && name.trim() === "")}
-                {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
-                onClick={() => {
-                  if (!naming) {
-                    setNaming(true);
-                    return;
-                  }
-                  startTransition(async () => {
-                    const next = await props.onCreateTheme(name.trim());
-                    setSaving(next);
-                    if (next.status === "created") props.onSaved(next.name);
-                  });
-                }}
-              >
-                {pending && naming
-                  ? t("appearance.themeSave.saving")
-                  : t(naming ? "appearance.themeSave.save" : "appearance.themeSave")}
-              </button>
-              {naming && (
-                <button
-                  type="button"
-                  className="qcms-adrawer__reset"
-                  data-testid="qcms-appearance-theme-cancel"
-                  onClick={() => {
-                    setNaming(false);
-                  }}
-                >
-                  {t("appearance.themeSave.cancel")}
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
+      {props.canSave && (
+        <KeepAsTheme
+          locked={locked}
+          describedBy={describedBy}
+          pending={pending}
+          naming={naming}
+          name={name}
+          saving={saving}
+          onName={setName}
+          onOpen={() => {
+            setNaming(true);
+          }}
+          onCancel={() => {
+            setNaming(false);
+          }}
+          onSave={() => {
+            startTransition(async () => {
+              const next = await props.onCreateTheme(name.trim());
+              setSaving(next);
+              if (next.status === "created") props.onSaved(next.name);
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

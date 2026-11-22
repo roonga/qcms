@@ -246,7 +246,7 @@ describe("reading a theme from a website", () => {
   });
 
   it("derives the address typed here, and nothing else", async () => {
-    const onDerive = vi.fn((_url: string) => Promise.resolve(READ));
+    const onDerive = vi.fn<(url: string) => Promise<DeriveThemeState>>(() => Promise.resolve(READ));
     render(drawer(APPLIED, { onDerive }));
     await userEvent.type(address(), "https://www.example.org/");
     await userEvent.click(getTheme());
@@ -289,9 +289,9 @@ describe("reading a theme from a website", () => {
   });
 
   it("keeps the look under the name typed here, with the host it was read from", async () => {
-    const onCreateTheme = vi.fn((_name: string, _look: Appearance, _host: string | null) =>
-      Promise.resolve(KEPT),
-    );
+    const onCreateTheme = vi.fn<
+      (name: string, look: Appearance, host: string | null) => Promise<CreateThemeState>
+    >(() => Promise.resolve(KEPT));
     render(drawer(APPLIED, { onCreateTheme }));
     await userEvent.type(address(), "https://www.example.org/");
     await userEvent.click(getTheme());
@@ -337,7 +337,7 @@ describe("reading a theme from a website", () => {
   });
 
   it("derives the address a confirmed card handed over, already typed", async () => {
-    const onDerive = vi.fn((_url: string) => Promise.resolve(READ));
+    const onDerive = vi.fn<(url: string) => Promise<DeriveThemeState>>(() => Promise.resolve(READ));
     render(
       drawer(APPLIED, { onDerive, handedOffAddress: { url: "https://brand.example/", nonce: 1 } }),
     );
@@ -356,9 +356,9 @@ describe("reading a theme from a website", () => {
 
 describe("keeping the drawer's look as a workspace theme", () => {
   it("offers the save on any look, not only one a derive answered", async () => {
-    const onCreateTheme = vi.fn((_name: string, _look: Appearance, _host: string | null) =>
-      Promise.resolve(KEPT),
-    );
+    const onCreateTheme = vi.fn<
+      (name: string, look: Appearance, host: string | null) => Promise<CreateThemeState>
+    >(() => Promise.resolve(KEPT));
     render(drawer(APPLIED, { onCreateTheme }));
     await userEvent.click(screen.getByTestId("qcms-appearance-theme-save"));
     await userEvent.type(screen.getByTestId("qcms-appearance-theme-name"), "Example");

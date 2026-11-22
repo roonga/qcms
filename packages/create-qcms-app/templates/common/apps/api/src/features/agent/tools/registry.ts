@@ -995,11 +995,11 @@ function recordEdit(
  * One edit over the draft's appearance, which changes no question and no rule. The drawer
  * shows the result and offers the Undo; nothing is saved here.
  */
-async function appearanceEdit(
+function appearanceEdit(
   input: unknown,
   ctx: AgentContext,
   state: ProposalState,
-): Promise<Record<string, unknown>> {
+): Record<string, unknown> {
   const builder = port(ctx.builder, "edit appearance");
   port(builder.mintEdits, "edit appearance");
   const outcome = applyAppearanceEdit(
@@ -1241,7 +1241,7 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
     inputSchema: EditAppearanceInput,
     outputSchema: Outputs.edit_appearance,
     cell: DRAFT_WRITE,
-    execute: (input, ctx, state) => appearanceEdit(input, ctx, state),
+    execute: (input, ctx, state) => Promise.resolve(appearanceEdit(input, ctx, state)),
   },
   // No cell: the offer is decided per form, by the publish cell in the form's own workspace,
   // and the port is present only where it was.

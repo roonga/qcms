@@ -177,9 +177,9 @@ function appearanceTurn(): BuilderEdits {
 
 describe("an appearance edit", () => {
   it("saves the appearance beside the definition the turn left", async () => {
-    const save = vi.fn((_definition: unknown, token: string, _appearance?: unknown) =>
-      Promise.resolve(saved(`undo_${token}`)),
-    );
+    const save = vi.fn<
+      (definition: unknown, token: string, appearance?: unknown) => Promise<AgentEditState>
+    >((_definition, token) => Promise.resolve(saved(`undo_${token}`)));
     const records = await applyTurnEdits(
       appearanceTurn(),
       { readStored: () => Promise.resolve(HELD), save },
