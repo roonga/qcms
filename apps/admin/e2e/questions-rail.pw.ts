@@ -418,7 +418,10 @@ test("2026-09-27 badges the panel a refused save names, and lands focus in it", 
   ).toHaveCount(0);
 
   await expect(field(page, t("questions.constraint.minLength"))).toBeFocused();
-  await expect(field(page, t("questions.constraint.minLength"))).toHaveAttribute("aria-invalid", "true");
+  await expect(field(page, t("questions.constraint.minLength"))).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
   await expect(page).toHaveURL(/panel=constraints/u);
 });
 

@@ -608,7 +608,10 @@ test("errors from the API are readable, and land on the field that caused them",
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(alert).toContainText("The engine rejected this draft");
 
-  await expect(field(page, t("questions.constraint.minLength"))).toHaveAttribute("aria-invalid", "true");
+  await expect(field(page, t("questions.constraint.minLength"))).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
   await expect(field(page, t("questions.constraint.minLength"))).toBeFocused();
 
   await page.goto("/questions/new");

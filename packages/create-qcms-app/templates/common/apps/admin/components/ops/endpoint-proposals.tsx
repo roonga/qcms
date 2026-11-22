@@ -180,7 +180,9 @@ export function EndpointProposals({
           <div className="flex flex-col gap-4" data-testid="qcms-proposal-dialog">
             <p className="text-sm">{dialogSentence(dialog.act, dialog.proposal)}</p>
             <p className="text-sm font-semibold" data-testid="qcms-proposal-environment">
-              {t("environment.inThis", { environment: environmentLabel(dialog.proposal.environment) })}
+              {t("environment.inThis", {
+                environment: environmentLabel(dialog.proposal.environment),
+              })}
             </p>
             {dialog.act === "confirm" && (
               <Alert variant="warning">{t("ops.proposals.confirmWarning")}</Alert>
