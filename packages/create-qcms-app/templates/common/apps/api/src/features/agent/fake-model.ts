@@ -104,6 +104,8 @@ export const FAKE_SCRIPTS = [
   "propose-access-revoke",
   "propose-member-role",
   "propose-workspace-settings",
+  "propose-theme-derive",
+  "propose-theme-save",
   // The agent builder's own turns: card-less edits, the Undo report, the wizard, a library
   // write on its card, an injected publish and the per-turn edit cap.
   "builder-edits",
@@ -113,6 +115,7 @@ export const FAKE_SCRIPTS = [
   "builder-injection",
   "builder-edit-cap",
   "builder-first-edits",
+  "builder-appearance",
 ] as const;
 
 /** Asserted present under `summary` and absent everywhere under `off`. */
@@ -1120,6 +1123,16 @@ const SINGLE_ACTIONS: Readonly<
     kind: "question.publish",
     args: { questionId: "q_not_pinned_here", version: 1 },
   }),
+  /* No `url`: the kind carries no such argument, so the address can only come from the card
+     the person types it on (SEC-18 W2). */
+  "propose-theme-derive": (prompt) => ({
+    kind: "theme.derive",
+    args: { workspaceId: factWorkspaceId(prompt) },
+  }),
+  "propose-theme-save": (prompt) => ({
+    kind: "theme.save",
+    args: { workspaceId: factWorkspaceId(prompt), name: "From the website" },
+  }),
   "propose-form-settings": (prompt) => ({
     kind: "form.settings",
     args: { formId: factFormId(prompt), challengeRequired: true, minSubmitMs: 1500 },
@@ -1589,6 +1602,20 @@ function planBuilderEditCapStep(prompt: readonly PromptMessage[]): StreamPart[] 
   return [...textParts("I stopped at the limit for one turn.", "t1"), finishPart("stop")];
 }
 
+/** `builder-appearance`: one card-less appearance edit, from a brand colour. */
+function planBuilderAppearanceStep(prompt: readonly PromptMessage[]): StreamPart[] {
+  if (toolCallCount(prompt, "edit_appearance") === 0) {
+    return [
+      ...textParts("I will give the form your brand colour and a rounder look.", "t0"),
+      ...oneCall("edit_appearance", { primary: "#2e7d32", corners: "rounded" }),
+    ];
+  }
+  return [
+    ...textParts("The look is in the draft now, with its own Undo.", "t1"),
+    finishPart("stop"),
+  ];
+}
+
 const STATEFUL_PLANNERS: Readonly<
   Partial<
     Record<
@@ -1611,6 +1638,7 @@ const STATEFUL_PLANNERS: Readonly<
   "builder-injection": planBuilderInjectionStep,
   "builder-edit-cap": (prompt) => planBuilderEditCapStep(prompt),
   "builder-first-edits": planBuilderFirstEditsStep,
+  "builder-appearance": (prompt) => planBuilderAppearanceStep(prompt),
 };
 
 /** The line `waitingTurn` in `assistant.ts` writes for a card the person has not acted on. */

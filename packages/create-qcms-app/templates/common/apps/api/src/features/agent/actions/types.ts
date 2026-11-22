@@ -64,6 +64,12 @@ export interface ActionCardTemplate {
    * step whose own dialog asks for one. The card is never weaker than that dialog.
    */
   readonly typedConfirmation?: string;
+  /**
+   * The argument the user types on the card itself, which no proposal carries: the card shows
+   * the value in full and Confirm stays off until it is given. For an address the deployment
+   * would then contact, which a model may never choose (SEC-18 W2).
+   */
+  readonly typedInput?: string;
 }
 
 export interface ActionKindDef {

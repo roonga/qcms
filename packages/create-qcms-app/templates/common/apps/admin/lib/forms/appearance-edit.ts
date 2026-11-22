@@ -16,6 +16,57 @@ export interface ThemeOption {
   readonly logo: string | null;
 }
 
+/** One colour 107's contrast check moved, as a derive reports it. */
+export interface ThemeCorrection {
+  readonly palette: string;
+  readonly token: string;
+  readonly from: string;
+  readonly to: string;
+}
+
+/**
+ * What one derive answered: colours, a registry face and a stored logo key, and the report of
+ * what was moved to keep it readable. No page text, because the route sends none.
+ */
+export interface DerivedTheme {
+  readonly palettes: ThemePalettes;
+  readonly face: string;
+  readonly pageTint: boolean;
+  readonly logoKey: string | null;
+  readonly corrections: readonly ThemeCorrection[];
+  readonly tintDropped: readonly string[];
+}
+
+/** A theme as the create route takes it: the look, its name and the host a derive read. */
+export interface NewWorkspaceTheme {
+  readonly name: string;
+  readonly palettes: ThemePalettes;
+  readonly face: string;
+  readonly corners: string;
+  readonly pageTint: boolean;
+  readonly logoKey: string | null;
+  readonly sourceHost: string | null;
+}
+
+/** The derived look over the appearance the drawer is showing, which Done then saves. */
+export function appearanceFromDerived(
+  derived: DerivedTheme,
+  base: Appearance | null,
+): Appearance {
+  return appearanceFromTheme(
+    {
+      key: "",
+      name: "",
+      palettes: derived.palettes,
+      face: derived.face as Appearance["face"],
+      corners: base?.corners ?? DEFAULT_CORNERS,
+      pageTint: derived.pageTint,
+      logo: derived.logoKey,
+    },
+    base,
+  );
+}
+
 export const SHIPPED_THEME_PREFIX = "shipped";
 export const WORKSPACE_THEME_PREFIX = "workspace";
 

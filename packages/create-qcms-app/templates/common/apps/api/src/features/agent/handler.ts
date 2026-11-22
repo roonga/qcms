@@ -11,6 +11,7 @@ import {
 import { getForm, getWorkspace } from "@roonga/qcms-db";
 import type { QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
 import {
+  Appearance,
   parseFormId,
   parseQuestionId,
   type FormDefinition,
@@ -653,6 +654,12 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
  * form's own workspace: the edits for an Edit forms holder, and the wizard for a Publish forms
  * holder in any environment this deployment runs, since the wizard chooses where it lands.
  */
+/** The stored appearance as the tools read it, or none where the draft carries nothing valid. */
+function appearanceOf(raw: unknown): Appearance | null {
+  const parsed = Appearance.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
 async function builderPort(args: {
   readonly deps: Deps;
   readonly build: ScreenBuildInput;
@@ -676,7 +683,11 @@ async function builderPort(args: {
       },
     }).allowed;
   const subject = args.build.principal.userId;
-  const port: BuilderPort = { formId: args.formId, draft: args.draft };
+  const port: BuilderPort = {
+    formId: args.formId,
+    draft: args.draft,
+    appearance: appearanceOf(args.appearance),
+  };
   return {
     ...port,
     ...(allows("write")
@@ -688,9 +699,12 @@ async function builderPort(args: {
               baseVersion: args.baseVersion,
               startRevision: args.startRevision,
               edits: await Promise.all(
-                edits.map(async ({ op, definition }) => ({
+                edits.map(async ({ op, definition, appearance }) => ({
                   op,
-                  post: await draftStateDigest({ definition, appearance: args.appearance }),
+                  post: await draftStateDigest({
+                    definition,
+                    appearance: appearance ?? args.appearance,
+                  }),
                 })),
               ),
               issuedAt: args.deps.clock.now(),

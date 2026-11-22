@@ -1,3 +1,4 @@
+import type { DerivedTheme } from "./appearance-edit.ts";
 import type { ContrastFailureView } from "./appearance-report.ts";
 import type { DraftPreview, FormIssue, FormSettings, MintedLink } from "./types.ts";
 
@@ -39,8 +40,17 @@ export type SaveAppearanceState =
       readonly failures: readonly ContrastFailureView[];
     };
 
+/** One derive as the drawer holds it: the look read from the site, or why it was refused. */
+export type DeriveThemeState =
+  | { readonly status: "derived"; readonly derived: DerivedTheme; readonly host: string }
+  | { readonly status: "error"; readonly code: string; readonly message: string };
+
+export type CreateThemeState =
+  | { readonly status: "created"; readonly themeId: string; readonly name: string }
+  | { readonly status: "error"; readonly code: string; readonly message: string };
+
 export type StoredDraftState =
-  | { readonly status: "read"; readonly definition: unknown }
+  | { readonly status: "read"; readonly definition: unknown; readonly appearance: unknown }
   | { readonly status: "error"; readonly message: string };
 
 export type StartDraftState =

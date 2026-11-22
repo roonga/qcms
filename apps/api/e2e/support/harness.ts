@@ -14,6 +14,7 @@ import { createApp } from "../../src/app.js";
 import type { Deps } from "../../src/deps.js";
 import type { Databases } from "../../src/environments.js";
 import type { MountFlags } from "../../src/config.js";
+import type { BrandFetcher } from "../../src/features/workspaces/brand-fetcher/port.js";
 import type { Logger } from "../../src/logger.js";
 import { appGroups } from "../../src/registrars.js";
 import {
@@ -69,7 +70,7 @@ export function composeApi(
   db: TestDb["db"],
   env: Record<string, string | undefined>,
   flags: MountFlags,
-  opts: { logger?: Logger; databases?: Databases } = {},
+  opts: { logger?: Logger; databases?: Databases; brandFetcher?: BrandFetcher } = {},
 ): ComposedApi {
   const deps = makeDeps({
     db,
@@ -77,6 +78,7 @@ export function composeApi(
     clock: fixedClock(NOW),
     ...(opts.logger !== undefined ? { logger: opts.logger } : {}),
     ...(opts.databases !== undefined ? { databases: opts.databases } : {}),
+    ...(opts.brandFetcher !== undefined ? { brandFetcher: opts.brandFetcher } : {}),
   });
   const app = createApp(deps, flags, { groups: appGroups });
   return { app, deps, internalToken: internalTokenFor(deps.config) };
