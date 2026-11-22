@@ -31,6 +31,7 @@ import type { AgentContext, AssistEvent, AssistTurn, BuilderPort } from "./types
 const APP_KEY = "test-app-key-test-app-key-test-ap";
 const ISSUED = new Date("2026-07-20T00:00:00.000Z");
 const FORM_ID = "frm_builder";
+const WORKSPACE_ID = "org_builder";
 
 function draft(): FormDefinition {
   const parsed = parseFormDefinition({
@@ -101,7 +102,7 @@ function builderTurn(args: {
   ];
   const ctx: AgentContext = {
     screen: BUILDER_SCREEN,
-    facts: { formId: FORM_ID },
+    facts: { formId: FORM_ID, workspaceId: WORKSPACE_ID },
     defaults: { formId: FORM_ID, environment: "test" },
     conversation: [...(args.history ?? []), { role: "user", content: args.message }],
     maxSteps: args.maxSteps ?? 12,
@@ -318,6 +319,32 @@ const OWNER: HeldGrant = {
 
 /** A publish, a release, a link or a webhook, by the kind's own name or by the route it runs. */
 const FORBIDDEN_ACT = /publish|release|link|webhook/u;
+
+describe("the theme acts reach the builder as a Confirm card", () => {
+  it("proposes theme.derive with a card that asks the person for the address", async () => {
+    const events = await run(
+      builderTurn({ message: "like our site #qcms-fake:propose-theme-derive", propose: true }),
+    );
+    const plans = events.flatMap((event) => (event.type === "plan" ? [event.proposal] : []));
+    expect(plans.map((plan) => plan.steps.map((step) => step.kind))).toEqual([["theme.derive"]]);
+    const step = plans[0]?.steps[0];
+    expect(step?.handOff).toBe(true);
+    expect(step?.card.typedInput).toBe("url");
+    expect(step?.args).toEqual({ workspaceId: WORKSPACE_ID });
+  });
+
+  it("proposes theme.save with the name it chose and nothing of the look", async () => {
+    const events = await run(
+      builderTurn({ message: "keep that look #qcms-fake:propose-theme-save", propose: true }),
+    );
+    const plans = events.flatMap((event) => (event.type === "plan" ? [event.proposal] : []));
+    expect(plans.map((plan) => plan.steps.map((step) => step.kind))).toEqual([["theme.save"]]);
+    expect(plans[0]?.steps[0]?.args).toEqual({
+      workspaceId: WORKSPACE_ID,
+      name: "From the website",
+    });
+  });
+});
 
 describe("the builder's key set (Q16)", () => {
   const offered = offeredActionKinds({

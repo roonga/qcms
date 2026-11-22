@@ -129,9 +129,7 @@ export interface HeldHandOff {
  * control may close and open again while it is held, and the mount after it never acts on a
  * hand-off that was already taken.
  */
-export function useHeldHandOff(
-  control: string,
-): readonly [HeldHandOff | undefined, () => void] {
+export function useHeldHandOff(control: string): readonly [HeldHandOff | undefined, () => void] {
   const binding = useHandOff(control);
   const [held, setHeld] = useState<HeldHandOff | undefined>(undefined);
   const take = useCallback(() => {

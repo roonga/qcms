@@ -13,9 +13,8 @@ import { auditDetails } from "./support/workspaces.js";
 
 /*
  * The derive flow against the local TLS fixture origin the harness points the SEC-18 fetcher
- * at, through the drawer's own Get theme and through a confirmed assistant card. Nothing here
- * reaches a real website, and nothing in the browser fetches at all: the address goes to the
- * API route, and the route makes the one request.
+ * at, through the drawer's own Get theme and through a confirmed assistant card. The browser
+ * fetches nothing: the address goes to the API route, which makes the one request.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -73,6 +72,14 @@ async function openBuilder(page: Page): Promise<void> {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/forms/${formId}/build`);
   await waitForHydration(page);
+  await expect(surface(page).getByText(TEXT_LABEL)).toBeVisible({ timeout: 30_000 });
+}
+
+/** A narrow builder puts its two panes behind tabs, so the preview is one tab away. */
+async function openPreviewPane(page: Page): Promise<void> {
+  await page.goto(`/forms/${formId}/build`);
+  await waitForHydration(page);
+  await page.getByRole("tab", { name: "Preview" }).click();
   await expect(surface(page).getByText(TEXT_LABEL)).toBeVisible({ timeout: 30_000 });
 }
 
@@ -173,18 +180,6 @@ test("reads a site, previews it unsaved, keeps it as a theme and applies it", as
   await expect(drawer(page).getByLabel("Theme", { exact: true })).toContainText("Not saved");
   await expect(page.getByTestId("qcms-appearance-unsaved")).toBeVisible();
   await axeClean(page, "the drawer with a derived theme");
-
-  // The result is a column of pairs, so it reads at a phone's width without scrolling across.
-  for (const width of [320, 375]) {
-    await page.setViewportSize({ width, height: 900 });
-    await expect(values).toBeVisible();
-    await expect(values).toContainText("#0f766e");
-    expect(
-      await values.evaluate((element) => element.scrollWidth - element.clientWidth),
-      `the derive result overflowed at ${String(width)}`,
-    ).toBeLessThanOrEqual(1);
-  }
-  await page.setViewportSize({ width: 1440, height: 900 });
 
   await page.getByTestId("qcms-appearance-theme-save").click();
   await page.getByTestId("qcms-appearance-theme-name").fill(THEME_NAME);
@@ -321,6 +316,28 @@ test("reads the address typed on a confirmed card, once, and keeps the look", as
   await expect(page.getByTestId("qcms-appearance-derive-values")).toHaveCount(0);
   await expect(page.getByTestId("qcms-appearance-theme-name")).toHaveCount(0);
   expect(await deriveContacts(), "reopening the drawer read the site again").toBe(read);
+});
+
+test("reads a derived look at a phone's width", async ({ page }) => {
+  test.setTimeout(600_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  const values = page.getByTestId("qcms-appearance-derive-values");
+
+  // The result is a column of pairs, so it reads at a phone's width without scrolling across.
+  for (const width of [320, 375]) {
+    await page.setViewportSize({ width, height: 900 });
+    await openPreviewPane(page);
+    await openDrawer(page);
+    await derive(page, SITE);
+    await expect(values).toBeVisible({ timeout: 60_000 });
+    await expect(values).toContainText("#0f766e");
+    await expect(drawer(page).getByLabel("Theme", { exact: true })).toContainText("Not saved");
+    expect(
+      await values.evaluate((element) => element.scrollWidth - element.clientWidth),
+      `the derive result overflowed at ${String(width)}`,
+    ).toBeLessThanOrEqual(1);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
 });
 
 test("applies the assistant's appearance edit to the draft, with its own Undo", async ({
