@@ -74,6 +74,8 @@ async function saveAndConfirm(page: Page): Promise<void> {
 }
 
 test.beforeAll(async () => {
+  // First, so a fixture failing below still leaves afterAll the holder to put back.
+  [originalHolder = null] = await sharedHolders();
   await createTestAdmin(SITE_ADMIN, { siteAdministrator: true, name: "Library Site Admin" });
   await createTestAdmin(WORKSPACE_ADMIN, { name: "Library Workspace Admin" });
   first = await createWorkspace(`Library first ${RUN}`, `library-first-${RUN}`, SITE_ADMIN);
@@ -83,7 +85,6 @@ test.beforeAll(async () => {
     `library-retiring-${RUN}`,
     SITE_ADMIN,
   );
-  [originalHolder = null] = await sharedHolders();
 });
 
 test.afterAll(async () => {
@@ -189,6 +190,7 @@ test("None unmarks the holder", async ({ page }) => {
   await expect(confirmation(page)).not.toContainText("Recorded in the site audit");
   await confirmation(page).getByRole("button", { name: "Save" }).click();
   await expect(panel(page).getByText("Saved.", { exact: true })).toBeVisible();
+  await expect(confirmation(page)).toHaveCount(0);
   expect(await sharedHolders()).toEqual([]);
   expect(await auditDetails(second.workspaceId, "setting")).toContain(
     `subject=${second.workspaceId} library=unmarked`,
