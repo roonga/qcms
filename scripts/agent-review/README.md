@@ -73,7 +73,9 @@ Every scenario invents its data. No scenario sends a real person's details, and 
 A scenario names the environment its screen is set to, and a message may name how many
 cards that turn should put up: `"expectCards": 0` makes a card a finding where the right
 answer is a question, and `"expectCards": 1` makes a refusal one where the signed-in person
-holds the grant. A message naming no count asserts nothing about its turn.
+holds the grant. A message naming no count asserts nothing about its turn, which is what a
+turn whose plan is marked `thenAnother` wants: the follow-up's own card is read as part of
+that turn, so a count written for the first card alone would fail on the second.
 
 The end state is read in every environment an installation has, not only the one the run
 acted in, because "not released to prod" read from `test` alone says nothing. Name a
