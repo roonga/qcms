@@ -5,10 +5,9 @@ import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
 import type { ActionKindDef } from "./types.js";
 
 /**
- * The builder's two theme acts, both hand-offs to the appearance drawer, because what each
- * acts on exists only there. A derive reaches a website, so no proposal names the address: the
- * card collects it, shows it in full, and the fetch is the SEC-18 fetcher's (W2). A save keeps
- * the look the drawer is showing, which is nobody's argument.
+ * Both theme acts hand off to the appearance drawer, because what each acts on is only there:
+ * the address the card collects and shows in full before any fetch (SEC-18 W2), and the look
+ * the drawer is showing, which is nobody's argument.
  */
 
 const WorkspaceIdArg = z
