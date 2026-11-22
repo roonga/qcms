@@ -14,6 +14,17 @@ export async function fillStable(field: Locator, value: string): Promise<void> {
   }).toPass({ timeout: 15_000 });
 }
 
+// Warm sign-in before a file types into it. A dev server compiling the route for the first
+// time can replace the document mid-wait, which destroys the execution context the hydration
+// wait runs in, so this retries the whole load rather than failing every test behind it.
+export async function warmSignIn(page: Page): Promise<void> {
+  await expect(async () => {
+    await page.goto("/sign-in");
+    await waitForHydration(page);
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeEnabled({ timeout: 10_000 });
+  }).toPass({ timeout: 120_000 });
+}
+
 // Serial mode preserves test order, not browser cookies; each test must establish its own session.
 
 // Wait for the redirect to commit before another navigation can race the sign-in POST.

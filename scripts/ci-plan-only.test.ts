@@ -481,7 +481,8 @@ describe("check:plan covers what the lane skips", () => {
     expect(noBuild).toContain("--project tooling");
     expect(noBuild).toContain("sql-capture.test.ts");
     expect(noBuild).toContain("check-bff-config-guards.test.ts");
-    expect(noBuild.match(/--exclude/g) ?? []).toHaveLength(3);
+    expect(noBuild).toContain("builder-facts-schema.test.ts");
+    expect(noBuild.match(/--exclude/g) ?? []).toHaveLength(4);
     expect(noBuild).toContain("node_modules");
   });
 });
@@ -803,6 +804,27 @@ describe("the end-to-end suites import nothing the classifier calls unneeded", (
     const reached = closure([...sources(/^apps\/api\//), ...buildScripts()]);
     expect(reached.size).toBeGreaterThan(50);
     expect([...reached].filter((file) => !isApiNeeded([file]))).toEqual([]);
+  });
+
+  /**
+   * A tooling test reaching app or package source loads a built workspace package through it, and
+   * the plan-only lane builds nothing, so such a test belongs on the no-build exclusion list rather
+   * than left to turn `check:plan` red on the next prose-only pull request.
+   */
+  it("excludes from the no-build tooling run every tooling test that reaches built source", () => {
+    const BUILT = /^(?:apps\/|packages\/[^/]+\/src\/)/;
+    const noBuild =
+      (
+        JSON.parse(readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")) as {
+          scripts: Record<string, string>;
+        }
+      ).scripts["test:tooling:no-build"] ?? "";
+    const reaching = [...tracked]
+      .filter((file) => /^scripts\/.*\.test\.tsx?$/.test(file))
+      .filter((file) => [...closure([file])].some((reached) => BUILT.test(reached)))
+      .sort();
+    expect(reaching.length).toBeGreaterThan(0);
+    expect(reaching.filter((file) => !noBuild.includes(path.posix.basename(file)))).toEqual([]);
   });
 });
 

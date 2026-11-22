@@ -34,7 +34,7 @@ Review the admin authoring assistant against `scripts/agent-review/scenarios/` a
 8. **Write one report** under this lane's scratch directory. Short, in the repository's written style: per-scenario pass or fail with its turn count, then the findings grouped by kind, each with one evidence quote and one suggested change.
    - `prompt`: the assistant's guidance is wrong, missing or contradicted.
    - `tool description`: a tool's own description misled the model.
-   - `interface wording`: a string the product owns reads badly.
+   - `interface wording`: a string the product owns reads badly, or departs from the terms in `apps/site/src/content/docs/concepts/glossary.mdx`.
    - `layout`: spacing, order, focus, contrast, status markers.
    - `missing capability`: the right answer needs something the assistant cannot do yet.
 

@@ -1289,6 +1289,14 @@ export const messages = {
   "forms.move.held":
     "Waiting for an approver. The request expires in 7 days; the approver acts from the workspace's Requests row.",
   "forms.move.failed": "The form was not moved. {message}",
+  "forms.move.error.sameWorkspace":
+    "This form is already in that workspace, so there is nothing to move.",
+  "forms.move.error.leftSource":
+    "The form had already moved out of the workspace this move was asked from, so nothing was applied. It can be moved again from where it is now.",
+  "forms.move.error.moverLostEditForms":
+    "The person who asked no longer holds Edit forms in both workspaces, so nothing was applied and the request has ended.",
+  "forms.move.error.destinationArchived":
+    "The destination workspace was archived after this was requested, so nothing was applied and the request has ended.",
   // The per-form Operations screen, named for what it carries rather than for the acts on
   // it: what the selected environment serves, and whether it is taking responses.
   "forms.tab.availability": "Availability",
