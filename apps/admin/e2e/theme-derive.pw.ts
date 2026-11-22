@@ -71,9 +71,7 @@ async function openBuilder(page: Page): Promise<void> {
 
 // React Aria switches hide their input inside the label; the label is the pointer target.
 function lock(page: Page): Locator {
-  return page
-    .getByRole("switch", { name: /Lock appearance/u })
-    .locator("xpath=ancestor::label[1]");
+  return page.getByRole("switch", { name: /Lock appearance/u }).locator("xpath=ancestor::label[1]");
 }
 
 async function derive(page: Page, address: string): Promise<void> {
