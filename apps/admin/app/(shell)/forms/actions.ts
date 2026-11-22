@@ -326,12 +326,13 @@ export async function applyAgentEditAction(
   formId: string,
   definition: unknown,
   token: string,
+  appearance?: unknown,
 ): Promise<AgentEditState> {
   const session = await requireAdminSession();
   if (!withinCap(definition) || token === "") {
     return { status: "error", code: MALFORMED_CODE, message: messageForFormCode(MALFORMED_CODE) };
   }
-  const result = await applyAgentEdit(session, formId, definition, token);
+  const result = await applyAgentEdit(session, formId, definition, token, appearance);
   if (!result.ok) return { status: "error", code: result.code, message: result.message };
   revalidatePath(`/forms/${formId}`, "layout");
   return { status: "saved", undoToken: result.data.undoToken };
@@ -350,7 +351,11 @@ export async function readStoredDraftAction(formId: string): Promise<StoredDraft
   const session = await requireAdminSession();
   const result = await readStoredDraft(session, formId);
   if (!result.ok) return { status: "error", message: result.message };
-  return { status: "read", definition: result.data };
+  return {
+    status: "read",
+    definition: result.data.definition,
+    appearance: result.data.appearance,
+  };
 }
 
 /** Store the newest version's seeded copy as the open draft the agent builder edits. */

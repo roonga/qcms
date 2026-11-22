@@ -315,6 +315,7 @@ const TOOL_ROUTES: Readonly<Record<AgentToolName, readonly [string, string] | un
   edit_step: undefined,
   edit_rule: undefined,
   edit_copy: undefined,
+  edit_appearance: undefined,
   open_publish_wizard: undefined,
 };
 

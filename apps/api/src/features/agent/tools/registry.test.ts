@@ -65,6 +65,7 @@ describe("the agent tool registry", () => {
       "delivery_status",
       "diff_form_versions",
       "diff_question_versions",
+      "edit_appearance",
       "edit_copy",
       "edit_question",
       "edit_rule",
@@ -100,6 +101,7 @@ describe("the agent tool registry", () => {
       "edit_step",
       "edit_rule",
       "edit_copy",
+      "edit_appearance",
       "open_publish_wizard",
     ]);
     expect(

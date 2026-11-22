@@ -546,6 +546,7 @@ export const messages = {
   "builder.edit.op.step": "Changed a step",
   "builder.edit.op.rule": "Changed a rule",
   "builder.edit.op.copy": "Changed the wording",
+  "builder.edit.op.appearance": "Changed how it looks",
   "builder.edit.state.applying": "Applying",
   "builder.edit.state.applied": "Applied",
   "builder.edit.state.failed": "Not applied",

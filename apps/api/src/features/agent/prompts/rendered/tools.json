@@ -6355,6 +6355,91 @@
     }
   },
   {
+    "name": "edit_appearance",
+    "description": "Change how the open draft looks: a brand colour the four palettes are derived from, the type face, the corners, the density, the progress style, the base text size, or the page tint. Name only what changes. A brand colour is required for a form that has no appearance yet. The palettes are never written colour by colour: the engine derives them and moves any pair too faint to read. The logo is the person's own upload and is not yours to set. It applies to the draft as this turn's earlier edits left it, and nothing is saved until the turn ends, when the person's browser applies it with an Undo.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "primary": {
+          "description": "The brand colour all four palettes are derived from, as #rrggbb. Required for a form that has no appearance yet.",
+          "type": "string",
+          "pattern": "^#[0-9a-f]{6}$"
+        },
+        "secondary": {
+          "description": "A second brand colour, as #rrggbb. Derived when absent.",
+          "type": "string",
+          "pattern": "^#[0-9a-f]{6}$"
+        },
+        "face": {
+          "description": "The type face, from the registry.",
+          "type": "string",
+          "enum": [
+            "system",
+            "atkinson",
+            "lexend",
+            "opendyslexic",
+            "inter",
+            "roboto",
+            "opensans",
+            "lato",
+            "poppins",
+            "montserrat",
+            "andika",
+            "fredoka",
+            "baloo2",
+            "comicneue",
+            "patrickhand",
+            "merriweather",
+            "lora",
+            "ptserif",
+            "librebaskerville",
+            "ibmplexserif",
+            "publicsans",
+            "jetbrainsmono",
+            "geistmono"
+          ]
+        },
+        "corners": {
+          "type": "string",
+          "enum": [
+            "sharp",
+            "subtle",
+            "rounded",
+            "pill"
+          ]
+        },
+        "density": {
+          "type": "string",
+          "enum": [
+            "compact",
+            "comfortable",
+            "spacious"
+          ]
+        },
+        "progress": {
+          "type": "string",
+          "enum": [
+            "side-rail",
+            "top-indicator",
+            "none"
+          ]
+        },
+        "textSize": {
+          "description": "The author's base text size in px, before the respondent's own scale.",
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 24
+        },
+        "pageTint": {
+          "description": "Tint the page background with the brand colour.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "open_publish_wizard",
     "description": "Open the publish screen for the form this builder is about, where the person reviews every change since the last publish and publishes it themselves. It publishes nothing, takes no arguments and is offered only to someone who may publish forms.",
     "inputSchema": {

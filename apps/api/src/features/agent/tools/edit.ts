@@ -7,30 +7,45 @@
 import { z } from "zod";
 
 import {
+  APPEARANCE_CORNERS,
+  APPEARANCE_DENSITIES,
+  Appearance as AppearanceSchema,
+  AppearanceFace,
   FormDefinition as FormDefinitionSchema,
   GroupId,
-  isRepeatGroup,
+  HexColor,
   LocalizedText,
+  PROGRESS_MODES,
   QuestionId,
   RuleId,
+  SYSTEM_FACE,
   Step,
   StepId,
+  TEXT_SIZE_MAX,
+  TEXT_SIZE_MIN,
   VisibilityRule,
+  deriveAppearance,
+  isRepeatGroup,
+  type Appearance,
   type FormDefinition,
 } from "@roonga/qcms-core";
 
 import { EDITS_PER_TURN, type EditOp } from "../edit-token.js";
 import { canonicalJson } from "../proposal-token.js";
 
-/** The ops a builder tool yields. Appearance is its own drawer and kinds, not a tool here. */
+/** The ops a builder tool yields: the four over the definition, and the draft's appearance. */
 export const BUILDER_EDIT_OPS = [
   "question",
   "step",
   "rule",
   "copy",
+  "appearance",
 ] as const satisfies readonly EditOp[];
 
 export type BuilderEditOp = (typeof BUILDER_EDIT_OPS)[number];
+
+/** The ops that change the definition. The appearance is the draft's other half. */
+export type DefinitionEditOp = Exclude<BuilderEditOp, "appearance">;
 
 const Position = z
   .number()
@@ -90,6 +105,31 @@ export const EditCopyInput = z.strictObject({
   text: LocalizedText.describe("The new wording, per locale."),
 });
 
+/**
+ * The appearance axes a turn may change. The palettes are never named colour by colour: a
+ * brand colour is a seed the kernel derives all four palettes from, with 107's contrast check
+ * moving anything too faint to read, so no turn can propose an unreadable pair.
+ */
+export const EditAppearanceInput = z.strictObject({
+  primary: HexColor.optional().describe(
+    "The brand colour all four palettes are derived from, as #rrggbb. Required for a form " +
+      "that has no appearance yet.",
+  ),
+  secondary: HexColor.optional().describe("A second brand colour, as #rrggbb. Derived when absent."),
+  face: AppearanceFace.optional().describe("The type face, from the registry."),
+  corners: z.enum(APPEARANCE_CORNERS).optional(),
+  density: z.enum(APPEARANCE_DENSITIES).optional(),
+  progress: z.enum(PROGRESS_MODES).optional(),
+  textSize: z
+    .number()
+    .int()
+    .min(TEXT_SIZE_MIN)
+    .max(TEXT_SIZE_MAX)
+    .optional()
+    .describe("The author's base text size in px, before the respondent's own scale."),
+  pageTint: z.boolean().optional().describe("Tint the page background with the brand colour."),
+});
+
 /** What the model learns of an edit: whether it applied, and the draft's advisory verdict after it. */
 export const EditToolOutput = z.strictObject({
   accepted: z.boolean(),
@@ -100,10 +140,15 @@ export const EditToolOutput = z.strictObject({
   warnings: z.array(z.unknown()).optional(),
 });
 
-/** One edit as the turn yields it: the op it is labelled with and the whole draft it leaves. */
+/**
+ * One edit as the turn yields it: the op it is labelled with, the whole draft it leaves and,
+ * once a turn has changed the appearance, the appearance in force after it. The save's token
+ * binds both halves, so an edit that follows an appearance edit carries the new one too.
+ */
 export interface DraftEdit {
   readonly op: BuilderEditOp;
   readonly definition: FormDefinition;
+  readonly appearance?: Appearance;
 }
 
 class EditRefused extends Error {}
@@ -283,7 +328,9 @@ function applyCopy(draft: FormDefinition, input: z.infer<typeof EditCopyInput>):
   }
 }
 
-const APPLY: Readonly<Record<BuilderEditOp, (draft: FormDefinition, input: unknown) => void>> = {
+const APPLY: Readonly<
+  Record<DefinitionEditOp, (draft: FormDefinition, input: unknown) => void>
+> = {
   question: (draft, input) => {
     applyQuestion(draft, EditQuestionInput.parse(input));
   },
@@ -309,7 +356,7 @@ export type EditOutcome =
  */
 export function applyBuilderEdit(
   draft: FormDefinition,
-  op: BuilderEditOp,
+  op: DefinitionEditOp,
   input: unknown,
   editsSoFar: number,
 ): EditOutcome {
@@ -342,3 +389,78 @@ export function applyBuilderEdit(
   }
   return { ok: true, definition: parsed.data };
 }
+
+export type AppearanceOutcome =
+  | { readonly ok: true; readonly appearance: Appearance }
+  | { readonly ok: false; readonly reason: string };
+
+/** Where an axis a turn does not name starts, which is where the drawer starts it too. */
+const APPEARANCE_DEFAULTS = {
+  face: SYSTEM_FACE,
+  corners: "subtle",
+  density: "comfortable",
+  textSize: 18,
+  progress: "top-indicator",
+} as const;
+
+/**
+ * One edit over the draft's appearance. A brand colour re-derives all four palettes through
+ * the kernel, which moves any pair too faint to read; the logo is the person's upload and is
+ * never a value a turn supplies.
+ */
+export function applyAppearanceEdit(
+  current: Appearance | null,
+  input: unknown,
+  editsSoFar: number,
+): AppearanceOutcome {
+  if (editsSoFar >= EDITS_PER_TURN) {
+    return {
+      ok: false,
+      reason: `A turn holds at most ${String(EDITS_PER_TURN)} edits. Stop here and say what is left.`,
+    };
+  }
+  const asked = EditAppearanceInput.safeParse(input);
+  if (!asked.success) {
+    return { ok: false, reason: asked.error.issues[0]?.message ?? "Those arguments do not parse." };
+  }
+  const wanted = asked.data;
+  if (Object.keys(wanted).length === 0) {
+    return { ok: false, reason: "Name at least one thing to change." };
+  }
+  if (current === null && wanted.primary === undefined) {
+    return {
+      ok: false,
+      reason: "This form has no appearance yet, so the first change needs a brand colour.",
+    };
+  }
+  const seeded =
+    wanted.primary === undefined
+      ? undefined
+      : deriveAppearance({
+          primary: wanted.primary,
+          ...(wanted.secondary === undefined ? {} : { secondary: wanted.secondary }),
+          ...(wanted.pageTint === undefined ? {} : { pageTint: wanted.pageTint }),
+        });
+  const next: Appearance = {
+    palettes: seeded?.palettes ?? (current as Appearance).palettes,
+    logo: current?.logo ?? null,
+    face: wanted.face ?? current?.face ?? APPEARANCE_DEFAULTS.face,
+    corners: wanted.corners ?? current?.corners ?? APPEARANCE_DEFAULTS.corners,
+    density: wanted.density ?? current?.density ?? APPEARANCE_DEFAULTS.density,
+    textSize: wanted.textSize ?? current?.textSize ?? APPEARANCE_DEFAULTS.textSize,
+    progress: wanted.progress ?? current?.progress ?? APPEARANCE_DEFAULTS.progress,
+    pageTint: seeded?.pageTint ?? wanted.pageTint ?? current?.pageTint ?? false,
+  };
+  const parsed = AppearanceSchema.safeParse(next);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      reason: `That appearance would not parse: ${parsed.error.issues[0]?.message ?? "invalid"}`,
+    };
+  }
+  if (current !== null && canonicalJson(current) === canonicalJson(parsed.data)) {
+    return { ok: false, reason: "That edit changes nothing in the draft." };
+  }
+  return { ok: true, appearance: parsed.data };
+}
+

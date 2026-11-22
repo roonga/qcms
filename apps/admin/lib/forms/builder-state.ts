@@ -50,7 +50,7 @@ export type CreateThemeState =
   | { readonly status: "error"; readonly code: string; readonly message: string };
 
 export type StoredDraftState =
-  | { readonly status: "read"; readonly definition: unknown }
+  | { readonly status: "read"; readonly definition: unknown; readonly appearance: unknown }
   | { readonly status: "error"; readonly message: string };
 
 export type StartDraftState =

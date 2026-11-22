@@ -14,6 +14,8 @@ import {
 } from "./builder-edits";
 
 const STORED = { formId: "frm_a", title: { en: "Stored" } };
+const STORED_LOOK = { face: "system", corners: "subtle" };
+const HELD = { definition: STORED, appearance: STORED_LOOK };
 
 function turn(count: number, turnId = "edt_turnone"): BuilderEdits {
   return {
@@ -40,7 +42,7 @@ describe("applying a turn's edits", () => {
     );
     const records = await applyTurnEdits(
       event,
-      { readStored: () => Promise.resolve(STORED), save },
+      { readStored: () => Promise.resolve(HELD), save },
       () => undefined,
     );
     expect(save.mock.calls.map(([, token]) => token)).toEqual(["tok_0", "tok_1", "tok_2"]);
@@ -66,7 +68,7 @@ describe("applying a turn's edits", () => {
       });
     const records = await applyTurnEdits(
       turn(3),
-      { readStored: () => Promise.resolve(STORED), save },
+      { readStored: () => Promise.resolve(HELD), save },
       () => undefined,
     );
     expect(save).toHaveBeenCalledTimes(2);
@@ -102,7 +104,7 @@ describe("Undo", () => {
     return applyTurnEdits(
       turn(3),
       {
-        readStored: () => Promise.resolve(STORED),
+        readStored: () => Promise.resolve(HELD),
         save: (_definition, token) => Promise.resolve(saved(`undo_${token}`)),
       },
       () => undefined,
@@ -117,11 +119,11 @@ describe("Undo", () => {
 
     const save = vi.fn(() => Promise.resolve(saved("unused")));
     records = replaceRecord(records, await undoEdit(third, save));
-    expect(save).toHaveBeenLastCalledWith(third.pre, "undo_tok_2");
+    expect(save).toHaveBeenLastCalledWith(third.pre, "undo_tok_2", third.preAppearance);
     expect(undoableKey(records)).toBe(recordKey(second));
 
     records = replaceRecord(records, await undoEdit(second, save));
-    expect(save).toHaveBeenLastCalledWith(second.pre, "undo_tok_1");
+    expect(save).toHaveBeenLastCalledWith(second.pre, "undo_tok_1", second.preAppearance);
     expect(first.pre).toBe(STORED);
     expect(undoableKey(records)).toBe(recordKey(first));
   });
@@ -152,5 +154,55 @@ describe("Undo", () => {
       role: "edit-result",
       edits: [{ op: "copy", outcome: "undone" }],
     });
+  });
+});
+
+const LOOK = { face: "lexend", corners: "rounded" };
+
+function appearanceTurn(): BuilderEdits {
+  return {
+    formId: "frm_a",
+    turnId: "edt_look",
+    edits: [
+      {
+        index: 0,
+        op: "appearance",
+        token: "tok_look",
+        definition: STORED,
+        appearance: LOOK,
+      },
+    ],
+  };
+}
+
+describe("an appearance edit", () => {
+  it("saves the appearance beside the definition the turn left", async () => {
+    const save = vi.fn((_definition: unknown, token: string, _appearance?: unknown) =>
+      Promise.resolve(saved(`undo_${token}`)),
+    );
+    const records = await applyTurnEdits(
+      appearanceTurn(),
+      { readStored: () => Promise.resolve(HELD), save },
+      () => undefined,
+    );
+    expect(save.mock.calls).toStrictEqual([[STORED, "tok_look", LOOK]]);
+    expect(records[0]?.state).toBe("applied");
+  });
+
+  it("restores the appearance that was stored when it is undone", async () => {
+    const records = await applyTurnEdits(
+      appearanceTurn(),
+      {
+        readStored: () => Promise.resolve(HELD),
+        save: (_definition, token) => Promise.resolve(saved(`undo_${token}`)),
+      },
+      () => undefined,
+    );
+    const only = records[0];
+    if (only === undefined) throw new Error();
+    expect(only.preAppearance).toBe(STORED_LOOK);
+    const save = vi.fn(() => Promise.resolve(saved("unused")));
+    await undoEdit(only, save);
+    expect(save).toHaveBeenLastCalledWith(STORED, "undo_tok_look", STORED_LOOK);
   });
 });

@@ -70,6 +70,7 @@ function builderTurn(args: {
   const builder: BuilderPort = {
     formId: FORM_ID,
     draft: draft(),
+    appearance: null,
     mintEdits: async (edits) => {
       mints.push(edits.map((edit) => edit.op));
       return mintTurnEditTokens(APP_KEY, {
@@ -341,9 +342,16 @@ describe("the builder's key set (Q16)", () => {
       "edit_step",
       "edit_rule",
       "edit_copy",
+      "edit_appearance",
       "open_publish_wizard",
     ]);
-    expect(Object.values(BUILDER_EDIT_TOOLS)).toEqual(["question", "step", "rule", "copy"]);
+    expect(Object.values(BUILDER_EDIT_TOOLS)).toEqual([
+      "question",
+      "step",
+      "rule",
+      "copy",
+      "appearance",
+    ]);
   });
 
   it("holds no publish, release, link or webhook kind, by name or by route", () => {
