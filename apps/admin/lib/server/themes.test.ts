@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { deriveAppearance } from "@roonga/qcms-core";
+import { shippedThemeOptions } from "./appearance-options.ts";
 
 interface Call {
   readonly path: string;
@@ -41,50 +41,56 @@ function json(status: number, body: unknown): Response {
   });
 }
 
-const DERIVED = deriveAppearance({ primary: "#0f766e" });
+/* A shipped theme's own colours, so the test writes no colour of its own. */
+const PALETTES = (() => {
+  const first = shippedThemeOptions()[0];
+  if (first === undefined) throw new Error("no shipped theme to borrow palettes from");
+  return first.palettes;
+})();
+
+const THEME_ID = "9f3a2b1c-0000-4000-8000-000000000000";
+const NAME = "From the site";
 
 const THEME = {
-  name: "From the site",
-  palettes: DERIVED.palettes,
-  face: DERIVED.face,
+  name: NAME,
+  palettes: PALETTES,
+  face: "lexend",
   corners: "subtle",
-  pageTint: DERIVED.pageTint,
+  pageTint: false,
   logoKey: null,
   sourceHost: "brand.example",
+};
+
+const SAVED = {
+  themeId: THEME_ID,
+  workspaceId: "org_a",
+  name: NAME,
+  palettes: PALETTES,
+  face: "lexend",
+  corners: "subtle",
+  pageTint: false,
+  logoKey: null,
+  sourceHost: "brand.example",
+  updatedAt: "2026-11-22T00:00:00.000Z",
 };
 
 beforeEach(() => {
   calls.length = 0;
 });
 
-describe("saving a workspace theme", () => {
+describe("keeping a look as a workspace theme", () => {
   it("reads the saved row the route answers under `theme`, so the name is the stored one", async () => {
-    reply = json(201, {
-      theme: {
-        themeId: "9f3a2b1c-0000-4000-8000-000000000000",
-        workspaceId: "org_a",
-        name: "From the site",
-        palettes: DERIVED.palettes,
-        face: DERIVED.face,
-        corners: "subtle",
-        pageTint: false,
-        logoKey: null,
-        sourceHost: "brand.example",
-        updatedAt: "2026-11-22T00:00:00.000Z",
-      },
-    });
+    reply = json(201, { theme: SAVED });
     const { createWorkspaceTheme } = await import("./themes.ts");
     const result = await createWorkspaceTheme(SESSION, "org_a", THEME);
     expect(calls[0]?.path).toBe("/workspaces/org_a/themes");
     expect(calls[0]?.method).toBe("POST");
-    expect(result).toStrictEqual({
-      ok: true,
-      data: { themeId: "9f3a2b1c-0000-4000-8000-000000000000", name: "From the site" },
-    });
+    expect(calls[0]?.body).toStrictEqual(THEME);
+    expect(result).toStrictEqual({ ok: true, data: { themeId: THEME_ID, name: NAME } });
   });
 
   it("refuses a success body carrying no saved row rather than naming nothing", async () => {
-    reply = json(201, { themeId: "9f3a2b1c-0000-4000-8000-000000000000", name: "From the site" });
+    reply = json(201, { themeId: THEME_ID, name: NAME });
     const { createWorkspaceTheme } = await import("./themes.ts");
     const result = await createWorkspaceTheme(SESSION, "org_a", THEME);
     expect(result.ok).toBe(false);
