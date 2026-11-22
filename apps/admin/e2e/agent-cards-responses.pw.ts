@@ -22,6 +22,7 @@ import {
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 import { openDeliverer, openResponses, submitResponse } from "./support/ops.js";
+import { t } from "../lib/i18n/en.js";
 
 // Erasure is irreversible and unflagging consumes a disposition; use a fresh session per path.
 // Export hand-off holds Running while its dialog remains open, giving axe a stable measurement.
@@ -81,7 +82,7 @@ test("confirms a release and then an erasure, each changing the screen it was pr
   await page.goto(detail(flaggedAlone));
   await waitForHydration(page);
   await openPanel(page);
-  await expect(page.getByRole("button", { name: "Release the withheld event" })).toBeVisible();
+  await expect(page.getByRole("button", { name: t("ops.detail.unflag") })).toBeVisible();
 
   const before = await auditTally();
   await propose(page, "propose-response-unflag", "release the event this one withheld");
@@ -90,7 +91,7 @@ test("confirms a release and then an erasure, each changing the screen it was pr
   await confirm(page, /^Done\./u);
   await expectStepChips(page, ["Done"]);
 
-  await expect(page.getByRole("button", { name: "Release the withheld event" })).toHaveCount(0, {
+  await expect(page.getByRole("button", { name: t("ops.detail.unflag") })).toHaveCount(0, {
     timeout: 30_000,
   });
 

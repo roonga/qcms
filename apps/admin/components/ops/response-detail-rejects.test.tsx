@@ -53,7 +53,7 @@ function renderDetail(props: {
 }
 
 describe("a rejected response action", { timeout: 30_000 }, () => {
-  it("says the event was not released", async () => {
+  it("says the event was not sent on", async () => {
     const user = userEvent.setup();
     renderDetail({ unflag: transportFailure });
 

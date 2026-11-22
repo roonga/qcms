@@ -170,7 +170,7 @@ export const ACTION_DESCRIPTIONS = {
   "response.export":
     "Open the export dialog with these filters. The user presses Export and the file downloads in their browser; no part of it is returned to you.",
   "response.unflag":
-    "Let one flagged response's withheld submission event through, so its consumers receive it.",
+    "Send one flagged response's withheld submission event on, so its consumers receive it.",
   "webhook.create":
     "Configure a new delivery endpoint for this form in the current environment. Its signing secret is shown to the user once and is never returned to you.",
   "webhook.deactivate":

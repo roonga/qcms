@@ -45,7 +45,7 @@
   },
   {
     "kind": "response.unflag",
-    "description": "Let one flagged response's withheld submission event through, so its consumers receive it."
+    "description": "Send one flagged response's withheld submission event on, so its consumers receive it."
   },
   {
     "kind": "response.export",

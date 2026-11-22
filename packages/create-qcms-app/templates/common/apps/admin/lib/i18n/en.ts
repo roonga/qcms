@@ -1994,7 +1994,7 @@ export const messages = {
     "The answers and the submission are deleted. There is no undo, no archive and no restore.",
   "agent.card.response.erase.tombstone":
     "A tombstone records that the session existed, who erased it, when and why. It carries no answer.",
-  "agent.card.response.unflag.title": "Release the withheld submission for {sessionId}",
+  "agent.card.response.unflag.title": "Send on the withheld submission for {sessionId}",
   "agent.card.response.unflag.consequence":
     "The withheld submission event is sent to this form's consumers. The response itself is unchanged.",
   "agent.card.response.export.title": "Export this form's responses as {format}",
@@ -2321,15 +2321,15 @@ export const messages = {
   "ops.detail.secureLinkGo": "Open the Links screen",
   "ops.detail.flagged": "Flagged: {reason}",
   "ops.detail.flaggedNote":
-    "The response is stored, and its webhook event is withheld until it is released.",
-  "ops.detail.unflag": "Release the withheld event",
-  "ops.detail.unflagTitle": "Release this response to webhook consumers?",
+    "The response is stored, and its webhook event is withheld until somebody sends it on.",
+  "ops.detail.unflag": "Send on the withheld event",
+  "ops.detail.unflagTitle": "Send this response on to webhook consumers?",
   "ops.detail.unflagBody":
     "The withheld response.submitted event is queued for delivery. Once a consumer has it, it cannot be recalled.",
-  "ops.detail.confirmUnflag": "Release it",
+  "ops.detail.confirmUnflag": "Send it on",
   "ops.detail.unflagged": "The withheld event is queued for delivery.",
-  "ops.detail.unflagNoop": "There was no withheld event to release.",
-  "ops.detail.unflagFailed": "The event was not released. {message}",
+  "ops.detail.unflagNoop": "There was no withheld event to send on.",
+  "ops.detail.unflagFailed": "The event was not sent on. {message}",
   "ops.detail.loadFailed": "This response could not be loaded. {message}",
   "ops.detail.labelsFailed":
     "Question wording could not be loaded, so answers are captioned with their question ids.",
@@ -2409,9 +2409,9 @@ export const messages = {
   "ops.erasures.loadFailed": "The erasure log could not be loaded. {message}",
 
   "ops.webhooks.heading": "Webhook endpoints",
-  /** Flagged submissions withhold webhook events until explicit unflagging; never promise delivery for every submission. */
+  /** Flagged submissions withhold webhook events until an operator sends them on; never promise delivery for every submission. */
   "ops.webhooks.intro":
-    "Each active endpoint receives a signed response.submitted request for every submission except a flagged one, whose event is withheld until an operator releases it on the response.",
+    "Each active endpoint receives a signed response.submitted request for every submission except a flagged one, whose event is withheld until an operator sends it on from the response.",
   "ops.webhooks.add": "Add endpoint",
   "ops.webhooks.addTitle": "Add a webhook endpoint",
   "ops.webhooks.url": "Endpoint URL",
@@ -3003,7 +3003,7 @@ export const messages = {
   "membership.agentAudit.act.link.mint": "Created respondent links",
   "membership.agentAudit.act.link.revoke": "Revoked a respondent link",
   "membership.agentAudit.act.response.erase": "Erased a respondent's data",
-  "membership.agentAudit.act.response.unflag": "Released a withheld submission",
+  "membership.agentAudit.act.response.unflag": "Sent on a withheld submission",
   "membership.agentAudit.act.response.export": "Exported responses",
   "membership.agentAudit.act.webhook.create": "Added a delivery endpoint",
   "membership.agentAudit.act.webhook.rotate": "Rotated an endpoint's signing secret",
@@ -3426,10 +3426,11 @@ export const messages = {
   "appearance.respondent.contrast": "High contrast",
   "appearance.respondent.textSize": "Text size, up to 200%",
   "appearance.respondent.note": "Respondents always keep these, because they are access needs.",
-  "appearance.palette.light": "Light",
-  "appearance.palette.dark": "Dark",
-  "appearance.palette.lightHighContrast": "Light high contrast",
-  "appearance.palette.darkHighContrast": "Dark high contrast",
+  /** The four colour modes a form is checked in. Palette is the preview set; these are modes. */
+  "appearance.palette.light": "Light mode",
+  "appearance.palette.dark": "Dark mode",
+  "appearance.palette.lightHighContrast": "Light, high contrast",
+  "appearance.palette.darkHighContrast": "Dark, high contrast",
   "appearance.contrastFailure":
     "{foreground} on {background} in {palette} reaches {ratio}:1, short of {required}:1.",
 

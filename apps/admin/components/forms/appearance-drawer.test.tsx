@@ -9,6 +9,7 @@ import {
   type ThemeOption,
 } from "@/lib/forms/appearance-edit";
 import type { SaveAppearanceState } from "@/lib/forms/builder-state";
+import { t } from "@/lib/i18n/en";
 import { shippedThemeOptions } from "@/lib/server/appearance-options";
 
 import { AppearanceDrawer } from "./appearance-drawer";
@@ -168,7 +169,13 @@ describe("saving", () => {
     expect(onSave).toHaveBeenCalledWith(APPLIED);
     const refusal = await screen.findByTestId("qcms-appearance-save-error");
     expect(refusal.textContent).toContain(
-      "text-muted on surface in Light high contrast reaches 4.2:1, short of 7.0:1.",
+      t("appearance.contrastFailure", {
+        foreground: "text-muted",
+        background: "surface",
+        palette: t("appearance.palette.lightHighContrast"),
+        ratio: "4.2",
+        required: "7.0",
+      }),
     );
   });
 
