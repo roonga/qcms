@@ -2015,7 +2015,8 @@ export const messages = {
   "agent.card.theme.save.reuse":
     "Every form in this workspace can then pick it. Forms already using a copy of it keep what they have.",
   "agent.card.typedInput.url": "Website address",
-  "agent.card.typedInput.url.hint": "The address QCMS will read, in full. It must start with https://",
+  "agent.card.typedInput.url.hint":
+    "The address QCMS will read, in full. It must start with https://",
   "agent.card.access.groupCreate.title": "Create the access group {name} with the roles {roles}",
   "agent.card.access.groupCreate.consequence":
     "The group exists but grants nobody anything yet. Being in the group is the grant, so nobody's access changes until somebody is added to it.",

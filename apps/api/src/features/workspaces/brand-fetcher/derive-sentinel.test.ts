@@ -6,7 +6,6 @@ import { DeriveResult } from "../schema.js";
 import { deriveTheme } from "./derive.js";
 import { FakeBrandFetcher } from "./fake.js";
 import { createLogoCodec } from "./node-codec.js";
-import type { ReencodedLogo } from "./port.js";
 
 /**
  * X4 over the derive output: what reaches the model is the strict schema and nothing the page
@@ -51,15 +50,11 @@ function site(text: string): FakeBrandFetcher {
 }
 
 function derived(text: string): Promise<unknown> {
-  const logos: ReencodedLogo[] = [];
   return deriveTheme(
     {
       fetcher: site(text),
       codec: createLogoCodec(),
-      storeLogo: (logo) => {
-        logos.push(logo);
-        return Promise.resolve("b".repeat(64));
-      },
+      storeLogo: () => Promise.resolve("b".repeat(64)),
     },
     "https://brand.example/",
   );

@@ -7,9 +7,8 @@ import type { ActionKindDef } from "./types.js";
 
 /**
  * The builder's two theme acts. A derive reaches a website, so no proposal names the address:
- * the card collects it, shows it in full and hands it to the drawer's own control, and the
- * fetch itself is the SEC-18 fetcher's (W2). Saving the look as a workspace theme is an
- * ordinary tokened Confirm whose look is the drawer's live state rather than an argument.
+ * the card collects it, shows it in full and hands it to the drawer, and the fetch is the
+ * SEC-18 fetcher's (W2). A save is an ordinary tokened Confirm over the drawer's live look.
  */
 
 const WorkspaceIdArg = z
