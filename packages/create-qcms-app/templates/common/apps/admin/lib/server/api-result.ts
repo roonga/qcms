@@ -56,4 +56,5 @@ export async function readNoContent(response: Response): Promise<ApiResult<null>
   return { ok: true, data: null, ...(response.status === HELD ? { held: true as const } : {}) };
 }
 
-const HELD = 202;
+/** A 202 is the API's hold: the act was stored as a request an Approver has to approve. */
+export const HELD = 202;

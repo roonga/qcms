@@ -379,6 +379,7 @@ export async function readWorkspaceSettings(
     requireSecondApprover?: unknown;
     nobodyElseCouldApprove?: unknown;
     missingApprover?: unknown;
+    appearanceLocked?: unknown;
   }>(await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/settings`));
   if (!result.ok) return result;
   const missing = result.data.missingApprover;
@@ -394,6 +395,7 @@ export async function readWorkspaceSettings(
         administrator: bool(shortfall["administrator"]),
         publisher: bool(shortfall["publisher"]),
       },
+      appearanceLocked: bool(result.data.appearanceLocked),
     },
   };
 }

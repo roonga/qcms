@@ -15,9 +15,11 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 
 import { Alert, Button, Select } from "@/components/kit";
+import { AppearanceDrawer, type FaceChoice } from "@/components/forms/appearance-drawer";
 import { usePreviewLocale } from "@/components/locale-context";
 import { PreviewSurface } from "@/components/preview-theme-island";
 import {
@@ -26,6 +28,8 @@ import {
   type PreviewProgressMode,
   type PreviewRailQuestion,
 } from "@/components/forms/preview-portal-chrome";
+import type { ThemeOption } from "@/lib/forms/appearance-edit";
+import type { SaveAppearanceState } from "@/lib/forms/builder-state";
 import { layoutFindings, layoutReportFact, selectionFact } from "@/lib/agent/builder-facts";
 import { publishLayout, publishSelection, useBuilderFacts } from "@/lib/agent/builder-facts-store";
 import { QUESTION_ATTRIBUTE, measureStep } from "@/lib/forms/layout-collector";
@@ -152,16 +156,19 @@ function PressedButton({
   pressed,
   onPress,
   isDisabled = false,
+  buttonRef,
   children,
 }: {
   readonly pressed?: boolean;
   readonly onPress: () => void;
   readonly isDisabled?: boolean;
+  readonly buttonRef?: RefObject<HTMLButtonElement | null>;
   readonly children: ReactNode;
 }) {
   return (
     <button
       type="button"
+      ref={buttonRef}
       className="qcms-railtoggle qcms-builder-preview__toggle"
       aria-pressed={pressed}
       disabled={isDisabled}
@@ -191,6 +198,12 @@ export interface BuilderPreviewSource {
   readonly appearance: Appearance | null;
   /** The deployment's portal brand. A draft with an appearance shows no deployment logo, as the portal does; its own logo is not available to the admin. */
   readonly brand: PreviewBrand;
+  /** The shipped themes and this workspace's own, which the drawer's Theme row offers. */
+  readonly themes: readonly ThemeOption[];
+  readonly faces: readonly FaceChoice[];
+  /** Set by the workspace: the drawer shows the reason and attempts no save. */
+  readonly appearanceLocked: boolean;
+  readonly saveAppearance: (appearance: unknown) => Promise<SaveAppearanceState>;
 }
 
 /** The builder's preview: the draft as a respondent sees it, in a device frame the toolbar drives. */
@@ -203,9 +216,13 @@ export function BuilderPreview({
   readonly draft: DraftForm;
   readonly source: BuilderPreviewSource;
 }) {
-  const { preview, defaultTheme, appearance, brand } = source;
+  const { preview, defaultTheme, brand, themes, faces, appearanceLocked, saveAppearance } = source;
   const previewLocale = usePreviewLocale();
   const { answers, state, handleChange, clearAnswers } = useDraftPreview(draft, preview);
+  /* The drawer's changes render here before they are saved, which is what makes the preview live. */
+  const [appearance, setAppearance] = useState<Appearance | null>(source.appearance);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const appearanceToggle = useRef<HTMLButtonElement>(null);
   const [frame, setFrame] = useState<FrameState>(INITIAL_FRAME);
   const [look, setLook] = useState<PreviewLook>(INITIAL_LOOK);
   const [inspecting, setInspecting] = useState(false);
@@ -457,6 +474,15 @@ export function BuilderPreview({
           </PressedButton>
         </div>
         <PressedButton
+          pressed={drawerOpen}
+          buttonRef={appearanceToggle}
+          onPress={() => {
+            setDrawerOpen((current) => !current);
+          }}
+        >
+          {t("appearance.drawer.open")}
+        </PressedButton>
+        <PressedButton
           pressed={inspecting}
           onPress={() => {
             setInspecting((current) => !current);
@@ -507,99 +533,115 @@ export function BuilderPreview({
         )}
       </div>
 
-      <div className="qcms-builder-preview__stage" ref={stage.ref}>
-        <div className="qcms-builder-device__box" style={boxStyle}>
-          <div
-            ref={frameRef}
-            className="qcms-builder-device"
-            style={frameStyle}
-            data-testid="qcms-builder-device"
-            data-device={kind}
-            data-inspecting={inspecting ? "" : undefined}
-            aria-label={t("builder.preview.frame")}
-            role="region"
-            onClickCapture={onClickCapture}
-            onPointerDownCapture={holdPress}
-            onPointerUpCapture={holdPress}
-            onMouseDownCapture={holdPress}
-            onKeyDownCapture={onKeyDownCapture}
-            onMouseMove={onPointerMove}
-            onMouseLeave={() => {
-              setHovered(undefined);
-            }}
-          >
-            <PreviewSurface
-              theme={defaultTheme}
-              classes={surfaceClasses(look, appearance)}
-              tokens={surfaceTokens(look, appearance)}
-              surfaceRef={surfaceRef}
+      <div className="qcms-builder-preview__canvas">
+        <div className="qcms-builder-preview__stage" ref={stage.ref}>
+          <div className="qcms-builder-device__box" style={boxStyle}>
+            <div
+              ref={frameRef}
+              className="qcms-builder-device"
+              style={frameStyle}
+              data-testid="qcms-builder-device"
+              data-device={kind}
+              data-inspecting={inspecting ? "" : undefined}
+              aria-label={t("builder.preview.frame")}
+              role="region"
+              onClickCapture={onClickCapture}
+              onPointerDownCapture={holdPress}
+              onPointerUpCapture={holdPress}
+              onMouseDownCapture={holdPress}
+              onKeyDownCapture={onKeyDownCapture}
+              onMouseMove={onPointerMove}
+              onMouseLeave={() => {
+                setHovered(undefined);
+              }}
             >
-              <PreviewPortalChrome
-                brand={appearance === null ? brand : { name: brand.name, logoSrc: undefined }}
-                mode={mode}
-                progress={progress}
-                steps={rail}
-                questions={questions}
-                onJump={setStepIndex}
-                onQuestion={focusQuestion}
+              <PreviewSurface
+                theme={defaultTheme}
+                classes={surfaceClasses(look, appearance)}
+                tokens={surfaceTokens(look, appearance)}
+                surfaceRef={surfaceRef}
               >
-                {state.preview !== undefined && step !== undefined && (
-                  <>
-                    <A2UIStepRenderer
-                      document={documentForVisible(
-                        { stepId: step.stepId, root: step.root as A2UIStepDocument["root"] },
+                <PreviewPortalChrome
+                  brand={appearance === null ? brand : { name: brand.name, logoSrc: undefined }}
+                  mode={mode}
+                  progress={progress}
+                  steps={rail}
+                  questions={questions}
+                  onJump={setStepIndex}
+                  onQuestion={focusQuestion}
+                >
+                  {state.preview !== undefined && step !== undefined && (
+                    <>
+                      <A2UIStepRenderer
+                        document={documentForVisible(
+                          { stepId: step.stepId, root: step.root as A2UIStepDocument["root"] },
+                          state.preview.flow.visibleQuestions,
+                        )}
+                        values={answers}
+                        onChange={handleChange}
+                        specVersion={state.preview.a2uiSpecVersion}
+                        repeat={{
+                          rosters: served,
+                          ...(view !== undefined ? { view } : {}),
+                          visible: new Set(state.preview.flow.visibleQuestions),
+                        }}
+                        locale={previewLocale}
+                        headingLevelOffset={1}
+                      />
+                      {!hasVisibleQuestion(
+                        draft,
+                        step.stepId,
                         state.preview.flow.visibleQuestions,
-                      )}
-                      values={answers}
-                      onChange={handleChange}
-                      specVersion={state.preview.a2uiSpecVersion}
-                      repeat={{
-                        rosters: served,
-                        ...(view !== undefined ? { view } : {}),
-                        visible: new Set(state.preview.flow.visibleQuestions),
-                      }}
-                      locale={previewLocale}
-                      headingLevelOffset={1}
-                    />
-                    {!hasVisibleQuestion(
-                      draft,
-                      step.stepId,
-                      state.preview.flow.visibleQuestions,
-                      view === undefined
-                        ? served
-                        : { ...served, [view.groupId]: [view.instanceId] },
-                    ) && <p>{t("builder.preview.emptyStep")}</p>}
-                  </>
-                )}
-              </PreviewPortalChrome>
-            </PreviewSurface>
-            {inspecting && hovered !== undefined && (
-              <div
-                aria-hidden="true"
-                className="qcms-builder-device__outline qcms-builder-device__outline--hover"
-                style={{
-                  left: hovered.left,
-                  top: hovered.top,
-                  width: hovered.width,
-                  height: hovered.height,
-                }}
-              />
-            )}
-            {selectedOutline !== undefined && (
-              <div
-                aria-hidden="true"
-                className="qcms-builder-device__outline"
-                data-testid="qcms-builder-selected-outline"
-                style={{
-                  left: selectedOutline.left,
-                  top: selectedOutline.top,
-                  width: selectedOutline.width,
-                  height: selectedOutline.height,
-                }}
-              />
-            )}
+                        view === undefined
+                          ? served
+                          : { ...served, [view.groupId]: [view.instanceId] },
+                      ) && <p>{t("builder.preview.emptyStep")}</p>}
+                    </>
+                  )}
+                </PreviewPortalChrome>
+              </PreviewSurface>
+              {inspecting && hovered !== undefined && (
+                <div
+                  aria-hidden="true"
+                  className="qcms-builder-device__outline qcms-builder-device__outline--hover"
+                  style={{
+                    left: hovered.left,
+                    top: hovered.top,
+                    width: hovered.width,
+                    height: hovered.height,
+                  }}
+                />
+              )}
+              {selectedOutline !== undefined && (
+                <div
+                  aria-hidden="true"
+                  className="qcms-builder-device__outline"
+                  data-testid="qcms-builder-selected-outline"
+                  style={{
+                    left: selectedOutline.left,
+                    top: selectedOutline.top,
+                    width: selectedOutline.width,
+                    height: selectedOutline.height,
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
+        {drawerOpen && (
+          <AppearanceDrawer
+            appearance={appearance}
+            themes={themes}
+            faces={faces}
+            locked={appearanceLocked}
+            onPreview={setAppearance}
+            onSave={saveAppearance}
+            onClose={() => {
+              setDrawerOpen(false);
+              appearanceToggle.current?.focus();
+            }}
+          />
+        )}
       </div>
     </div>
   );

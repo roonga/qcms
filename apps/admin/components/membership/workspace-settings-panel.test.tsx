@@ -27,6 +27,7 @@ function settings(overrides: Partial<WorkspaceSettings> = {}): WorkspaceSettings
     requireSecondApprover: false,
     nobodyElseCouldApprove: false,
     missingApprover: { administrator: false, publisher: false },
+    appearanceLocked: false,
     ...overrides,
   };
 }
