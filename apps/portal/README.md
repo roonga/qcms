@@ -1,7 +1,7 @@
 # qcms-portal
 
 The respondent portal (Next.js App Router): fast SSR pages for the devices that
-open registration links, hydrating into the shared `@roonga/qcms-ui` renderer. Task 029.
+open secure links, hydrating into the shared `@roonga/qcms-ui` renderer. Task 029.
 
 ## Architecture (ADR-26, R2)
 
