@@ -1,5 +1,5 @@
 import type { AgentPlanStep } from "../forms/assist-stream.ts";
-import { PROD_ENVIRONMENT } from "../environment.ts";
+import { environmentLabel, PROD_ENVIRONMENT } from "../environment.ts";
 import { t, tPlural, type MessageKey } from "../i18n/en.ts";
 
 import type { ReportedResults, StepResultFields } from "./plan-state.ts";
@@ -504,15 +504,6 @@ export function hasIrreversibleStep(steps: readonly AgentPlanStep[]): boolean {
 
 export function isProductionStep(step: AgentPlanStep): boolean {
   return step.environment === PROD_ENVIRONMENT;
-}
-
-/**
- * What a card calls an environment. Production is the one name every installation shares, so
- * the card writes the word the glossary and the reply both use; every other name is the
- * site's own and is shown as it was given.
- */
-export function environmentLabel(environment: string): string {
-  return environment === PROD_ENVIRONMENT ? t("environment.production") : environment;
 }
 
 /**

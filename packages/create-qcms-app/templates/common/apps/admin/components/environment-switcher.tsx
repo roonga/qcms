@@ -7,7 +7,7 @@ import { EnvironmentChip, EnvironmentSlot } from "@/components/environment-chip"
 import { Menu, MenuItemText } from "@/components/kit";
 import type { MenuClassNames } from "@/components/kit";
 import { MENU_SURFACE } from "@/components/menu-slots";
-import { environmentCookie, environmentKind } from "@/lib/environment";
+import { environmentCookie, environmentKind, environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 
 /* Refresh server-rendered rows after switching; changing a cookie alone leaves the displayed environment
@@ -43,7 +43,7 @@ export function EnvironmentSwitcher({
   if (selected !== rendered) {
     setRendered(selected);
     setCurrent(selected);
-    setAnnounced(t("environment.nowWorking", { environment: selected }));
+    setAnnounced(t("environment.nowWorking", { environment: environmentLabel(selected) }));
   }
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -51,7 +51,7 @@ export function EnvironmentSwitcher({
   const choose = (next: string): void => {
     if (next === current) return;
     setCurrent(next);
-    setAnnounced(t("environment.nowWorking", { environment: next }));
+    setAnnounced(t("environment.nowWorking", { environment: environmentLabel(next) }));
     document.cookie = environmentCookie(next, secureCookies);
     startTransition(() => {
       router.refresh();
@@ -65,7 +65,7 @@ export function EnvironmentSwitcher({
       slot={tintSlot(environments, current)}
     >
       <Menu
-        triggerLabel={t("environment.trigger", { environment: current })}
+        triggerLabel={t("environment.trigger", { environment: environmentLabel(current) })}
         trigger={
           <>
             <EnvironmentChip environment={current} slot={tintSlot(environments, current)} />

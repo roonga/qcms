@@ -337,8 +337,8 @@ export const messages = {
   "questions.editor.frozen":
     "This version is frozen: its content can never change again. Create a new version to make an edit.",
 
-  "questions.constraint.minLength": "Shortest answer",
-  "questions.constraint.maxLength": "Longest answer",
+  "questions.constraint.minLength": "Fewest characters",
+  "questions.constraint.maxLength": "Most characters",
   "questions.constraint.pattern": "Pattern",
   "questions.constraint.patternHint":
     "A regular expression the answer must match. The engine accepts a safe subset and has the final say on save.",
@@ -353,12 +353,12 @@ export const messages = {
     "A browser reads the pattern attribute more strictly than this and would ignore this expression. Answers are still checked by the engine, but the in-page hint is lost.",
   "questions.constraint.format": "Checked format",
   "questions.constraint.formatHint":
-    "Fills the pattern and the longest answer with tested values, and writes a matching message. All three stay editable afterwards.",
+    "Fills the pattern and Most characters with tested values, and writes a matching message. All three stay editable afterwards.",
   "questions.constraint.formatPlaceholder": "Choose a format",
   "questions.constraint.formatExample": "Accepts values like {example}.",
   "questions.constraint.formatApply": "Use this format",
   "questions.constraint.formatApplied":
-    "{label} applied to the pattern and the longest answer. Its wording is on the validation messages panel.",
+    "{label} applied to the pattern and Most characters. Its wording is on the validation messages panel.",
   "questions.format.email": "Email address",
   "questions.format.phone": "Phone number, any country",
   "questions.format.postcode-au": "Postcode, Australia",

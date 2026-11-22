@@ -5,6 +5,8 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { MODE_COOKIE } from "../lib/appearance.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { chooseEnvironment, environmentChip, OPERATIONS_PATH } from "./support/environment.js";
+import { environmentLabel } from "../lib/environment.js";
+import { t } from "../lib/i18n/en.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import {
   addStep,
@@ -76,7 +78,7 @@ test("the chip is in the Operations header and on no normal screen", async ({ pa
     page.getByTestId("qcms-mode-header").getByTestId("qcms-environment-switcher"),
   ).toBeVisible();
   const operations = await chipState(page);
-  expect(operations.text, "the name is always written").toBe("prod");
+  expect(operations.text, "the name is always written").toBe(environmentLabel("prod"));
   expect(operations.group, "the Operations group carries the environment").toBe(true);
   expect(operations.barEdge, "and the bar itself draws no edge of its own").toBe("none");
 
@@ -136,7 +138,9 @@ test("the selector is a labelled dropdown whose rows name and mark each environm
   await expect(chip, "the slot says what the control is about").toContainText("Environment");
   const trigger = chip.getByRole("button");
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
-  await expect(trigger).toHaveAccessibleName("Environment prod");
+  await expect(trigger).toHaveAccessibleName(
+    t("environment.trigger", { environment: environmentLabel("prod") }),
+  );
 
   await trigger.focus();
   await page.keyboard.press("Enter");
@@ -144,10 +148,9 @@ test("the selector is a labelled dropdown whose rows name and mark each environm
   await expect(menu).toBeVisible();
   const rows = menu.getByRole("menuitemradio");
   expect(await rows.count(), "one row per configured environment").toBeGreaterThanOrEqual(2);
-  await expect(menu.getByRole("menuitemradio", { name: "prod", exact: true })).toHaveAttribute(
-    "aria-checked",
-    "true",
-  );
+  await expect(
+    menu.getByRole("menuitemradio", { name: environmentLabel("prod"), exact: true }),
+  ).toHaveAttribute("aria-checked", "true");
   await expect(
     rows.locator(".qcms-envmenu__check svg"),
     "the check marks the current environment and only that one",
@@ -162,7 +165,9 @@ test("the selector is a labelled dropdown whose rows name and mark each environm
   expect(focused, "the arrow keys walk to a named environment").not.toBe("");
   await page.keyboard.press("Enter");
   await expect(chip).toHaveAttribute("data-pending", "false");
-  await expect(chip).toHaveAttribute("data-environment", focused);
+  // The chip writes the name a person reads, which is the one the arrow landed on; the
+  // attribute beside it keeps the configured name, and only production differs between them.
+  await expect(chip.locator(".qcms-envchip")).toHaveText(focused);
 
   await chooseEnvironment(page, "prod");
 });

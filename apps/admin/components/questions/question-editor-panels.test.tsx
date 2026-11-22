@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { t } from "@/lib/i18n/en";
 import { IDLE_MUTATION, type MutationState } from "@/lib/questions/editor-state";
 import type { DefinitionIssue, QuestionDefinitionView } from "@/lib/questions/types";
 
@@ -85,8 +86,8 @@ describe("which panel the column shows", () => {
         addressedPanel="constraints"
       />,
     );
-    expect(screen.getByRole("textbox", { name: "Shortest answer" })).toBeTruthy();
-    expect(screen.getByRole("textbox", { name: "Longest answer" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: t("questions.constraint.minLength") })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: t("questions.constraint.maxLength") })).toBeTruthy();
     expect(screen.queryByRole("textbox", { name: "Pattern" })).toBeNull();
   });
 

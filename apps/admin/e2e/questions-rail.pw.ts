@@ -249,10 +249,10 @@ test("2026-09-27 nests the editor's panels under the selected version, and switc
 
   await expect(rail.locator('[data-rail-panel="content"]')).toHaveAttribute("aria-current", "page");
   await expect(field(page, "Label")).toBeVisible();
-  await expect(field(page, "Shortest answer")).toHaveCount(0);
+  await expect(field(page, t("questions.constraint.minLength"))).toHaveCount(0);
 
   await openPanel(page, "constraints");
-  await expect(field(page, "Shortest answer")).toBeVisible();
+  await expect(field(page, t("questions.constraint.minLength"))).toBeVisible();
   await expect(field(page, "Label"), "one panel at a time").toHaveCount(0);
   await expect(rail.locator('[data-rail-panel="content"]')).not.toHaveAttribute(
     "aria-current",
@@ -261,9 +261,9 @@ test("2026-09-27 nests the editor's panels under the selected version, and switc
 
   await expect(page).toHaveURL(/panel=constraints/u);
   await page.reload();
-  await expect(field(page, "Shortest answer")).toBeVisible();
+  await expect(field(page, t("questions.constraint.minLength"))).toBeVisible();
 
-  await setNumericConstraint(page, "Shortest answer", "4");
+  await setNumericConstraint(page, t("questions.constraint.minLength"), "4");
   await expect(rail.locator('[data-rail-panel="messages"]')).toBeVisible();
   await expect(rail.locator('[data-rail-panel="constraints"]')).toContainText("min 4");
 });
@@ -279,7 +279,7 @@ test("2026-09-27 switches a panel while the rail is a shut disclosure at 390px",
   await expect(page.locator("details.qcms-rail__disclosure")).not.toHaveAttribute("open", "");
 
   await openPanel(page, "constraints");
-  await expect(field(page, "Shortest answer")).toBeVisible();
+  await expect(field(page, t("questions.constraint.minLength"))).toBeVisible();
   await page.setViewportSize({ width: 1280, height: 900 });
 });
 
@@ -402,8 +402,8 @@ test("2026-09-27 badges the panel a refused save names, and lands focus in it", 
   await page.goto(detailPath());
 
   await openPanel(page, "constraints");
-  await setNumericConstraint(page, "Shortest answer", "10");
-  await setNumericConstraint(page, "Longest answer", "5");
+  await setNumericConstraint(page, t("questions.constraint.minLength"), "10");
+  await setNumericConstraint(page, t("questions.constraint.maxLength"), "5");
   await openPanel(page, "content");
 
   await page.getByRole("main").getByRole("button", { name: "Save draft" }).click();
@@ -417,8 +417,8 @@ test("2026-09-27 badges the panel a refused save names, and lands focus in it", 
     "a panel with nothing refused carries no all-clear either",
   ).toHaveCount(0);
 
-  await expect(field(page, "Shortest answer")).toBeFocused();
-  await expect(field(page, "Shortest answer")).toHaveAttribute("aria-invalid", "true");
+  await expect(field(page, t("questions.constraint.minLength"))).toBeFocused();
+  await expect(field(page, t("questions.constraint.minLength"))).toHaveAttribute("aria-invalid", "true");
   await expect(page).toHaveURL(/panel=constraints/u);
 });
 
@@ -430,7 +430,7 @@ test("2026-09-27 opens the same panels on a frozen version, read-only", async ({
   await expect(
     page.getByTestId("qcms-question-rail").locator('[data-rail-panel="constraints"]'),
   ).toHaveAttribute("aria-current", "page");
-  await expect(field(page, "Shortest answer")).toBeDisabled();
+  await expect(field(page, t("questions.constraint.minLength"))).toBeDisabled();
 
   await expect(page.getByRole("main").getByRole("button", { name: "Save draft" })).toHaveCount(0);
   await expect(page.getByTestId("qcms-manual-save-note")).toHaveCount(0);
@@ -524,7 +524,7 @@ test("1116 opens a panel from the keyboard, which is what an anchor row owes", a
 
   await expect(constraints).toHaveAttribute("aria-current", "page");
   await expect(content).not.toHaveAttribute("aria-current", "page");
-  await expect(field(page, "Shortest answer")).toBeVisible();
+  await expect(field(page, t("questions.constraint.minLength"))).toBeVisible();
   await expect(field(page, "Label"), "one panel at a time").toHaveCount(0);
   // Native fragment navigation can focus the panel destination; keyboard switching must retain focus on the rail row.
   await expect(constraints).toBeFocused();
@@ -573,12 +573,12 @@ test("1117 states the live document's issue total in the rail's Header, and nowh
   await expect(count, "no count on a document with no issues").toHaveCount(0);
 
   await openPanel(page, "constraints");
-  await setNumericConstraint(page, "Shortest answer", "3");
+  await setNumericConstraint(page, t("questions.constraint.minLength"), "3");
   await page.getByRole("main").getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByRole("main").getByText("Draft saved.")).toBeVisible();
   await expect(count, "an accepted save leaves no count behind").toHaveCount(0);
 
-  await setNumericConstraint(page, "Longest answer", "2");
+  await setNumericConstraint(page, t("questions.constraint.maxLength"), "2");
   await page.getByRole("main").getByRole("button", { name: "Save draft" }).click();
 
   await expect(count, "a refused save states the total in the Header").toHaveText("1 issue");

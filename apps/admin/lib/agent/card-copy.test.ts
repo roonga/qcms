@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { environmentLabel } from "../environment.ts";
 import type { AgentPlanStep } from "../forms/assist-stream.ts";
 
 import {
-  environmentLabel,
   planNames,
   planTitleSubject,
   stepArguments,

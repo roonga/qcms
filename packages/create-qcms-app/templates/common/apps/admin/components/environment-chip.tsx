@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { environmentKind } from "@/lib/environment";
+import { environmentKind, environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 
 /**
@@ -25,7 +25,7 @@ export function EnvironmentChip({
       {...(slot !== undefined && { "data-slot": String(slot) })}
       {...(decorative === true && { "aria-hidden": "true" })}
     >
-      {environment ?? t("environment.unknown")}
+      {environment === undefined ? t("environment.unknown") : environmentLabel(environment)}
     </span>
   );
 }

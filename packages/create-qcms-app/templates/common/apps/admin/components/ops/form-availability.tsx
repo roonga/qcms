@@ -9,6 +9,7 @@ import { useEnvironmentUnknown } from "@/components/environment-scope";
 import type { FormStatusState } from "@/lib/forms/builder-state";
 import { IDLE_FORM_STATUS } from "@/lib/forms/builder-state";
 import type { FormAvailability } from "@/lib/forms/types";
+import { environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
@@ -147,7 +148,7 @@ export function FormAvailability({
                 the closed state is per (form, environment), so a confirmation that said
                 nothing about where it lands would be ambiguous rather than unhelpful. */}
             <p className="text-sm font-semibold" data-testid="qcms-lifecycle-environment">
-              {t("environment.inThis", { environment })}
+              {t("environment.inThis", { environment: environmentLabel(environment) })}
             </p>
             {lifecycle.status === "error" && (
               <Alert variant="error">

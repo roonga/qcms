@@ -8,7 +8,6 @@ import type { AgentPlanStep } from "@/lib/forms/assist-stream";
 import { copyMintedUrl, downloadMintedLinks, linkExpiryInstant } from "@/lib/forms/links";
 import {
   createdHref,
-  environmentLabel,
   hasIrreversibleStep,
   isProductionStep,
   productionSentence,
@@ -18,6 +17,7 @@ import {
   type PlanNames,
   type StepArgumentLine,
 } from "@/lib/agent/card-copy";
+import { environmentLabel } from "@/lib/environment";
 import { isInstant } from "@/lib/i18n/format";
 import { OperatorDateTime } from "@/components/operator-time";
 import { focusPostAction } from "@/lib/ops/post-action-focus";

@@ -89,7 +89,7 @@ describe("the no group covers this notice", () => {
       />,
     );
     expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "Environment prod: no group covers it yet.",
+      "Environment Production: no group covers it yet.",
       "Erase responses: no group grants it yet.",
     ]);
     expect(screen.queryByRole("link")).toBeNull();

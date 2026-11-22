@@ -601,15 +601,15 @@ test("errors from the API are readable, and land on the field that caused them",
 
   await createDraft(page, slugFor("invalid"), "shortText");
   await openPanel(page, "constraints");
-  await setNumericConstraint(page, "Shortest answer", "10");
-  await setNumericConstraint(page, "Longest answer", "5");
+  await setNumericConstraint(page, t("questions.constraint.minLength"), "10");
+  await setNumericConstraint(page, t("questions.constraint.maxLength"), "5");
 
   await expect(page.locator('[data-rail-panel="messages"]')).toBeVisible();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(alert).toContainText("The engine rejected this draft");
 
-  await expect(field(page, "Shortest answer")).toHaveAttribute("aria-invalid", "true");
-  await expect(field(page, "Shortest answer")).toBeFocused();
+  await expect(field(page, t("questions.constraint.minLength"))).toHaveAttribute("aria-invalid", "true");
+  await expect(field(page, t("questions.constraint.minLength"))).toBeFocused();
 
   await page.goto("/questions/new");
   await fillStable(
@@ -748,7 +748,7 @@ test("a validation message inherits until it is written, then round-trips (048)"
   await expect(field(page, TOO_SHORT)).toHaveCount(0);
   await expect(page.locator('[data-rail-panel="messages"]')).toHaveCount(0);
 
-  await setNumericConstraint(page, "Shortest answer", "8");
+  await setNumericConstraint(page, t("questions.constraint.minLength"), "8");
   await openPanel(page, "messages");
   await expect(field(page, TOO_SHORT)).toHaveAttribute(
     "placeholder",
@@ -774,13 +774,13 @@ test("a validation message inherits until it is written, then round-trips (048)"
   await expect(field(page, TOO_SHORT)).toHaveValue(authored);
 
   await openPanel(page, "constraints");
-  await setNumericConstraint(page, "Shortest answer", "");
+  await setNumericConstraint(page, t("questions.constraint.minLength"), "");
   await expect(field(page, TOO_SHORT)).toHaveCount(0);
   await expect(page.locator('[data-rail-panel="messages"]')).toHaveCount(0);
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
   await page.reload();
-  await setNumericConstraint(page, "Shortest answer", "8");
+  await setNumericConstraint(page, t("questions.constraint.minLength"), "8");
   await openPanel(page, "messages");
   await expect(field(page, TOO_SHORT)).toHaveValue("");
 });

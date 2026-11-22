@@ -12,7 +12,7 @@ import { Alert, Button, Dialog, Select } from "@/components/kit";
 import { EnvironmentSummary, ReleaseHistory } from "@/components/forms/release-tables";
 import type { ReleaseState } from "@/lib/forms/builder-state";
 import { IDLE_RELEASE } from "@/lib/forms/builder-state";
-import { PROD_ENVIRONMENT } from "@/lib/environment";
+import { environmentLabel, PROD_ENVIRONMENT } from "@/lib/environment";
 import { currentReleaseByEnvironment, type ReleaseRecord } from "@/lib/forms/releases";
 import { t } from "@/lib/i18n/en";
 import { HeadingMarker } from "@/components/agent/heading-marker";
@@ -282,7 +282,7 @@ export function ReleasePanel({
               />
             )}
             <p className="text-sm font-semibold" data-testid="qcms-release-environment">
-              {t("environment.inThis", { environment })}
+              {t("environment.inThis", { environment: environmentLabel(environment) })}
             </p>
             {gatedByRule && (
               <div data-testid="qcms-release-two-person">

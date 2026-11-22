@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { EnvironmentSwitcher } from "./environment-switcher.tsx";
-import { ENVIRONMENT_COOKIE, environmentKind } from "../lib/environment.ts";
+import { ENVIRONMENT_COOKIE, environmentKind, environmentLabel } from "../lib/environment.ts";
 import { t } from "../lib/i18n/en.ts";
 
 const refresh = vi.hoisted(() => vi.fn());
@@ -31,10 +31,12 @@ describe("the environment chip", () => {
       const { control, unmount } = chip(environment);
       expect(control.getAttribute("data-environment")).toBe(environment);
       expect(control.getAttribute("data-kind")).toBe(kind);
-      expect(control.textContent).toContain(environment);
+      expect(control.textContent).toContain(environmentLabel(environment));
       expect(control.querySelector(".qcms-envchip")?.getAttribute("data-kind")).toBe(kind);
       expect(
-        screen.getByRole("button", { name: t("environment.trigger", { environment }) }),
+        screen.getByRole("button", {
+          name: t("environment.trigger", { environment: environmentLabel(environment) }),
+        }),
       ).toBeTruthy();
       unmount();
     }
@@ -77,7 +79,9 @@ describe("the environment dropdown", () => {
 
     const rows = screen.getAllByRole("menuitemradio");
     expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual(["true", "false", "false"]);
-    expect(screen.getByRole("menuitemradio", { name: "prod" }).querySelector("svg")).not.toBeNull();
+    expect(
+      screen.getByRole("menuitemradio", { name: environmentLabel("prod") }).querySelector("svg"),
+    ).not.toBeNull();
     expect(screen.getByRole("menuitemradio", { name: "staging" }).querySelector("svg")).toBeNull();
     expect(screen.getByRole("menu").getAttribute("aria-label")).toBe(t("environment.legend"));
   });

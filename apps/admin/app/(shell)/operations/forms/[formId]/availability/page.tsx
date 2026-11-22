@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { FormAvailability } from "@/components/ops/form-availability";
-import { shownEnvironment } from "@/lib/environment";
+import { environmentLabel, shownEnvironment } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { resolvedEnvironment } from "@/lib/server/environments";
@@ -56,7 +56,7 @@ export default async function FormAvailabilityPage({
     <div className="flex flex-col gap-6">
       <FormPageHeader formId={form.formId} section="availability" form={form} />
       <p className="text-sm text-(--color-text-muted)">
-        {t("environment.inThis", { environment })}
+        {t("environment.inThis", { environment: environmentLabel(environment) })}
       </p>
       <dl className="flex flex-col gap-2 text-sm" data-testid="qcms-form-availability-state">
         <div className="flex gap-2">

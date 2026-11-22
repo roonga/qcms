@@ -6,6 +6,7 @@ import { useEnvironmentUnknown } from "@/components/environment-scope";
 import { EntityId } from "@/components/entity-id";
 import { Alert, Button, Dialog } from "@/components/kit";
 import { OperatorDateTime } from "@/components/operator-time";
+import { environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import type { EndpointProposal } from "@/lib/ops/types";
 import { unexpected } from "@/lib/ops/unexpected";
@@ -179,7 +180,7 @@ export function EndpointProposals({
           <div className="flex flex-col gap-4" data-testid="qcms-proposal-dialog">
             <p className="text-sm">{dialogSentence(dialog.act, dialog.proposal)}</p>
             <p className="text-sm font-semibold" data-testid="qcms-proposal-environment">
-              {t("environment.inThis", { environment: dialog.proposal.environment })}
+              {t("environment.inThis", { environment: environmentLabel(dialog.proposal.environment) })}
             </p>
             {dialog.act === "confirm" && (
               <Alert variant="warning">{t("ops.proposals.confirmWarning")}</Alert>

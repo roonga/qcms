@@ -420,8 +420,8 @@ test("the message and boolean-label fields have zero violations (048)", async ({
   await fillStable(field(page, "Label"), "What is your policy number?");
 
   await page.getByText("An answer is required", { exact: true }).click();
-  await fillStable(field(page, "Shortest answer"), "8");
-  await fillStable(field(page, "Longest answer"), "12");
+  await fillStable(field(page, t("questions.constraint.minLength")), "8");
+  await fillStable(field(page, t("questions.constraint.maxLength")), "12");
   await fillStable(field(page, "Pattern"), "^[A-Z]{2}[0-9]{6}$");
 
   const patternVerdict = page.getByTestId("qcms-pattern-verdict");

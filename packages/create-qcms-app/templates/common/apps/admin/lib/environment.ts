@@ -35,6 +35,15 @@ export function isNonProd(environment: string): boolean {
   return environment !== PROD_ENVIRONMENT;
 }
 
+/**
+ * What a screen calls an environment. Production is the one every installation has, so it is
+ * shown by the word the glossary and the assistant both use; every other name is the site's
+ * own and is shown as it was configured.
+ */
+export function environmentLabel(environment: string | undefined): string {
+  return environment === PROD_ENVIRONMENT ? t("environment.production") : (environment ?? "");
+}
+
 export type EnvironmentKind = "prod" | "nonprod" | "unknown";
 
 /** Unknown must remain a third visual state shared by every environment indicator. */
@@ -94,7 +103,10 @@ export function confirmEnvironment(
   if (shown === current.environment) return { ok: true, environment: shown };
   return {
     ok: false,
-    message: t("environment.switched", { shown, current: current.environment }),
+    message: t("environment.switched", {
+      shown: environmentLabel(shown),
+      current: environmentLabel(current.environment),
+    }),
   };
 }
 

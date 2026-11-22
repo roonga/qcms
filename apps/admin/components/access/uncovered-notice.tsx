@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import { roleName } from "@/lib/membership/access-group-form";
 import type { AccessCapabilities, UncoveredScope } from "@/lib/membership/access-patterns";
@@ -16,7 +17,7 @@ export function UncoveredNotice({
 }) {
   const lines = [
     ...uncovered.environments.map((environment) =>
-      t("access.uncovered.environment", { environment }),
+      t("access.uncovered.environment", { environment: environmentLabel(environment) }),
     ),
     ...uncovered.roles.map((role) => t("access.uncovered.role", { role: roleName(role) })),
   ];

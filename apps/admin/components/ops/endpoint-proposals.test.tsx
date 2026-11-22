@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { EndpointProposals } from "./endpoint-proposals.tsx";
 import type { EndpointProposal } from "../../lib/ops/types.ts";
+import { environmentLabel } from "../../lib/environment.ts";
 import { t } from "../../lib/i18n/en.ts";
 import { unexpected } from "../../lib/ops/unexpected.ts";
 
@@ -100,7 +101,9 @@ describe("the pending endpoint changes panel", () => {
 
     await user.click(screen.getByRole("button", { name: t("ops.proposals.confirm") }));
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByTestId("qcms-proposal-environment").textContent).toContain("prod");
+    expect(within(dialog).getByTestId("qcms-proposal-environment").textContent).toContain(
+      environmentLabel("prod"),
+    );
     expect(dialog.textContent).toContain(t("ops.proposals.confirmWarning"));
 
     await user.click(within(dialog).getByRole("button", { name: t("ops.proposals.confirm") }));
