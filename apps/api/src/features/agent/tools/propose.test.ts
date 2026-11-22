@@ -241,7 +241,7 @@ describe("buildProposal: never weaker than the screen (criterion 9)", () => {
     });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).toContain("Second approval on for a publish to prod");
+    expect(outcome.reason).toContain("Second approval on for a publish to production");
   });
 
   it("offers the same plan with the switch off", async () => {
@@ -261,7 +261,7 @@ describe("buildProposal: never weaker than the screen (criterion 9)", () => {
     });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).toContain("Second approval on for a publish to prod");
+    expect(outcome.reason).toContain("Second approval on for a publish to production");
   });
 
   it("leaves a publish-then-release-to-test plan alone with the switch on", async () => {

@@ -84,7 +84,7 @@ const workspaceSettings = routeArgs(
   {
     workspaceId: WorkspaceArg,
     requireSecondApprover: WorkspaceSettingsBody.shape.requireSecondApprover.describe(
-      "Whether a publish to prod and a response self-grant need a second account.",
+      "Whether a publish to production and a response self-grant need a second account.",
     ),
   } satisfies StepArgs<typeof WorkspaceSettingsBody.shape, never, "workspaceId">,
   { params: WORKSPACE_PARAM },

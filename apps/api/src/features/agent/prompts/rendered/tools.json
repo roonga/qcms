@@ -4279,7 +4279,7 @@
                         "anyOf": [
                           {
                             "type": "boolean",
-                            "description": "Whether a publish to prod and a response self-grant need a second account."
+                            "description": "Whether a publish to production and a response self-grant need a second account."
                           },
                           {
                             "$ref": "#/$defs/StepReference_d3"

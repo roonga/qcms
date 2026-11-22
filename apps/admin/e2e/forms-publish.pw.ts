@@ -531,9 +531,7 @@ test("the destinations step states the fixed prod floor and offers no freeze on 
   // This harness serves test beside prod, so the floor is in force.
   const floor = page.getByTestId("qcms-publish-prod-floor");
   await expect(floor).toHaveAttribute("data-floor", "true");
-  await expect(floor).toHaveText(
-    "Prod accepts only a version already live in a non-prod environment. This is fixed, not a setting.",
-  );
+  await expect(floor).toHaveText(t("forms.publish.destinations.prodFloor"));
   await expect(page.getByTestId("qcms-publish-only")).toHaveCount(0);
 });
 
