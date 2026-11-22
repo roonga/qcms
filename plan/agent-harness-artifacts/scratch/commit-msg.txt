@@ -1,0 +1,5 @@
+docs(plan): agent harness learning plan and tutorial
+
+- plan/agent-harness-learning-plan.md: 12-week plan to hand-build an agent harness in a separate sandbox repo, with QCMS form authoring as the domain.
+- plan/agent-harness-tutorial.html: companion tutorial with code sketches, interview concepts, glossary, practice questions and a quiz.
+- Docs only. No change to the API, admin, packages or assistant.
