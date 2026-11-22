@@ -501,7 +501,7 @@ export interface CardFooterProps {
   readonly typed: string;
   readonly onTyped: (value: string) => void;
   readonly required: string | undefined;
-  /** The argument the person types here, which the card then shows in full above Confirm. */
+  /** The argument the person types here, echoed in full above Confirm so nothing hides. */
   readonly inputField: string | undefined;
   readonly input: string;
   readonly onInput: (value: string) => void;
@@ -550,6 +550,15 @@ export function CardFooter(props: CardFooterProps): React.ReactElement {
             {t("agent.card.typedInput.url.hint")}
           </p>
         </div>
+      )}
+
+      {props.inputField === undefined || !waiting || props.input.trim() === "" ? null : (
+        <p className="qcms-acard__echo" data-testid="qcms-acard-typed-echo">
+          <span className="qcms-acard__echo-label">{t("agent.card.typedInput.echo")}</span>
+          <span className="qcms-acard__echo-value" data-testid="qcms-acard-typed-echo-value">
+            {props.input.trim()}
+          </span>
+        </p>
       )}
 
       {props.required === undefined || !waiting ? null : (

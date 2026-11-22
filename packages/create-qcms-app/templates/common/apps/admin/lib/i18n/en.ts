@@ -2019,6 +2019,7 @@ export const messages = {
   "agent.card.typedInput.url": "Website address",
   "agent.card.typedInput.url.hint":
     "The address QCMS will read, in full. It must start with https://",
+  "agent.card.typedInput.echo": "Confirm reads this address:",
   "agent.card.access.groupCreate.title": "Create the access group {name} with the roles {roles}",
   "agent.card.access.groupCreate.consequence":
     "The group exists but grants nobody anything yet. Being in the group is the grant, so nobody's access changes until somebody is added to it.",
@@ -3443,13 +3444,12 @@ export const messages = {
   "appearance.respondent.contrast": "High contrast",
   "appearance.respondent.textSize": "Text size, up to 200%",
   "appearance.respondent.note": "Respondents always keep these, because they are access needs.",
-  /** Palette means the preview set; these are modes. */
-  "appearance.palette.light": "Light mode",
-  "appearance.palette.dark": "Dark mode",
-  "appearance.palette.lightHighContrast": "Light, high contrast",
-  "appearance.palette.darkHighContrast": "Dark, high contrast",
+  "appearance.mode.light": "Light mode",
+  "appearance.mode.dark": "Dark mode",
+  "appearance.mode.lightHighContrast": "Light, high contrast",
+  "appearance.mode.darkHighContrast": "Dark, high contrast",
   "appearance.contrastFailure":
-    "{foreground} on {background} in {palette} reaches {ratio}:1, short of {required}:1.",
+    "{foreground} on {background} in {mode} reaches {ratio}:1, short of {required}:1.",
 
   "appearance.derive.heading": "From your website",
   "appearance.derive.label": "Website address",
@@ -3472,7 +3472,7 @@ export const messages = {
   "appearance.derive.stored": "Nothing from the site is stored except these values and the logo.",
   "appearance.derive.corrections.one": "One colour was moved so it stays readable.",
   "appearance.derive.corrections.other": "{count} colours were moved so they stay readable.",
-  "appearance.derive.correction": "{from} became {to} in {palette}.",
+  "appearance.derive.correction": "{from} became {to} in {mode}.",
   "appearance.derive.tintDropped":
     "The page tint was left off where it would have made text harder to read.",
   "appearance.derive.adjust": "Adjust",

@@ -16,7 +16,7 @@ export interface ThemeOption {
   readonly logo: string | null;
 }
 
-/** One colour 107's contrast check moved, as a derive reports it. */
+/** One colour the contrast check moved, as a derive reports it. */
 export interface ThemeCorrection {
   readonly palette: string;
   readonly token: string;

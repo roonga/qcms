@@ -71,7 +71,7 @@ describe("theme.save", () => {
     }
   });
 
-  it("carries the name the card showed back as the step's own, and nothing else", () => {
+  it("carries nothing back as the step's own, not even the name the card showed", () => {
     expect(
       save?.recomputeArgs({
         path: "",

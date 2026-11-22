@@ -12,6 +12,8 @@ The assistant's access to appearance and themes. The appearance act is a draft-s
 - G2: the action kinds `theme.derive` (Confirm card, URL in full, typed by the user, never by the model) and `theme.save` (Confirm card), with consequence bands, registered in `actions/registry.ts` and offered by the same evaluator as the screen.
 - G2: the appearance act is the builder tool `edit_appearance`, not an action kind (Code Owner, 2026-11-22). It yields 111's `appearance` edit op, so it auto-applies to the draft and shows "Applied to draft | Undo" with no Confirm card.
 - The derive order is SEC-18 W2: the typed address is shown in full on a Confirm card before anything is fetched, and the model neither sees nor chooses it (Code Owner, 2026-11-22). The Brand board's post-fetch card is the messaging after the derive, not the gate.
+- W2's Confirm card governs an agent-proposed derive. In the drawer's own Get theme the person's typed address and their click is the confirm, and no card stands between them (Code Owner, 2026-11-23).
+- The card echoes the whole typed address as wrapping text above Confirm, so a long address cannot hide its host (Code Owner, 2026-11-23).
 - Workspace Settings stays as 116 left it: no Derive or Save button there, both acts live in the appearance drawer, and `themes.create.note` is true through the drawer's Save as workspace theme (Code Owner, 2026-11-22).
 - The model sees only 110's strict derive output: hex colours and a registry face enum; no page text, title, alt text or logo bytes.
 - U5: the derive flow in the builder: URL input, the Confirm card, a "Not saved" row for the derived theme, save as a workspace theme, the correction messaging from 107.
@@ -52,4 +54,4 @@ Yes: the URL input, the derive Confirm card and the "Not saved" row on the Agent
 
 ## Out of scope
 
-The fetcher (110). Operator docs for the SEC-18 flag (121).
+The fetcher (110). Operator docs for the SEC-18 flag (121). Sending the derived-theme fact to a turn, so the prompt says only that a derive answers the person and not the model (#1404; Code Owner, 2026-11-23).

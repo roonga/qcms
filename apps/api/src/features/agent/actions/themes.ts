@@ -30,8 +30,8 @@ export const deriveWorkspaceTheme: ActionKindDef = {
   args: z.strictObject({ workspaceId: WorkspaceIdArg }),
   recomputeArgs: () => ({}),
   references: [],
-  // The colours reach the next turn as the builder's own derived-theme fact, under that
-  // fact's strict schema. The step reports which workspace it read for and nothing else.
+  // What the fetch found is the drawer's, under the derived-theme fact's strict schema. The
+  // step reports which workspace it read for and nothing else.
   resultAllowlist: ["workspaceId"],
   handOff: true,
   card: {

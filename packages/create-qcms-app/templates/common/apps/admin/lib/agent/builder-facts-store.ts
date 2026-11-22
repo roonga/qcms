@@ -13,7 +13,7 @@ export interface BuilderFacts {
   readonly selection: PreviewSelectionFact | undefined;
   readonly selectionLabel: string;
   readonly layout: LayoutReportFact | undefined;
-  /** The newest derive's colours, which the turn after it reads instead of the website. */
+  /** The newest derive's colours, held in the browser rather than read off the website. */
   readonly derivedTheme: DerivedThemeFact | undefined;
 }
 
@@ -56,7 +56,7 @@ export function clearBuilderFacts(): void {
   emit(EMPTY);
 }
 
-/** What the next builder turn sends: the question pointed at, the step measured and the derive. */
+/** What the builder holds for a turn: the question pointed at, the step measured, the derive. */
 export function builderFacts(): BuilderFacts {
   return facts;
 }

@@ -107,7 +107,7 @@ export const EditCopyInput = z.strictObject({
 
 /**
  * The appearance axes a turn may change. The palettes are never named colour by colour: a
- * brand colour is a seed the kernel derives all four palettes from, with 107's contrast check
+ * brand colour is a seed the kernel derives all four palettes from, with the contrast check
  * moving anything too faint to read, so no turn can propose an unreadable pair.
  */
 export const EditAppearanceInput = z.strictObject({

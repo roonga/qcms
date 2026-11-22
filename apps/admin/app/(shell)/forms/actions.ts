@@ -282,9 +282,9 @@ export async function saveAppearanceAction(
 }
 
 /**
- * One derive, on the address the person typed on the card or in the drawer. It is passed
- * through untouched: the API checks it under SEC-18 and makes the only fetch, and a host this
- * action read out of the value would be a second, unchecked opinion of where it points.
+ * One derive, on the address the person typed on the card or in the drawer. The address is
+ * passed through untouched, because the API checks it under SEC-18 and makes the only fetch;
+ * the host read back here labels the theme row and decides nothing.
  */
 export async function deriveWorkspaceThemeAction(
   workspaceId: string,
@@ -321,7 +321,7 @@ export async function createWorkspaceThemeAction(
   return { status: "created", themeId: result.data.themeId, name: result.data.name };
 }
 
-/* The definition is passed through untouched: its edit token binds that exact post-state. */
+/* Both halves are passed through untouched: the edit token binds that exact post-state. */
 export async function applyAgentEditAction(
   formId: string,
   definition: unknown,
@@ -329,7 +329,8 @@ export async function applyAgentEditAction(
   appearance?: unknown,
 ): Promise<AgentEditState> {
   const session = await requireAdminSession();
-  if (!withinCap(definition) || token === "") {
+  const looks = appearance === undefined || withinCap(appearance);
+  if (!withinCap(definition) || !looks || token === "") {
     return { status: "error", code: MALFORMED_CODE, message: messageForFormCode(MALFORMED_CODE) };
   }
   const result = await applyAgentEdit(session, formId, definition, token, appearance);

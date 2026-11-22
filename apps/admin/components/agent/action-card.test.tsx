@@ -564,12 +564,26 @@ describe("an address the card collects", () => {
     expect(confirm().hasAttribute("disabled")).toBe(false);
   });
 
-  it("shows it in full, never shortened, before the Confirm", () => {
+  it("echoes it in full above the Confirm, as text that wraps", () => {
     const plan = proposal([DERIVE_THEME]);
     renderCard(plan, initialCard(plan));
-    const typed = "https://www.bright-start-early-learning.example/about/our-setting?ref=print";
+    const typed =
+      "https://www.bright-start-early-learning-and-childcare.example/about/our-setting?ref=print";
     fireEvent.change(address(), { target: { value: typed } });
     expect(address().value).toBe(typed);
+    const echo = screen.getByTestId("qcms-acard-typed-echo-value");
+    expect(echo.textContent).toBe(typed);
+    expect(echo.className).toBe("qcms-acard__echo-value");
+    expect(
+      screen.getByTestId("qcms-acard-typed-echo").compareDocumentPosition(confirm()) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeGreaterThan(0);
+  });
+
+  it("echoes nothing until something is typed", () => {
+    const plan = proposal([DERIVE_THEME]);
+    renderCard(plan, initialCard(plan));
+    expect(screen.queryByTestId("qcms-acard-typed-echo")).toBeNull();
   });
 
   it("hands the typed address to the Confirm and nothing else", () => {

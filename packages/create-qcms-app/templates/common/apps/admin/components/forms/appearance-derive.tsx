@@ -11,11 +11,11 @@ const URL_FIELD_ID = "qcms-appearance-derive-url";
 const URL_HINT_ID = "qcms-appearance-derive-hint";
 const NAME_FIELD_ID = "qcms-appearance-theme-name";
 
-const PALETTE_LABELS: Readonly<Record<string, MessageKey>> = {
-  light: "appearance.palette.light",
-  dark: "appearance.palette.dark",
-  lightHighContrast: "appearance.palette.lightHighContrast",
-  darkHighContrast: "appearance.palette.darkHighContrast",
+const MODE_LABELS: Readonly<Record<string, MessageKey>> = {
+  light: "appearance.mode.light",
+  dark: "appearance.mode.dark",
+  lightHighContrast: "appearance.mode.lightHighContrast",
+  darkHighContrast: "appearance.mode.darkHighContrast",
 };
 
 /** Only an https address is offered to the route, which refuses anything else anyway. */
@@ -30,11 +30,11 @@ export function isDerivableAddress(value: string): boolean {
 }
 
 function correctionSentence(correction: ThemeCorrection): string {
-  const key = PALETTE_LABELS[correction.palette];
+  const key = MODE_LABELS[correction.palette];
   return t("appearance.derive.correction", {
     from: correction.from,
     to: correction.to,
-    palette: key === undefined ? correction.palette : t(key),
+    mode: key === undefined ? correction.palette : t(key),
   });
 }
 
@@ -99,12 +99,15 @@ function Corrections({ derived }: { readonly derived: DerivedTheme }): ReactNode
 
 export interface AppearanceDeriveProps {
   readonly locked: boolean;
-  /** The lock sentence's id, which every disabled control here points at (116's pattern). */
+  /** The lock sentence's id, which every disabled control here points at. */
   readonly describedBy: string | undefined;
   /** An address the assistant's card collected and the person confirmed, derived on arrival. */
   readonly handedOff: { readonly url: string; readonly nonce: number } | undefined;
   /** A theme name a confirmed `theme.save` card collected, which opens the save with it. */
   readonly handedOffName: { readonly name: string; readonly nonce: number } | undefined;
+  /** Each hand-off is acted on once; the holder drops it when this says it was taken. */
+  readonly onTaken: () => void;
+  readonly onNameTaken: () => void;
   /** No look to keep: a form on the deployment default offers the derive alone. */
   readonly canSave: boolean;
   readonly onDerive: (url: string) => Promise<DeriveThemeState>;
@@ -117,10 +120,6 @@ export interface AppearanceDeriveProps {
   readonly onSaved: (name: string) => void;
 }
 
-/**
- * The drawer's derive flow: an address, the look it gave, and the choice to keep that look as a
- * workspace theme. Every fetch is the API's, behind SEC-18: nothing here reaches the website.
- */
 /** The look the drawer is showing, kept under a name. Also where a confirmed save card lands. */
 function KeepAsTheme({
   locked,
@@ -222,13 +221,14 @@ function saveLabel(pending: boolean, naming: boolean): MessageKey {
  */
 export function AppearanceDerive(props: AppearanceDeriveProps): ReactNode {
   const { locked, describedBy, handedOff, handedOffName, onDerive, onApply } = props;
+  const { onTaken, onNameTaken } = props;
   const [typed, setTyped] = useState("");
   const [state, setState] = useState<DeriveThemeState | undefined>(undefined);
   const [saving, setSaving] = useState<CreateThemeState | undefined>(undefined);
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
   const [pending, startTransition] = useTransition();
-  // Each hand-off is taken once, by nonce, however often its props arrive again.
+  // A held hand-off is taken once, by nonce, however often its props arrive again.
   const taken = useRef<{ derive?: number; save?: number }>({});
 
   const derive = useCallback(
@@ -245,19 +245,23 @@ export function AppearanceDerive(props: AppearanceDeriveProps): ReactNode {
   );
 
   useEffect(() => {
-    if (handedOff === undefined || locked || taken.current.derive === handedOff.nonce) return;
+    if (handedOff === undefined || taken.current.derive === handedOff.nonce) return;
     taken.current.derive = handedOff.nonce;
+    onTaken();
+    if (locked) return;
     setTyped(handedOff.url);
     if (isDerivableAddress(handedOff.url)) derive(handedOff.url);
-  }, [derive, handedOff, locked]);
+  }, [derive, handedOff, locked, onTaken]);
 
   useEffect(() => {
-    if (handedOffName === undefined || locked || taken.current.save === handedOffName.nonce) return;
+    if (handedOffName === undefined || taken.current.save === handedOffName.nonce) return;
     taken.current.save = handedOffName.nonce;
+    onNameTaken();
+    if (locked) return;
     setSaving(undefined);
     setName(handedOffName.name);
     setNaming(true);
-  }, [handedOffName, locked]);
+  }, [handedOffName, locked, onNameTaken]);
 
   const derived = state?.status === "derived" ? state.derived : undefined;
   const ready = isDerivableAddress(typed);

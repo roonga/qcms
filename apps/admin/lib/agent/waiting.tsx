@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 /** Share markers and hand-offs across the shell, but never execute from them. A hand-off opens the ordinary screen control where the user types the secret. */
 
@@ -109,4 +117,32 @@ export function useHandOff(control: string): HandOffBinding | undefined {
   const handOff = seam?.handOff;
   if (seam === undefined || handOff === undefined || handOff.control !== control) return undefined;
   return { fields: handOff.fields, nonce: handOff.nonce, done: seam.clearHandOff };
+}
+
+export interface HeldHandOff {
+  readonly fields: Readonly<Record<string, string>>;
+  readonly nonce: number;
+}
+
+/**
+ * A hand-off held for the control that acts on it until that control says it took it. The
+ * control may close and open again while it is held, and the mount after it never acts on a
+ * hand-off that was already taken.
+ */
+export function useHeldHandOff(
+  control: string,
+): readonly [HeldHandOff | undefined, () => void] {
+  const binding = useHandOff(control);
+  const [held, setHeld] = useState<HeldHandOff | undefined>(undefined);
+  const take = useCallback(() => {
+    setHeld(undefined);
+  }, []);
+
+  useEffect(() => {
+    if (binding === undefined) return;
+    setHeld({ fields: binding.fields, nonce: binding.nonce });
+    binding.done();
+  }, [binding]);
+
+  return [held, take];
 }

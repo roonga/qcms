@@ -209,6 +209,9 @@ export function AppearanceDrawer({
   locked,
   handedOffAddress,
   handedOffThemeName,
+  onAddressTaken,
+  onThemeNameTaken,
+  onDeriveDropped,
   onDerive,
   onCreateTheme,
   onPreview,
@@ -223,6 +226,11 @@ export function AppearanceDrawer({
   readonly handedOffAddress: { readonly url: string; readonly nonce: number } | undefined;
   /** The theme name a confirmed `theme.save` card named. */
   readonly handedOffThemeName: { readonly name: string; readonly nonce: number } | undefined;
+  /** Each hand-off is acted on once: the holder drops it when the drawer has taken it. */
+  readonly onAddressTaken: () => void;
+  readonly onThemeNameTaken: () => void;
+  /** Dropping a derived look unpublishes it, so no stale colours stay on offer. */
+  readonly onDeriveDropped: () => void;
   readonly onDerive: (url: string) => Promise<DeriveThemeState>;
   readonly onCreateTheme: (
     name: string,
@@ -523,6 +531,8 @@ export function AppearanceDrawer({
           describedBy={reason}
           handedOff={handedOffAddress}
           handedOffName={handedOffThemeName}
+          onTaken={onAddressTaken}
+          onNameTaken={onThemeNameTaken}
           canSave={appearance !== null}
           onDerive={onDerive}
           onCreateTheme={(name) =>
@@ -542,6 +552,7 @@ export function AppearanceDrawer({
           onDiscard={() => {
             setUnsaved(undefined);
             change(beforeDerive);
+            onDeriveDropped();
           }}
           onSaved={() => {
             setUnsaved(undefined);

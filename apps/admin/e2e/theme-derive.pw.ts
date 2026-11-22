@@ -4,15 +4,18 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { card } from "./support/agent-card.js";
+import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import { addStep, createForm, pinQuestion, waitForSaved } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
 import { confirmLifecycle, createDraft, draftLabel } from "./support/questions.js";
+import { auditDetails } from "./support/workspaces.js";
 
 /*
  * The derive flow against the local TLS fixture origin the harness points the SEC-18 fetcher
- * at. Nothing here reaches a real website, and nothing in the browser fetches at all: the
- * address goes to the API route, and the route makes the one request.
+ * at, through the drawer's own Get theme and through a confirmed assistant card. Nothing here
+ * reaches a real website, and nothing in the browser fetches at all: the address goes to the
+ * API route, and the route makes the one request.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -28,6 +31,10 @@ const THEME_NAME = `From the site ${RUN}`;
 const SITE = "https://brand.example/";
 const NO_COLOUR_SITE = "https://other-site.example/";
 const REFUSED_SITE = "https://not-a-fixture.example/";
+/* Longer than the card is wide, so the echo above Confirm has to wrap to show the host. */
+const LONG_SITE =
+  "https://brand.example/our-setting/early-learning-and-childcare/enrolments?ref=print&from=assistant";
+const CARD_THEME_NAME = "From the website";
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
@@ -79,6 +86,46 @@ async function derive(page: Page, address: string): Promise<void> {
   await drawer(page).getByRole("button", { name: "Get theme" }).click();
 }
 
+async function say(page: Page, message: string): Promise<void> {
+  await fillStable(page.getByTestId("qcms-assistant-composer"), message);
+  await page.getByTestId("qcms-assistant-send").locator("button").click();
+}
+
+function echo(page: Page): Locator {
+  return card(page).getByTestId("qcms-acard-typed-echo-value");
+}
+
+function confirmOnCard(page: Page): Locator {
+  return card(page).getByRole("button", { name: /^Confirm/u });
+}
+
+async function boxHeight(target: Locator): Promise<number> {
+  const box = await target.boundingBox();
+  expect(box, "the echo should be laid out").not.toBeNull();
+  return box?.height ?? 0;
+}
+
+/** How many hosts the API has contacted for a derive, which the workspace audit counts. */
+async function deriveContacts(): Promise<number> {
+  return (await auditDetails(WORKSPACE_ID, "derive")).length;
+}
+
+/**
+ * The look the draft itself holds, read by a second load of the builder: the preview is
+ * seeded from the server once, so the open page keeps showing what it was given.
+ */
+async function storedPrimary(page: Page): Promise<string> {
+  const other = await page.context().newPage();
+  try {
+    await other.goto(`/forms/${formId}/build`);
+    await waitForHydration(other);
+    await expect(surface(other).getByText(TEXT_LABEL)).toBeVisible({ timeout: 30_000 });
+    return await token(surface(other), "--color-primary");
+  } finally {
+    await other.close();
+  }
+}
+
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
@@ -126,6 +173,18 @@ test("reads a site, previews it unsaved, keeps it as a theme and applies it", as
   await expect(drawer(page).getByLabel("Theme", { exact: true })).toContainText("Not saved");
   await expect(page.getByTestId("qcms-appearance-unsaved")).toBeVisible();
   await axeClean(page, "the drawer with a derived theme");
+
+  // The result is a column of pairs, so it reads at a phone's width without scrolling across.
+  for (const width of [320, 375]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(values).toBeVisible();
+    await expect(values).toContainText("#0f766e");
+    expect(
+      await values.evaluate((element) => element.scrollWidth - element.clientWidth),
+      `the derive result overflowed at ${String(width)}`,
+    ).toBeLessThanOrEqual(1);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
 
   await page.getByTestId("qcms-appearance-theme-save").click();
   await page.getByTestId("qcms-appearance-theme-name").fill(THEME_NAME);
@@ -176,18 +235,110 @@ test("the drawer offers no derive on a locked workspace", async ({ page }) => {
   await lock(page).click();
   await expect(page.getByText("Appearance is locked for this workspace.")).toBeVisible();
 
-  await page.goto(`/forms/${formId}/build`);
-  await waitForHydration(page);
-  await openDrawer(page);
-  const reason = page.getByTestId("qcms-appearance-locked");
-  const reasonId = (await reason.getAttribute("id")) ?? "";
-  const address = drawer(page).getByLabel("Website address");
-  await expect(address).toBeDisabled();
-  await expect(address).toHaveAttribute("aria-describedby", new RegExp(reasonId, "u"));
-  await expect(drawer(page).getByRole("button", { name: "Get theme" })).toBeDisabled();
+  // The workspace is shared with every test after this one, so the unlock is not optional.
+  try {
+    await page.goto(`/forms/${formId}/build`);
+    await waitForHydration(page);
+    await openDrawer(page);
+    const reason = page.getByTestId("qcms-appearance-locked");
+    const reasonId = (await reason.getAttribute("id")) ?? "";
+    const address = drawer(page).getByLabel("Website address");
+    await expect(address).toBeDisabled();
+    await expect(address).toHaveAttribute("aria-describedby", new RegExp(reasonId, "u"));
+    await expect(drawer(page).getByRole("button", { name: "Get theme" })).toBeDisabled();
+  } finally {
+    await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
+    await waitForHydration(page);
+    await lock(page).click();
+    await expect(page.getByText("Appearance is unlocked for this workspace.")).toBeVisible();
+  }
+});
 
-  await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
-  await waitForHydration(page);
-  await lock(page).click();
-  await expect(page.getByText("Appearance is unlocked for this workspace.")).toBeVisible();
+test("reads the address typed on a confirmed card, once, and keeps the look", async ({ page }) => {
+  test.setTimeout(600_000);
+  await openBuilder(page);
+  await say(page, "#qcms-fake:propose-theme-derive make this look like our own site");
+  await expect(card(page)).toBeVisible({ timeout: 60_000 });
+  await expect(card(page)).toContainText("Read a website for a theme");
+  await expect(card(page)).toContainText("No theme is saved and the form does not change.");
+
+  // No step carries an address, so the card starts empty and Confirm starts closed.
+  const typed = card(page).getByTestId("qcms-acard-typed-input");
+  await expect(typed).toHaveValue("");
+  await expect(card(page).getByTestId("qcms-acard-typed-echo")).toHaveCount(0);
+  await expect(confirmOnCard(page)).toBeDisabled();
+
+  await fillStable(typed, SITE);
+  const oneLine = await boxHeight(echo(page));
+  await fillStable(typed, LONG_SITE);
+  await expect(echo(page)).toHaveText(LONG_SITE);
+  expect(
+    await boxHeight(echo(page)),
+    "a long address should wrap rather than hide its host",
+  ).toBeGreaterThan(oneLine);
+  expect(
+    await echo(page).evaluate((element) => ({
+      wrap: getComputedStyle(element).overflowWrap,
+      across: element.scrollWidth - element.clientWidth,
+    })),
+  ).toEqual({ wrap: "anywhere", across: 0 });
+
+  await fillStable(typed, "brand.example");
+  await expect(confirmOnCard(page)).toBeDisabled();
+  await fillStable(typed, "http://brand.example/");
+  await expect(confirmOnCard(page)).toBeDisabled();
+  await fillStable(typed, SITE);
+  await expect(confirmOnCard(page)).toBeEnabled();
+
+  const before = await deriveContacts();
+  await confirmOnCard(page).click();
+  await expect(drawer(page)).toBeVisible();
+  const values = page.getByTestId("qcms-appearance-derive-values");
+  await expect(values).toBeVisible({ timeout: 60_000 });
+  await expect(values).toContainText("#0f766e");
+  await expect(drawer(page).getByLabel("Website address")).toHaveValue(SITE);
+  await expect(drawer(page).getByLabel("Theme", { exact: true })).toContainText("Not saved");
+  const read = await deriveContacts();
+  expect(read, "the confirmed address was read").toBeGreaterThan(before);
+  await axeClean(page, "the drawer a confirmed card handed an address");
+
+  await say(page, "#qcms-fake:propose-theme-save keep this look for the workspace");
+  await expect(card(page)).toContainText(CARD_THEME_NAME, { timeout: 60_000 });
+  await confirmOnCard(page).click();
+  const name = page.getByTestId("qcms-appearance-theme-name");
+  await expect(name).toBeVisible();
+  await expect(name).toHaveValue(CARD_THEME_NAME);
+  await page.getByTestId("qcms-appearance-theme-save").click();
+  await expect(page.getByText(`${CARD_THEME_NAME} is a workspace theme now.`)).toBeVisible({
+    timeout: 60_000,
+  });
+
+  // Both hand-offs are spent: the drawer unmounts on close and acts on neither again.
+  await drawer(page).getByRole("button", { name: "Close appearance" }).click();
+  await expect(drawer(page)).toHaveCount(0);
+  await openDrawer(page);
+  await expect(drawer(page).getByLabel("Website address")).toHaveValue("");
+  await expect(page.getByTestId("qcms-appearance-derive-values")).toHaveCount(0);
+  await expect(page.getByTestId("qcms-appearance-theme-name")).toHaveCount(0);
+  expect(await deriveContacts(), "reopening the drawer read the site again").toBe(read);
+});
+
+test("applies the assistant's appearance edit to the draft, with its own Undo", async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  await openBuilder(page);
+  const was = await token(surface(page), "--color-primary");
+
+  await say(page, "#qcms-fake:builder-appearance give it our brand colour");
+  const edits = page.getByTestId("qcms-builder-edit");
+  await expect(edits).toHaveCount(1, { timeout: 60_000 });
+  await expect(edits.nth(0)).toHaveAttribute("data-state", "applied", { timeout: 60_000 });
+  await expect(edits.nth(0)).toContainText("Changed how it looks");
+  await expect(card(page)).toHaveCount(0);
+  expect(await storedPrimary(page)).toBe("#2e7d32");
+
+  await edits.nth(0).getByRole("button", { name: /^Undo/u }).click();
+  await expect(edits.nth(0)).toHaveAttribute("data-state", "undone", { timeout: 60_000 });
+  expect(await storedPrimary(page)).toBe(was);
 });

@@ -34,7 +34,7 @@ import type {
   DeriveThemeState,
   SaveAppearanceState,
 } from "@/lib/forms/builder-state";
-import { useHandOff } from "@/lib/agent/waiting";
+import { useHeldHandOff } from "@/lib/agent/waiting";
 import {
   derivedThemeFact,
   layoutFindings,
@@ -254,9 +254,8 @@ export function BuilderPreview({
   const surfaceRef = useRef<HTMLDivElement>(null);
   const facts = useBuilderFacts();
   /* A confirmed `theme.derive` card hands its address to this drawer and nowhere else: the
-     model never saw it, and the drawer opens so the person watches the fetch it asked for. */
-  /* The colours the derive answered are the next turn's own fact, so a turn that reads them
-     reads the browser's values and never the website. */
+     model never saw it, and the drawer opens so the person watches the fetch it asked for. The
+     colours it answers are held as the builder's own fact, never read off the website. */
   const deriveTheme = useCallback(
     async (url: string) => {
       const state = await source.deriveTheme(url);
@@ -277,29 +276,27 @@ export function BuilderPreview({
     [formId, source],
   );
 
-  const deriveHandOff = useHandOff("appearance.derive");
-  const saveHandOff = useHandOff("appearance.themeSave");
-  const [handedOffAddress, setHandedOffAddress] = useState<
-    { readonly url: string; readonly nonce: number } | undefined
-  >(undefined);
-  const [handedOffThemeName, setHandedOffThemeName] = useState<
-    { readonly name: string; readonly nonce: number } | undefined
-  >(undefined);
+  const [deriveHandOff, deriveTaken] = useHeldHandOff("appearance.derive");
+  const [saveHandOff, saveTaken] = useHeldHandOff("appearance.themeSave");
+
+  const handedOffAddress = useMemo(() => {
+    const url = deriveHandOff?.fields["url"];
+    if (deriveHandOff === undefined || url === undefined) return undefined;
+    return { url, nonce: deriveHandOff.nonce };
+  }, [deriveHandOff]);
+
+  const handedOffThemeName = useMemo(() => {
+    const name = saveHandOff?.fields["name"];
+    if (saveHandOff === undefined || name === undefined) return undefined;
+    return { name, nonce: saveHandOff.nonce };
+  }, [saveHandOff]);
 
   useEffect(() => {
-    if (deriveHandOff === undefined) return;
-    const url = deriveHandOff.fields["url"];
-    if (url !== undefined) setHandedOffAddress({ url, nonce: deriveHandOff.nonce });
-    setDrawerOpen(true);
-    deriveHandOff.done();
+    if (deriveHandOff !== undefined) setDrawerOpen(true);
   }, [deriveHandOff]);
 
   useEffect(() => {
-    if (saveHandOff === undefined) return;
-    const name = saveHandOff.fields["name"];
-    if (name !== undefined) setHandedOffThemeName({ name, nonce: saveHandOff.nonce });
-    setDrawerOpen(true);
-    saveHandOff.done();
+    if (saveHandOff !== undefined) setDrawerOpen(true);
   }, [saveHandOff]);
 
   const size = frameSize(frame, stage.size);
@@ -703,6 +700,11 @@ export function BuilderPreview({
             locked={appearanceLocked}
             handedOffAddress={handedOffAddress}
             handedOffThemeName={handedOffThemeName}
+            onAddressTaken={deriveTaken}
+            onThemeNameTaken={saveTaken}
+            onDeriveDropped={() => {
+              publishDerivedTheme(undefined);
+            }}
             onDerive={deriveTheme}
             onCreateTheme={(name, look, sourceHost) =>
               createTheme({
