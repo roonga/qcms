@@ -37,7 +37,7 @@ test("with prod selected, New form offers the form itself rather than a way out"
   await waitForHydration(page);
 
   await expect(page).toHaveURL(/\/forms\/new$/);
-  await expect(field(page, t("questions.create.slug"))).toBeVisible();
+  await expect(field(page, t("forms.create.slug"))).toBeVisible();
   await expect(page.getByRole("button", { name: "Create form", exact: true })).toBeVisible();
 });
 

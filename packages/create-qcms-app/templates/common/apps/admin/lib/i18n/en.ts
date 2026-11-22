@@ -3426,7 +3426,7 @@ export const messages = {
   "appearance.respondent.contrast": "High contrast",
   "appearance.respondent.textSize": "Text size, up to 200%",
   "appearance.respondent.note": "Respondents always keep these, because they are access needs.",
-  /** The four colour modes a form is checked in. Palette is the preview set; these are modes. */
+  /** Palette means the preview set; these are modes. */
   "appearance.palette.light": "Light mode",
   "appearance.palette.dark": "Dark mode",
   "appearance.palette.lightHighContrast": "Light, high contrast",

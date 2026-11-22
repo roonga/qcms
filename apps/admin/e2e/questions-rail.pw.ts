@@ -299,7 +299,7 @@ test("2026-09-27 states the question's details in the page body and the way to a
   await expect(details).toContainText(typeLabel("shortText"));
   await expect(page.getByRole("main")).not.toContainText("Type is locked to");
 
-  await expect(page.getByRole("main")).not.toContainText("Slug:");
+  await expect(page.getByRole("main")).not.toContainText(`${t("questions.detail.slug")}:`);
 
   const back = rail.getByRole("link", { name: "All questions", exact: true });
   await expect(back).toBeVisible();
