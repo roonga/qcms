@@ -260,7 +260,7 @@ describe("no answer value can be described by any schema", () => {
     );
   });
 
-  it("closes both builder facts at every depth", () => {
+  it("closes every builder fact at every depth", () => {
     const open: string[] = [];
     const walk = (node: unknown, at: string): void => {
       if (Array.isArray(node)) {

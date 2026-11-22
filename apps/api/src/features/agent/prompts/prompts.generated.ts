@@ -171,6 +171,10 @@ export const ACTION_DESCRIPTIONS = {
     "Open the export dialog with these filters. The user presses Export and the file downloads in their browser; no part of it is returned to you.",
   "response.unflag":
     "Let one flagged response's withheld submission event through, so its consumers receive it.",
+  "theme.derive":
+    "Reads one website once and answers the colours, the heading face and the logo a theme could start from, saving nothing. You never supply the address: the person types it on the card, where it is shown in full, and nothing is fetched until they confirm. Propose this when they ask for the form to look like their own site. The colours that come back reach you as a derived-theme fact and nothing else of the page does.",
+  "theme.save":
+    "Keeps the look the appearance panel is showing as a workspace theme, under the name you give, so every form in that workspace can pick it. You name only the theme; the colours, face, corners and logo are the ones in front of the person. Propose it once they are happy with a look, and never as a way to change the form itself.",
   "webhook.create":
     "Configure a new delivery endpoint for this form in the current environment. Its signing secret is shown to the user once and is never returned to you.",
   "webhook.deactivate":

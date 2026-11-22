@@ -2002,6 +2002,20 @@ export const messages = {
     "The file is built from the responses these filters match and downloads in your browser.",
   "agent.card.response.export.handOff":
     "Confirm opens the export dialog with these filters. You press Export, and no part of the file is returned to the assistant.",
+  "agent.card.theme.derive.title": "Read a website for a theme",
+  "agent.card.theme.derive.consequence":
+    "QCMS reads that one page once, over https, and takes the colours, the heading face and the logo from it. No theme is saved and the form does not change.",
+  "agent.card.theme.derive.stored":
+    "Nothing from the page is kept except those values and the logo image. Colours that would be too faint to read are moved, and you are told which.",
+  "agent.card.theme.derive.handOff":
+    "Confirm reads the address above. The assistant is given the colours and the face, and no other part of the page.",
+  "agent.card.theme.save.title": "Save this look as the workspace theme {name}",
+  "agent.card.theme.save.consequence":
+    "The look in the appearance panel is kept under this name. The form itself does not change.",
+  "agent.card.theme.save.reuse":
+    "Every form in this workspace can then pick it. Forms already using a copy of it keep what they have.",
+  "agent.card.typedInput.url": "Website address",
+  "agent.card.typedInput.url.hint": "The address QCMS will read, in full. It must start with https://",
   "agent.card.access.groupCreate.title": "Create the access group {name} with the roles {roles}",
   "agent.card.access.groupCreate.consequence":
     "The group exists but grants nobody anything yet. Being in the group is the grant, so nobody's access changes until somebody is added to it.",

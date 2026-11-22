@@ -304,10 +304,11 @@ describe("the builder facts (G1)", () => {
     }
   });
 
-  it("lists both facts for the vocabulary walk", () => {
+  it("lists every fact for the vocabulary walk", () => {
     expect(BUILDER_FACTS.map((entry) => entry.name)).toEqual([
       "fact preview-selection",
       "fact layout-report",
+      "fact derived-theme",
     ]);
   });
 });

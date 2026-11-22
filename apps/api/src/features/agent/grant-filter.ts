@@ -56,6 +56,9 @@ function holds(input: GrantFilterInput, def: ActionKindDef, environment: string)
  */
 function screenOffers(def: ActionKindDef, screen: string | undefined): boolean {
   if (def.local === true && def.screen !== screen) return false;
+  // A kind whose own screen is the builder exists only there: its card finishes in the
+  // appearance drawer, which no other screen mounts.
+  if (def.screen === BUILDER_SCREEN && screen !== BUILDER_SCREEN) return false;
   return screen !== BUILDER_SCREEN || BUILDER_ACTION_KINDS.includes(def.kind);
 }
 

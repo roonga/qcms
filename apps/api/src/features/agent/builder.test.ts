@@ -328,7 +328,13 @@ describe("the builder's key set (Q16)", () => {
   }).map((entry) => entry.kind);
 
   it("pins the kinds, tools and edit ops the builder may offer", () => {
-    expect(offered).toEqual(["question.create", "question.saveDraft", "question.newVersion"]);
+    expect(offered).toEqual([
+      "question.create",
+      "question.saveDraft",
+      "question.newVersion",
+      "theme.derive",
+      "theme.save",
+    ]);
     expect([...BUILDER_ACTION_KINDS]).toEqual(offered);
     expect([...AGENT_BUILDER_TOOL_NAMES]).toEqual([
       "edit_question",
