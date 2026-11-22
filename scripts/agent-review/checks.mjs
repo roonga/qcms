@@ -398,6 +398,67 @@ export function checkCardText(transcript) {
 }
 
 /**
+ * What follows "card" where it is the form's subject rather than the plan's own card: a
+ * Medicare card number is a question's title, and a card per instance is a group's layout.
+ */
+const CARD_IS_NOT_THE_PLANS =
+  "numbers?|details?|holders?|expiry|types?|payments?|scheme|reader|machine|per";
+
+/**
+ * The quoted reason says WHY the plan does what it does, and nothing the card says for
+ * itself. Naming the card or its state reads as stale the moment the person confirms.
+ */
+const REASON_FAULTS = [
+  {
+    pattern: new RegExp(`\\bcards?\\b(?!\\s+(?:${CARD_IS_NOT_THE_PLANS})\\b)`, "giu"),
+    text: "names the card",
+  },
+  {
+    pattern: /\b(?:until|unless|once|when|before)\s+you\s+confirm\b/giu,
+    text: "says what their Confirm will do",
+  },
+  {
+    pattern: /\b(?:waiting\s+for|for\s+you\s+to)\s+(?:your\s+)?confirm\b/giu,
+    text: "says what their Confirm will do",
+  },
+  {
+    pattern: /\b(?:press|click|hit|tap)\s+(?:the\s+)?confirm\b/giu,
+    text: "says what their Confirm will do",
+  },
+];
+
+/**
+ * The reason a card quotes, which stays on it after the card has run.
+ *
+ * @param {{ turns: readonly Record<string, unknown>[] }} transcript
+ * @returns {Finding[]}
+ */
+export function checkCardReason(transcript) {
+  /** @type {Finding[]} */
+  const findings = [];
+  for (const [index, turn] of transcript.turns.entries()) {
+    const at = index + 1;
+    for (const card of cardsOf(turn)) {
+      const reason = asText(card["reason"]);
+      if (reason === "") continue;
+      for (const fault of REASON_FAULTS) {
+        for (const hit of reason.matchAll(fault.pattern)) {
+          findings.push(
+            finding("reason.names-the-card", {
+              turn: at,
+              where: "the card's quoted reason",
+              evidence: quote(reason, hit.index ?? 0),
+              text: `the quoted reason ${fault.text}`,
+            }),
+          );
+        }
+      }
+    }
+  }
+  return findings;
+}
+
+/**
  * @param {{ turns: readonly Record<string, unknown>[] }} transcript
  * @param {{ budget?: { turns?: number } }} scenario
  * @returns {Finding[]}
@@ -1165,6 +1226,7 @@ export function reviewTranscript(transcript, scenario, snapshot, before) {
     ...checkSeedExpectations(spec, before),
     ...checkVoice(run),
     ...checkCardText(run),
+    ...checkCardReason(run),
     ...checkBudget(run, spec),
     ...checkCardExpectations(run, spec),
     ...checkProposals(run),

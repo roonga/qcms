@@ -128,6 +128,11 @@ export interface Proposal {
   readonly workspaces?: readonly WorkspaceName[];
   /** The plan's outcome as the assistant wrote it, for a card of more than one step. */
   readonly title?: string;
+  /**
+   * The assistant said a second card has to follow this one, so the screen runs another
+   * turn once every step here has run rather than waiting for the person to ask again.
+   */
+  readonly thenAnother?: boolean;
 }
 
 export type ProposeOutcome =
@@ -138,6 +143,8 @@ export interface ProposeInput {
   readonly steps: readonly ProposedStep[];
   /** The plan's outcome as the assistant wrote it; refused rather than cleaned up. */
   readonly title?: string | undefined;
+  /** The assistant's own declaration that a second card has to follow this one. */
+  readonly thenAnother?: boolean | undefined;
   /** The principal the token is issued to. */
   readonly subject: string;
   readonly appKey: string;
@@ -989,6 +996,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
       expiresAt: new Date(input.issuedAt.getTime() + 10 * 60 * 1000).toISOString(),
       formId: boundFormId,
       currentEnvironment: input.current,
+      ...(input.thenAnother === true ? { thenAnother: true } : {}),
       ...(titled.title === undefined ? {} : { title: titled.title }),
       ...(await namedWorkspaces(input, steps)),
     },

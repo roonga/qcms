@@ -46,6 +46,7 @@ import {
   useExpiryTick,
   type ProposalWindow,
 } from "@/lib/agent/proposal-window";
+import { revealIn } from "@/lib/agent/panel-scroll";
 import { runPlan } from "@/lib/agent/runner";
 import { displayText, planNames, stepTitle } from "@/lib/agent/card-copy";
 import { useProposalSeam } from "@/lib/agent/waiting";
@@ -228,6 +229,15 @@ function ScreenConversation({
   const turnsRef = useRef<HTMLOListElement>(null);
   const openCardRef = useRef<HTMLLIElement>(null);
   const followsNewest = useRef(true);
+  // Where the last reveal left the list, so the scroll it causes is told from the reader's own.
+  const revealedAt = useRef<number | null>(null);
+  const revealing = useRef(false);
+  const reveal = useCallback((item: HTMLElement): void => {
+    const list = turnsRef.current;
+    if (list === null) return;
+    revealIn(list, item);
+    revealedAt.current = list.scrollTop;
+  }, []);
   const known = useMemo(() => builderNames(builder), [builder]);
   const names = useSubjectTitles(proposal, known);
 
@@ -239,16 +249,33 @@ function ScreenConversation({
     list.scrollTop = list.scrollHeight;
   }, [cards, live, shown]);
 
-  // A card is read from its title down, so an arriving one brings its own top into view
-  // instead of leaving the panel pinned past its foot. Declared after the follow above,
-  // so it is this one that decides where an arriving card leaves the panel.
+  // The open card is the list's last child whatever turn proposed it, so a turn that produced
+  // no card leaves its reply above it: follow the reply rather than the list's foot.
+  useEffect(() => {
+    const list = turnsRef.current;
+    if (list === null || !followsNewest.current) return;
+    const newest = list.children.item(shown.length - 1);
+    if (newest instanceof HTMLElement) revealIn(list, newest);
+  }, [shown]);
+
+  // An arriving card brings its decision into view, and this effect is declared last so it
+  // decides where the card leaves the panel. Measured again until the reader scrolls: a card
+  // settles taller than it first rendered, and one measure strands the Confirm by that much.
   useEffect(() => {
     const list = turnsRef.current;
     const item = openCardRef.current;
     if (list === null || item === null) return;
     followsNewest.current = false;
-    list.scrollTop += item.getBoundingClientRect().top - list.getBoundingClientRect().top;
-  }, [cards.open?.proposal.proposalId]);
+    revealing.current = true;
+    reveal(item);
+    const observer = new ResizeObserver(() => {
+      if (revealing.current) reveal(item);
+    });
+    observer.observe(item);
+    return () => {
+      observer.disconnect();
+    };
+  }, [cards.open?.proposal.proposalId, reveal]);
 
   useEffect(() => {
     if (publish === undefined) return;
@@ -381,9 +408,19 @@ function ScreenConversation({
     settle(plan, settled);
     const created = createdFormId(plan, settled);
     if (created !== undefined) turnHooks?.onFormCreated?.(created);
-    if (saved === undefined || !ranCleanly(settled)) return;
+    if (!ranCleanly(settled)) return;
+    if (saved === undefined) {
+      // The card the assistant said would follow this one: it gets the turn here, so the
+      // person is not left holding a promise they have to ask for.
+      if (plan.thenAnother !== true) return;
+      followsNewest.current = true;
+      await runTurn(undefined, undefined, []);
+      return;
+    }
     const token = await saved;
-    if (token !== undefined) await runTurn(undefined, token, []);
+    if (token === undefined) return;
+    followsNewest.current = true;
+    await runTurn(undefined, token, []);
   };
 
   const postTurn = (
@@ -543,6 +580,12 @@ function ScreenConversation({
         ref={turnsRef}
         onScroll={(event) => {
           const list = event.currentTarget;
+          // A scroll the reveal itself caused lands where the reveal left it; anything else is
+          // the reader taking over, and the card stops being followed as it settles.
+          if (revealedAt.current === null || Math.abs(list.scrollTop - revealedAt.current) > 1) {
+            revealing.current = false;
+          }
+          revealedAt.current = null;
           followsNewest.current =
             list.scrollHeight - list.scrollTop - list.clientHeight <= BOTTOM_SLACK_PX;
         }}

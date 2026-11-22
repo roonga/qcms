@@ -389,6 +389,39 @@ describe("a plan reaches the user as one card and runs nothing (criterion 4)", (
   );
 });
 
+describe("a card that says another has to follow it", () => {
+  it(
+    "carries thenAnother to the browser, which is what gives the next card its turn",
+    async () => {
+      const events = await turn({
+        caller: owner,
+        screen: "/operations/forms/[formId]/availability",
+        script: "plan-then-another",
+      });
+      const cards = proposals(events);
+      expect(cards).toHaveLength(1);
+      expect(cards[0] === undefined ? [] : stepSummary(cards[0])).toEqual([
+        { kind: "form.close", environment: "test" },
+      ]);
+      expect(cards[0]?.proposal.thenAnother).toBe(true);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "leaves it off a plan that promised nothing, so the Confirm ends the exchange",
+    async () => {
+      const events = await turn({
+        caller: owner,
+        screen: "/operations/forms/[formId]/availability",
+        script: "propose-form-close",
+      });
+      expect(proposals(events)[0]?.proposal.thenAnother).toBeUndefined();
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+});
+
 describe("the two caps (criterion 15)", () => {
   it(
     "shows only the first card when a turn proposes twice (`two-proposals`, P1)",

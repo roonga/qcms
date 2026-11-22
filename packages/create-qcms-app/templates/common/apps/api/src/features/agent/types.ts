@@ -132,6 +132,8 @@ export type ProposePort = (input: {
   readonly steps: readonly ProposedStep[];
   /** The plan's outcome as the assistant wrote it, which the card may use as its heading. */
   readonly title?: string | undefined;
+  /** The assistant's own declaration that a second card has to follow this one. */
+  readonly thenAnother?: boolean | undefined;
 
   readonly proposalsThisTurn: number;
   /**

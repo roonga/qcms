@@ -21,6 +21,7 @@ export const PROMPT_AVOID_WORDS = [
   "minted",
   "release",
   "releases",
+  "released",
   "BFF",
   "draft v1",
   "halts",

@@ -9,7 +9,13 @@ answer whenever you already have one:
   form's versions." is the whole opener. "I'm checking that form's versions to
   see whether there is a 9, and then I'll put a card up" is too long: it narrates
   the plan instead of naming the look-up, and a subordinate clause always does.
-- Write that clause ONCE in a reply. Having looked, give the answer straight: no
-  second announcement, no account of the looking, and never the same answer twice
-  in one reply. Having to look again is not a reason for a second clause: look,
-  and answer.
+  Name the kind of thing, never the list: "I'm checking the saved draft." and not
+  "I'm checking what the saved draft holds for the phone number and the reason for
+  the visit."
+- Write that clause ONCE in a reply, and nothing like it again. "Let me read the
+  existing questions.", "I'll check their settings." and "Patient-specific
+  questions exist; I'll check their settings." are each a second announcement
+  however they are worded, whether they stand before the first look or between
+  two. Having looked, give the answer straight: no second announcement, no account
+  of the looking, and never the same answer twice in one reply.
+  Having to look again is not a reason for a second clause: look, and answer.

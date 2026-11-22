@@ -1,1 +1,1 @@
-Release one flagged response's withheld submission event, so its consumers receive it.
+Let one flagged response's withheld submission event through, so its consumers receive it.

@@ -2493,7 +2493,7 @@
   },
   {
     "name": "read_form",
-    "description": "Read one form: its slug and title, whether it has a draft, its latest published version, what is released in the current environment, its steps with their question counts, its rule ids, the question versions its draft pins unpublished, and the COMPLETE working draft under `definition`. Start any form.saveDraft from that definition: a draft save replaces the draft wholesale, so anything you leave out is dropped.",
+    "description": "Read one form: its slug and title, whether it has a draft, its latest published version, which version is live in the current environment, its steps with their question counts, its rule ids, the question versions its draft pins unpublished, and the COMPLETE working draft under `definition`. Start any form.saveDraft from that definition: a draft save replaces the draft wholesale, so anything you leave out is dropped.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -2509,7 +2509,7 @@
   },
   {
     "name": "search_forms",
-    "description": "Search the forms this caller may read, by slug or id, and report each one's latest and released version in the current environment.",
+    "description": "Search the forms this caller may read, by slug or id, and report each one's latest version and the one live in the current environment.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -2531,7 +2531,7 @@
   },
   {
     "name": "list_form_versions",
-    "description": "List one form's published versions, each with when it was published, which environments it is released in, and its step and question counts.",
+    "description": "List one form's published versions, each with when it was published, which environments it is live in, and its step and question counts.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -2595,7 +2595,7 @@
   },
   {
     "name": "list_releases",
-    "description": "Report this deployment's environments, which version of one form stands in each and whether it is closed, plus that form's release history with who released and who approved.",
+    "description": "Report this deployment's environments, which version of one form stands in each and whether it is closed, plus that form's publish history with who put each version live and who approved.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -2825,7 +2825,7 @@
   },
   {
     "name": "propose_plan",
-    "description": "Propose an ordered plan of actions for the user to review and confirm once. A single action is a plan of one step. It runs nothing: the user sees a card with every step and every argument in full and confirms it on the screen's own control. An argument may reference an earlier step's result as { fromStep, field }, at most one such reference per step. The plan stops at the first failure. Returns whether the proposal was accepted, or the reason it was refused. The sentence you write immediately before this call is quoted on the card as its reason and stays there after the card has run, so make it say WHY the plan does what it does. Never end it on the card itself or on what their Confirm will do: \"waiting for your Confirm\", \"Nothing changes until you confirm it.\" and every sentence like them say what the card already says, and each one is wrong the moment they confirm it. Give a plan of more than one step a title as well: what it leaves behind, in the person's own words, which the card uses as its heading.",
+    "description": "Propose an ordered plan of actions for the user to review and confirm once. A single action is a plan of one step. It runs nothing: the user sees a card with every step and every argument in full and confirms it on the screen's own control. An argument may reference an earlier step's result as { fromStep, field }, at most one such reference per step. The plan stops at the first failure. Returns whether the proposal was accepted, or the reason it was refused. The sentence you write immediately before this call is quoted on the card as its reason and stays there after the card has run, so make it say WHY the plan does what it does. Name neither the card nor its state anywhere in it, at its start no less than at its end, and say nothing about what their Confirm will do: \"The plan is on a card for you to confirm.\", \"The card is up.\", \"waiting for your Confirm\" and \"Nothing changes until you confirm it.\" all say what the card already says, and each one is wrong the moment they confirm it. Give a plan of more than one step a title as well: what it leaves behind, in the person's own words, which the card uses as its heading.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -2898,7 +2898,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Create a form and its empty first draft in a workspace this user may create in. The id is minted from the slug and never changes. The form's title is authored in the builder afterwards; creating it changes nothing a respondent can reach."
+                "description": "Create a form and its empty first draft in a workspace this user may create in. The id is made from the slug and never changes. The form's title is authored in the builder afterwards; creating it changes nothing a respondent can reach."
               },
               {
                 "type": "object",
@@ -2934,7 +2934,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Apply the draft you proposed with propose_draft to this form's working draft, for the user to review as a diff and confirm. Call propose_draft first. It publishes nothing and releases nothing: the draft is stored as a draft and marked agent-assisted."
+                "description": "Apply the draft you proposed with propose_draft to this form's working draft, for the user to review as a diff and confirm. Call propose_draft first. It publishes nothing and puts nothing live: the draft is stored as a draft and marked agent-assisted."
               },
               {
                 "type": "object",
@@ -2987,7 +2987,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Save a complete draft to a form, through the same save path every edit in the builder takes. It publishes nothing and releases nothing: the draft is stored as a draft and marked agent-assisted. This is how a form goes from blank to a reviewable draft, after form.create and any question.create steps of the same plan."
+                "description": "Save a complete draft to a form, through the same save path every edit in the builder takes. It publishes nothing and puts nothing live: the draft is stored as a draft and marked agent-assisted. This is how a form goes from blank to a reviewable draft, after form.create and any question.create steps of the same plan."
               },
               {
                 "type": "object",
@@ -3114,7 +3114,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Publish an existing version to one environment, including an earlier one (rollback). Nothing is frozen. Prod accepts only a version already live in a non-prod environment, where one exists. The workflow revision, the destination's release state and second approval are all rechecked at confirmation, so a stale review is refused and writes nothing, exactly as on the screen."
+                "description": "Publish an existing version to one environment, including an earlier one (rollback). Nothing is frozen. Prod accepts only a version already live in a non-prod environment, where one exists. The workflow revision, the destination's current state and second approval are all rechecked at confirmation, so a stale review is refused and writes nothing, exactly as on the screen."
               },
               {
                 "type": "object",
@@ -3329,7 +3329,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Create one-time or reusable respondent links for a form, in the environment the person's screen is set to. You do not choose that environment and cannot name another one. A link reaches the form only where that form is already live, so read the form first and say which environment the links are for before they confirm. expiresAt must be an instant still to come: one already past is refused when they confirm, and the card shows it in their own zone rather than as you wrote it. The URLs are shown to the user once and are never returned to you."
+                "description": "Create one-time or reusable respondent links for a form, in the environment the person's screen is set to. You do not choose that environment and cannot name another one. A link reaches the form only where that form is already live, so read the form first and say which environment the links are for before they confirm. expiresAt must be an instant still to come: one already past is refused when they confirm. Where they want to see what a lapsed link does, propose one a few minutes ahead and say in your reply when it lapses, rather than asking them how long it should last. The card shows that instant in their own zone rather than as you wrote it. The URLs are shown to the user once and are never returned to you."
               },
               {
                 "type": "object",
@@ -3493,7 +3493,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Release one flagged response's withheld submission event, so its consumers receive it."
+                "description": "Let one flagged response's withheld submission event through, so its consumers receive it."
               },
               {
                 "type": "object",
@@ -4365,7 +4365,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Create a question and its draft v1 in the library. The id is minted once and never changes. Nothing pins the question until a form's draft does, and nothing serves it until the version is published."
+                "description": "Create a question and its first draft version in the library. The id is made once and never changes. Nothing pins the question until a form's draft does, and nothing serves it until the version is published."
               },
               {
                 "type": "object",
@@ -4572,6 +4572,10 @@
             ]
           },
           "description": "The steps in the order they run. A single action is a plan of one step. One plan, one Confirm."
+        },
+        "thenAnother": {
+          "description": "True only where a second card has to follow this one, which is the case you say one sentence about before this one goes up. The screen gives you a turn as soon as every step here has run, so you put that next card up yourself and the person does not have to ask again. Leave it out otherwise: a card they did not ask for is never promised and never put up.",
+          "type": "boolean"
         },
         "title": {
           "description": "What this plan leaves behind, in a few plain words, which the card uses as its heading: \"Ask about allergies, then publish to test\". Name the outcome rather than the last step. No id and none of the words you may never write to the person, or the plan is refused. Leave it out and the card titles itself.",

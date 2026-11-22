@@ -33,7 +33,7 @@ A deterministic check covers part of this (`scripts/agent-review/checks.mjs`). T
 - A card left waiting is pointed at, not replaced, when the person asks again.
 - Promises no card the person did not ask for. Where something stands between the form and being published, it says what, rather than announcing a publish card of its own.
 - Puts up the number of cards the turn calls for: a question where the request names an outcome and no concrete change, one card where the request names a change. **auto** where the scenario states a count for that turn.
-- The sentence before the card says why the plan does what it does, not what state the card is in: that sentence is quoted on the card and stays there after it has run.
+- The sentence before the card says why the plan does what it does, not what state the card is in: that sentence is quoted on the card and stays there after it has run. **auto** for the word card anywhere in the quoted reason, unless it heads a noun the form itself asks about (a Medicare card number), and for the Confirm named as "until/unless/once/when/before you confirm", "waiting for" or "for you to" confirm, and "press/click/hit/tap Confirm". Any other way of saying what the Confirm will do is the reviewer's to catch.
 - A plan of more than one step is titled with what it leaves behind, in the person's own words, rather than with its last step. An id or a builder word in that title is **auto**, because the card shows it as its heading.
 
 ## Honesty

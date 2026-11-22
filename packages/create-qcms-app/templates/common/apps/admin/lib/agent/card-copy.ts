@@ -198,7 +198,7 @@ function namedSubject(id: string, names: PlanNames): string | undefined {
 }
 
 /** The language's own name, so a card says English rather than the tag an API argument carries. */
-function localeName(tag: string): string | undefined {
+export function localeName(tag: string): string | undefined {
   try {
     const name = new Intl.DisplayNames(["en"], { type: "language" }).of(tag);
     return name === tag ? undefined : name;

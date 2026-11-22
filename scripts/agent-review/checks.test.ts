@@ -8,6 +8,7 @@ import {
   cardsOf,
   cardTextOf,
   checkCardExpectations,
+  checkCardReason,
   checkCardText,
   checkContradictions,
   checkFailures,
@@ -398,6 +399,50 @@ describe("the card, which the person reads as closely as the reply", () => {
     };
 
     expect(checkCardText({ turns: [{ reply: "", cards: [plain] }] })).toEqual([]);
+  });
+
+  it("finds the card and its state in a quoted reason, wherever in it they sit", () => {
+    const reasons = [
+      "The plan is on a card for you to confirm.",
+      "The card is up. It adds the rule and publishes the form to test.",
+      "The plan for the survey is on a card, but it can't do the exclusive answer.",
+      "The card for one more test link is on your screen. Nothing exists until you confirm it.",
+    ];
+    const findings = checkCardReason({
+      turns: reasons.map((reason) => ({ reply: "", cards: [{ reason, steps: [] }] })),
+    });
+
+    expect(findings.map((entry) => entry.check)).toEqual(
+      Array.from({ length: 6 }, () => "reason.names-the-card"),
+    );
+    expect(findings.every((entry) => entry.where === "the card's quoted reason")).toBe(true);
+  });
+
+  it("says nothing about a reason that gives the plan's own purpose", () => {
+    const reason =
+      "Only first-time patients are asked why they are coming in, and test gets that change.";
+    expect(checkCardReason({ turns: [{ reply: "", cards: [{ reason, steps: [] }] }] })).toEqual([]);
+  });
+
+  it("leaves a card the form itself asks about alone, which is not the one they confirm", () => {
+    const reasons = [
+      "The form asks for a Medicare card number, which keeps its leading zero as text.",
+      "Each thing answered for shows as a card per instance.",
+      "Card details are never stored, so the question asks for the last four digits.",
+    ];
+    const findings = checkCardReason({
+      turns: reasons.map((reason) => ({ reply: "", cards: [{ reason, steps: [] }] })),
+    });
+
+    expect(findings).toEqual([]);
+  });
+
+  it("still catches the Confirm named as a control to press", () => {
+    const reason = "Three questions are added. Press Confirm to put them in the draft.";
+    const findings = checkCardReason({ turns: [{ reply: "", cards: [{ reason, steps: [] }] }] });
+
+    expect(findings.map((entry) => entry.check)).toEqual(["reason.names-the-card"]);
+    expect(findings[0]?.text).toContain("Confirm will do");
   });
 });
 

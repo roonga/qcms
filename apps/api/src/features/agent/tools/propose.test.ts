@@ -18,6 +18,7 @@ const VIEWER: HeldGrant = { roles: ["forms.viewer"], environments: [] };
 function propose(args: {
   readonly steps: readonly ProposedStep[];
   readonly title?: string;
+  readonly thenAnother?: boolean;
   readonly grants?: readonly HeldGrant[];
   readonly memberRole?: string;
   readonly current?: string;
@@ -37,6 +38,7 @@ function propose(args: {
   return buildProposal({
     steps: args.steps,
     ...(args.title === undefined ? {} : { title: args.title }),
+    ...(args.thenAnother === undefined ? {} : { thenAnother: args.thenAnother }),
     ...(args.savedDraft === undefined ? {} : { savedDraft: args.savedDraft }),
     ...(args.workspaceNames === undefined ? {} : { workspaceNames: args.workspaceNames }),
     ...(args.subjectAllows === undefined ? {} : { subjectAllows: args.subjectAllows }),
@@ -1407,6 +1409,29 @@ describe("buildProposal: a hand-off step finishes on the screen itself", () => {
       screen: "/operations/forms/[formId]/responses",
     });
     expect(outcome.ok).toBe(true);
+  });
+});
+
+describe("buildProposal: a card that says another has to follow it", () => {
+  it("carries the assistant's own declaration onto the proposal", async () => {
+    const outcome = await propose({ steps: [publish], thenAnother: true });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.thenAnother).toBe(true);
+  });
+
+  it("leaves it off a plan that promised nothing, so no turn follows the Confirm", async () => {
+    const outcome = await propose({ steps: [publish] });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.thenAnother).toBeUndefined();
+  });
+
+  it("leaves it off when the assistant sent it false rather than omitting it", async () => {
+    const outcome = await propose({ steps: [publish], thenAnother: false });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.thenAnother).toBeUndefined();
   });
 });
 
