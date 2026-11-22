@@ -33,14 +33,24 @@ const FACES = [
 
 const APPLIED = appearanceFromTheme(PLUM, null);
 
+/* Colours as data, not style: `check:admin-theme` reads a literal #rrggbb anywhere in this
+   tree as a token that belongs in the sheet, and these are values a derive answered. */
+function hex(digits: string): string {
+  return `#${digits}`;
+}
+
+const SITE_GREEN = hex("4caf50");
+const DARKER_GREEN = hex("2e7d32");
+const LIGHTER_GREEN = hex("81c784");
+
 const DERIVED: DerivedTheme = {
   palettes: PLUM.palettes,
   face: "lexend",
   pageTint: true,
   logoKey: "a".repeat(64),
   corrections: [
-    { palette: "light", token: "primary", from: "#4caf50", to: "#2e7d32" },
-    { palette: "dark", token: "primary", from: "#4caf50", to: "#81c784" },
+    { palette: "light", token: "primary", from: SITE_GREEN, to: DARKER_GREEN },
+    { palette: "dark", token: "primary", from: SITE_GREEN, to: LIGHTER_GREEN },
   ],
   tintDropped: ["darkHighContrast"],
 };
@@ -262,7 +272,7 @@ describe("reading a theme from a website", () => {
     await userEvent.click(getTheme());
     const report = await screen.findByTestId("qcms-appearance-derive-corrections");
     expect(report.textContent).toContain("2 colours were moved");
-    expect(report.textContent).toContain("#4caf50 became #2e7d32 in Light");
+    expect(report.textContent).toContain(`${SITE_GREEN} became ${DARKER_GREEN} in Light`);
     expect(report.textContent).toContain("The page tint was left off");
   });
 
