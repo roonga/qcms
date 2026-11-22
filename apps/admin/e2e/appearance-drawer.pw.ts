@@ -221,7 +221,7 @@ test("Settings renames a theme, takes a raster logo and deletes it", async ({ pa
   await expect(page.getByText("Theme deleted.")).toBeVisible();
 });
 
-test("the lock is the administrator's and the themes are the Edit forms holder's", async ({
+test("the lock is the administrator's, and an administrator without Edit forms is told so", async ({
   page,
 }) => {
   test.setTimeout(300_000);

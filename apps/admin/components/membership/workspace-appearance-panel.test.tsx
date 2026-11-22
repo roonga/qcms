@@ -2,7 +2,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { messageForFormCode } from "@/lib/forms/errors";
 import { LOGO_MAX_BYTES } from "@/lib/forms/logo";
 import type { MembershipActionState } from "@/lib/membership/types";
 import { shippedThemeOptions } from "@/lib/server/appearance-options";
@@ -140,23 +139,6 @@ describe("the theme logo", () => {
     await userEvent.upload(screen.getByTestId("qcms-theme-logo-input"), sizedFile(0));
     expect(await screen.findByText("That file is empty. Pick an image.")).not.toBeNull();
     expect(uploadLogo).not.toHaveBeenCalled();
-  });
-
-  it("words every refusal the upload route can answer with, raw code and all", () => {
-    const codes = [
-      "INVALID_LOGO",
-      "LOGO_NOT_RASTER",
-      "LOGO_UNSUPPORTED",
-      "LOGO_TOO_LARGE",
-      "LOGO_TOO_MANY_PIXELS",
-      "LOGO_TAKEN_DOWN",
-      "LOGO_UNKNOWN",
-    ];
-    for (const code of codes) {
-      const message = messageForFormCode(code);
-      expect(message, code).not.toContain(code);
-      expect(message, code).not.toContain("The request failed");
-    }
   });
 });
 

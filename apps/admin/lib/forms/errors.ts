@@ -1,8 +1,9 @@
 import { t, type MessageKey } from "../i18n/en.ts";
+import { LOGO_MAX_LABEL, LOGO_MAX_SIDE } from "./logo.ts";
 
 // Map API codes to catalog copy naming the violated rule; never render upstream developer prose.
 
-const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
+export const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   INVALID_FORM_ID: "forms.error.invalidId",
   INVALID_DEFAULT_LOCALE: "forms.error.invalidLocale",
   FORM_ID_TAKEN: "forms.error.idTaken",
@@ -109,6 +110,8 @@ export function messageForFormCode(code: string, context?: FormErrorContext): st
   return t(key, {
     question: context?.question ?? code,
     reason: context?.reason ?? t("forms.error.internal"),
+    limit: LOGO_MAX_LABEL,
+    side: LOGO_MAX_SIDE,
   });
 }
 

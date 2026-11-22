@@ -3460,7 +3460,7 @@ export const messages = {
     "That image type is not accepted. Save the logo as a non-interlaced PNG or a JPEG.",
   "themes.logo.error.tooLarge": "That image is over {limit}. Save a smaller one.",
   "themes.logo.error.tooManyPixels":
-    "That image has too many pixels. Scale it down to 4000 px on a side at most.",
+    "That image has too many pixels. Scale it down to {side} px on a side at most.",
   "themes.logo.error.takenDown":
     "A Site administrator took this image down, so it cannot be uploaded again.",
   "themes.logo.error.unknown": "That logo is no longer stored. Upload the image again.",
