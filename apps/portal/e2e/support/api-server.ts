@@ -125,7 +125,7 @@ export interface PortalFixtures {
 interface RunningApi {
   readonly testDb: TestDb;
   readonly server: ClosableServer;
-  /** Task 110's local TLS origin, which the derive route's fetcher is pointed at. */
+  /** The local TLS origin the derive route's fetcher is pointed at. */
   readonly brandSite: BrandFixtureServer;
 }
 

@@ -10,9 +10,9 @@ import { waitForHydration } from "./support/hydration.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /*
- * X3: the derive flow against task 110's local TLS fixture origin, which the harness points
- * the SEC-18 fetcher at. Nothing here reaches a real website, and nothing in the browser
- * fetches at all: the address goes to the API route and the route makes the one request.
+ * The derive flow against the local TLS fixture origin the harness points the SEC-18 fetcher
+ * at. Nothing here reaches a real website, and nothing in the browser fetches at all: the
+ * address goes to the API route, and the route makes the one request.
  */
 
 test.describe.configure({ mode: "serial" });
