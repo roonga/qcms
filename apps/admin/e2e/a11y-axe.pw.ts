@@ -45,6 +45,8 @@ import {
 } from "./support/forms.js";
 import { HELD_LANDING, prepareHeldPublish } from "./support/held-publish.js";
 import { waitForHydration } from "./support/hydration.js";
+import { draftLabel } from "./support/questions.js";
+import { t } from "../lib/i18n/en.js";
 import { TestConsumer, openDeliverer, openEraseDialog, submitResponse } from "./support/ops.js";
 import { chooseDestination, chooseSource, publishDraftThroughWizard } from "./support/publish.js";
 import {
@@ -360,9 +362,9 @@ test("the question library, its editor and a question's detail have zero violati
   await page.goto("/questions/new");
   await expectNoViolations(page, "question editor, empty");
 
-  await chooseType(page, "Single choice");
+  await chooseType(page, "singleChoice");
   const slug = `a11y-question-${Date.now().toString(36)}`;
-  await fillStable(field(page, "Slug"), slug);
+  await fillStable(field(page, t("questions.create.slug")), slug);
   await fillStable(field(page, "Label"), "Which cover applies?");
   await addOption(page, "Comprehensive");
   await addOption(page, "Third party");
@@ -410,8 +412,11 @@ test("the message and boolean-label fields have zero violations (048)", async ({
   await signInWithTotp(page, EMAIL, totpSecret);
 
   await page.goto("/questions/new");
-  await chooseType(page, "Short text");
-  await fillStable(field(page, "Slug"), `a11y-messages-${Date.now().toString(36)}`);
+  await chooseType(page, "shortText");
+  await fillStable(
+    field(page, t("questions.create.slug")),
+    `a11y-messages-${Date.now().toString(36)}`,
+  );
   await fillStable(field(page, "Label"), "What is your policy number?");
 
   await page.getByText("An answer is required", { exact: true }).click();
@@ -431,8 +436,11 @@ test("the message and boolean-label fields have zero violations (048)", async ({
   await expectNoViolations(page, "question editor, message fields overridden");
 
   await page.goto("/questions/new");
-  await chooseType(page, "Yes or no");
-  await fillStable(field(page, "Slug"), `a11y-bool-labels-${Date.now().toString(36)}`);
+  await chooseType(page, "boolean");
+  await fillStable(
+    field(page, t("questions.create.slug")),
+    `a11y-bool-labels-${Date.now().toString(36)}`,
+  );
   await fillStable(field(page, "Label"), "Were you at fault?");
   await fillStable(field(page, "Label for the affirmative choice"), "I was at fault");
   await expectNoViolations(page, "question editor, boolean label overrides");
@@ -445,10 +453,10 @@ test("the form builder and the condition editor have zero violations", async ({ 
   const run = Date.now().toString(36);
   const choiceSlug = `a11y-cover-${run}`;
   const textSlug = `a11y-notes-${run}`;
-  await createDraft(page, choiceSlug, "Single choice");
+  await createDraft(page, choiceSlug, "singleChoice");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   const choiceOption = (await optionIds(page))[0] ?? "";
-  await createDraft(page, textSlug, "Long text");
+  await createDraft(page, textSlug, "longText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   const choiceId = `q_${choiceSlug.replaceAll("-", "_")}`;
@@ -564,10 +572,10 @@ test("publish, preview, history and secure links have zero violations", async ({
   const run = Date.now().toString(36);
   const choiceSlug = `a11y-pub-choice-${run}`;
   const countSlug = `a11y-pub-count-${run}`;
-  await createDraft(page, choiceSlug, "Single choice");
+  await createDraft(page, choiceSlug, "singleChoice");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   const choiceOption = (await optionIds(page))[0] ?? "";
-  await createDraft(page, countSlug, "Number");
+  await createDraft(page, countSlug, "number");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   const choiceId = `q_${choiceSlug.replaceAll("-", "_")}`;
@@ -645,7 +653,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   await chooseEnvironment(page, "test");
   await page.goto(`/forms/${formId}/preview`);
   await expect(
-    page.getByTestId("qcms-draft-preview").getByText("E2E Single choice question"),
+    page.getByTestId("qcms-draft-preview").getByText(draftLabel("singleChoice")),
   ).toBeVisible({
     timeout: 60_000,
   });
@@ -656,9 +664,9 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expectNoViolations(page, "draft preview, first step");
 
   await page.getByTestId("qcms-draft-preview").getByText("Yes, always", { exact: true }).click();
-  await expect(page.getByTestId("qcms-draft-preview").getByText("E2E Number question")).toBeVisible(
-    { timeout: 30_000 },
-  );
+  await expect(page.getByTestId("qcms-draft-preview").getByText(draftLabel("number"))).toBeVisible({
+    timeout: 30_000,
+  });
   await expectNoViolations(page, "draft preview with a branch revealed");
 
   await page.goto(`/forms/${formId}/versions`);
@@ -691,14 +699,17 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expect(linksStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "secure links, none minted");
 
-  await page.getByRole("button", { name: "Mint links" }).click();
+  await page.getByRole("button", { name: t("forms.links.mint") }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expectNoViolations(page, "mint dialog");
 
   await fillDate(page, "Expires", "12312030");
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Mint for prod", exact: true })
+    .getByRole("button", {
+      name: t("forms.links.confirmMint", { environment: "prod" }),
+      exact: true,
+    })
     .click();
   await expect(page.getByTestId("qcms-minted-links")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "minted links, shown once");

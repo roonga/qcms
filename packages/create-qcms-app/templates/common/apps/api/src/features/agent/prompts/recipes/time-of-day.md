@@ -11,7 +11,7 @@
 
 **Cannot be expressed**
 
-- A time question. The set of types holds text, long text, number, date, yes or no, single choice and select all that apply, and nothing else.
+- A time question. The set of types holds short answer, longer answer, number, date, yes or no, choose one and choose several, and nothing else.
 - A date and a time as one answer.
 - Ordering or comparison over a typed time. A text answer is not ordered, so no rule can ask whether one time is before another.
 

@@ -5,7 +5,8 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
-import { field, openPanel, setNumericConstraint } from "./support/questions.js";
+import { field, openPanel, setNumericConstraint, typeLabel } from "./support/questions.js";
+import { t } from "../lib/i18n/en.js";
 import { createQuestionRailFixture, type QuestionRailFixture } from "./support/question-rail.js";
 
 test.describe.configure({ mode: "serial" });
@@ -291,11 +292,11 @@ test("2026-09-27 states the question's details in the page body and the way to a
 
   const rail = page.getByTestId("qcms-question-rail");
   const details = page.getByTestId("qcms-question-facts");
-  await expect(details).toContainText("Slug");
+  await expect(details).toContainText(t("questions.detail.slug"));
   await expect(details).toContainText(`e2e-qrail-${RUN}`);
   await expect(details).toContainText("Created");
 
-  await expect(details).toContainText("Short text");
+  await expect(details).toContainText(typeLabel("shortText"));
   await expect(page.getByRole("main")).not.toContainText("Type is locked to");
 
   await expect(page.getByRole("main")).not.toContainText("Slug:");

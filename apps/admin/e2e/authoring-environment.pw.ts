@@ -5,6 +5,7 @@ import { presetEnvironment } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { createForm, field } from "./support/forms.js";
 import { ADMIN_BASE_URL } from "./support/harness-config.js";
+import { t } from "../lib/i18n/en.js";
 import { waitForHydration } from "./support/hydration.js";
 import { openPublishWizard } from "./support/publish.js";
 
@@ -36,7 +37,7 @@ test("with prod selected, New form offers the form itself rather than a way out"
   await waitForHydration(page);
 
   await expect(page).toHaveURL(/\/forms\/new$/);
-  await expect(field(page, "Slug")).toBeVisible();
+  await expect(field(page, t("questions.create.slug"))).toBeVisible();
   await expect(page.getByRole("button", { name: "Create form", exact: true })).toBeVisible();
 });
 

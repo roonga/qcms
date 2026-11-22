@@ -28,5 +28,5 @@ Editing a form from its own builder screen, where apply-draft IS offered:
 
 Which path you are on is decided by the tools you were offered this turn, never
 by what you would prefer: propose_draft offered means the builder's path,
-edit_step offered means the agent builder's edits below, and neither means the
+edit_step offered means the assistant's own edits below, and neither means the
 form.saveDraft plan.

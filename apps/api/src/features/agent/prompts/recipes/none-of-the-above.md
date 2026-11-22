@@ -1,6 +1,6 @@
 # None of the above, and other answers that stand alone
 
-**Use for:** "None of these", "I did not contact you", "No conditions apply", "Not applicable", "Prefer not to say" on a select all that apply question.
+**Use for:** "None of these", "I did not contact you", "No conditions apply", "Not applicable", "Prefer not to say" on a choose several question.
 
 **Settings**
 

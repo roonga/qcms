@@ -14,6 +14,7 @@ import {
   waitForSaved,
 } from "./support/forms.js";
 import { publishDraftThroughWizard } from "./support/publish.js";
+import { t } from "../lib/i18n/en.js";
 
 test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
@@ -133,7 +134,7 @@ test("ends each row with a menu of that form's own screens", async ({ page }) =>
     "href",
     `/operations/forms/${formId}/links`,
   );
-  await expect(menu.getByRole("menuitem", { name: "Edit with the agent builder" })).toHaveAttribute(
+  await expect(menu.getByRole("menuitem", { name: t("forms.menu.agentBuilder") })).toHaveAttribute(
     "href",
     `/forms/${formId}/build`,
   );

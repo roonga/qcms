@@ -46,7 +46,8 @@ import {
   openPublishWizard,
   refuseDraftThroughWizard,
 } from "./support/publish.js";
-import { confirmLifecycle, createDraft } from "./support/questions.js";
+import { confirmLifecycle, createDraft, draftLabel, typeLabel } from "./support/questions.js";
+import type { QuestionType } from "../lib/questions/types.js";
 
 test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
@@ -88,8 +89,8 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-async function publishQuestion(page: Page, slug: string, typeLabel: string): Promise<void> {
-  await createDraft(page, slug, typeLabel);
+async function publishQuestion(page: Page, slug: string, type: QuestionType): Promise<void> {
+  await createDraft(page, slug, type);
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 }
 
@@ -103,11 +104,11 @@ test("defines a group, walks all three count sources, and round-trips through sa
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await publishQuestion(page, COUNT, "Number");
-  await publishQuestion(page, PURPOSE, "Short text");
-  await publishQuestion(page, PASSPORT, "Short text");
-  await publishQuestion(page, FARE, "Short text");
-  await publishQuestion(page, DECLARATION, "Short text");
+  await publishQuestion(page, COUNT, "number");
+  await publishQuestion(page, PURPOSE, "shortText");
+  await publishQuestion(page, PASSPORT, "shortText");
+  await publishQuestion(page, FARE, "shortText");
+  await publishQuestion(page, DECLARATION, "shortText");
 
   formId = await createForm(page, FORM_SLUG, "Booking");
 
@@ -350,7 +351,7 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   await portal.getByRole("button", { name: "Start" }).click();
   await portal.waitForURL(/\/s\/ses_/);
 
-  await expect(portal.getByText("E2E Number question")).toBeVisible({ timeout: 60_000 });
+  await expect(portal.getByText(draftLabel("number"))).toBeVisible({ timeout: 60_000 });
   await portal.getByTestId("primary-action").click();
   await expect(portal.getByRole("heading", { name: GROUP })).toBeVisible({ timeout: 60_000 });
   await expect(portal.getByRole("heading", { name: "Passenger 1" })).toBeVisible();
@@ -434,9 +435,9 @@ test("filters the column picker to the allowed cell types, and says why (case 62
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  await publishQuestion(page, NOTES, "Long text");
-  await publishQuestion(page, MEMO, "Long text");
-  await publishQuestion(page, SEAT, "Date");
+  await publishQuestion(page, NOTES, "longText");
+  await publishQuestion(page, MEMO, "longText");
+  await publishQuestion(page, SEAT, "date");
 
   await page.goto(`/forms/${formId}`);
   await openGroupPanel(page, GROUP);
@@ -460,7 +461,7 @@ test("filters the column picker to the allowed cell types, and says why (case 62
   const columnRows = columns.locator("tbody tr");
   await expect(columnRows).toHaveCount(3);
   await expect(columns.locator(`tr[data-column="${questionIdFor(PASSPORT)}"]`)).toContainText(
-    "Short text",
+    typeLabel("shortText"),
   );
 
   const refusedRow = columns.locator(`tr[data-column="${questionIdFor(NOTES)}"]`);

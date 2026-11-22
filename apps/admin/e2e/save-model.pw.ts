@@ -47,7 +47,7 @@ test("the builder states one save model, in ambient chrome outside the validatio
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await createDraft(page, PINNED_SLUG, "Long text");
+  await createDraft(page, PINNED_SLUG, "longText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   await createForm(page, `e2e-save-model-${RUN}`, "Save model");
@@ -157,7 +157,7 @@ test("the question editor states its manual model, visibly, with no ambient stri
   await expect(page.getByTestId("qcms-save-status")).toHaveCount(0);
   await expect(page.getByTestId("qcms-save-state")).toHaveCount(0);
 
-  await createDraft(page, DRAFT_SLUG, "Long text");
+  await createDraft(page, DRAFT_SLUG, "longText");
   await expect(page).toHaveURL(new RegExp(`/questions/${questionIdFor(DRAFT_SLUG)}`, "u"));
   await expect(page.getByTestId("qcms-manual-save-note")).toContainText(
     "This editor does not save automatically.",

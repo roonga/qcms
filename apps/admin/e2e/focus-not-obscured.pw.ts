@@ -210,7 +210,7 @@ test("1011 following a validation issue lands the pin row clear of the top bar a
   await signInWithTotp(page, EMAIL, totpSecret);
   const run = Date.now().toString(36);
 
-  await createDraft(page, `e2e-obscured-${run}`, "Single choice");
+  await createDraft(page, `e2e-obscured-${run}`, "singleChoice");
   const questionId = new URL(page.url()).pathname.split("/").pop() ?? "";
   expect(questionId, "the created question owns the URL").toMatch(/^q_/u);
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");

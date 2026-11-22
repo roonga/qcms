@@ -11,6 +11,7 @@ import {
   warmSignIn,
 } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
+import { t } from "../lib/i18n/en.js";
 import {
   createFormIn,
   createWorkspace,
@@ -134,7 +135,10 @@ test("the archived workspace reads as archived and refuses a new form", async ({
   // The missing control is a courtesy; the route behind it answers for itself.
   await page.goto("/forms/new");
   await waitForHydration(page);
-  await fillStable(page.getByRole("textbox", { name: "Slug", exact: true }), `blocked-${RUN}`);
+  await fillStable(
+    page.getByRole("textbox", { name: t("forms.create.slug"), exact: true }),
+    `blocked-${RUN}`,
+  );
   await page.getByRole("button", { name: "Create form" }).click();
   await expect(
     page.getByText("That workspace is archived, so it takes no further change."),

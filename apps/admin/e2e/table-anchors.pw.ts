@@ -49,7 +49,7 @@ test("every converted table's row control is in the document's own tab order", a
   await enrollNewAdmin(page, EMAIL);
 
   // Publish the library question first; forms cannot pin unpublished versions.
-  await createDraft(page, PICKER_SLUG, "Short text");
+  await createDraft(page, PICKER_SLUG, "shortText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   pickerFormId = await createForm(page, `anchors570-form-${RUN}`, "Anchors 570");
   await addStep(page, "Only step");

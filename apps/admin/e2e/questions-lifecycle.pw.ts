@@ -21,8 +21,12 @@ import {
   optionIds,
   pendingRow,
   setNumericConstraint,
+  typeLabel,
+  draftLabel,
   useRowMenu,
 } from "./support/questions.js";
+import { t } from "../lib/i18n/en.js";
+import type { QuestionType } from "../lib/questions/types.js";
 
 // fillStable protects against dev-server route compilation replacing the document after typing.
 
@@ -36,14 +40,14 @@ let totpSecret = "";
 const RUN = Date.now().toString(36);
 
 const TYPES = [
-  { slug: "short-text", label: "Short text" },
-  { slug: "long-text", label: "Long text" },
-  { slug: "number", label: "Number" },
-  { slug: "date", label: "Date" },
-  { slug: "boolean", label: "Yes or no" },
-  { slug: "single-choice", label: "Single choice" },
-  { slug: "multi-choice", label: "Multiple choice" },
-] as const;
+  { slug: "short-text", type: "shortText" },
+  { slug: "long-text", type: "longText" },
+  { slug: "number", type: "number" },
+  { slug: "date", type: "date" },
+  { slug: "boolean", type: "boolean" },
+  { slug: "single-choice", type: "singleChoice" },
+  { slug: "multi-choice", type: "multiChoice" },
+] as const satisfies readonly { slug: string; type: QuestionType }[];
 
 function slugFor(name: string): string {
   return `e2e-${name}-${RUN}`;
@@ -57,9 +61,9 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-async function walkLifecycle(page: Page, types: readonly { slug: string; label: string }[]) {
+async function walkLifecycle(page: Page, types: readonly { slug: string; type: QuestionType }[]) {
   for (const type of types) {
-    await createDraft(page, slugFor(type.slug), type.label);
+    await createDraft(page, slugFor(type.slug), type.type);
     await expect(page.getByRole("heading", { name: questionIdFor(type.slug) })).toBeVisible();
 
     await expect(page.locator(".qcms-tag").first()).toHaveText("Draft");
@@ -94,7 +98,7 @@ test("the whole lifecycle works for the boolean and choice types", async ({ page
 test("option ids survive a relabel and a reorder (exit criterion 2)", async ({ page }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, slugFor("options"), "Single choice");
+  await createDraft(page, slugFor("options"), "singleChoice");
 
   await openPanel(page, "options");
   await addOption(page, "Green");
@@ -127,7 +131,7 @@ test("an abandoned ghost row consumes no option id (the minting ruling, 2026-08-
 }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, slugFor("ghost"), "Single choice");
+  await createDraft(page, slugFor("ghost"), "singleChoice");
   await openPanel(page, "options");
 
   const before = await optionIds(page);
@@ -153,7 +157,7 @@ test("an abandoned ghost row consumes no option id (the minting ruling, 2026-08-
 test("insert lands an option at the top, between two rows and at the bottom", async ({ page }) => {
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, slugFor("insert"), "Single choice");
+  await createDraft(page, slugFor("insert"), "singleChoice");
   await openPanel(page, "options");
 
   await insertOptionAbove(page, 0, "Top");
@@ -206,7 +210,7 @@ test("insert lands an option at the top, between two rows and at the bottom", as
 test("a real drag reorders to the position the drop indicator marks", async ({ page }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, slugFor("drag"), "Single choice");
+  await createDraft(page, slugFor("drag"), "singleChoice");
   await openPanel(page, "options");
   await addOption(page, "Green");
   expect(await optionIds(page)).toEqual(["opt_yes_always", "opt_no_never", "opt_green"]);
@@ -238,7 +242,7 @@ test("a real drag reorders to the position the drop indicator marks", async ({ p
 test("the row menu reorders an option with a single pointer and no dragging", async ({ page }) => {
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, slugFor("nodrag"), "Single choice");
+  await createDraft(page, slugFor("nodrag"), "singleChoice");
   await openPanel(page, "options");
   await addOption(page, "Maybe");
   const minted = await optionIds(page);
@@ -314,7 +318,7 @@ test("the row menu reorders an option with a single pointer and no dragging", as
 test("the grid's hidden controls are reachable without a pointer", async ({ page }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, slugFor("keys"), "Single choice");
+  await createDraft(page, slugFor("keys"), "singleChoice");
   await openPanel(page, "options");
 
   // Measure opacity: Playwright considers opacity-zero controls visible, so visibility alone misses this failure.
@@ -420,7 +424,7 @@ test("a cleared label renders the grid's error state, joined to its message line
 }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, slugFor("blank"), "Single choice");
+  await createDraft(page, slugFor("blank"), "singleChoice");
   await openPanel(page, "options");
 
   await fillStable(field(page, "Option 2 label"), "");
@@ -456,7 +460,7 @@ test("the narrow layout folds the ID under the label, keyed off the editor's wid
 }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, slugFor("compact"), "Single choice");
+  await createDraft(page, slugFor("compact"), "singleChoice");
   await openPanel(page, "options");
 
   const label = page.locator('[data-option-index="0"] .qcms-opt-cell--label');
@@ -492,7 +496,7 @@ test("a long label-derived option id renders whole at both gate widths", async (
   test.setTimeout(120_000);
 
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, slugFor("longid"), "Single choice");
+  await createDraft(page, slugFor("longid"), "singleChoice");
   await openPanel(page, "options");
 
   await addOption(page, "Roadside assistance");
@@ -526,12 +530,12 @@ test("a long label-derived option id renders whole at both gate widths", async (
 
 test("the version preview renders the real control for the type", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, slugFor("preview"), "Long text");
+  await createDraft(page, slugFor("preview"), "longText");
   await openPanel(page, "preview");
 
   const preview = page.locator(".qcms-preview");
   await expect(preview).toBeVisible();
-  await expect(preview.getByRole("textbox", { name: "E2E Long text question" })).toBeVisible();
+  await expect(preview.getByRole("textbox", { name: draftLabel("longText") })).toBeVisible();
 
   await expect(preview.locator("[name^=qcms_]")).toHaveCount(0);
 });
@@ -540,7 +544,7 @@ test("a preview control accepts input, and nothing leaves the browser", async ({
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  await createDraft(page, slugFor("interactive"), "Multiple choice");
+  await createDraft(page, slugFor("interactive"), "multiChoice");
   await openPanel(page, "preview");
 
   const preview = page.locator(".qcms-preview");
@@ -595,7 +599,7 @@ test("errors from the API are readable, and land on the field that caused them",
 
   const alert = page.getByRole("main").getByRole("alert");
 
-  await createDraft(page, slugFor("invalid"), "Short text");
+  await createDraft(page, slugFor("invalid"), "shortText");
   await openPanel(page, "constraints");
   await setNumericConstraint(page, "Shortest answer", "10");
   await setNumericConstraint(page, "Longest answer", "5");
@@ -608,12 +612,15 @@ test("errors from the API are readable, and land on the field that caused them",
   await expect(field(page, "Shortest answer")).toBeFocused();
 
   await page.goto("/questions/new");
-  await fillStable(field(page, "Slug"), slugFor("invalid").replaceAll("-", "_"));
+  await fillStable(
+    field(page, t("questions.create.slug")),
+    slugFor("invalid").replaceAll("-", "_"),
+  );
   await fillStable(field(page, "Label"), "Duplicate id");
   await page.getByRole("button", { name: "Create draft" }).click();
   await expect(alert).toContainText("never reused");
 
-  await createDraft(page, slugFor("immutable"), "Short text");
+  await createDraft(page, slugFor("immutable"), "shortText");
   const stale = page.url();
   const other = await page.context().newPage();
   await other.goto(stale);
@@ -688,7 +695,7 @@ test("a frozen number version renders cleanly with its bounds saved", async ({ p
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  await createDraft(page, slugFor("frozen-number"), "Number");
+  await createDraft(page, slugFor("frozen-number"), "number");
   await openPanel(page, "constraints");
   await setNumericConstraint(page, "Smallest value", "1");
   await setNumericConstraint(page, "Largest value", "10");
@@ -712,7 +719,7 @@ test("a frozen date version renders cleanly with its bounds saved", async ({ pag
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  await createDraft(page, slugFor("frozen-date"), "Date");
+  await createDraft(page, slugFor("frozen-date"), "date");
   await openPanel(page, "constraints");
   await fillDate(page, "Earliest date", "01012030");
   await fillDate(page, "Latest date", "12312030");
@@ -735,7 +742,7 @@ test("a validation message inherits until it is written, then round-trips (048)"
 }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, slugFor("messages"), "Short text");
+  await createDraft(page, slugFor("messages"), "shortText");
   await openPanel(page, "constraints");
 
   await expect(field(page, TOO_SHORT)).toHaveCount(0);
@@ -781,7 +788,7 @@ test("a validation message inherits until it is written, then round-trips (048)"
 test("each boolean label overrides independently of the other (048, ADR-36)", async ({ page }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await createDraft(page, slugFor("bool-labels"), "Yes or no");
+  await createDraft(page, slugFor("bool-labels"), "boolean");
   await openPanel(page, "booleanLabels");
 
   const yes = field(page, "Label for the affirmative choice");
@@ -813,10 +820,10 @@ test("the type picker is locked once the question exists", async ({ page }) => {
   // The facts moved out of the rail into the page body, where the type is stated, not offered.
   const facts = page.getByTestId("qcms-question-facts");
   await expect(facts).toContainText("Type");
-  await expect(facts).toContainText("Long text");
-  await expect(page.getByTestId("qcms-question-rail")).not.toContainText("Long text");
+  await expect(facts).toContainText(typeLabel("longText"));
+  await expect(page.getByTestId("qcms-question-rail")).not.toContainText(typeLabel("longText"));
   await expect(page.getByRole("main")).not.toContainText("Type is locked to");
 
   await page.goto("/questions/new");
-  await chooseType(page, "Date");
+  await chooseType(page, "date");
 });

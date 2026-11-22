@@ -55,17 +55,17 @@ test("authors a library with a two-version question and a step to add into", asy
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await createDraft(page, ALPHA, "Short text");
+  await createDraft(page, ALPHA, "shortText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   await confirmLifecycle(page, /^New version$/, "Create draft");
   await page.waitForURL(/\?v=2$/);
   await confirmLifecycle(page, /^Publish version 2$/, "Publish");
 
-  await createDraft(page, BETA, "Number");
+  await createDraft(page, BETA, "number");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
-  await createDraft(page, GAMMA, "Long text");
+  await createDraft(page, GAMMA, "longText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
-  await createDraft(page, ANCHOR, "Short text");
+  await createDraft(page, ANCHOR, "shortText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   await createForm(page, `picker-multi-${RUN}`, "Multi select");

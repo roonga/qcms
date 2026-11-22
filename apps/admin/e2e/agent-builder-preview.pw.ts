@@ -11,7 +11,7 @@ import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { addStep, chooseOption, createForm, pinQuestion, waitForSaved } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
-import { confirmLifecycle, createDraft } from "./support/questions.js";
+import { confirmLifecycle, createDraft, draftLabel } from "./support/questions.js";
 
 test.describe.configure({ mode: "serial" });
 
@@ -21,7 +21,7 @@ const TEXT_SLUG = `e2e-preview-text-${RUN}`;
 const CHOICE_SLUG = `e2e-preview-choice-${RUN}`;
 const TEXT_ID = `q_${TEXT_SLUG.replaceAll("-", "_")}`;
 const CHOICE_ID = `q_${CHOICE_SLUG.replaceAll("-", "_")}`;
-const TEXT_LABEL = "E2E Long text question";
+const TEXT_LABEL = draftLabel("longText");
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
@@ -100,9 +100,9 @@ test.beforeAll(async () => {
 test("builds a two-question draft with an appearance", async ({ page }) => {
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
-  await createDraft(page, TEXT_SLUG, "Long text");
+  await createDraft(page, TEXT_SLUG, "longText");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
-  await createDraft(page, CHOICE_SLUG, "Single choice");
+  await createDraft(page, CHOICE_SLUG, "singleChoice");
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   formId = await createForm(page, `e2e-preview-${RUN}`, "Builder preview intake");

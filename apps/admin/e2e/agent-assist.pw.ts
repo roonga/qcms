@@ -19,7 +19,8 @@ import {
   waitForSaved,
 } from "./support/forms.js";
 import { chooseDestination, chooseSource, openPublishWizard } from "./support/publish.js";
-import { confirmLifecycle, createDraft } from "./support/questions.js";
+import { confirmLifecycle, createDraft, draftLabel } from "./support/questions.js";
+import type { QuestionType } from "../lib/questions/types.js";
 
 // The fake provider retains production dispatch, validation and SSE relay.
 // The search directive isolates this run's library fixtures in the shared database.
@@ -59,8 +60,8 @@ let SECOND = "";
 
 let NEEDLE = "";
 
-const FIRST_LABEL = "E2E Single choice question";
-const SECOND_LABEL = "E2E Number question";
+const FIRST_LABEL = draftLabel("singleChoice");
+const SECOND_LABEL = draftLabel("number");
 const YES_LABEL = "Yes, always";
 
 let formId = "";
@@ -82,8 +83,8 @@ test.beforeEach(async ({ page }) => {
   await pinProposalClock(page);
 });
 
-async function publishQuestion(page: Page, slug: string, typeLabel: string): Promise<void> {
-  await createDraft(page, slug, typeLabel);
+async function publishQuestion(page: Page, slug: string, type: QuestionType): Promise<void> {
+  await createDraft(page, slug, type);
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 }
 
@@ -102,8 +103,8 @@ test("proposes a form, accepts it into the draft, and publishes it (exit criteri
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await publishQuestion(page, FIRST, "Single choice");
-  await publishQuestion(page, SECOND, "Number");
+  await publishQuestion(page, FIRST, "singleChoice");
+  await publishQuestion(page, SECOND, "number");
 
   formId = await createForm(page, `e2e-assist-quote-${RUN}`, "Vehicle insurance quote");
 
