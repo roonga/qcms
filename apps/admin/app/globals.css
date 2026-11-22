@@ -4626,3 +4626,271 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 :root.hc .qcms-appupdate {
   border: 2px solid var(--color-border-strong);
 }
+
+/* A segmented single choice drawn as toggle buttons, so a disabled one can carry its reason. */
+.qcms-segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-0-5);
+  border-radius: var(--radius-control);
+  background-color: var(--color-background-muted);
+}
+.qcms-segment {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 32px;
+  padding-inline: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.qcms-segment:hover:not(:disabled) {
+  background-color: var(--color-ghost-hover);
+  color: var(--color-text);
+}
+.qcms-segment[aria-pressed="true"] {
+  background-color: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+  font-weight: 600;
+}
+.qcms-segment:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.qcms-segment:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.qcms-builder-preview__canvas {
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--space-3);
+  min-block-size: 0;
+}
+.qcms-adrawer {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  inline-size: 21rem;
+  max-block-size: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
+}
+.qcms-adrawer__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+.qcms-adrawer__heading {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.qcms-adrawer__scope {
+  flex: 1 1 auto;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.qcms-adrawer__close {
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.qcms-adrawer__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  overflow-y: auto;
+}
+.qcms-adrawer__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.qcms-adrawer__label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.qcms-adrawer__select {
+  min-block-size: 32px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+.qcms-adrawer__select:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.qcms-adrawer__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+}
+.qcms-adrawer__check > input:disabled,
+.qcms-adrawer__check > input:disabled + label {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.qcms-adrawer__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.qcms-adrawer__error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-danger-fg);
+}
+.qcms-adrawer__locked {
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-background-muted);
+  font-size: 13px;
+}
+.qcms-adrawer__number {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+}
+.qcms-adrawer__size {
+  inline-size: 3.5rem;
+  min-block-size: 32px;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  text-align: center;
+}
+.qcms-adrawer__step {
+  min-inline-size: 32px;
+  min-block-size: 32px;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.qcms-adrawer__step:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.qcms-adrawer__unit {
+  padding-inline-end: var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.qcms-adrawer__chip {
+  display: inline-flex;
+  inline-size: 3rem;
+  block-size: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.qcms-adrawer__chip > span {
+  flex: 1 1 auto;
+}
+.qcms-adrawer__respondent,
+.qcms-adrawer__failures {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  font-size: 13px;
+}
+.qcms-adrawer__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-block-start: 1px solid var(--color-border);
+}
+.qcms-adrawer__reset,
+.qcms-adrawer__done,
+.qcms-themes__action {
+  min-block-size: var(--admin-control-h);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.qcms-adrawer__done {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-weight: 600;
+}
+.qcms-themes__action--danger {
+  color: var(--color-danger-fg);
+}
+.qcms-adrawer__reset:disabled,
+.qcms-adrawer__done:disabled,
+.qcms-themes__action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.qcms-themes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.qcms-themes__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+}
+.qcms-themes__identity,
+.qcms-themes__actions,
+.qcms-themes__rename,
+.qcms-themes__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+@media (width < 64rem) {
+  .qcms-builder-preview__canvas {
+    flex-direction: column;
+  }
+  .qcms-adrawer {
+    inline-size: 100%;
+  }
+}

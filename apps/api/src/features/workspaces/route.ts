@@ -162,13 +162,16 @@ const themeAuthority =
 export const listWorkspaceThemesRoute = createRoute({
   method: "get",
   path: "/workspaces/{id}/themes",
-  summary: "A workspace's named themes (Edit forms)",
-  description: themeAuthority,
+  summary: "A workspace's named themes, and whether appearance is locked (Edit forms)",
+  description:
+    `${themeAuthority} The response carries \`appearanceLocked\` as well, because an Edit ` +
+    "forms holder who is no administrator cannot read workspace settings and still has to be " +
+    "told that no form here may change its appearance.",
   tags: themeTags,
   request: { params: WorkspaceIdParam },
   responses: {
     200: {
-      description: "The workspace's themes, by name",
+      description: "The workspace's themes, by name, and its appearance lock",
       content: { "application/json": { schema: WorkspaceThemeListResponse } },
     },
     ...errorResponses(401, 403, 404),

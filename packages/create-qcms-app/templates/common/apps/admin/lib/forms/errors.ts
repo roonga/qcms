@@ -1,8 +1,9 @@
 import { t, type MessageKey } from "../i18n/en.ts";
+import { LOGO_MAX_LABEL, LOGO_MAX_SIDE } from "./logo.ts";
 
 // Map API codes to catalog copy naming the violated rule; never render upstream developer prose.
 
-const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
+export const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   INVALID_FORM_ID: "forms.error.invalidId",
   INVALID_DEFAULT_LOCALE: "forms.error.invalidLocale",
   FORM_ID_TAKEN: "forms.error.idTaken",
@@ -13,6 +14,9 @@ const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   INVALID_FORM_SETTINGS: "forms.error.invalidSettings",
 
   NO_DRAFT: "forms.error.noDraft",
+  APPEARANCE_LOCKED: "forms.error.appearanceLocked",
+  APPEARANCE_CONTRAST: "forms.error.appearanceContrast",
+  INVALID_APPEARANCE: "forms.error.invalidAppearance",
   PUBLISH_REJECTED: "forms.error.publishRejected",
   PREVIEW_REJECTED: "forms.error.previewRejected",
   PREVIEW_UNAVAILABLE: "forms.error.previewUnavailable",
@@ -59,6 +63,13 @@ const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   ACCESS_GROUP_CHANGED: "membership.error.groupChanged",
   ACCESS_GROUP_NAME_TAKEN: "membership.error.groupNameTaken",
   ACCESS_GROUP_NOT_FOUND: "membership.error.groupGone",
+  INVALID_LOGO: "themes.logo.error.malformed",
+  LOGO_NOT_RASTER: "themes.logo.error.notRaster",
+  LOGO_UNSUPPORTED: "themes.logo.error.unsupported",
+  LOGO_TOO_LARGE: "themes.logo.error.tooLarge",
+  LOGO_TOO_MANY_PIXELS: "themes.logo.error.tooManyPixels",
+  LOGO_TAKEN_DOWN: "themes.logo.error.takenDown",
+  LOGO_UNKNOWN: "themes.logo.error.unknown",
   WORKSPACE_NOT_EMPTY: "membership.error.workspaceNotEmpty",
   WORKSPACE_ARCHIVED: "membership.error.workspaceArchived",
   MOVE_SAME_WORKSPACE: "forms.move.error.sameWorkspace",
@@ -99,6 +110,8 @@ export function messageForFormCode(code: string, context?: FormErrorContext): st
   return t(key, {
     question: context?.question ?? code,
     reason: context?.reason ?? t("forms.error.internal"),
+    limit: LOGO_MAX_LABEL,
+    side: LOGO_MAX_SIDE,
   });
 }
 

@@ -60,6 +60,7 @@ export interface WorkspaceSettings {
   /** Read from the caller's seat: the warning while the rule is on, the refusal to turn it on while it is off. */
   readonly nobodyElseCouldApprove: boolean;
   readonly missingApprover: SecondApprovalShortfall;
+  readonly appearanceLocked: boolean;
 }
 
 export const APPROVAL_STATUSES = ["pending", "approved", "rejected", "expired", "lapsed"] as const;

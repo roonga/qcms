@@ -354,11 +354,15 @@ export const workspaceSettingsRoute = createRoute({
 export const readWorkspaceSettingsRoute = createRoute({
   method: "get",
   path: "/workspaces/{id}/settings",
-  summary: "The workspace's second-approval switch, and whether anybody else could approve (admin)",
+  summary:
+    "The workspace's second-approval switch, its appearance lock, and whether anybody else " +
+    "could approve (admin)",
   description:
     "`nobodyElseCouldApprove` is read from the caller's seat: true where there is no " +
     "other active Workspace administrator or Site administrator, or fewer than two active " +
-    "holders of Publish forms for prod. Unclaimed and disabled accounts never count.",
+    "holders of Publish forms for prod. Unclaimed and disabled accounts never count. " +
+    "`appearanceLocked` is the workspace's appearance lock, which the theme list read " +
+    "carries too for a holder who is no administrator.",
   tags,
   request: { params: WorkspaceIdParam },
   responses: {

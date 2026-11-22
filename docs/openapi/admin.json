@@ -2833,10 +2833,15 @@
             "items": {
               "$ref": "#/components/schemas/WorkspaceThemeView"
             }
+          },
+          "appearanceLocked": {
+            "type": "boolean",
+            "example": false
           }
         },
         "required": [
-          "themes"
+          "themes",
+          "appearanceLocked"
         ]
       },
       "WorkspaceThemeView": {
@@ -4564,13 +4569,17 @@
               "administrator",
               "publisher"
             ]
+          },
+          "appearanceLocked": {
+            "type": "boolean"
           }
         },
         "required": [
           "workspaceId",
           "requireSecondApprover",
           "nobodyElseCouldApprove",
-          "missingApprover"
+          "missingApprover",
+          "appearanceLocked"
         ]
       },
       "WorkspaceApprovalRequestList": {
@@ -10350,8 +10359,8 @@
     },
     "/admin/workspaces/{id}/themes": {
       "get": {
-        "summary": "A workspace's named themes (Edit forms)",
-        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3).",
+        "summary": "A workspace's named themes, and whether appearance is locked (Edit forms)",
+        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3). The response carries `appearanceLocked` as well, because an Edit forms holder who is no administrator cannot read workspace settings and still has to be told that no form here may change its appearance.",
         "tags": [
           "workspaces"
         ],
@@ -10375,7 +10384,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The workspace's themes, by name",
+            "description": "The workspace's themes, by name, and its appearance lock",
             "content": {
               "application/json": {
                 "schema": {
@@ -12263,8 +12272,8 @@
         }
       },
       "get": {
-        "summary": "The workspace's second-approval switch, and whether anybody else could approve (admin)",
-        "description": "`nobodyElseCouldApprove` is read from the caller's seat: true where there is no other active Workspace administrator or Site administrator, or fewer than two active holders of Publish forms for prod. Unclaimed and disabled accounts never count.",
+        "summary": "The workspace's second-approval switch, its appearance lock, and whether anybody else could approve (admin)",
+        "description": "`nobodyElseCouldApprove` is read from the caller's seat: true where there is no other active Workspace administrator or Site administrator, or fewer than two active holders of Publish forms for prod. Unclaimed and disabled accounts never count. `appearanceLocked` is the workspace's appearance lock, which the theme list read carries too for a holder who is no administrator.",
         "tags": [
           "membership"
         ],

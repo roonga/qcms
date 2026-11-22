@@ -202,6 +202,8 @@ export interface FormDetail {
   readonly canWriteDraft: boolean;
   /** The open draft's appearance, else the seeded version's; null previews the deployment's look. */
   readonly appearance?: Appearance | null;
+  /** While set, no actor may change this form's appearance, so the drawer offers no change. */
+  readonly appearanceLocked?: boolean;
 }
 
 // Keep unfamiliar issue codes visible rather than narrowing them out.

@@ -148,6 +148,8 @@ export const WorkspaceSettingsReadResponse = z
     // on, and the turn-on refusal while it is off.
     nobodyElseCouldApprove: z.boolean(),
     missingApprover: z.object({ administrator: z.boolean(), publisher: z.boolean() }),
+    /** The appearance lock, so Settings can show it without a read of its own. */
+    appearanceLocked: z.boolean(),
   })
   .openapi("WorkspaceSettingsReadResponse");
 
