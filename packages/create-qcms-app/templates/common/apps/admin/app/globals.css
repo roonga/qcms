@@ -4930,6 +4930,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+.qcms-aderive__keep {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
 
 .qcms-themes {
   display: flex;

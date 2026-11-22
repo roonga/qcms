@@ -79,6 +79,7 @@ function drawer(
   overrides: {
     readonly locked?: boolean;
     readonly handedOffAddress?: { readonly url: string; readonly nonce: number };
+    readonly handedOffThemeName?: { readonly name: string; readonly nonce: number };
     readonly onDerive?: (url: string) => Promise<DeriveThemeState>;
     readonly onCreateTheme?: (
       name: string,
@@ -97,6 +98,7 @@ function drawer(
       faces={FACES}
       locked={overrides.locked ?? false}
       handedOffAddress={overrides.handedOffAddress}
+      handedOffThemeName={overrides.handedOffThemeName}
       onDerive={overrides.onDerive ?? (() => Promise.resolve(READ))}
       onCreateTheme={overrides.onCreateTheme ?? (() => Promise.resolve(KEPT))}
       onPreview={overrides.onPreview ?? (() => undefined)}
@@ -349,5 +351,49 @@ describe("reading a theme from a website", () => {
     expect(isOff(address())).toBe(true);
     expect(isOff(getTheme())).toBe(true);
     expect(address().getAttribute("aria-describedby")).toContain("qcms-appearance-lock-reason");
+  });
+});
+
+describe("keeping the drawer's look as a workspace theme", () => {
+  it("offers the save on any look, not only one a derive answered", async () => {
+    const onCreateTheme = vi.fn((_name: string, _look: Appearance, _host: string | null) =>
+      Promise.resolve(KEPT),
+    );
+    render(drawer(APPLIED, { onCreateTheme }));
+    await userEvent.click(screen.getByTestId("qcms-appearance-theme-save"));
+    await userEvent.type(screen.getByTestId("qcms-appearance-theme-name"), "Example");
+    await userEvent.click(screen.getByTestId("qcms-appearance-theme-save"));
+    expect(onCreateTheme.mock.calls[0]?.[0]).toBe("Example");
+    expect(onCreateTheme.mock.calls[0]?.[2]).toBeNull();
+  });
+
+  it("offers nothing to keep while the form is on the deployment default", () => {
+    render(drawer(null));
+    expect(screen.queryByTestId("qcms-appearance-theme-save")).toBeNull();
+  });
+
+  it("opens the save with the name a confirmed card gave", async () => {
+    render(drawer(APPLIED, { handedOffThemeName: { name: "Bright Start", nonce: 1 } }));
+    const field = await screen.findByTestId<HTMLInputElement>("qcms-appearance-theme-name");
+    expect(field.value).toBe("Bright Start");
+  });
+
+  it("says why a name was refused and keeps the look on screen", async () => {
+    render(
+      drawer(APPLIED, {
+        onCreateTheme: () =>
+          Promise.resolve<CreateThemeState>({
+            status: "error",
+            code: "THEME_NAME_TAKEN",
+            message: "This workspace already has a theme with that name.",
+          }),
+      }),
+    );
+    await userEvent.click(screen.getByTestId("qcms-appearance-theme-save"));
+    await userEvent.type(screen.getByTestId("qcms-appearance-theme-name"), "Taken");
+    await userEvent.click(screen.getByTestId("qcms-appearance-theme-save"));
+    expect((await screen.findByTestId("qcms-appearance-theme-save-error")).textContent).toContain(
+      "already has a theme with that name",
+    );
   });
 });

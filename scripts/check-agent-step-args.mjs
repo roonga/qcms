@@ -16,10 +16,11 @@ export const RENDERED_TOOLS = "apps/api/src/features/agent/prompts/rendered/tool
 export const STEP_ACTIONS = "apps/admin/components/agent/step-actions.ts";
 
 /**
- * The export is the one kind no runner completes: the bytes stream into the browser from the
- * screen's own download control, so the card hands off rather than running a step.
+ * The kinds no runner completes, because what they act on exists only on the screen: the
+ * export's bytes stream from its own download control, and the two theme acts need the
+ * address the person types on the card and the look the appearance drawer is showing.
  */
-export const HANDED_OFF_KINDS = ["response.export"];
+export const HANDED_OFF_KINDS = ["response.export", "theme.derive", "theme.save"];
 
 /**
  * The environment a step acts in is bound by its token and reaches the runner as

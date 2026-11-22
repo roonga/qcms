@@ -208,6 +208,7 @@ export function AppearanceDrawer({
   faces,
   locked,
   handedOffAddress,
+  handedOffThemeName,
   onDerive,
   onCreateTheme,
   onPreview,
@@ -220,6 +221,8 @@ export function AppearanceDrawer({
   readonly locked: boolean;
   /** The address a confirmed `theme.derive` card collected, which only the person typed. */
   readonly handedOffAddress: { readonly url: string; readonly nonce: number } | undefined;
+  /** The theme name a confirmed `theme.save` card named. */
+  readonly handedOffThemeName: { readonly name: string; readonly nonce: number } | undefined;
   readonly onDerive: (url: string) => Promise<DeriveThemeState>;
   readonly onCreateTheme: (
     name: string,
@@ -519,6 +522,8 @@ export function AppearanceDrawer({
           locked={locked}
           describedBy={reason}
           handedOff={handedOffAddress}
+          handedOffName={handedOffThemeName}
+          canSave={appearance !== null}
           onDerive={onDerive}
           onCreateTheme={(name) =>
             appearance === null

@@ -278,8 +278,12 @@ export function BuilderPreview({
   );
 
   const deriveHandOff = useHandOff("appearance.derive");
+  const saveHandOff = useHandOff("appearance.themeSave");
   const [handedOffAddress, setHandedOffAddress] = useState<
     { readonly url: string; readonly nonce: number } | undefined
+  >(undefined);
+  const [handedOffThemeName, setHandedOffThemeName] = useState<
+    { readonly name: string; readonly nonce: number } | undefined
   >(undefined);
 
   useEffect(() => {
@@ -289,6 +293,14 @@ export function BuilderPreview({
     setDrawerOpen(true);
     deriveHandOff.done();
   }, [deriveHandOff]);
+
+  useEffect(() => {
+    if (saveHandOff === undefined) return;
+    const name = saveHandOff.fields["name"];
+    if (name !== undefined) setHandedOffThemeName({ name, nonce: saveHandOff.nonce });
+    setDrawerOpen(true);
+    saveHandOff.done();
+  }, [saveHandOff]);
 
   const size = frameSize(frame, stage.size);
   const percent = zoomPercent(frame, size, stage.size);
@@ -690,6 +702,7 @@ export function BuilderPreview({
             faces={faces}
             locked={appearanceLocked}
             handedOffAddress={handedOffAddress}
+            handedOffThemeName={handedOffThemeName}
             onDerive={deriveTheme}
             onCreateTheme={(name, look, sourceHost) =>
               createTheme({

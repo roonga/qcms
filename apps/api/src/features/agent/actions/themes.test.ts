@@ -53,6 +53,11 @@ describe("theme.derive (SEC-18 W2)", () => {
 describe("theme.save", () => {
   const save = actionKind("theme.save");
 
+  it("hands off to the drawer, which is where the look being kept lives", () => {
+    expect(save?.handOff).toBe(true);
+    expect(save?.card.headingControl).toBe("appearance.themeSave");
+  });
+
   it("names the theme and nothing of the look, which is the drawer's own state", () => {
     expect(Object.keys((save?.args as unknown as { shape: object }).shape).sort()).toEqual([
       "name",

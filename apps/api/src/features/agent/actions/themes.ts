@@ -68,7 +68,11 @@ export const deriveWorkspaceTheme: ActionKindDef = {
   description: ACTION_DESCRIPTIONS["theme.derive"],
 };
 
-/** The look in the drawer, kept as a workspace theme every form in the workspace can pick. */
+/**
+ * The look in the drawer, kept as a workspace theme every form in the workspace can pick.
+ * A hand-off, because the look being kept is the drawer's live state and nowhere else: the
+ * Confirm opens that control with the name on it, and the drawer's own save is what runs.
+ */
 export const saveWorkspaceTheme: ActionKindDef = {
   kind: "theme.save",
   screen: "/forms/[formId]/build",
@@ -78,6 +82,7 @@ export const saveWorkspaceTheme: ActionKindDef = {
   ...save,
   references: [],
   resultAllowlist: ["themeId", "name"],
+  handOff: true,
   card: {
     titleKey: "agent.card.theme.save.title",
     consequenceKeys: ["agent.card.theme.save.consequence", "agent.card.theme.save.reuse"],

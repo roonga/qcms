@@ -103,6 +103,10 @@ export interface AppearanceDeriveProps {
   readonly describedBy: string | undefined;
   /** An address the assistant's card collected and the person confirmed, derived on arrival. */
   readonly handedOff: { readonly url: string; readonly nonce: number } | undefined;
+  /** A theme name a confirmed `theme.save` card collected, which opens the save with it. */
+  readonly handedOffName: { readonly name: string; readonly nonce: number } | undefined;
+  /** No look to keep: a form on the deployment default offers the derive alone. */
+  readonly canSave: boolean;
   readonly onDerive: (url: string) => Promise<DeriveThemeState>;
   readonly onCreateTheme: (name: string) => Promise<CreateThemeState>;
   /** Applies the derived look to the drawer, live, and marks it unsaved. */
@@ -127,6 +131,7 @@ export function AppearanceDerive(props: AppearanceDeriveProps): ReactNode {
   const [pending, startTransition] = useTransition();
   const nameField = useRef<HTMLInputElement>(null);
   const handedOff = props.handedOff;
+  const handedOffName = props.handedOffName;
 
   const derive = (url: string): void => {
     setSaving(undefined);
@@ -146,6 +151,15 @@ export function AppearanceDerive(props: AppearanceDeriveProps): ReactNode {
     // The nonce is the hand-off's identity: a second Confirm of the same address derives again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handedOff?.nonce]);
+
+  // A confirmed save card opens the name field with the name on it; the person presses Save.
+  useEffect(() => {
+    if (handedOffName === undefined || locked) return;
+    setSaving(undefined);
+    setName(handedOffName.name);
+    setNaming(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handedOffName?.nonce]);
 
   useEffect(() => {
     if (naming) nameField.current?.focus();
@@ -203,95 +217,104 @@ export function AppearanceDerive(props: AppearanceDeriveProps): ReactNode {
           <FoundValues derived={derived} />
           <p className="qcms-adrawer__hint">{t("appearance.derive.stored")}</p>
           <Corrections derived={derived} />
+          <div className="qcms-aderive__actions">
+            <button
+              type="button"
+              className="qcms-adrawer__reset"
+              data-testid="qcms-appearance-derive-adjust"
+              onClick={() => {
+                setState(undefined);
+              }}
+            >
+              {t("appearance.derive.adjust")}
+            </button>
+            <button
+              type="button"
+              className="qcms-adrawer__reset"
+              data-testid="qcms-appearance-derive-cancel"
+              onClick={() => {
+                setState(undefined);
+                setNaming(false);
+                setName("");
+                props.onDiscard();
+              }}
+            >
+              {t("appearance.derive.cancel")}
+            </button>
+          </div>
+        </div>
+      )}
 
-          {saving?.status === "created" ? (
-            <Alert variant="success">
-              {t("appearance.themeSave.saved", { name: saving.name })}
-            </Alert>
-          ) : (
-            <>
-              {saving?.status === "error" && (
-                <div data-testid="qcms-appearance-theme-save-error">
-                  <Alert variant="error">
-                    {t("appearance.themeSave.failed", { message: saving.message })}
-                  </Alert>
-                </div>
-              )}
-              {naming && (
-                <>
-                  <label className="qcms-adrawer__label" htmlFor={NAME_FIELD_ID}>
-                    {t("appearance.themeSave.label")}
-                  </label>
-                  <input
-                    ref={nameField}
-                    id={NAME_FIELD_ID}
-                    type="text"
-                    className="qcms-adrawer__name"
-                    data-testid="qcms-appearance-theme-name"
-                    disabled={locked}
-                    {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
-                    value={name}
-                    onChange={(event) => {
-                      setName(event.target.value);
-                    }}
-                  />
-                </>
-              )}
-              <div className="qcms-aderive__actions">
-                <button
-                  type="button"
-                  className="qcms-adrawer__done"
-                  data-testid="qcms-appearance-theme-save"
-                  disabled={locked || pending || (naming && name.trim() === "")}
+      {props.canSave &&
+        (saving?.status === "created" ? (
+          <Alert variant="success">{t("appearance.themeSave.saved", { name: saving.name })}</Alert>
+        ) : (
+          <div className="qcms-aderive__keep">
+            {saving?.status === "error" && (
+              <div data-testid="qcms-appearance-theme-save-error">
+                <Alert variant="error">
+                  {t("appearance.themeSave.failed", { message: saving.message })}
+                </Alert>
+              </div>
+            )}
+            {naming && (
+              <>
+                <label className="qcms-adrawer__label" htmlFor={NAME_FIELD_ID}>
+                  {t("appearance.themeSave.label")}
+                </label>
+                <input
+                  ref={nameField}
+                  id={NAME_FIELD_ID}
+                  type="text"
+                  className="qcms-adrawer__name"
+                  data-testid="qcms-appearance-theme-name"
+                  disabled={locked}
                   {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
-                  onClick={() => {
-                    if (!naming) {
-                      setNaming(true);
-                      return;
-                    }
-                    startTransition(async () => {
-                      const next = await props.onCreateTheme(name.trim());
-                      setSaving(next);
-                      if (next.status === "created") props.onSaved(next.name);
-                    });
+                  value={name}
+                  onChange={(event) => {
+                    setName(event.target.value);
                   }}
-                >
-                  {pending && naming
-                    ? t("appearance.themeSave.saving")
-                    : t(naming ? "appearance.themeSave.save" : "appearance.themeSave")}
-                </button>
+                />
+              </>
+            )}
+            <div className="qcms-aderive__actions">
+              <button
+                type="button"
+                className="qcms-adrawer__done"
+                data-testid="qcms-appearance-theme-save"
+                disabled={locked || pending || (naming && name.trim() === "")}
+                {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
+                onClick={() => {
+                  if (!naming) {
+                    setNaming(true);
+                    return;
+                  }
+                  startTransition(async () => {
+                    const next = await props.onCreateTheme(name.trim());
+                    setSaving(next);
+                    if (next.status === "created") props.onSaved(next.name);
+                  });
+                }}
+              >
+                {pending && naming
+                  ? t("appearance.themeSave.saving")
+                  : t(naming ? "appearance.themeSave.save" : "appearance.themeSave")}
+              </button>
+              {naming && (
                 <button
                   type="button"
                   className="qcms-adrawer__reset"
-                  data-testid="qcms-appearance-derive-adjust"
+                  data-testid="qcms-appearance-theme-cancel"
                   onClick={() => {
-                    setState(undefined);
                     setNaming(false);
                   }}
                 >
-                  {t("appearance.derive.adjust")}
+                  {t("appearance.themeSave.cancel")}
                 </button>
-                <button
-                  type="button"
-                  className="qcms-adrawer__reset"
-                  data-testid="qcms-appearance-derive-cancel"
-                  onClick={() => {
-                    if (naming) {
-                      setNaming(false);
-                      return;
-                    }
-                    setState(undefined);
-                    setName("");
-                    props.onDiscard();
-                  }}
-                >
-                  {t(naming ? "appearance.themeSave.cancel" : "appearance.derive.cancel")}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
+              )}
+            </div>
+          </div>
+        ))}
     </div>
   );
 }
