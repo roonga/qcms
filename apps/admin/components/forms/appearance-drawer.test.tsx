@@ -6,9 +6,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
   appearanceFromTheme,
   shippedThemeKey,
+  type DerivedTheme,
   type ThemeOption,
 } from "@/lib/forms/appearance-edit";
-import type { SaveAppearanceState } from "@/lib/forms/builder-state";
+import type {
+  CreateThemeState,
+  DeriveThemeState,
+  SaveAppearanceState,
+} from "@/lib/forms/builder-state";
 import { shippedThemeOptions } from "@/lib/server/appearance-options";
 
 import { AppearanceDrawer } from "./appearance-drawer";
@@ -27,6 +32,22 @@ const FACES = [
 ];
 
 const APPLIED = appearanceFromTheme(PLUM, null);
+
+const DERIVED: DerivedTheme = {
+  palettes: PLUM.palettes,
+  face: "lexend",
+  pageTint: true,
+  logoKey: "a".repeat(64),
+  corrections: [
+    { palette: "light", token: "primary", from: "#4caf50", to: "#2e7d32" },
+    { palette: "dark", token: "primary", from: "#4caf50", to: "#81c784" },
+  ],
+  tintDropped: ["darkHighContrast"],
+};
+
+const READ: DeriveThemeState = { status: "derived", derived: DERIVED, host: "www.example.org" };
+
+const KEPT: CreateThemeState = { status: "created", themeId: "thm_read", name: "Example" };
 
 function isOff(element: Element): boolean {
   return (
@@ -47,6 +68,13 @@ function drawer(
   appearance: Appearance | null,
   overrides: {
     readonly locked?: boolean;
+    readonly handedOffAddress?: { readonly url: string; readonly nonce: number };
+    readonly onDerive?: (url: string) => Promise<DeriveThemeState>;
+    readonly onCreateTheme?: (
+      name: string,
+      look: Appearance,
+      sourceHost: string | null,
+    ) => Promise<CreateThemeState>;
     readonly onPreview?: (next: Appearance | null) => void;
     readonly onSave?: (next: Appearance | null) => Promise<SaveAppearanceState>;
     readonly onClose?: () => void;
@@ -58,11 +86,22 @@ function drawer(
       themes={[PLUM]}
       faces={FACES}
       locked={overrides.locked ?? false}
+      handedOffAddress={overrides.handedOffAddress}
+      onDerive={overrides.onDerive ?? (() => Promise.resolve(READ))}
+      onCreateTheme={overrides.onCreateTheme ?? (() => Promise.resolve(KEPT))}
       onPreview={overrides.onPreview ?? (() => undefined)}
       onSave={overrides.onSave ?? (() => Promise.resolve(SAVED))}
       onClose={overrides.onClose ?? (() => undefined)}
     />
   );
+}
+
+function address(): HTMLInputElement {
+  return screen.getByRole<HTMLInputElement>("textbox", { name: "Website address" });
+}
+
+function getTheme(): HTMLButtonElement {
+  return screen.getByRole<HTMLButtonElement>("button", { name: "Get theme" });
 }
 
 describe("choosing a theme", () => {
@@ -177,5 +216,128 @@ describe("saving", () => {
     render(drawer(APPLIED, { onClose }));
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("reading a theme from a website", () => {
+  it("offers Get theme only for a full https address", async () => {
+    render(drawer(APPLIED));
+    expect(isOff(getTheme())).toBe(true);
+    await userEvent.type(address(), "example.org");
+    expect(isOff(getTheme())).toBe(true);
+    await userEvent.clear(address());
+    await userEvent.type(address(), "http://www.example.org/");
+    expect(isOff(getTheme())).toBe(true);
+    await userEvent.clear(address());
+    await userEvent.type(address(), "https://www.example.org/");
+    expect(isOff(getTheme())).toBe(false);
+  });
+
+  it("derives the address typed here, and nothing else", async () => {
+    const onDerive = vi.fn((_url: string) => Promise.resolve(READ));
+    render(drawer(APPLIED, { onDerive }));
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    expect(onDerive.mock.calls).toStrictEqual([["https://www.example.org/"]]);
+  });
+
+  it("previews the look it answered and reports what it kept", async () => {
+    const onPreview = vi.fn();
+    render(drawer(APPLIED, { onPreview }));
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    expect(await screen.findByTestId("qcms-appearance-derive-values")).toBeTruthy();
+    expect(onPreview.mock.calls.at(-1)?.[0]).toMatchObject({
+      palettes: DERIVED.palettes,
+      face: "lexend",
+      pageTint: true,
+      logo: DERIVED.logoKey,
+    });
+    expect(screen.getByText(/Nothing from the site is stored/u)).toBeTruthy();
+  });
+
+  it("names every colour it moved to keep the look readable", async () => {
+    render(drawer(APPLIED));
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    const report = await screen.findByTestId("qcms-appearance-derive-corrections");
+    expect(report.textContent).toContain("2 colours were moved");
+    expect(report.textContent).toContain("#4caf50 became #2e7d32 in Light");
+    expect(report.textContent).toContain("The page tint was left off");
+  });
+
+  it("marks the derived look Not saved until it is kept as a workspace theme", async () => {
+    render(drawer(APPLIED));
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    expect((await screen.findByRole("combobox", { name: "Theme" })).textContent).toContain(
+      "Not saved",
+    );
+    expect(screen.getByTestId("qcms-appearance-unsaved")).toBeTruthy();
+  });
+
+  it("keeps the look under the name typed here, with the host it was read from", async () => {
+    const onCreateTheme = vi.fn((_name: string, _look: Appearance, _host: string | null) =>
+      Promise.resolve(KEPT),
+    );
+    render(drawer(APPLIED, { onCreateTheme }));
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    await userEvent.click(await screen.findByTestId("qcms-appearance-theme-save"));
+    await userEvent.type(screen.getByTestId("qcms-appearance-theme-name"), "Example");
+    await userEvent.click(screen.getByTestId("qcms-appearance-theme-save"));
+    expect(onCreateTheme.mock.calls[0]?.[0]).toBe("Example");
+    expect(onCreateTheme.mock.calls[0]?.[2]).toBe("www.example.org");
+    expect(await screen.findByText("Example is a workspace theme now.")).toBeTruthy();
+    expect(screen.queryByTestId("qcms-appearance-unsaved")).toBeNull();
+  });
+
+  it("restores the look that was there when the derive is cancelled", async () => {
+    const onPreview = vi.fn();
+    render(drawer(APPLIED, { onPreview }));
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    await userEvent.click(await screen.findByTestId("qcms-appearance-derive-cancel"));
+    expect(onPreview.mock.calls.at(-1)?.[0]).toStrictEqual(APPLIED);
+    expect(screen.queryByTestId("qcms-appearance-derive-values")).toBeNull();
+  });
+
+  it("says why an address was refused and changes nothing", async () => {
+    const onPreview = vi.fn();
+    render(
+      drawer(APPLIED, {
+        onPreview,
+        onDerive: () =>
+          Promise.resolve<DeriveThemeState>({
+            status: "error",
+            code: "THEME_DERIVE_REFUSED",
+            message: "That address could not be read for a theme.",
+          }),
+      }),
+    );
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    expect((await screen.findByTestId("qcms-appearance-derive-error")).textContent).toContain(
+      "That address could not be read for a theme.",
+    );
+    expect(onPreview).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("qcms-appearance-derive-values")).toBeNull();
+  });
+
+  it("derives the address a confirmed card handed over, already typed", async () => {
+    const onDerive = vi.fn((_url: string) => Promise.resolve(READ));
+    render(
+      drawer(APPLIED, { onDerive, handedOffAddress: { url: "https://brand.example/", nonce: 1 } }),
+    );
+    expect(await screen.findByTestId("qcms-appearance-derive-values")).toBeTruthy();
+    expect(address().value).toBe("https://brand.example/");
+    expect(onDerive.mock.calls).toStrictEqual([["https://brand.example/"]]);
+  });
+
+  it("disables the address, Get theme and the save on a locked workspace", () => {
+    render(drawer(APPLIED, { locked: true }));
+    expect(isOff(address())).toBe(true);
+    expect(isOff(getTheme())).toBe(true);
+    expect(address().getAttribute("aria-describedby")).toContain("qcms-appearance-lock-reason");
   });
 });

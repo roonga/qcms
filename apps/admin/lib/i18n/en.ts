@@ -3448,6 +3448,44 @@ export const messages = {
   "appearance.contrastFailure":
     "{foreground} on {background} in {palette} reaches {ratio}:1, short of {required}:1.",
 
+  "appearance.derive.heading": "From your website",
+  "appearance.derive.label": "Website address",
+  "appearance.derive.placeholder": "https://www.example.org",
+  "appearance.derive.hint":
+    "QCMS reads that one page over https and takes the colours, the heading face and the logo from it.",
+  "appearance.derive.get": "Get theme",
+  "appearance.derive.working": "Reading the site",
+  "appearance.derive.found": "What the site gave",
+  "appearance.derive.row.accent": "Accent",
+  "appearance.derive.row.page": "Page",
+  "appearance.derive.row.ink": "Text",
+  "appearance.derive.row.face": "Heading face",
+  "appearance.derive.row.tint": "Page tint",
+  "appearance.derive.row.logo": "Logo",
+  "appearance.derive.logo.found": "Taken from the site",
+  "appearance.derive.logo.none": "None found",
+  "appearance.derive.on": "On",
+  "appearance.derive.off": "Off",
+  "appearance.derive.stored": "Nothing from the site is stored except these values and the logo.",
+  "appearance.derive.corrections.one": "One colour was moved so it stays readable.",
+  "appearance.derive.corrections.other": "{count} colours were moved so they stay readable.",
+  "appearance.derive.correction": "{from} became {to} in {palette}.",
+  "appearance.derive.tintDropped":
+    "The page tint was left off where it would have made text harder to read.",
+  "appearance.derive.adjust": "Adjust",
+  "appearance.derive.cancel": "Cancel",
+  "appearance.derive.failed": "That did not work: {message}",
+  "appearance.derive.notSaved": "Not saved",
+  "appearance.derive.notSaved.hint":
+    "This look is in the draft only. Save it as a workspace theme to offer it to every form here.",
+  "appearance.themeSave": "Save as workspace theme",
+  "appearance.themeSave.label": "Theme name",
+  "appearance.themeSave.save": "Save theme",
+  "appearance.themeSave.saving": "Saving",
+  "appearance.themeSave.saved": "{name} is a workspace theme now.",
+  "appearance.themeSave.cancel": "Cancel",
+  "appearance.themeSave.failed": "That did not work: {message}",
+
   "themes.heading": "Appearance",
   "themes.lock": "Lock appearance",
   "themes.lock.on": "On",
@@ -3490,6 +3528,12 @@ export const messages = {
   "themes.delete.no": "Keep it",
   "themes.deleted": "Theme deleted.",
   "themes.gone": "That theme is no longer in this workspace.",
+  "themes.error.nameTaken": "This workspace already has a theme with that name. Pick another one.",
+  "themes.error.invalid": "That theme could not be read. Check the values and try again.",
+  "themes.derive.error.refused":
+    "That address could not be read for a theme. Check it is a public https page and try again.",
+  "themes.derive.error.nothingFound":
+    "That page was read, but it declares no colour a theme could start from.",
   "themes.failed": "That did not work: {message}",
 } as const;
 

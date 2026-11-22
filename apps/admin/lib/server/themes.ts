@@ -1,9 +1,16 @@
 import {
+  DEFAULT_CORNERS,
+  DEFAULT_DENSITY,
+  DEFAULT_PROGRESS,
   workspaceThemeKey,
+  type DerivedTheme,
+  type NewWorkspaceTheme,
+  type ThemeCorrection,
   type ThemeOption,
   type ThemePalettes,
 } from "../forms/appearance-edit.ts";
 import { parseDraftAppearance } from "../forms/preview-appearance.ts";
+import { messageForFormCode } from "../forms/errors.ts";
 import { adminApiFetch } from "./api.ts";
 import { readNoContent, readResult, type ApiResult } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
@@ -152,6 +159,82 @@ export async function setWorkspaceAppearanceLock(
   );
   if (!result.ok) return result;
   return { ok: true, data: { appearanceLocked: result.data.appearanceLocked === true } };
+}
+
+function correction(raw: unknown): ThemeCorrection | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const row = raw as Record<string, unknown>;
+  const fields = ["palette", "token", "from", "to"].map((name) => row[name]);
+  if (!fields.every((value) => typeof value === "string" && value !== "")) return undefined;
+  const [palette, token, from, to] = fields as [string, string, string, string];
+  return { palette, token, from, to };
+}
+
+/**
+ * Reads only the fields the derive schema names, so an envelope carrying anything else is a
+ * refusal rather than a theme. The corners, density and progress are not the website's: a
+ * derive answers colours, a face and a tint, and the drawer keeps the rest where it was.
+ */
+function parseDerived(raw: unknown): DerivedTheme | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const row = raw as Record<string, unknown>;
+  const appearance = parseDraftAppearance({
+    palettes: row["palettes"],
+    face: row["face"],
+    corners: DEFAULT_CORNERS,
+    density: DEFAULT_DENSITY,
+    progress: DEFAULT_PROGRESS,
+  });
+  if (appearance === null) return undefined;
+  const tintDropped = Array.isArray(row["tintDropped"]) ? row["tintDropped"] : [];
+  return {
+    palettes: appearance.palettes,
+    face: appearance.face,
+    pageTint: row["pageTint"] === true,
+    logoKey: strOrNull(row["logoKey"]),
+    corrections: Array.isArray(row["corrections"])
+      ? row["corrections"].flatMap((entry) => {
+          const parsed = correction(entry);
+          return parsed === undefined ? [] : [parsed];
+        })
+      : [],
+    tintDropped: tintDropped.filter((kind): kind is string => typeof kind === "string"),
+  };
+}
+
+/**
+ * Reads one website for a look, through the API's SEC-18 fetcher. The address is the one the
+ * user typed: no admin or agent code fetches it, and nothing is saved as a theme here.
+ */
+export async function deriveWorkspaceTheme(
+  session: AdminSession,
+  workspaceId: string,
+  url: string,
+): Promise<ApiResult<DerivedTheme>> {
+  const result = await readResult<{ derived?: unknown }>(
+    await adminApiFetch(session, `${themesPath(workspaceId)}/derive` as `/${string}`, {
+      method: "POST",
+      body: { url },
+    }),
+  );
+  if (!result.ok) return result;
+  const derived = parseDerived(result.data.derived);
+  if (derived === undefined) {
+    return { ok: false, code: "INVALID_THEME", message: messageForFormCode("INVALID_THEME"), issues: [] };
+  }
+  return { ok: true, data: derived };
+}
+
+export async function createWorkspaceTheme(
+  session: AdminSession,
+  workspaceId: string,
+  theme: NewWorkspaceTheme,
+): Promise<ApiResult<{ readonly themeId: string; readonly name: string }>> {
+  const result = await readResult<{ themeId?: unknown; name?: unknown }>(
+    await adminApiFetch(session, themesPath(workspaceId), { method: "POST", body: theme }),
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: { themeId: str(result.data.themeId), name: str(result.data.name) } };
 }
 
 export function themeOption(theme: WorkspaceTheme): ThemeOption {

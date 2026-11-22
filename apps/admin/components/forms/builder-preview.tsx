@@ -28,8 +28,13 @@ import {
   type PreviewProgressMode,
   type PreviewRailQuestion,
 } from "@/components/forms/preview-portal-chrome";
-import type { ThemeOption } from "@/lib/forms/appearance-edit";
-import type { SaveAppearanceState } from "@/lib/forms/builder-state";
+import type { NewWorkspaceTheme, ThemeOption } from "@/lib/forms/appearance-edit";
+import type {
+  CreateThemeState,
+  DeriveThemeState,
+  SaveAppearanceState,
+} from "@/lib/forms/builder-state";
+import { useHandOff } from "@/lib/agent/waiting";
 import { layoutFindings, layoutReportFact, selectionFact } from "@/lib/agent/builder-facts";
 import { publishLayout, publishSelection, useBuilderFacts } from "@/lib/agent/builder-facts-store";
 import { QUESTION_ATTRIBUTE, measureStep } from "@/lib/forms/layout-collector";
@@ -204,6 +209,9 @@ export interface BuilderPreviewSource {
   /** Set by the workspace: the drawer shows the reason and attempts no save. */
   readonly appearanceLocked: boolean;
   readonly saveAppearance: (appearance: unknown) => Promise<SaveAppearanceState>;
+  /** The API makes the one outbound fetch, under SEC-18; nothing in the browser reaches the site. */
+  readonly deriveTheme: (url: string) => Promise<DeriveThemeState>;
+  readonly createTheme: (theme: NewWorkspaceTheme) => Promise<CreateThemeState>;
 }
 
 /** The builder's preview: the draft as a respondent sees it, in a device frame the toolbar drives. */
@@ -217,6 +225,7 @@ export function BuilderPreview({
   readonly source: BuilderPreviewSource;
 }) {
   const { preview, defaultTheme, brand, themes, faces, appearanceLocked, saveAppearance } = source;
+  const { deriveTheme, createTheme } = source;
   const previewLocale = usePreviewLocale();
   const { answers, state, handleChange, clearAnswers } = useDraftPreview(draft, preview);
   /* The drawer's changes render here before they are saved, which is what makes the preview live. */
@@ -234,6 +243,20 @@ export function BuilderPreview({
   const frameRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const facts = useBuilderFacts();
+  /* A confirmed `theme.derive` card hands its address to this drawer and nowhere else: the
+     model never saw it, and the drawer opens so the person watches the fetch it asked for. */
+  const deriveHandOff = useHandOff("appearance.derive");
+  const [handedOffAddress, setHandedOffAddress] = useState<
+    { readonly url: string; readonly nonce: number } | undefined
+  >(undefined);
+
+  useEffect(() => {
+    if (deriveHandOff === undefined) return;
+    const url = deriveHandOff.fields["url"];
+    if (url !== undefined) setHandedOffAddress({ url, nonce: deriveHandOff.nonce });
+    setDrawerOpen(true);
+    deriveHandOff.done();
+  }, [deriveHandOff]);
 
   const size = frameSize(frame, stage.size);
   const percent = zoomPercent(frame, size, stage.size);
@@ -634,6 +657,19 @@ export function BuilderPreview({
             themes={themes}
             faces={faces}
             locked={appearanceLocked}
+            handedOffAddress={handedOffAddress}
+            onDerive={deriveTheme}
+            onCreateTheme={(name, look, sourceHost) =>
+              createTheme({
+                name,
+                palettes: look.palettes,
+                face: look.face,
+                corners: look.corners,
+                pageTint: look.pageTint,
+                logoKey: look.logo,
+                sourceHost,
+              })
+            }
             onPreview={setAppearance}
             onSave={saveAppearance}
             onClose={() => {
