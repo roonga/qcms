@@ -501,6 +501,10 @@ export interface CardFooterProps {
   readonly typed: string;
   readonly onTyped: (value: string) => void;
   readonly required: string | undefined;
+  /** The argument the person types here, which the card then shows in full above Confirm. */
+  readonly inputField: string | undefined;
+  readonly input: string;
+  readonly onInput: (value: string) => void;
   readonly idBase: string;
   /** Only the view the operator is looking at reports the outcome and pulls focus to it. */
   readonly reportsResult: boolean;
@@ -527,6 +531,27 @@ export function CardFooter(props: CardFooterProps): React.ReactElement {
 
   return (
     <footer className="qcms-acard__foot">
+      {props.inputField === undefined || !waiting ? null : (
+        <div className="qcms-field qcms-acard__typed">
+          <label className="qcms-field__label" htmlFor={`${idBase}-input`}>
+            {t("agent.card.typedInput.url")}
+          </label>
+          <input
+            aria-describedby={`${idBase}-input-hint`}
+            className="qcms-input"
+            data-testid="qcms-acard-typed-input"
+            id={`${idBase}-input`}
+            type="url"
+            inputMode="url"
+            value={props.input}
+            onChange={(event) => props.onInput(event.target.value)}
+          />
+          <p className="qcms-field__hint" id={`${idBase}-input-hint`}>
+            {t("agent.card.typedInput.url.hint")}
+          </p>
+        </div>
+      )}
+
       {props.required === undefined || !waiting ? null : (
         <div className="qcms-field qcms-acard__typed">
           <label className="qcms-field__label" htmlFor={`${idBase}-typed`}>

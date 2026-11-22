@@ -37,6 +37,9 @@ export interface AgentCardTemplate {
 
   readonly typedConfirmation?: string;
 
+  /** The argument the person types on the card itself, which no proposal may name (SEC-18 W2). */
+  readonly typedInput?: string;
+
   readonly createdLink?: AgentCreatedLink;
 }
 
@@ -333,12 +336,14 @@ function toCardTemplate(raw: unknown): AgentCardTemplate | undefined {
   if (typeof titleKey !== "string" || titleKey === "") return undefined;
   const headingControl = raw["headingControl"];
   const typedConfirmation = raw["typedConfirmation"];
+  const typedInput = raw["typedInput"];
   const createdLink = toCreatedLink(raw["createdLink"]);
   return {
     titleKey,
     consequenceKeys: textList(raw["consequenceKeys"]),
     ...(typeof headingControl === "string" ? { headingControl } : {}),
     ...(typeof typedConfirmation === "string" ? { typedConfirmation } : {}),
+    ...(typeof typedInput === "string" && typedInput !== "" ? { typedInput } : {}),
     ...(createdLink === undefined ? {} : { createdLink }),
     ...(raw["hideEnvironment"] === true ? { hideEnvironment: true } : {}),
   };

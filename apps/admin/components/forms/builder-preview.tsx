@@ -35,8 +35,18 @@ import type {
   SaveAppearanceState,
 } from "@/lib/forms/builder-state";
 import { useHandOff } from "@/lib/agent/waiting";
-import { layoutFindings, layoutReportFact, selectionFact } from "@/lib/agent/builder-facts";
-import { publishLayout, publishSelection, useBuilderFacts } from "@/lib/agent/builder-facts-store";
+import {
+  derivedThemeFact,
+  layoutFindings,
+  layoutReportFact,
+  selectionFact,
+} from "@/lib/agent/builder-facts";
+import {
+  publishDerivedTheme,
+  publishLayout,
+  publishSelection,
+  useBuilderFacts,
+} from "@/lib/agent/builder-facts-store";
 import { QUESTION_ATTRIBUTE, measureStep } from "@/lib/forms/layout-collector";
 import {
   INITIAL_LOOK,
@@ -225,7 +235,7 @@ export function BuilderPreview({
   readonly source: BuilderPreviewSource;
 }) {
   const { preview, defaultTheme, brand, themes, faces, appearanceLocked, saveAppearance } = source;
-  const { deriveTheme, createTheme } = source;
+  const { createTheme } = source;
   const previewLocale = usePreviewLocale();
   const { answers, state, handleChange, clearAnswers } = useDraftPreview(draft, preview);
   /* The drawer's changes render here before they are saved, which is what makes the preview live. */
@@ -245,6 +255,28 @@ export function BuilderPreview({
   const facts = useBuilderFacts();
   /* A confirmed `theme.derive` card hands its address to this drawer and nowhere else: the
      model never saw it, and the drawer opens so the person watches the fetch it asked for. */
+  /* The colours the derive answered are the next turn's own fact, so a turn that reads them
+     reads the browser's values and never the website. */
+  const deriveTheme = useCallback(
+    async (url: string) => {
+      const state = await source.deriveTheme(url);
+      if (state.status !== "derived") return state;
+      publishDerivedTheme(
+        derivedThemeFact({
+          formId,
+          palettes: state.derived.palettes,
+          face: state.derived.face,
+          pageTint: state.derived.pageTint,
+          logoKey: state.derived.logoKey,
+          corrections: state.derived.corrections,
+          tintDropped: state.derived.tintDropped,
+        }),
+      );
+      return state;
+    },
+    [formId, source],
+  );
+
   const deriveHandOff = useHandOff("appearance.derive");
   const [handedOffAddress, setHandedOffAddress] = useState<
     { readonly url: string; readonly nonce: number } | undefined

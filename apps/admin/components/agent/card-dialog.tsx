@@ -23,6 +23,9 @@ export interface AgentCardDialogProps {
   readonly minutes: number;
   readonly confirmable: boolean;
   readonly typed: string;
+  readonly inputField: string | undefined;
+  readonly input: string;
+  readonly onInput: (value: string) => void;
   readonly onTyped: (value: string) => void;
   readonly required: string | undefined;
   readonly idBase: string;
@@ -158,6 +161,9 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
             confirmable={props.confirmable}
             minutes={props.minutes}
             typed={props.typed}
+            inputField={props.inputField}
+            input={props.input}
+            onInput={props.onInput}
             onTyped={props.onTyped}
             required={props.required}
             idBase={props.idBase}

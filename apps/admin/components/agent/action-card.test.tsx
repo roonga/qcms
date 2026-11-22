@@ -74,6 +74,22 @@ const ERASE_SESSION = step({
   resultAllowlist: ["sessionId", "environment"],
 });
 
+/* A derive carries no address: the kind has no `url` argument, so the card is the only place
+   one can come from, and the person types it there (SEC-18 W2). */
+const DERIVE_THEME = step({
+  kind: "theme.derive",
+  screen: "/forms/[formId]/build",
+  args: { workspaceId: "wsp_acme" },
+  handOff: true,
+  card: {
+    titleKey: "agent.card.theme.derive.title",
+    consequenceKeys: ["agent.card.theme.derive.consequence"],
+    headingControl: "appearance.derive",
+    typedInput: "url",
+  },
+  resultAllowlist: ["workspaceId"],
+});
+
 function proposal(steps: readonly AgentPlanStep[]): AgentProposal {
   return {
     proposalId: "prp_card",
@@ -514,5 +530,57 @@ describe("the proposal marker", () => {
     const control = screen.getByRole("button", { name: "Release a version" });
     unmount();
     expect(control.dataset["proposed"]).toBeUndefined();
+  });
+});
+
+describe("an address the card collects", () => {
+  function address(): HTMLInputElement {
+    return screen.getByTestId<HTMLInputElement>("qcms-acard-typed-input");
+  }
+
+  function confirm(): HTMLElement {
+    return screen.getByRole("button", { name: "Confirm" });
+  }
+
+  it("asks the person for it, because no step carries one", () => {
+    const plan = proposal([DERIVE_THEME]);
+    renderCard(plan, initialCard(plan));
+    expect(address().value).toBe("");
+    expect(JSON.stringify(plan.steps[0]?.args)).not.toContain("http");
+  });
+
+  it("holds Confirm closed until it is a whole https address", () => {
+    const plan = proposal([DERIVE_THEME]);
+    renderCard(plan, initialCard(plan));
+    expect(confirm().hasAttribute("disabled")).toBe(true);
+    fireEvent.change(address(), { target: { value: "brand.example" } });
+    expect(confirm().hasAttribute("disabled")).toBe(true);
+    fireEvent.change(address(), { target: { value: "http://brand.example/" } });
+    expect(confirm().hasAttribute("disabled")).toBe(true);
+    fireEvent.change(address(), { target: { value: "https://brand.example/" } });
+    expect(confirm().hasAttribute("disabled")).toBe(false);
+  });
+
+  it("shows it in full, never shortened, before the Confirm", () => {
+    const plan = proposal([DERIVE_THEME]);
+    renderCard(plan, initialCard(plan));
+    const typed = "https://www.bright-start-early-learning.example/about/our-setting?ref=print";
+    fireEvent.change(address(), { target: { value: typed } });
+    expect(address().value).toBe(typed);
+  });
+
+  it("hands the typed address to the Confirm and nothing else", () => {
+    const onConfirm = vi.fn();
+    const plan = proposal([DERIVE_THEME]);
+    renderCard(plan, initialCard(plan), { onConfirm });
+    fireEvent.change(address(), { target: { value: "  https://brand.example/  " } });
+    fireEvent.click(confirm());
+    expect(onConfirm.mock.calls).toStrictEqual([["https://brand.example/"]]);
+  });
+
+  it("asks for no address on a plan that does not want one", () => {
+    const plan = proposal([step()]);
+    renderCard(plan, initialCard(plan));
+    expect(screen.queryByTestId("qcms-acard-typed-input")).toBeNull();
   });
 });

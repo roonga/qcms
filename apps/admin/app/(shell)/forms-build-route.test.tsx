@@ -162,6 +162,10 @@ vi.mock("./forms/actions", () => ({
   readStoredDraftAction: () => Promise.resolve({ status: "read", definition: null }),
   previewDraftAction: () => Promise.resolve({ status: "idle" }),
   saveAppearanceAction: () => Promise.resolve({ status: "saved" }),
+  deriveWorkspaceThemeAction: () =>
+    Promise.resolve({ status: "error", code: "THEME_DERIVE_REFUSED", message: "" }),
+  createWorkspaceThemeAction: () =>
+    Promise.resolve({ status: "error", code: "INVALID_THEME", message: "" }),
   reviewReleaseAction: () => Promise.resolve({ ok: false }),
   confirmPublishAction: () => Promise.resolve({ status: "idle" }),
   lookupPublishResultAction: () => Promise.resolve({ status: "idle" }),
