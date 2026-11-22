@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { card, openPanel, propose } from "./support/agent-card.js";
+import { card, cardChip, openPanel, propose } from "./support/agent-card.js";
 import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 
@@ -190,4 +190,54 @@ test("holds a long card inside the panel on the question library", async ({ page
     found.cardOverflow,
     "the question card should be longer than the panel, or this proves nothing",
   ).toBeGreaterThan(0);
+});
+
+test("pins the decision at the panel's foot for a card taller than the panel", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  // Short enough that a multi-step card cannot fit, which is the case the pinned bar exists for.
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await page.goto(`/questions?q=fake-new-${RUN}p`);
+  await openPanel(page);
+  await propose(page, "plan-questions-create", `add two #qcms-fake-new:${RUN}p`);
+
+  const overflow = await expectContained(page, "questions");
+  expect(
+    overflow.cardOverflow,
+    "the card should be longer than the panel, or this proves nothing",
+  ).toBeGreaterThan(0);
+
+  const pinned = page.getByTestId("qcms-assistant-pinned-decision");
+  await expect(pinned).toBeVisible();
+
+  // The card's own Confirm and Cancel are the controls: one of each in the accessibility tree,
+  // never two, and the pinned pair is out of the tab order as well as out of that tree.
+  await expect(page.getByRole("button", { name: /^Confirm/u })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toHaveCount(1);
+  expect(await pinned.getAttribute("aria-hidden")).toBe("true");
+  await expect(pinned.locator("button")).toHaveCount(2);
+  for (const index of [0, 1]) {
+    expect(await pinned.locator("button").nth(index).getAttribute("tabindex")).toBe("-1");
+  }
+
+  const placed = await page.evaluate(() => {
+    const bar = document.querySelector('[data-testid="qcms-assistant-pinned-decision"]');
+    const list = document.querySelector('[data-testid="qcms-assistant-turns"]');
+    const root = document.getElementById("qcms-assistant-panel");
+    return {
+      barTop: Math.round(bar?.getBoundingClientRect().top ?? 0),
+      barBottom: Math.round(bar?.getBoundingClientRect().bottom ?? 0),
+      listBottom: Math.round(list?.getBoundingClientRect().bottom ?? 0),
+      panelBottom: Math.round(root?.getBoundingClientRect().bottom ?? 0),
+    };
+  });
+  expect(placed.barTop, "the pinned bar sits below the conversation").toBeGreaterThanOrEqual(
+    placed.listBottom - 1,
+  );
+  expect(placed.barBottom, "and inside the panel").toBeLessThanOrEqual(placed.panelBottom + 1);
+
+  // It belongs to the waiting card alone, so cancelling that card takes it away.
+  await card(page).getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(cardChip(page)).toHaveText("Cancelled");
+  await expect(pinned).toBeHidden();
 });

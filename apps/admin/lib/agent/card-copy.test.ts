@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import type { AgentPlanStep } from "../forms/assist-stream.ts";
 
-import { planNames, planTitleSubject, stepArguments, stepTitle, subjectIds } from "./card-copy.ts";
+import {
+  environmentLabel,
+  planNames,
+  planTitleSubject,
+  stepArguments,
+  stepConsequences,
+  stepTitle,
+  subjectIds,
+} from "./card-copy.ts";
 
 function step(overrides: Partial<AgentPlanStep> = {}): AgentPlanStep {
   return {
@@ -252,5 +260,38 @@ describe("what a minted link is called", () => {
       const one = mint(1, environment);
       expect(stepTitle(one, {}, [one], plan([one]).names)).not.toContain(environment);
     }
+  });
+});
+
+describe("the words a card uses for a thing the person reads", () => {
+  it("keeps an identifier behind the disclosure rather than in the step's own body", () => {
+    const [line] = stepArguments(CREATE_FORM).filter((entry) => entry.name === "slug");
+    expect(line?.label).toBe("Identifier");
+    expect(line?.idOnly).toBe(true);
+    expect(line?.id).toBe("patient-onboarding");
+  });
+
+  it("names production as the glossary names it, and every other environment as the site does", () => {
+    expect(environmentLabel("prod")).toBe("Production");
+    expect(environmentLabel("test")).toBe("test");
+    expect(environmentLabel("staging")).toBe("staging");
+  });
+
+  it("writes that name into a title and into a consequence alike", () => {
+    const release = step({
+      kind: "form.release",
+      screen: "/operations/forms/[formId]/releases",
+      args: { formId: "frm_patient_onboarding", version: 3 },
+      environment: "prod",
+      card: {
+        titleKey: "agent.card.form.release.title",
+        consequenceKeys: ["agent.card.form.release.consequence"],
+      },
+    });
+    const { steps, names } = plan([release], BUILDER_KNOWS);
+    expect(stepTitle(release, {}, steps, names)).toBe(
+      "Publish version 3 of Patient onboarding to Production",
+    );
+    expect(stepConsequences(release).join(" ")).toContain("in Production");
   });
 });

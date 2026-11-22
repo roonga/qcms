@@ -678,6 +678,8 @@ Each turn records what happened as `cardAction`: `confirmed`, `declined`, `left 
 **The output goes under this lane's scratch directory** (`node scripts/agent-scratch.mjs <name>`, issues #396 and #602), one directory per run, replaced on each run:
 
 - `transcript.json` - the whole conversation: each turn's message and reply, the assistant's thinking blocks and its own step timeline, then `cards`, every plan card the turn showed, each with its `index` on the page, its state, and its steps, step arguments, notes and advisory issues. `cardIndex` names the card the directive acted on, and `card` repeats that one so a reader written against a single card still works.
+
+  **A turn's `reply` is read before its directive is applied**, because a plan marked `thenAnother` is answered by a turn nobody typed: the screen hands the assistant that turn the moment the last step has run, and a later read of the panel would record its words as this turn's reply. The run then waits for that follow-up rather than sending the next message into the middle of it, and records it on the same turn as `followUpReply` and `followUpSteps`. `scripts/agent-review/checks.mjs` reads both halves wherever it reads what the assistant said.
 - `turn-NN.png` - a full-page capture after each turn, plus `failure.png` if the run dies.
 - `secrets.json`, owner-only - one-time values, see below.
 
@@ -703,7 +705,7 @@ Only the Vitest half runs under `pnpm verify`, over committed fixture transcript
 
 The pieces, all under `scripts/agent-review/`:
 
-- `scenarios/*.json` - one conversation each, in the script format `pnpm agent:converse --script` already takes, with four fields it ignores and this does: a plain-words `goal`, a `seed` block saying what the run starts from, a `budget` in turns, and an `expect` block holding the end state and what the reply has to do. Seven of them, drawn from one real failed session: building a form, publishing it and getting a test link, asking why a step stopped, asking who did what, an ambiguous request, a request to make a form live for real respondents, and a change to a rule on a form already published.
+- `scenarios/*.json` - one conversation each, in the script format `pnpm agent:converse --script` already takes, with four fields it ignores and this does: a plain-words `goal`, a `seed` block saying what the run starts from, a `budget` in turns, and an `expect` block holding the end state and what the reply has to do. Eleven of them, the first drawn from one real failed session: building a form, publishing it and getting a test link, asking why a step stopped, asking who did what, an ambiguous request, a request to make a form live for real respondents, a change to a rule on a form already published, a date of birth with limits, consent that has to be given, none of the above, and a step the route refuses.
 - `rubric.md` - what a reviewer judges a transcript against: voice, the leading sentence, plans, honesty, safety, round trips, end state, and a section on card layout, status markers, spacing, focus and accessibility read from the screenshots. A line marked **auto** has a check behind it, so a reviewer confirms a finding rather than hunting for it.
 - `terms.mjs` - the words the assistant may never say and the branded id patterns, in one place. It restates the prompt's own `AVOID_WORDS` rather than importing it, because `apps/api` publishes `dist` and no tooling script may reach into it; `terms.test.ts` fails when the two drift apart.
 - `checks.mjs` - the deterministic half, and a command line.
@@ -733,6 +735,7 @@ The Code Owner approves every change that comes out of it to the assistant promp
 
 **Resetting between scenarios is a new database, not an endpoint.**
 There is no reset route and no truncate, so a scenario whose `seed.reset` is `fresh` starts from a new dev database and the admin account steps; one whose reset is `after:<id>` runs on what that scenario left behind, in order, in one lane.
+**That order is written down**, in `scripts/agent-review/README.md`, because the link and version counts are written for it: `publish-and-test-link`, then `why-did-you-stop`, `ambiguous-request`, `production-release`, `a-step-that-fails`, `did-you-create-a-link`, and `change-a-published-rule` last. A run out of that order fails on a count rather than on the assistant.
 Every scenario's data is invented, and none of it is a real person's.
 
 **A run says where it has got to while it is still going**, in `eval-status.json` beside the transcripts, so watching it does not mean reading a half-written transcript or waiting for the report:

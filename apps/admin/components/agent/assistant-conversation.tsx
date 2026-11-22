@@ -60,6 +60,8 @@ import {
   type BuilderEdits,
 } from "@/lib/forms/assist-stream";
 
+import { useOperatorZone } from "@/components/operator-time";
+
 import { ActionCard } from "./action-card";
 import { runStepAction } from "./step-actions";
 import { useSubjectTitles } from "./subject-titles";
@@ -75,12 +77,6 @@ const REASON_SOURCE_CHARS = 4 * REASON_CHARS;
 export function viewerDay(now: Date): string {
   const pad = (value: number): string => String(value).padStart(2, "0");
   return `${String(now.getFullYear())}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
-
-/** The zone that day and that instant are read in, where this browser reports one. */
-export function viewerZone(): string | undefined {
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return zone === "" ? undefined : zone;
 }
 
 /* The builder holds the open draft's title, so a card about that form can name it. */
@@ -246,6 +242,9 @@ function ScreenConversation({
     revealIn(list, item);
     revealedAt.current = list.scrollTop;
   }, []);
+  // One module reads the operator's zone (issue #279), and the turn context carries what it
+  // reports so a date the model works out is the one their screen writes.
+  const zone = useOperatorZone();
   // Layout, so it is measured rather than assumed: a card taller than the panel keeps its own
   // Confirm below the fold, and the panel pins one at its foot.
   const [boxes, setBoxes] = useState({ cardHeight: 0, viewHeight: 0 });
@@ -448,7 +447,6 @@ function ScreenConversation({
   ): Promise<Response> => {
     const draftUpdatedAt = savedDraft ?? builder?.draftUpdatedAt;
     const sentAt = new Date();
-    const zone = viewerZone();
     return fetch(builder?.endpoint ?? "/assist", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -461,7 +459,7 @@ function ScreenConversation({
         visitId: conversation.visitId,
         viewerToday: viewerDay(sentAt),
         viewerNow: sentAt.toISOString(),
-        ...(zone === undefined ? {} : { viewerZone: zone }),
+        ...(zone === null ? {} : { viewerZone: zone }),
         ...(draftUpdatedAt === undefined ? {} : { clientState: draftUpdatedAt }),
       }),
     });

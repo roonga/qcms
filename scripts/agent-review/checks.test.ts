@@ -23,6 +23,7 @@ import {
   firstSentence,
   formatReport,
   main,
+  replyText,
   reviewTranscript,
   stripSpeakerLabel,
 } from "./checks.mjs";
@@ -687,6 +688,32 @@ describe("the scenario files", () => {
       const reset = String((scenario(file)["seed"] as { reset?: string }).reset);
       if (reset !== "fresh") expect(ids).toContain(reset.replace("after:", ""));
     }
+  });
+});
+
+describe("a turn with a follow-up nobody typed", () => {
+  const turn = {
+    user: "put it out on test and give me a link",
+    reply: "The plan publishes the five questions, then the form itself to test.",
+    followUpReply: "The plan creates one test link for the form, reusable, expiring in a week.",
+    cards: [],
+  };
+
+  it("reads both halves of what the assistant said", () => {
+    expect(replyText(turn)).toContain("publishes the five questions");
+    expect(replyText(turn)).toContain("creates one test link");
+  });
+
+  it("reads the reply alone where no follow-up arrived", () => {
+    expect(replyText({ reply: "There is no version 9." })).toBe("There is no version 9.");
+    expect(replyText({})).toBe("");
+  });
+
+  it("catches a builder word the follow-up carried, which the reply alone would hide", () => {
+    const findings = checkVoice({
+      turns: [{ reply: "Done.", followUpReply: "The link is on frm_quote." }],
+    });
+    expect(checksFired(findings)).toContain("voice.identifier");
   });
 });
 

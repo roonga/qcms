@@ -42,6 +42,18 @@ describe("the panel a transcript reads", () => {
     ]);
   });
 
+  it("reads no reply from the streaming placeholder, and says a turn is still streaming", () => {
+    document.body.innerHTML =
+      '<ol data-testid="qcms-assistant-turns">' +
+      '<li data-role="assistant"><div class="qcms-assistant__segments">' +
+      '<p class="qcms-assistant__speaker">ASSISTANT</p><p>The form is on test.</p></div></li>' +
+      '<li data-role="assistant" data-testid="qcms-assistant-streaming">' +
+      '<div class="qcms-assistant__segments"><p>The assistant is working.</p></div></li></ol>';
+    const panel = readPanel() as { streaming: boolean; turns: { text: string }[] };
+    expect(panel.streaming).toBe(true);
+    expect(panel.turns.map((turn) => turn.text)).toEqual(["The form is on test."]);
+  });
+
   it("records an assistant reply without the panel's speaker heading", () => {
     document.body.innerHTML =
       '<ol data-testid="qcms-assistant-turns"><li data-role="assistant"><div class="qcms-assistant__segments"><p class="qcms-assistant__speaker">ASSISTANT</p><p>The form is on test.</p></div></li></ol>';

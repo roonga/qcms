@@ -39,6 +39,28 @@ describe("a question definition on a card", () => {
     expect(body?.textContent).not.toContain("en:");
   });
 
+  it("names the type and the required line the way the question screens do", () => {
+    render(<DefinitionDetail definition={DEFINITION} />);
+    const body = screen.getByTestId("qcms-acard-definition").querySelector("dl");
+    expect(body?.textContent).toContain(t("questions.type.singleChoice"));
+    expect(body?.textContent).not.toContain("singleChoice");
+    expect(body?.textContent).toContain("An answer is required");
+    expect(body?.textContent).not.toContain("true");
+  });
+
+  it("says an optional answer in words rather than as a flag", () => {
+    render(<DefinitionDetail definition={{ ...DEFINITION, required: false }} />);
+    const body = screen.getByTestId("qcms-acard-definition").querySelector("dl");
+    expect(body?.textContent).toContain("An answer is optional");
+    expect(body?.textContent).not.toContain("false");
+  });
+
+  it("shows a type the kernel does not name rather than dropping it", () => {
+    render(<DefinitionDetail definition={{ ...DEFINITION, type: "somethingNew" }} />);
+    const body = screen.getByTestId("qcms-acard-definition").querySelector("dl");
+    expect(body?.textContent).toContain("somethingNew");
+  });
+
   it("tells two locales apart by the language's name rather than its tag", () => {
     render(
       <DefinitionDetail

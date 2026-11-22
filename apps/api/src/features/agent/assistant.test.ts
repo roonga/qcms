@@ -762,6 +762,29 @@ describe("prompt framing", () => {
     expect(facts).not.toContain("2026-07-20");
   });
 
+  it("carries the viewer's instant and zone, so an expiry can be worked out", () => {
+    const { ctx } = contextFor("a date of birth that rules out under-fives");
+    const dated = toModelMessages({
+      ...builderTurnContext(ctx),
+      viewerToday: "2026-07-21",
+      viewerNow: "2026-07-21T04:30:00.000Z",
+      viewerZone: "Australia/Sydney",
+    });
+    const facts = dated.map((message) => contentOf(message)).find((text) => text.includes("Today"));
+
+    expect(facts).toContain("Today is 2026-07-21 where the person is.");
+    expect(facts).toContain("Their clock is now at 2026-07-21T04:30:00.000Z, in Australia/Sydney.");
+    expect(facts).toContain("Count any expiry you write from this instant.");
+  });
+
+  it("says nothing about an instant the turn did not carry", () => {
+    const { ctx } = contextFor("a date of birth that rules out under-fives");
+    const dated = toModelMessages({ ...builderTurnContext(ctx), viewerToday: "2026-07-21" });
+    const facts = dated.map((message) => contentOf(message)).find((text) => text.includes("Today"));
+
+    expect(facts).not.toContain("Their clock is now at");
+  });
+
   it("falls back to the installation's date, and says which of the two it is", () => {
     const { ctx } = contextFor("a date of birth that rules out under-fives");
     const dated = toModelMessages({ ...builderTurnContext(ctx), today: "2026-07-20" });

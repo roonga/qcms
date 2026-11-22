@@ -104,13 +104,14 @@ function defaultIds(defaults: AgentContext["defaults"]): readonly string[] {
  * their current instant beside it, because an expiry is counted from a time of day and a
  * date alone cannot give one.
  */
+function dayLine(ctx: AgentContext): string | undefined {
+  if (ctx.viewerToday !== undefined) return `Today is ${ctx.viewerToday} where the person is.`;
+  if (ctx.today !== undefined) return `Today is ${ctx.today} where this installation runs.`;
+  return undefined;
+}
+
 function dateLine(ctx: AgentContext): readonly string[] {
-  const day =
-    ctx.viewerToday !== undefined
-      ? `Today is ${ctx.viewerToday} where the person is.`
-      : ctx.today === undefined
-        ? undefined
-        : `Today is ${ctx.today} where this installation runs.`;
+  const day = dayLine(ctx);
   const zone = ctx.viewerZone === undefined ? "" : `, in ${ctx.viewerZone}`;
   const now =
     ctx.viewerNow === undefined

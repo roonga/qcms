@@ -134,7 +134,8 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
     renderCard(plan, initialCard(plan));
     const rows = screen.getAllByRole("listitem");
     expect(rows).toHaveLength(2);
-    expect(rows[0]?.textContent).toContain("1. Publish version 3 of this form to prod");
+    // The one environment name every installation shares is written as the glossary writes it.
+    expect(rows[0]?.textContent).toContain("1. Publish version 3 of this form to Production");
     expect(rows[1]?.textContent).toContain("2. Create 20 test links for this form");
   });
 

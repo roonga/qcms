@@ -170,12 +170,13 @@ export function stepArguments(
     const literal = literalId(raw) ?? (reference === undefined ? undefined : literalId(resolved));
     const branded = NAMED_ID_ARGUMENTS.has(name) && literal !== undefined;
     const identifier = IDENTIFIER_ARGUMENTS.has(name) && value !== "";
+    const behindDisclosure = branded ? literal : undefined;
     return {
       name,
       label: argumentLabel(name),
       value: named ?? value,
       mono: named === undefined && MONO_ARGUMENTS.has(name),
-      id: branded ? literal : identifier ? value : undefined,
+      id: identifier ? value : behindDisclosure,
       idOnly: (branded && named === undefined) || identifier,
       ...(reference === undefined ? { fromStep: undefined } : { fromStep: reference.fromStep }),
     };
