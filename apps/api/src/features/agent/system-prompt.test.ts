@@ -119,17 +119,18 @@ const VOICE_RULES: readonly { readonly rule: string; readonly phrases: readonly 
       "use what you said THEN",
       "cannot see your own reasoning after the fact",
       "a cause you cannot point at in this conversation is a guess",
-      "Do not run the same lookups again",
+      "calls NO read tool at all",
       "Answering is the whole turn",
     ],
   },
   {
     rule: "keep the card and its state out of the quoted reason entirely",
     phrases: [
-      "Name neither the card nor its state ANYWHERE in that sentence",
-      "at its start no\nless than at its end",
-      '"The card is up."',
-      "Write what the\nplan leaves behind instead",
+      "STILL TRUE AFTER\nTHE CARD HAS RUN",
+      "if it has stopped being true, it was about the card",
+      '"The plan is up for you to confirm."',
+      "Say the consequence as a standing fact instead",
+      "That sentence is the reason and NOTHING ELSE",
     ],
   },
   {
@@ -143,9 +144,10 @@ const VOICE_RULES: readonly { readonly rule: string; readonly phrases: readonly 
   {
     rule: "read a date off the person's own day, never off an instant a tool returned",
     phrases: [
-      "every instant a tool hands you",
-      "it carries a zone that is not theirs",
-      "Never work a day\n  out of one",
+      "An instant a tool hands you",
+      "carries a zone that need not be theirs",
+      "never read a day off one",
+      "the instant\n  their clock is at and the zone both are read in",
     ],
   },
   {
@@ -161,7 +163,7 @@ const VOICE_RULES: readonly { readonly rule: string; readonly phrases: readonly 
     phrases: [
       "A SETTING LEFT OPEN IS NOT AN AMBIGUITY",
       "each is a default to state, never a question to ask",
-      "open on what you\nfound",
+      "Open on what\nyou found",
     ],
   },
   {
