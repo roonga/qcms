@@ -30,6 +30,8 @@ The Code Owner decides ADR changes, scope changes, explicit human gates, destruc
 
 - Use **QCMS** in prose, titles, and UI. Use lowercase `qcms` only for repository, directory, and package identifiers.
 - The published npm scope is **`@roonga`**, and package names keep a `qcms-` prefix inside it: `@roonga/qcms-core`, `@roonga/qcms-db`, `@roonga/qcms-ui`, `@roonga/qcms-a2ui-compiler`, `@roonga/qcms-csv`, `@roonga/qcms-observability`. The scaffolding CLI is unscoped as `create-qcms-app`; the private apps are `qcms-api`, `qcms-portal`, `qcms-admin`. The scope applies to registry names only: the repository is `qcms`, the images are `ghcr.io/roonga/qcms-*`, and the `QCMS_` environment prefix and branded ID prefixes carry no scope. The `@qcms.test` and `@qcms.invalid` email domains in fixtures are product identifiers, not registry names.
+- User-facing text uses the terms in `apps/site/src/content/docs/concepts/glossary.mdx`: admin and portal strings, assistant prompts and recipes, the docs site, and error messages.
+- A new term, or a change to what an existing one means, updates the glossary in the same PR.
 - Do not use Unicode em dashes. Use punctuation or a spaced hyphen.
 - Refer to the human owner as **Code Owner** in committed content. Legal attribution in `LICENSE` and the README is exempt.
 - Use repo-relative paths in committed content. Do not commit personal names, machine-specific paths, real secrets, or AI attribution trailers.

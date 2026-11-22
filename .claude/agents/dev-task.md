@@ -14,6 +14,7 @@ Complete the bounded assignment from the conductor.
 - Write logs and scratch files under this lane's own directory, never the shared scratchpad root (issues #396, #602): `dir=$(node scripts/agent-scratch.mjs)`, or `log=$(node scripts/agent-scratch.mjs verify.log)` for one file. The scratchpad is shared across sessions despite what the harness says, so never read a gate result back from a path you did not create in the same command that wrote it: it can be another lane's run, or another day's.
 - Write no code comment unless a reader needs something the code cannot say (the Code comments rule in `PROJECT_INSTRUCTIONS.md`).
 - PR bodies, comments and issues follow the Written text rule in `PROJECT_INSTRUCTIONS.md`: short bullets, Summary and Test plan.
+- User-facing text you write or change (strings, prompts, recipes, docs, error messages) uses the terms in `apps/site/src/content/docs/concepts/glossary.mdx`, and a new term updates the glossary in the same PR.
 - Use a branch or PR for anything intended to land. The conductor owns review and merge.
 - Follow repository writing rules: no em dash, personal names, machine-specific paths, secrets, or AI attribution trailers in committed content.
 

@@ -1,0 +1,538 @@
+---
+title: Glossary
+description: The words QCMS uses on screen, for the people who build forms, administer workspaces and review responses.
+---
+
+Every term below is a word QCMS shows you: on a screen, in a confirmation, or in the assistant's
+reply. Each one is defined in the sense the product uses it, with a note where a second word means
+the same thing or where two similar words mean different things.
+
+This page is for the people who use QCMS. It names nothing you would only meet in the code.
+
+## Access group
+
+A named set of [roles](#role) that applies in named [environments](#environment), inside one
+[workspace](#workspace). You give somebody access by putting them in a group, never by giving them a
+role directly, and somebody in two groups holds everything both groups carry.
+
+A group only ever reaches its own workspace. See also [Grant](#grant), [Starter group](#starter-group).
+
+## Account
+
+One person's sign-in to this QCMS site. An account holds nothing until somebody puts it in an
+[access group](#access-group) or appoints it an administrator.
+
+Accounts are created by a [Site administrator](#site-administrator) and are never deleted; an account
+that should stop working is disabled instead, so the [audit](#audit) keeps its name.
+
+## Answer
+
+What a [respondent](#respondent) puts into one [question](#question). Answers are kept as a record of
+every value in turn rather than one value overwritten, which is why a reviewed
+[response](#response) can show both what was finally submitted and what was changed along the way.
+
+The response screen calls the final set **Locked answers** and the history the **Answer ledger**.
+
+## Appearance
+
+How one form looks to respondents: its colours, its typeface, its corners and its logo. Appearance
+belongs to the form's [draft](#draft), so changing it is an edit like any other, and
+[publishing](#publish) freezes it into the [version](#version).
+
+Not to be confused with the **Appearance** menu in your own top bar, which sets light, dark and high
+contrast for you alone and changes nothing anybody else sees. See also [Theme](#theme).
+
+## Approval request
+
+A change that is held, and has not happened, until a second person approves it. Requests expire after
+seven days and are listed under **Requests** on the workspace's [Audit](#audit) screen.
+
+A held [publish](#publish) is the exception: it is approved on the form itself. See
+[Second approval](#second-approval).
+
+## Approver
+
+The second person who approves an act held under [second approval](#second-approval). Never the
+person who asked: approver and requester are always different people.
+
+## Archive
+
+Closing a [workspace](#workspace) for good. A workspace can only be archived once it owns no forms,
+it cannot be the [shared question library](#shared-question-library), and there is no way to
+un-archive it.
+
+## Assistant
+
+The helper that works beside you on an admin screen. It reads what you can read, proposes what you
+could do yourself, and changes nothing until you confirm a [card](#card).
+
+The assistant never publishes and never sees respondent answers, and a change it made to a
+[draft](#draft) is yours to undo.
+
+## Audit
+
+The record of what was done. Each [workspace](#workspace) has an **Access audit** of response reads,
+exports and erasures, access changes, settings changes and assistant actions; the site has its own
+audit of account and administrator acts.
+
+An audit row records the act, never its subject matter: no answer value, no respondent and no
+question text.
+
+## Availability
+
+Whether a form is taking new responses in one [environment](#environment): **Open** or **Closed**. A
+closed form tells anyone who opens its link that it is not accepting responses; people already part
+way through finish normally.
+
+A form that has never been [published](#publish) to that environment shows **Not live** instead.
+
+## Card
+
+What the [assistant](#assistant) hands you instead of acting: a list of every step and every value,
+with **Confirm** and **Cancel**. Nothing on a card has happened until you confirm it, the act then
+runs as you, and a card you leave alone expires.
+
+A card's state is shown in words: Proposed, Running, Done, Pending approval, Cancelled, Expired.
+
+## Condition
+
+The **When** half of a [rule](#rule): a test over earlier answers, such as a question being answered
+yes or a choice being one of a named few. Conditions can be combined and nested, and the rule editor
+writes the whole thing back to you as a sentence.
+
+A condition can only read questions a respondent has already reached.
+
+## Constraint
+
+A limit on what counts as an acceptable [answer](#answer): a shortest and longest length, a smallest
+and largest number, whole numbers only, an earliest and latest date, a checked format such as an
+email address or a postcode, or how many options may be selected.
+
+A constraint that is not met shows the question's [validation message](#validation-message). See
+also [Required](#required).
+
+## Deprecated
+
+A [question](#question) version marked as one nobody should put on new forms. Forms already using it
+keep working, because a published version never changes.
+
+## Draft
+
+The working copy of a form or a question, the only part you can edit, and the thing nobody filling in
+a form ever sees. A form has one draft that everybody with [Edit forms](#edit-forms) shares, which is
+why the publish screen calls it **the shared draft**.
+
+[Publishing](#publish) turns a draft into a [version](#version). See also [Freeze](#freeze).
+
+## Edit forms
+
+The [role](#role) that lets somebody build: draft and edit forms and questions, pin shared questions
+and preview them. It is the same in every [environment](#environment), and it cannot publish on its
+own.
+
+## Environment
+
+A separate place for real respondent data, with its own responses, its own links and its own open or
+closed state, over the same forms and questions. Most sites run a test environment and a production
+one; the names are chosen per site.
+
+A [version](#version) is **live** in an environment once it has been published there, and the same
+version can be live in two environments at once. The environment chooser shows whatever name your
+site gave each one.
+
+## Erase
+
+Permanently removing one respondent's data. What is erased cannot be recovered, a record that the
+session existed and was erased stays behind, and anything already sent to a
+[webhook](#webhook) is unaffected.
+
+You confirm an erasure by typing the session's own identifier. See also
+[Erase responses](#erase-responses).
+
+## Erase responses
+
+The [role](#role) that lets somebody erase responses and clear their flags in the group's
+[environments](#environment), without being able to read any of them.
+
+## Expiry
+
+The day a [secure link](#secure-link) stops working. A link can also stop early by being
+[revoked](#revoke), or by being used once if it is a [one-time link](#one-time-link).
+
+## Export
+
+A download of responses, as CSV or JSON, for a chosen [version](#version) and date range. The CSV
+comes in a long shape, one row per answer, or a wide shape, one row per response.
+
+Exporting is recorded in the [audit](#audit).
+
+## Flagged
+
+A marking on a [response](#response) that came in looking automated, for instance submitted faster
+than the form's minimum time. A flagged response is held back from
+[webhook](#webhook) delivery until somebody looks at it and sends the withheld message on.
+
+## Form
+
+One questionnaire: ordered [steps](#step) of [questions](#question), plus the [rules](#rule) that
+decide what each respondent sees. A form belongs to exactly one [workspace](#workspace).
+
+A form has one editable [draft](#draft) and any number of frozen [versions](#version).
+
+## Freeze
+
+What [publishing](#publish) does to a [draft](#draft): fixes it as the next numbered
+[version](#version), which never changes afterwards. The version screens record who froze a version
+and, where there was one, who approved it.
+
+## Grant
+
+Putting somebody into an [access group](#access-group), which is how they get access. A
+[Workspace administrator](#workspace-administrator) grants by exact email address only; there is no
+browsing of the people on the site.
+
+The opposite is [Revoke](#revoke).
+
+## Help text
+
+The line under a [question's](#question) [label](#label) that tells a respondent how to answer it.
+Optional, and it travels with the question wherever it is used.
+
+## Identifier
+
+The short, fixed name a [question](#question), [form](#form), [option](#option) or
+[workspace](#workspace) is known by for life. It is set when the thing is created and never changes,
+even when the name people read does, which is what lets an [export](#export) or a
+[rule](#rule) keep pointing at the same thing.
+
+Workspace settings shows it as **Stored identifier**, and says it cannot change.
+
+## Instance
+
+One repeat inside a [repeating group](#repeating-group): one vehicle, one child, one previous
+address. Each instance gets its own heading and its own set of answers.
+
+## Label
+
+The wording of a [question](#question) as a respondent reads it, and the wording of each
+[option](#option). It is the question's own text, so changing it means a new question
+[version](#version).
+
+## Live
+
+Published and in use. A [version](#version) is live in an [environment](#environment) once it has
+been published there, and the form screens say **Live now**, **Live in** or **Not live** accordingly.
+
+Live is not the same as [Open](#availability): a live form that has been closed is still live, and
+simply takes no new responses.
+
+## Member
+
+Somebody who is part of a [workspace](#workspace). The **Members** screen lists them with the
+[access groups](#access-group) each one holds and whether they are a
+[Workspace administrator](#workspace-administrator).
+
+Inside one group the same people are listed as **People in this group**.
+
+## Move form
+
+Moving a form, and its responses, to another [workspace](#workspace). The destination's
+[access groups](#access-group) take over at once, so the confirmation names who gains and who loses
+access first.
+
+The form keeps the [appearance](#appearance) it already had. Questions never move between workspaces;
+the [shared question library](#shared-question-library) is how a question is used in more than one.
+
+## Not needed
+
+What a respondent sees against a [step](#step) that a [rule](#rule) has decided they do not have to
+answer. It means skipped on purpose, not missed.
+
+## One-time link
+
+A [secure link](#secure-link) that stops working after it has been opened once. A link that is not
+one-time can be opened again until it expires or is [revoked](#revoke).
+
+## Option
+
+One of the choices offered by a **Choose one** or **Choose several**
+[question](#question). Options are ordered, and each one keeps its
+[identifier](#identifier) when it is renamed, so a [rule](#rule) that reads it keeps working.
+
+## Pin
+
+Putting a [question](#question) on a [step](#step) at one exact [version](#version). Pinning is what
+makes a form's wording stable: a new version of the question does not change the form until somebody
+moves the pin.
+
+## Preview
+
+Looking at a [draft](#draft) the way a respondent would, without anything being published and without
+any answer being kept. The form builder can also share a preview with somebody who is not editing it.
+
+## Production
+
+The [environment](#environment) that holds real respondent data. It is the one
+[second approval](#second-approval) protects, and where a site has a test environment, a
+[version](#version) has to be live there before it can go to production.
+
+## Public form link
+
+The plain web address of a form that anyone may fill in. It works while the form is published and
+[open](#availability) in that [environment](#environment), and anyone opening it starts their own
+response.
+
+Not to be confused with a [secure link](#secure-link), which is issued to one person.
+
+## Publish
+
+Making a [version](#version) live in one [environment](#environment). Publishing a [draft](#draft)
+freezes it as the next version and makes that version live, in one act; publishing an existing
+version to another environment moves the same version across and freezes nothing.
+
+Where a site has a test environment, production only accepts a version that has already been
+published to a non-production one. Going back is the same act: publishing an earlier version makes
+it live again, freezing nothing and losing nothing.
+
+## Publish forms
+
+The [role](#role) that lets somebody put versions live in the group's
+[environments](#environment), open and close forms there, and change [secure links](#secure-link) and
+[webhooks](#webhook) there.
+
+Publishing a draft needs this and [Edit forms](#edit-forms) together.
+
+## Question
+
+One thing you ask: a [label](#label), a [type](#question-type), optional
+[help text](#help-text), whether an answer is [required](#required), and any
+[constraints](#constraint). A question lives in the [question library](#question-library) and is used
+on a form by being [pinned](#pin) to a [step](#step).
+
+A question is versioned in its own right, so the wording a form shows is the wording it was pinned to.
+
+## Question library
+
+The workspace's collection of questions, which is where every question on every form comes from.
+Questions are written and published there once and used on as many forms as you like.
+
+See also [Shared question library](#shared-question-library).
+
+## Question type
+
+What kind of answer a [question](#question) takes. There are seven, and the type is fixed when the
+question is created:
+
+- **Short answer**, a line of writing
+- **Longer answer**, a paragraph or more
+- **Number**
+- **Date**
+- **Yes or no**, whose two labels you can reword
+- **Choose one**, a single [option](#option) from a list
+- **Choose several**, any number of options from a list
+
+Each type offers its own [constraints](#constraint).
+
+## Reference
+
+The code a respondent is shown on the thank-you page after they submit, so they have something to
+quote if they get in touch.
+
+## Repeating group
+
+A part of a form that a respondent fills in more than once: one set of [questions](#question) asked
+per vehicle, per child, per previous address. Each repeat is an [instance](#instance).
+
+How many instances there are is either fixed, taken from an earlier answer, or up to the respondent
+between a minimum and a maximum. How they are laid out is your choice of all on one page, one page
+per instance, or a table. A repeating group cannot contain another repeating group.
+
+## Required
+
+A [question](#question) a respondent has to answer before they can continue. A question is only
+required when it is actually shown: a question a [rule](#rule) has hidden is never required.
+
+The editor's wording is **An answer is required**.
+
+## Respondent
+
+Somebody filling in a form. Respondents are not accounts, they do not sign in, and QCMS keeps no name
+for them beyond whatever a form itself asks.
+
+## Response
+
+Everything one respondent gave to one form: their [answers](#answer), when they submitted, and which
+[version](#version) they answered. The Responses screen lists them per
+[environment](#environment).
+
+The record is also called a **session**, which is the word used before it is submitted. See
+[Session](#session), [Submit](#submit).
+
+## Revoke
+
+Taking something back. Revoking a [secure link](#secure-link) stops it working immediately, with no
+effect on anybody already part way through. Revoking somebody from an
+[access group](#access-group) takes effect on their very next action.
+
+The opposite of revoking access is [Grant](#grant).
+
+## Role
+
+One named thing an [account](#account) is allowed to do, carried by an
+[access group](#access-group) rather than given out on its own. There are five:
+[View forms](#view-forms), [Edit forms](#edit-forms), [Publish forms](#publish-forms),
+[View responses](#view-responses) and [Erase responses](#erase-responses).
+
+View forms and Edit forms apply everywhere; the other three apply only in the group's
+[environments](#environment). Administering a workspace is not a role: see
+[Workspace administrator](#workspace-administrator).
+
+## Rule
+
+A sentence of the form _when this, show that_: a [condition](#condition) over earlier answers, and
+the [questions](#question) or [steps](#step) it reveals. Everything a rule can show is hidden until
+its condition is met.
+
+A rule can only show something that comes after every question its condition reads, which is what
+makes a form's path predictable.
+
+## Second approval
+
+A [workspace](#workspace) setting, off by default, that requires a second person for the acts that
+matter most in production: publishing a version, and changing a
+[webhook](#webhook) endpoint. It also means nobody can give themselves access to responses.
+
+The second person is the [Approver](#approver), and is never the person who asked. Turning the
+setting off needs an approver too. See [Approval request](#approval-request).
+
+## Secure link
+
+A link issued to one person so they, and only they, can open one form in one
+[environment](#environment). It can be [one-time](#one-time-link), it has an
+[expiry](#expiry), and it can be [revoked](#revoke).
+
+You make them with **Create** on the Links screen. The web addresses are shown once, then, and cannot
+be shown again, so copy or download them before you leave. A secure link for a test
+[environment](#environment) is often called a test link, which is the same thing said shorter.
+
+## Session
+
+One respondent's run through a form, from the moment they open the link until they submit. A session
+stays on the [version](#version) it started on, so a publish midway never changes the form under
+somebody filling it in, and answers are saved as they go so it can be resumed.
+
+Once submitted, the same record is read as a [response](#response).
+
+## Shared question library
+
+One [workspace](#workspace), chosen for the whole site, whose questions everybody with
+[Edit forms](#edit-forms) can see and [pin](#pin) on their own forms. Only editors in that workspace
+can change them.
+
+It is how one question is used across workspaces, since questions never move between workspaces.
+
+## Site administrator
+
+Somebody who administers the whole site: [accounts](#account), [workspaces](#workspace), other Site
+administrators and site settings. The role reads no form and no [response](#response) by itself; a
+Site administrator who needs that joins an [access group](#access-group) like anybody else.
+
+Appointing, removing or disabling a Site administrator needs the administrator's own password and
+second factor again, and usually a second Site administrator's approval.
+
+## Starter group
+
+One of the four [access groups](#access-group) every new [workspace](#workspace) is created with:
+**Authors** (build and read responses outside production), **Publishers** (publish to production),
+**Response viewers** and **Response erasers**.
+
+They are ordinary groups. Rename them, change them or delete them as the workspace needs.
+
+## Step
+
+One page of a form: a title and the [questions](#question) on it. A respondent moves through steps
+with Continue and Back, and the step list down the side shows which are done and which are
+[not needed](#not-needed).
+
+## Submit
+
+What a respondent does at the end of a form, and the point at which their answers stop being editable
+and become a [response](#response). Submitting is what sends the [webhook](#webhook) and what puts
+the response on the Responses screen.
+
+## Suspended
+
+What happens to somebody's access to responses after their password or second factor is reset: it
+stops granting anything until a [Workspace administrator](#workspace-administrator) re-confirms it,
+per workspace. Their other access is unaffected.
+
+Nobody re-confirms their own, and nor, normally, does whoever performed the reset.
+
+## Theme
+
+A saved set of looks a [workspace](#workspace) keeps and applies to forms. Applying one copies its
+colours, typeface, corners and logo into the form's [draft](#draft); afterwards the form holds them
+itself, so changing the theme later changes no existing form.
+
+A workspace administrator can set an **appearance lock**, which stops a form's
+[appearance](#appearance) being changed at all. The named sets you try a form against while
+[previewing](#preview) it are palettes, not themes, and nothing you pick there is saved to the form.
+
+## Unclaimed account
+
+An [account](#account) whose emailed sign-in link has not been used yet. It holds nothing, cannot
+act, cannot approve anything and does not count as a second administrator until the person has signed
+in, set a password and enrolled a second factor.
+
+## Validation message
+
+What a respondent is told when their [answer](#answer) does not pass a
+[constraint](#constraint) or a [required](#required) question is empty. Each message has a sensible
+default and can be reworded per question.
+
+## Version
+
+A numbered, frozen form or question. A version is fixed the moment it is created and never changes,
+which is what lets you say exactly what somebody was asked months later.
+
+Form versions are made by [publishing](#publish) a [draft](#draft) and are made
+[live](#live) per [environment](#environment); question versions are [pinned](#pin) onto forms.
+
+## View forms
+
+The [role](#role) that lets somebody read the workspace's questions, forms, publish history, links
+and webhook settings, and change nothing. It reads no [responses](#response), and it sees a
+[webhook](#webhook) address only in part.
+
+## View responses
+
+The [role](#role) that lets somebody read and [export](#export) responses in the group's
+[environments](#environment). Every read and every export is written to the [audit](#audit).
+
+## Webhook
+
+An address QCMS sends each [submission](#submit) to, so another system hears about it without anybody
+exporting anything. Each endpoint has a signing secret, shown once when it is created, that the
+receiving system uses to check the message really came from QCMS.
+
+Deliveries that keep failing end up in the **Dead-letter queue**, where they can be sent again. In
+production, changing an endpoint takes a second person under
+[second approval](#second-approval).
+
+## Workspace
+
+The container everything belongs to, and the only place access is decided: its forms, its questions,
+its [members](#member) and its [access groups](#access-group). A site can run as many as it needs,
+and nothing in one workspace reaches another.
+
+Created by a [Site administrator](#site-administrator), who names its first administrator. See
+[Archive](#archive), [Move form](#move-form).
+
+## Workspace administrator
+
+Somebody who administers one [workspace](#workspace): its people, its
+[access groups](#access-group), its settings, its [audit](#audit) and its
+[archive](#archive). The job reads no form and no [response](#response) by itself; an administrator
+who needs that is in an [access group](#access-group) too.
+
+A workspace can never be left without one.
