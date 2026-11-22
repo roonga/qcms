@@ -445,7 +445,7 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   await expect(linksStatus).toBeAttached();
 
   await expect(linksStatus).toHaveAttribute("aria-live", "polite");
-  await expect(linksStatus).toContainText("2 secure links minted");
+  await expect(linksStatus).toContainText(t("forms.links.mintedAnnounce.other", { count: 2 }));
   // Keep token URLs out of live announcements; only the outcome sentence should be spoken.
   await expect(linksStatus).not.toContainText("/l/");
   await expect(linksStatus.getByTestId("qcms-minted-links")).toHaveCount(0);

@@ -239,7 +239,9 @@ test("reopens a filtered library from its URL alone, controls and all", async ({
   await expect(field(page, "Search")).toHaveValue(SCOPE);
 
   await expect(toolbar.getByRole("button", { name: /Availability$/ })).toContainText("Not live");
-  await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toContainText("Slug (Z to A)");
+  await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toContainText(
+    t("forms.filter.sort.slug-desc"),
+  );
 });
 
 test("says something useful when the filters match nothing, and offers the way back", async ({
