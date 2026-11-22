@@ -21,18 +21,26 @@ function dialogSentence(act: "confirm" | "withdraw", proposal: EndpointProposal)
   const environment = proposal.environment;
   if (act === "withdraw") {
     return proposal.confirmedAt === null
-      ? t("ops.proposals.withdrawBody", { environment })
-      : t("ops.proposals.withdrawBodyConfirmed", { environment });
+      ? t("ops.proposals.withdrawBody", { environment: environmentLabel(environment) })
+      : t("ops.proposals.withdrawBodyConfirmed", { environment: environmentLabel(environment) });
   }
   if (proposal.kind === "deactivate") {
-    return t("ops.proposals.confirmBody.deactivate", { environment });
+    return t("ops.proposals.confirmBody.deactivate", {
+      environment: environmentLabel(environment),
+    });
   }
   if (proposal.url === null) {
-    return t("ops.proposals.confirmBody.update", { environment });
+    return t("ops.proposals.confirmBody.update", { environment: environmentLabel(environment) });
   }
   return proposal.kind === "create"
-    ? t("ops.proposals.confirmBody.create", { environment, url: proposal.url })
-    : t("ops.proposals.confirmBody.retarget", { environment, url: proposal.url });
+    ? t("ops.proposals.confirmBody.create", {
+        environment: environmentLabel(environment),
+        url: proposal.url,
+      })
+    : t("ops.proposals.confirmBody.retarget", {
+        environment: environmentLabel(environment),
+        url: proposal.url,
+      });
 }
 
 export function EndpointProposals({

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { PublishWizard } from "./publish-wizard.tsx";
 import type { ReleaseReview } from "../../lib/forms/release-candidate.ts";
+import { environmentLabel } from "../../lib/environment.ts";
 import { t } from "../../lib/i18n/en.ts";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -285,7 +286,7 @@ describe("a refusal says which rule refused it", () => {
       targets: [{ ...PROD_TARGET, blockers: DRAFT_BLOCKED }],
     });
     expect(blocker.textContent).toBe(
-      t("forms.publish.blocked.draftNotAllowedProd", { environment: "prod" }),
+      t("forms.publish.blocked.draftNotAllowedProd", { environment: environmentLabel("prod") }),
     );
   });
 
@@ -299,7 +300,7 @@ describe("a refusal says which rule refused it", () => {
       targets: [{ ...PROD_TARGET, blockers: DRAFT_BLOCKED }],
     });
     expect(blocker.textContent).toBe(
-      t("forms.publish.blocked.draftNotAllowedOnly", { environment: "prod" }),
+      t("forms.publish.blocked.draftNotAllowedOnly", { environment: environmentLabel("prod") }),
     );
   });
 
@@ -314,7 +315,7 @@ describe("a refusal says which rule refused it", () => {
       ],
     });
     expect(blocker.textContent).toBe(
-      t("forms.publish.blocked.draftNotAllowed", { environment: "staging" }),
+      t("forms.publish.blocked.draftNotAllowed", { environment: environmentLabel("staging") }),
     );
   });
 
@@ -335,7 +336,7 @@ describe("a refusal says which rule refused it", () => {
       targets: [{ ...PROD_TARGET, blockers: AUTHOR_BLOCKED }],
     });
     expect(blocker.textContent).toBe(
-      t("forms.publish.blocked.approverIsAuthor", { environment: "prod" }),
+      t("forms.publish.blocked.approverIsAuthor", { environment: environmentLabel("prod") }),
     );
   });
 });

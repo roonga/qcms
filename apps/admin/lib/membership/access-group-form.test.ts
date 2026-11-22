@@ -117,7 +117,7 @@ describe("a group in words", () => {
         roles: ["forms.publisher", "responses.eraser"],
         environments: ["test", "prod"],
       }),
-    ).toBe("Publish forms, Erase responses, in test, prod");
+    ).toBe("Publish forms, Erase responses, in test, Production");
   });
 
   it("names every environment when the group's roles ignore the set", () => {
@@ -132,7 +132,7 @@ describe("a group in words", () => {
       { name: "Publishers", roles: ["forms.publisher"], environments: ["prod"] },
     ]);
     expect(titles.get("Authors")).toBe("Edit forms, in every environment");
-    expect(titles.get("Publishers")).toBe("Publish forms, in prod");
+    expect(titles.get("Publishers")).toBe("Publish forms, in Production");
     expect(titles.get("Gone")).toBeUndefined();
   });
 });

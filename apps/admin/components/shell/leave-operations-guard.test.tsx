@@ -57,7 +57,7 @@ describe("the leave-Operations warning", () => {
 
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.textContent).toContain("This link opens Forms, outside Operations.");
-    expect(dialog.textContent).toContain("The prod environment you selected in Operations");
+    expect(dialog.textContent).toContain("The Production environment you selected in Operations");
     expect(seen.count()).toBe(before);
     expect(push).not.toHaveBeenCalled();
   });

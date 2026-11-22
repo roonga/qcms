@@ -51,7 +51,9 @@ describe("the Move form screen's preview (criterion 101)", () => {
     );
 
     expect(screen.getByTestId("qcms-move-gains").textContent).toContain("Priya Shah");
-    expect(screen.getByTestId("qcms-move-gains").textContent).toContain("Read responses in prod");
+    expect(screen.getByTestId("qcms-move-gains").textContent).toContain(
+      "Read responses in Production",
+    );
     expect(screen.getByTestId("qcms-move-losses").textContent).toContain("Grace Mensah");
     expect(screen.getByTestId("qcms-move-form").textContent).toContain(
       "This form moves from Clinical to Finance",

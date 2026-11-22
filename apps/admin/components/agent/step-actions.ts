@@ -44,6 +44,7 @@ import type { AgentStepIssue, AgentStepResult } from "@/lib/agent/plan-state";
 import type { AgentPlanStep } from "@/lib/forms/assist-stream";
 import type { DraftForm } from "@/lib/forms/types";
 import type { RunStepRequest } from "@/lib/agent/runner";
+import { environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 
 function text(value: unknown, fallback = ""): string {
@@ -173,7 +174,7 @@ function endpointOutcome(
   if (state.status === "pending") {
     return {
       outcome: "pending-approval",
-      message: t("ops.proposals.stored", { environment: step.environment }),
+      message: t("ops.proposals.stored", { environment: environmentLabel(step.environment) }),
       result,
       ...(revealed === undefined ? {} : { revealed }),
     };

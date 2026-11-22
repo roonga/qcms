@@ -76,7 +76,10 @@ describe("the known-target erasure", () => {
     await findSession(user, "ses_nope");
     expect(
       await screen.findByText(
-        t("ops.erase.known.missing", { sessionId: "ses_nope", environment: "prod" }),
+        t("ops.erase.known.missing", {
+          sessionId: "ses_nope",
+          environment: environmentLabel("prod"),
+        }),
       ),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: t("ops.erase.button") })).toBeNull();

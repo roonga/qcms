@@ -145,7 +145,7 @@ describe("the preview before confirming", () => {
     expect(describeChange({ role: "forms.editor", environments: [] }, "en-GB")).toBe("Edit forms");
     expect(
       describeChange({ role: "responses.viewer", environments: ["test", "prod"] }, "en-GB"),
-    ).toBe("View responses in test and prod");
+    ).toBe("View responses in test and Production");
     expect(
       describeKept({ role: "forms.viewer", environments: [], groups: ["Reviewers"] }, "en-GB"),
     ).toBe("View forms through Reviewers");

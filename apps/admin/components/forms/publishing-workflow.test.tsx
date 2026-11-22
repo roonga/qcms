@@ -95,7 +95,7 @@ describe("environment-bound publishing", () => {
     await user.click(screen.getByRole("button", { name: t("forms.releases.action") }));
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).queryByRole("button", { name: /Environment$/u })).toBeNull();
-    expect(within(dialog).queryByRole("button", { name: "Publish v2 to prod" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Publish v2 to Production" })).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Publish v2 to test" })).toBeTruthy();
   });
 
@@ -122,13 +122,13 @@ describe("environment-bound publishing", () => {
       "/forms/frm_intake/versions/2",
     );
     expect(within(dialog).getByTestId("qcms-release-replacement").textContent).toContain(
-      "v2 will replace v1 in prod.",
+      "v2 will replace v1 in Production.",
     );
     await user.click(within(dialog).getByRole("button", { name: /Version to publish$/u }));
     expect(screen.queryByRole("option", { name: "v3" })).toBeNull();
     await user.click(screen.getByRole("option", { name: "v2" }));
-    await user.click(within(dialog).getByRole("button", { name: "Publish v2 to prod" }));
-    await screen.findByText("v2 is now live in prod.");
+    await user.click(within(dialog).getByRole("button", { name: "Publish v2 to Production" }));
+    await screen.findByText("v2 is now live in Production.");
     expect(release).toHaveBeenCalledWith({ version: 2 });
   });
 });
@@ -161,7 +161,7 @@ describe("release confirmations across environment changes", () => {
     expect(release).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: t("forms.releases.action") }));
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByRole("button", { name: "Publish v2 to prod" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Publish v2 to Production" })).toBeTruthy();
   });
 
   it("does not offer to publish an unchanged seed as another version", () => {

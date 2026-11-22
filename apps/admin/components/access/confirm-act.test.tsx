@@ -57,7 +57,7 @@ describe("preview before confirming", () => {
     const dialog = screen.getByRole("dialog", { name: "Add yourself to Response viewers?" });
     const preview = within(dialog).getByTestId("qcms-access-preview");
     expect(preview.textContent).toContain(t("access.preview.gains"));
-    expect(preview.textContent).toContain("View responses in prod");
+    expect(preview.textContent).toContain("View responses in Production");
     expect(preview.textContent).not.toContain(t("access.preview.loses"));
 
     const approval = within(dialog).getByTestId("qcms-access-approval");

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { PublishWizard } from "./publish-wizard.tsx";
 import type { ReleaseReview } from "../../lib/forms/release-candidate.ts";
+import { environmentLabel } from "../../lib/environment.ts";
 import { t } from "../../lib/i18n/en.ts";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -53,27 +54,29 @@ async function toReview(heldForApproval: boolean, confirm = vi.fn()) {
 describe("a draft publish held for an Approver", () => {
   it("names the request on the last step, and says nothing is frozen", async () => {
     await toReview(true);
-    expect(screen.getByText("Publish draft to prod")).toBeTruthy();
+    expect(screen.getByText("Publish draft to Production")).toBeTruthy();
     expect(
-      screen.getByText(t("forms.publish.held.requestNote", { environment: "prod" })),
+      screen.getByText(
+        t("forms.publish.held.requestNote", { environment: environmentLabel("prod") }),
+      ),
     ).toBeTruthy();
     expect(screen.queryByTestId("qcms-publish-second-person")).toBeNull();
-    expect(screen.getByRole("button", { name: "Request publish to prod" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Request publish to Production" })).toBeTruthy();
   });
 
   it("shows the request waiting once asked, and offers no second ask", async () => {
     const confirm = vi.fn(() => Promise.resolve({ status: "held" as const }));
     const user = await toReview(true, confirm);
-    await user.click(screen.getByRole("button", { name: "Request publish to prod" }));
+    await user.click(screen.getByRole("button", { name: "Request publish to Production" }));
     expect(await screen.findByText(t("forms.publish.held.waiting"))).toBeTruthy();
     expect(screen.getByText("Expires in 7 days.")).toBeTruthy();
     expect(screen.getByText(t("forms.publish.held"))).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Request publish to prod" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Request publish to Production" })).toBeNull();
   });
 
   it("names the environment on an ordinary confirmation", async () => {
     await toReview(false);
-    expect(screen.getByRole("button", { name: "Publish to prod" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Publish to Production" })).toBeTruthy();
     expect(screen.queryByTestId("qcms-publish-held-request")).toBeNull();
   });
 });

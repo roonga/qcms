@@ -1,4 +1,5 @@
 import { formatList } from "../i18n/format.ts";
+import { environmentLabel } from "../environment.ts";
 import { t, type MessageKey } from "../i18n/en.ts";
 import { isEnvironmentRole } from "../membership/access-patterns.ts";
 
@@ -201,7 +202,7 @@ export function heldGroupLabel(group: HeldGroup, locale: string): string {
   return scoped
     ? t("site.accounts.holds.groupIn", {
         group: group.groupName,
-        environments: formatList(group.environments, locale),
+        environments: formatList(group.environments.map(environmentLabel), locale),
       })
     : group.groupName;
 }

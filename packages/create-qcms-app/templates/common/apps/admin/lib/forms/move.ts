@@ -1,4 +1,5 @@
 import { formatList } from "../i18n/format.ts";
+import { environmentLabel } from "../environment.ts";
 import { t, type MessageKey } from "../i18n/en.ts";
 import type { MyAccessWorkspace } from "../membership/types.ts";
 
@@ -71,7 +72,10 @@ export function describeMovedAct(act: MovedAct, locale: string): string {
   const named = key === undefined ? act.act : t(key);
   return act.environments.length === 0
     ? named
-    : t("forms.move.actIn", { act: named, environments: formatList(act.environments, locale) });
+    : t("forms.move.actIn", {
+        act: named,
+        environments: formatList(act.environments.map(environmentLabel), locale),
+      });
 }
 
 export function describeMovedPerson(person: MovePreviewPerson, locale: string): string {

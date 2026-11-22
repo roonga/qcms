@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { ReleasePanel } from "./release-panel.tsx";
 import type { ReleaseRecord } from "../../lib/forms/releases.ts";
+import { environmentLabel } from "../../lib/environment.ts";
 import { t } from "../../lib/i18n/en.ts";
 
 const VIEWER = "au_second_approver";
@@ -62,9 +63,11 @@ describe("the release dialog and the two-person rule", () => {
     });
 
     expect(screen.getByTestId("qcms-release-two-person").textContent).toContain(
-      t("forms.releases.twoPersonSelf", { version: 3, environment: "prod" }),
+      t("forms.releases.twoPersonSelf", { version: 3, environment: environmentLabel("prod") }),
     );
-    expect(isDisabled(t("forms.releases.confirm", { environment: "prod" }))).toBe(true);
+    expect(isDisabled(t("forms.releases.confirm", { environment: environmentLabel("prod") }))).toBe(
+      true,
+    );
   });
 
   it("tells a different account that it is the second one, and leaves the act available", async () => {
@@ -75,9 +78,11 @@ describe("the release dialog and the two-person rule", () => {
     });
 
     expect(screen.getByTestId("qcms-release-two-person").textContent).toContain(
-      t("forms.releases.twoPersonSecond", { environment: "prod" }),
+      t("forms.releases.twoPersonSecond", { environment: environmentLabel("prod") }),
     );
-    expect(isDisabled(t("forms.releases.confirm", { environment: "prod" }))).toBe(false);
+    expect(isDisabled(t("forms.releases.confirm", { environment: environmentLabel("prod") }))).toBe(
+      false,
+    );
   });
 
   it("says the rule cannot be checked when the author is unknown", async () => {
@@ -92,13 +97,17 @@ describe("the release dialog and the two-person rule", () => {
     await openDialog("prod", { required: false, viewer: VIEWER, authorOf: { "3": VIEWER } });
 
     expect(screen.queryByTestId("qcms-release-two-person")).toBeNull();
-    expect(isDisabled(t("forms.releases.confirm", { environment: "prod" }))).toBe(false);
+    expect(isDisabled(t("forms.releases.confirm", { environment: environmentLabel("prod") }))).toBe(
+      false,
+    );
   });
 
   it("says nothing outside prod, whatever the switch says (criterion 4)", async () => {
     await openDialog("test", { required: true, viewer: VIEWER, authorOf: { "3": VIEWER } });
 
     expect(screen.queryByTestId("qcms-release-two-person")).toBeNull();
-    expect(isDisabled(t("forms.releases.confirm", { environment: "test" }))).toBe(false);
+    expect(isDisabled(t("forms.releases.confirm", { environment: environmentLabel("test") }))).toBe(
+      false,
+    );
   });
 });

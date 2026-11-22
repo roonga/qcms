@@ -141,7 +141,10 @@ describe("the pending endpoint changes panel", () => {
     await user.click(screen.getByRole("button", { name: t("ops.proposals.withdraw") }));
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.textContent).toContain(
-      t("ops.proposals.withdrawBody", { environment: "prod", url: WAITING.url ?? "" }),
+      t("ops.proposals.withdrawBody", {
+        environment: environmentLabel("prod"),
+        url: WAITING.url ?? "",
+      }),
     );
     expect(dialog.textContent).not.toContain(t("ops.proposals.confirmWarning"));
 
@@ -153,19 +156,25 @@ describe("the pending endpoint changes panel", () => {
     const cases = [
       [
         WAITING,
-        t("ops.proposals.confirmBody.retarget", { environment: "prod", url: WAITING.url ?? "" }),
+        t("ops.proposals.confirmBody.retarget", {
+          environment: environmentLabel("prod"),
+          url: WAITING.url ?? "",
+        }),
       ],
       [
         { ...WAITING, kind: "create" as const },
-        t("ops.proposals.confirmBody.create", { environment: "prod", url: WAITING.url ?? "" }),
+        t("ops.proposals.confirmBody.create", {
+          environment: environmentLabel("prod"),
+          url: WAITING.url ?? "",
+        }),
       ],
       [
         { ...WAITING, kind: "deactivate" as const, url: null },
-        t("ops.proposals.confirmBody.deactivate", { environment: "prod" }),
+        t("ops.proposals.confirmBody.deactivate", { environment: environmentLabel("prod") }),
       ],
       [
         { ...WAITING, url: null, rotatesSecret: true },
-        t("ops.proposals.confirmBody.update", { environment: "prod" }),
+        t("ops.proposals.confirmBody.update", { environment: environmentLabel("prod") }),
       ],
     ] as const;
 
@@ -204,7 +213,7 @@ describe("the pending endpoint changes panel", () => {
     await user.click(screen.getByRole("button", { name: t("ops.proposals.withdraw") }));
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.textContent).toContain(
-      t("ops.proposals.withdrawBodyConfirmed", { environment: "prod" }),
+      t("ops.proposals.withdrawBodyConfirmed", { environment: environmentLabel("prod") }),
     );
     await user.click(within(dialog).getByRole("button", { name: t("ops.proposals.withdraw") }));
     expect(withdraw).toHaveBeenCalledWith("wep_unapplied");

@@ -15,6 +15,7 @@ import type { ReadState } from "@/lib/read-state";
 import { focusPostAction } from "@/lib/ops/post-action-focus";
 import { EntityId } from "@/components/entity-id";
 import { OperatorDateTime } from "@/components/operator-time";
+import { environmentLabel } from "@/lib/environment";
 import { t, tPlural } from "@/lib/i18n/en";
 import { HeadingMarker } from "@/components/agent/heading-marker";
 import { unexpected } from "@/lib/ops/unexpected";
@@ -191,7 +192,7 @@ export function SecureLinks({
       {dialog === "mint" && (
         <Dialog
           isOpen
-          title={t("forms.links.mintTitle", { environment })}
+          title={t("forms.links.mintTitle", { environment: environmentLabel(environment) })}
           isDismissable={!isPending}
           onOpenChange={(isOpen) => {
             if (!isOpen) setDialog(null);
@@ -199,7 +200,7 @@ export function SecureLinks({
         >
           <div className="flex flex-col gap-4">
             <p className="text-sm text-(--color-text-muted)" data-testid="qcms-mint-environment">
-              {t("forms.links.mintEnvironment", { environment })}
+              {t("forms.links.mintEnvironment", { environment: environmentLabel(environment) })}
             </p>
             <DatePicker
               label={t("forms.links.expiresAt")}
@@ -232,7 +233,7 @@ export function SecureLinks({
               >
                 {isPending
                   ? t("forms.links.pending")
-                  : t("forms.links.confirmMint", { environment })}
+                  : t("forms.links.confirmMint", { environment: environmentLabel(environment) })}
               </Button>
               <Button
                 variant="ghost"
@@ -333,7 +334,9 @@ function MintedPanel({
       <p className="text-sm text-(--color-text-muted)">{t("forms.links.mintedOnce")}</p>
       {links[0] !== undefined && links[0].environment !== "" && (
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-minted-environment">
-          {t("forms.links.mintedEnvironment", { environment: links[0].environment })}
+          {t("forms.links.mintedEnvironment", {
+            environment: environmentLabel(links[0].environment),
+          })}
         </p>
       )}
       <ul className="flex flex-col gap-2">
@@ -394,7 +397,7 @@ function LinksTable({
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm text-(--color-text-muted)" data-testid="qcms-links-scope">
-        {t("forms.links.environmentScope", { environment })}
+        {t("forms.links.environmentScope", { environment: environmentLabel(environment) })}
       </p>
       <div className="qcms-table">
         <table data-testid="qcms-links-table">

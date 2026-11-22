@@ -9,6 +9,7 @@ import { FormAvailability } from "./ops/form-availability.tsx";
 import { ResponseActions } from "./ops/response-actions.tsx";
 import { ResponseDetail } from "./ops/response-detail.tsx";
 import { ENVIRONMENT_COOKIE } from "../lib/environment.ts";
+import { environmentLabel } from "../lib/environment.ts";
 import { t } from "../lib/i18n/en.ts";
 import type { ResponseDetail as ResponseDetailData } from "../lib/ops/types.ts";
 
@@ -99,7 +100,7 @@ describe("an unknown environment", () => {
     );
 
     const close = screen.getByRole("button", {
-      name: t("forms.lifecycle.close", { environment: "prod" }),
+      name: t("forms.lifecycle.close", { environment: environmentLabel("prod") }),
     });
 
     expect(close.hasAttribute("disabled")).toBe(true);
@@ -114,7 +115,7 @@ describe("an unknown environment", () => {
     );
 
     const close = screen.getByRole("button", {
-      name: t("forms.lifecycle.close", { environment: "prod" }),
+      name: t("forms.lifecycle.close", { environment: environmentLabel("prod") }),
     });
     expect(close.hasAttribute("disabled")).toBe(false);
   });
@@ -126,12 +127,14 @@ describe("a refusal because another tab switched", { timeout: 30_000 }, () => {
     render(formAvailability());
 
     await user.click(
-      screen.getByRole("button", { name: t("forms.lifecycle.close", { environment: "prod" }) }),
+      screen.getByRole("button", {
+        name: t("forms.lifecycle.close", { environment: environmentLabel("prod") }),
+      }),
     );
     const dialog = await screen.findByRole("alertdialog");
     await user.click(
       within(dialog).getByRole("button", {
-        name: t("forms.lifecycle.confirmClose", { environment: "prod" }),
+        name: t("forms.lifecycle.confirmClose", { environment: environmentLabel("prod") }),
       }),
     );
 
@@ -199,7 +202,9 @@ describe("the switcher after a re-read", () => {
 
     expect(control.getAttribute("data-environment")).toBe("test");
     expect(
-      screen.getByRole("button", { name: t("environment.trigger", { environment: "test" }) }),
+      screen.getByRole("button", {
+        name: t("environment.trigger", { environment: environmentLabel("test") }),
+      }),
     ).toBeTruthy();
   });
 });

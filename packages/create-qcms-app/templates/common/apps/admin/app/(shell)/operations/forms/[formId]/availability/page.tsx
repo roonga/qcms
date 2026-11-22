@@ -80,7 +80,7 @@ export default async function FormAvailabilityPage({
         unavailable={
           form.workflow === undefined || form.workflow.canRelease
             ? undefined
-            : t("ops.unavailable.availability", { environment })
+            : t("ops.unavailable.availability", { environment: environmentLabel(environment) })
         }
       />
     </div>
