@@ -69,6 +69,13 @@ async function openBuilder(page: Page): Promise<void> {
   await expect(surface(page).getByText(TEXT_LABEL)).toBeVisible({ timeout: 30_000 });
 }
 
+// React Aria switches hide their input inside the label; the label is the pointer target.
+function lock(page: Page): Locator {
+  return page
+    .getByRole("switch", { name: /Lock appearance/u })
+    .locator("xpath=ancestor::label[1]");
+}
+
 async function derive(page: Page, address: string): Promise<void> {
   await drawer(page).getByLabel("Website address").fill(address);
   await drawer(page).getByRole("button", { name: "Get theme" }).click();
@@ -168,7 +175,7 @@ test("the drawer offers no derive on a locked workspace", async ({ page }) => {
   await openBuilder(page);
   await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
   await waitForHydration(page);
-  await page.getByRole("switch", { name: /Lock appearance/u }).click();
+  await lock(page).click();
   await expect(page.getByText("Appearance is locked for this workspace.")).toBeVisible();
 
   await page.goto(`/forms/${formId}/build`);
@@ -183,6 +190,6 @@ test("the drawer offers no derive on a locked workspace", async ({ page }) => {
 
   await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
   await waitForHydration(page);
-  await page.getByRole("switch", { name: /Lock appearance/u }).click();
+  await lock(page).click();
   await expect(page.getByText("Appearance is unlocked for this workspace.")).toBeVisible();
 });
