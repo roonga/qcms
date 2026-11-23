@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Harness Tutorial: from raw API to eval suite</title>
+<style>
+  :root {
+    --bg: #faf9f5; --card: #ffffff; --ink: #1f1e1d; --muted: #55534f;
+    --line: #e6e3da; --accent: #9c3f1e; --accent-soft: #f6e3da;
+    --ok: #27683f; --ok-soft: #dff0e5; --model: #2f49b8; --model-soft: #e3e8fc;
+    --warn: #7a5400; --warn-soft: #fbf0d0; --code-bg: #1f2430; --code-ink: #e6e9f0;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); max-width: 1180px; margin: 0 auto; }
+  nav.toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    padding: 28px 16px 28px 20px; border-right: 1px solid var(--line); font-size: 14px; }
+  nav.toc strong { display: block; margin-bottom: 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  nav.toc a { display: block; padding: 4px 8px; margin: 1px 0; border-radius: 6px; color: var(--ink); text-decoration: none; }
+  nav.toc a:hover, nav.toc a.active { background: var(--accent-soft); color: var(--accent); }
+  main { padding: 36px 28px 90px; min-width: 0; }
+  @media (max-width: 860px) {
+    .layout { display: block; }
+    nav.toc { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+    main { padding: 24px 16px 70px; }
+  }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  h2 { font-size: 23px; margin: 56px 0 6px; padding-top: 8px; letter-spacing: -0.01em; }
+  h3 { font-size: 17px; margin: 26px 0 6px; }
+  p { margin: 10px 0; }
+  .sub { color: var(--muted); margin: 0 0 22px; }
+  .phase { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 99px;
+    background: var(--model-soft); color: var(--model); margin-bottom: 4px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; margin: 14px 0; }
+  .callout { border-radius: 10px; padding: 10px 16px; margin: 14px 0; font-size: 15px; }
+  .callout.tip { background: var(--ok-soft); }
+  .callout.warn { background: var(--warn-soft); color: #4d3500; }
+  .callout.interview { background: var(--model-soft); }
+  .callout strong.label { text-transform: uppercase; font-size: 12px; letter-spacing: .06em; display: block; margin-bottom: 2px; }
+  pre { background: var(--code-bg); color: var(--code-ink); border-radius: 10px; padding: 14px 16px; overflow-x: auto;
+    font: 13px/1.5 ui-monospace, Consolas, "SF Mono", monospace; margin: 14px 0; }
+  code { font: 0.9em ui-monospace, Consolas, monospace; background: #f1efe8; padding: 1px 6px; border-radius: 4px; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .cap { font-size: 13px; color: var(--muted); margin: -8px 0 12px; }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; display: block; overflow-x: auto; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; }
+  .flow .step { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .flow .arrow { color: var(--muted); }
+  .flow .llm { border-color: var(--model); background: var(--model-soft); }
+  .flow .harness { border-color: var(--ok); background: var(--ok-soft); }
+  .flow .human { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+  details.qa { background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin: 8px 0; }
+  details.qa summary { cursor: pointer; padding: 10px 16px; font-weight: 600; list-style: none; display: flex; gap: 10px; }
+  details.qa summary::-webkit-details-marker { display: none; }
+  details.qa summary::before { content: "+"; color: var(--accent); font-weight: 700; width: 12px; flex: none; }
+  details.qa[open] summary::before { content: "-"; }
+  details.qa summary:focus-visible { outline: 2px solid var(--model); outline-offset: -2px; border-radius: 10px; }
+  details.qa .ans { padding: 0 16px 12px 38px; border-top: 1px solid var(--line); }
+  .field { width: 100%; padding: 9px 12px; border: 1px solid #b9b5a8; border-radius: 8px; font: inherit; background: #fff; color: var(--ink); }
+  label.lbl { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .quiz-q { margin: 18px 0; }
+  .quiz-q p.q { font-weight: 600; margin-bottom: 6px; }
+  .opt { display: block; width: 100%; text-align: left; font: inherit; color: var(--ink); background: var(--card);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 5px 0; cursor: pointer; }
+  .opt:hover:not([disabled]) { border-color: var(--accent); }
+  .opt:focus-visible { outline: 2px solid var(--model); outline-offset: 1px; }
+  .opt.right { background: var(--ok-soft); border-color: var(--ok); }
+  .opt.wrong { background: #fbe1e1; border-color: #a33; }
+  .why { font-size: 14px; color: var(--muted); margin: 4px 0 0; }
+  .score { font-weight: 700; font-size: 18px; }
+  button.btn { font: inherit; border: 1px solid #b9b5a8; background: var(--card); color: var(--ink); padding: 7px 14px; border-radius: 8px; cursor: pointer; }
+  button.btn:hover { border-color: var(--accent); color: var(--accent); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .two { grid-template-columns: 1fr; } }
+  .small { font-size: 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" aria-label="Sections">
+  <strong>Contents</strong>
+  <a href="#model">1. Mental model</a>
+  <a href="#protocol">2. Messages and tool protocol</a>
+  <a href="#loop">3. The agent loop</a>
+  <a href="#streaming">4. Streaming</a>
+  <a href="#tools">5. Tool design</a>
+  <a href="#permissions">6. Permissions</a>
+  <a href="#confirm">7. Proposals and signed confirmation</a>
+  <a href="#context">8. Context management</a>
+  <a href="#injection">9. Untrusted data and injection</a>
+  <a href="#reliability">10. Reliability</a>
+  <a href="#state">11. Sessions and resume</a>
+  <a href="#observability">12. Observability and audit</a>
+  <a href="#extend">13. User-authored skills and agents</a>
+  <a href="#evals">14. Evaluation</a>
+  <a href="#interview">15. Interview prep</a>
+  <a href="#glossary">Glossary</a>
+  <a href="#questions">Common questions</a>
+  <a href="#design">System design prompts</a>
+  <a href="#quiz">Quiz</a>
+  <a href="#antipatterns">16. Anti-patterns</a>
+</nav>
+
+<main>
+  <h1>Agent harness tutorial</h1>
+  <p class="sub">Companion to <code>plan/agent-harness-learning-plan.md</code>. Each section explains one harness concern, shows a minimal TypeScript sketch, names the plan phase where you build it, and lists the interview concepts it covers.</p>
+
+  <div class="callout warn">
+    <strong class="label">Read this first</strong>
+    The code here is a teaching sketch, not a library. Provider details (event names, field names, stop reasons, caching rules, prices) change.
+    Confirm them against the provider's current documentation before relying on them, as the plan's first Phase 1 task requires.
+    Do the plan's design-first step for each phase before you read the matching section in full.
+  </div>
+
+  <!-- 1 -->
+  <h2 id="model">1. Mental model</h2>
+  <span class="phase">Plan: all phases</span>
+  <p>A model turns text into text. It cannot read a file, call an API or remember last week. A <strong>harness</strong> is everything around it that makes it act: the loop, tools, permissions, memory, safety and measurement. An <strong>agent</strong> is a model plus a role (prompt, tools, goals) running inside a harness.</p>
+  <div class="card">
+    <div class="flow">
+      <span class="step harness">Build context (prompt, history, tools)</span><span class="arrow">&rarr;</span>
+      <span class="step llm">Model call (streamed)</span><span class="arrow">&rarr;</span>
+      <span class="step harness">Parse output, validate tool calls</span><span class="arrow">&rarr;</span>
+      <span class="step harness">Check permissions, run tools</span><span class="arrow">&rarr;</span>
+      <span class="step harness">Append results, record trace</span><span class="arrow">&rarr;</span>
+      <span class="step">Repeat or stop</span>
+    </div>
+  </div>
+  <div class="two">
+    <div class="card"><strong>The model decides</strong><ul><li>Which tool to call and with what arguments</li><li>How to read the request</li><li>What to say</li></ul></div>
+    <div class="card"><strong>The harness enforces</strong><ul><li>Which tools exist for this user</li><li>That arguments are valid and allowed</li><li>Budgets, timeouts, approval, audit</li></ul></div>
+  </div>
+  <div class="callout interview">
+    <strong class="label">Interview concept</strong>
+    The core design rule: <em>never rely on the prompt for anything that must be guaranteed</em>. A prompt asks; code enforces. Say this early and give one example (permissions, spend limits, approval).
+  </div>
+
+  <!-- 2 -->
+  <h2 id="protocol">2. Messages and the tool protocol</h2>
+  <span class="phase">Plan: Phase 1 and 2</span>
+  <p>Most chat APIs share one shape: an ordered list of messages, each holding typed content blocks. Tool use adds two block types: the model emits a <code>tool_use</code> block (an id, a name, JSON input), and you reply in the next user message with a <code>tool_result</code> block that carries the same id.</p>
+<pre><code>type Block =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; id: string; name: string; input: unknown }
+  | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean };
+
+type Message = { role: "user" | "assistant"; content: Block[] };</code></pre>
+  <div class="callout tip">
+    <strong class="label">The invariant to protect</strong>
+    Every <code>tool_use</code> must be answered by exactly one <code>tool_result</code> in the very next user message, or the next request is rejected.
+    When the model emits several tool calls in one turn, all their results go back together. Cancellation, crashes and failed tools must still produce a result (an error result is fine).
+  </div>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    Function calling vs structured output; why the model only <em>requests</em> a call and never runs it; the tool_use/tool_result pairing; why history is stateless on the server and resent each call.
+  </div>
+
+  <!-- 3 -->
+  <h2 id="loop">3. The agent loop</h2>
+  <span class="phase">Plan: Phase 2 and 3</span>
+  <p>The loop is short. The craft is in what surrounds it.</p>
+<pre><code>async function runTurn(ctx: TurnContext): Promise&lt;TurnResult&gt; {
+  for (let step = 0; step &lt; ctx.maxSteps; step++) {
+    ctx.signal.throwIfAborted();
+    const reply = await ctx.model.call(ctx.messages, ctx.offeredTools, ctx.signal);
+    ctx.messages.push({ role: "assistant", content: reply.content });
+    ctx.trace.step(step, reply.usage, reply.stopReason);
+
+    const calls = reply.content.filter((b) =&gt; b.type === "tool_use");
+    if (calls.length === 0) return { ended: reply.stopReason, steps: step + 1 };
+
+    const rejected = calls.find((c) =&gt; !ctx.offeredNames.has(c.name));
+    if (rejected) return { ended: "refused", tool: rejected.name, steps: step + 1 };
+
+    const results = await Promise.all(calls.map((c) =&gt; runTool(ctx, c)));
+    ctx.messages.push({ role: "user", content: results });
+  }
+  return { ended: "step_limit", steps: ctx.maxSteps };
+}</code></pre>
+  <h3>Stop conditions you need</h3>
+  <table>
+    <thead><tr><th>Condition</th><th>Why it exists</th></tr></thead>
+    <tbody>
+      <tr><td>No tool call in the reply</td><td>The normal ending: the model answered.</td></tr>
+      <tr><td>Step limit</td><td>Bounds cost and stops infinite tool loops.</td></tr>
+      <tr><td>Tool not offered</td><td>The model named something outside its allowlist. End the turn so you stop paying for the rest of the budget.</td></tr>
+      <tr><td>Output length reached</td><td>A truncated reply may hold half a tool call. Never run it.</td></tr>
+      <tr><td>Content refusal</td><td>Surface it distinctly, not as a generic failure.</td></tr>
+      <tr><td>Abort signal</td><td>The user cancelled or disconnected.</td></tr>
+      <tr><td>Wall-clock and token budgets</td><td>Bound latency and spend independent of step count.</td></tr>
+    </tbody>
+  </table>
+  <p class="small">Stop-reason names differ by provider. Map each one to your own enum in the adapter so the loop never sees a provider string.</p>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    ReAct (reason, act, observe); why a step limit alone is not enough (cheap loops can still burn tokens; add loop detection on repeated identical calls); distinct ending codes help users and dashboards.
+  </div>
+
+  <!-- 4 -->
+  <h2 id="streaming">4. Streaming</h2>
+  <span class="phase">Plan: Phase 1</span>
+  <p>Streaming sends the reply as server-sent events (SSE) while it is generated. It cuts perceived latency, but it moves complexity into your code: you assemble the final message yourself.</p>
+<pre><code>event: content_block_start
+data: {"index":1,"content_block":{"type":"tool_use","id":"tu_1","name":"read_form","input":{}}}
+
+event: content_block_delta
+data: {"index":1,"delta":{"type":"input_json_delta","partial_json":"{\"formId\":"}}
+
+event: content_block_delta
+data: {"index":1,"delta":{"type":"input_json_delta","partial_json":"\"f_42\"}"}}
+
+event: content_block_stop
+data: {"index":1}</code></pre>
+  <p class="cap">Illustrative shape only. Check the provider's event names and fields.</p>
+  <h3>A minimal SSE reader</h3>
+<pre><code>async function* sseEvents(body: ReadableStream&lt;Uint8Array&gt;) {
+  const reader = body.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += value.replace(/\r\n/g, "\n"); // bug to test: a "\r" split from its "\n" across chunks
+    let end;
+    while ((end = buf.indexOf("\n\n")) !== -1) {
+      const raw = buf.slice(0, end);
+      buf = buf.slice(end + 2);
+      let event = "message";
+      const data: string[] = [];
+      for (const line of raw.split("\n")) {
+        if (line.startsWith(":")) continue;               // comment or keep-alive
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+      }
+      if (data.length) yield { event, data: data.join("\n") };
+    }
+  }
+}</code></pre>
+  <h3>Assembling a tool call from deltas</h3>
+<pre><code>const partial = new Map&lt;number, string&gt;();
+
+// on delta with partial JSON for block i:
+partial.set(i, (partial.get(i) ?? "") + delta.partial_json);
+
+// on block stop for block i:
+const text = partial.get(i) ?? "";
+let input: unknown;
+try { input = text === "" ? {} : JSON.parse(text); }
+catch { /* malformed: answer the tool_use with an error result, never run it */ }</code></pre>
+  <div class="callout warn">
+    <strong class="label">Things that bite</strong>
+    Partial JSON is not parseable until the block stops. A reply cut off by an output limit leaves a half-built tool call. Errors can arrive <em>inside</em> a 200 stream.
+    Servers send keep-alive pings. A closed client connection must abort the upstream call, or you keep paying for tokens nobody reads.
+  </div>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    SSE vs WebSockets (SSE is one-way, plain HTTP, auto-reconnect; fine for token streams); backpressure; cancellation with <code>AbortController</code>; testing the parser with recorded byte-level fixtures that split events mid-line.
+  </div>
+
+  <!-- 5 -->
+  <h2 id="tools">5. Tool design</h2>
+  <span class="phase">Plan: Phase 2 and 5</span>
+  <p>Most agent failures are tool-design failures. A tool is an API whose caller is a language model, so design it like one.</p>
+<pre><code>interface Tool&lt;I, O&gt; {
+  name: string;
+  description: string;                 // the model reads this; write it for the model
+  schema: JsonSchema;                  // validate before running
+  access: { kind: "read" | "propose" };
+  run(input: I, ctx: ToolContext): Promise&lt;O&gt;;
+}
+
+async function runTool(ctx: TurnContext, call: ToolUse): Promise&lt;ToolResult&gt; {
+  const tool = ctx.tools.get(call.name);
+  const parsed = tool?.schema.safeParse(call.input);
+  if (!tool || !parsed?.success) {
+    return errorResult(call.id, "Invalid arguments: " + describeIssues(parsed));
+  }
+  try {
+    const out = await withTimeout(tool.run(parsed.data, ctx), ctx.toolTimeoutMs);
+    return okResult(call.id, capSize(frame(out), ctx.maxToolOutputChars));
+  } catch (e) {
+    return errorResult(call.id, safeMessage(e)); // never leak stack traces or secrets
+  }
+}</code></pre>
+  <h3>Rules that pay off</h3>
+  <ul>
+    <li><strong>Errors are results.</strong> Return validation and policy errors as readable tool results so the model can correct itself. Write them as prompts: say what was wrong and what to try.</li>
+    <li><strong>Cap output size.</strong> One huge result can fill the context window. Truncate reads that are safe to truncate; paginate the rest.</li>
+    <li><strong>Narrow beats broad.</strong> Many small, clearly named tools usually beat one tool with a mode flag.</li>
+    <li><strong>Reads and writes differ.</strong> Read tools run immediately. Write tools should only <em>propose</em> (section 7).</li>
+    <li><strong>Make writes idempotent.</strong> A retry or a repeated call must not repeat the effect.</li>
+    <li><strong>Parallel calls.</strong> The model may emit several calls at once. Run independent ones concurrently, and return results paired by id.</li>
+  </ul>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    JSON Schema for tool input; schema portability (a recursive schema that one provider rejects is a real bug class); treating tool descriptions as part of the prompt; how many tools is too many (selection accuracy and context cost both degrade).
+  </div>
+
+  <!-- 6 -->
+  <h2 id="permissions">6. Permissions and authority</h2>
+  <span class="phase">Plan: Phase 4 and 7</span>
+  <p>The model holds no authority of its own. Whatever it does, it does <em>as the signed-in user</em>, with that user's rights. Design so that a fully compromised model still cannot exceed them.</p>
+  <h3>Defense in depth: check at four points</h3>
+  <table>
+    <thead><tr><th>#</th><th>Check</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Offer only the tools this user may use</td><td>The model cannot call what does not exist for it.</td></tr>
+      <tr><td>2</td><td>Offer only the action kinds (and environments) this user may use</td><td>Narrows what a proposal can even name.</td></tr>
+      <tr><td>3</td><td>Check each subject at proposal time (this form, this environment)</td><td>Fails early, with a reason the model can read.</td></tr>
+      <tr><td>4</td><td>Re-check at the route that executes the step</td><td>Rights can change between proposal and confirm. This is the check that counts.</td></tr>
+    </tbody>
+  </table>
+<pre><code>function offeredTools(all: Tool[], grants: Grants): Tool[] {
+  return all.filter((t) =&gt; grants.allows(t.permission));
+}
+
+// One refusal ends the turn: stop spending on a model that is off-script.
+const stopOnRejectedTool = (offered: Set&lt;string&gt;) =&gt; (calls: ToolUse[]) =&gt;
+  calls.some((c) =&gt; !offered.has(c.name));</code></pre>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    Least privilege; confused-deputy problem (a privileged service tricked into acting for someone without the right); allowlist vs denylist (allowlist); offered is not the same as allowed; authorization belongs in the executing service, not in the agent.
+  </div>
+
+  <!-- 7 -->
+  <h2 id="confirm">7. Proposals and signed confirmation</h2>
+  <span class="phase">Plan: Phase 5 and 6</span>
+  <p>Writes go through a human. The model <em>proposes</em> a plan; the harness validates it and shows a card listing every step and argument; a person confirms once; each step then runs through the ordinary route as that person. The question to answer: <strong>how do you prove that what runs is exactly what the card showed?</strong></p>
+  <div class="card">
+    <div class="flow">
+      <span class="step llm">Model proposes plan</span><span class="arrow">&rarr;</span>
+      <span class="step harness">Validate every step</span><span class="arrow">&rarr;</span>
+      <span class="step harness">Sign a token over what the card shows</span><span class="arrow">&rarr;</span>
+      <span class="step human">Person confirms</span><span class="arrow">&rarr;</span>
+      <span class="step harness">Each step sent with token and index</span><span class="arrow">&rarr;</span>
+      <span class="step harness">Route verifies token, re-checks rights, runs, records</span>
+    </div>
+  </div>
+<pre><code>import { createHmac, timingSafeEqual } from "node:crypto";
+
+function canonical(v: unknown): string {          // same data, same bytes, every time
+  if (Array.isArray(v)) return "[" + v.map(canonical).join(",") + "]";
+  if (v !== null &amp;&amp; typeof v === "object") {
+    const o = v as Record&lt;string, unknown&gt;;
+    return "{" + Object.keys(o).filter((k) =&gt; o[k] !== undefined).sort()
+      .map((k) =&gt; JSON.stringify(k) + ":" + canonical(o[k])).join(",") + "}";
+  }
+  return JSON.stringify(v);
+}
+
+interface StepClaim { kind: string; argsDigest: string; environment: string }
+interface Claims { proposalId: string; userId: string; steps: StepClaim[]; expiresAt: number }
+
+function sign(claims: Claims, key: Buffer): string {
+  const body = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  const mac = createHmac("sha256", key).update(body).digest("base64url");
+  return body + "." + mac;
+}
+
+function verify(token: string, key: Buffer, now: number): Claims | null {
+  const [body, mac] = token.split(".");
+  if (!body || !mac) return null;
+  const want = createHmac("sha256", key).update(body).digest();
+  const got = Buffer.from(mac, "base64url");
+  if (got.length !== want.length || !timingSafeEqual(got, want)) return null;
+  const claims = JSON.parse(Buffer.from(body, "base64url").toString()) as Claims;
+  return claims.expiresAt &gt; now ? claims : null;   // inject "now": tests need a fake clock
+}</code></pre>
+  <h3>Threats the token and the route must stop</h3>
+  <table>
+    <thead><tr><th>Attack or failure</th><th>Defense</th></tr></thead>
+    <tbody>
+      <tr><td>Arguments changed between card and confirm</td><td>Digest of canonical arguments is signed; the route recomputes and compares.</td></tr>
+      <tr><td>Token used for a different action</td><td>Step kind is signed and mapped to a route; a mismatch is refused.</td></tr>
+      <tr><td>Someone else confirms</td><td>User id is signed; the route checks it against the session.</td></tr>
+      <tr><td>Replay</td><td>Each step can be recorded once. A recorded-step check refuses repeats; a unique constraint is the backstop for races.</td></tr>
+      <tr><td>Stale approval</td><td>Short lifetime, and rights re-checked at execution.</td></tr>
+      <tr><td>Steps run out of order, or after a failure</td><td>The server refuses step N unless steps 0 to N-1 are recorded. Do not rely on the client to stop.</td></tr>
+      <tr><td>Draft changed after the card was shown</td><td>Expected revision on the save step; a stale revision fails the confirm.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout tip">
+    <strong class="label">Why this beats "ask the model to confirm"</strong>
+    The token adds provenance, never rights. A model that is tricked into proposing something bad still produces a card a human must read, and a confirmation that only authorizes what the card showed.
+  </div>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    HMAC vs signatures; canonical JSON and why key order matters; TOCTOU (time-of-check to time-of-use); idempotency keys; replay protection; single-use tokens; constant-time comparison; saga-style partial failure (record per-step outcomes: done, failed, not-run).
+  </div>
+
+  <!-- 8 -->
+  <h2 id="context">8. Context management</h2>
+  <span class="phase">Plan: Phase 9</span>
+  <p>The context window is a budget, and every tool result spends it. Decide what stays, what goes, and what must never be cut.</p>
+  <table>
+    <thead><tr><th>Technique</th><th>Use it for</th><th>Danger</th></tr></thead>
+    <tbody>
+      <tr><td>Token budget</td><td>Know how full you are before each call.</td><td>Counting by characters misleads. Use the provider's counter or a margin.</td></tr>
+      <tr><td>Size-cap tool output</td><td>Stop one result flooding the window.</td><td>Never cap data the model must send back whole.</td></tr>
+      <tr><td>Evict old read results</td><td>Drop stale tool results, leave a stub.</td><td>Force a fresh read before any write that depends on it.</td></tr>
+      <tr><td>Summarize (compact) old turns</td><td>Long tasks.</td><td>Summaries lose ids and details. Keep a structured list of ids and decisions outside the prose.</td></tr>
+      <tr><td>Retrieve on demand</td><td>Large stores.</td><td>Adds latency and a retrieval failure mode.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn">
+    <strong class="label">The wholesale-save trap</strong>
+    If a save tool replaces the whole object, truncating that object in context and sending it back silently deletes content. Either never truncate it, or use a patch tool the harness applies to a fresh read. The plan builds the patch tool for exactly this reason.
+  </div>
+<pre><code>function evictOldReads(messages: Message[], keepLast = 2): Message[] {
+  const reads = indexToolResults(messages, "read_");       // [{ msgIdx, blockIdx, subjectId }]
+  for (const r of reads.slice(0, Math.max(0, reads.length - keepLast))) {
+    replaceResult(messages, r, "[evicted: call the read tool again before writing]");
+    markNeedsReread(r.subjectId);                          // save is refused until re-read
+  }
+  return messages;
+}</code></pre>
+  <h3>Prompt caching</h3>
+  <p>Providers can cache a prompt <em>prefix</em>: repeated calls that start with identical bytes are cheaper and faster. Order matters (typically tools, then system prompt, then messages), and a single changed byte early in the prefix invalidates everything after it. So: keep the system prompt and tool list byte-stable, put volatile content at the tail, and <strong>measure</strong> the hit rate from the usage counters. Eviction changes the middle of the conversation, so decide where your cache breakpoints sit relative to it.</p>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    Context window vs output limit; prompt caching economics (cache write costs more than a plain read, cache read costs far less); lost-in-the-middle; RAG vs long context; compaction trade-offs; why deterministic prompt construction (stable key order, no timestamps) matters.
+  </div>
+
+  <!-- 9 -->
+  <h2 id="injection">9. Untrusted data and prompt injection</h2>
+  <span class="phase">Plan: Phase 9 and 10</span>
+  <p>Anything a user authored (a form title, a ticket body, a web page, a file) can contain instructions aimed at the model. This is <strong>indirect prompt injection</strong>. The model cannot reliably tell data from instructions, so you cannot fix this inside the prompt.</p>
+  <div class="two">
+    <div class="card"><strong>Mitigations (reduce odds)</strong><ul><li>Fence data and label it as data</li><li>Tell the model not to follow instructions in data</li><li>Strip or flag suspicious patterns</li></ul></div>
+    <div class="card"><strong>Controls (guarantee limits)</strong><ul><li>The model holds no authority</li><li>Writes need a human-confirmed card showing true arguments</li><li>Tools scoped to the user's rights</li><li>No tool exposes data the user may not see</li></ul></div>
+  </div>
+  <p>The test that matters: script a model that <em>obeys</em> the injection, and assert the harness still limits the damage (the card shows the real arguments and nothing runs without confirmation).</p>
+  <div class="callout tip">
+    <strong class="label">The risky combination</strong>
+    An agent is in trouble when it has all three: access to private data, exposure to untrusted content, and a way to send data out. Remove one and the worst case shrinks a lot.
+  </div>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    Direct vs indirect injection; jailbreak vs injection; confused deputy; mitigation vs control; data exfiltration channels (links, images, tool calls); why "ignore previous instructions" filters fail; tool descriptions from third-party servers are themselves an injection surface.
+  </div>
+
+  <!-- 10 -->
+  <h2 id="reliability">10. Reliability</h2>
+  <span class="phase">Plan: Phase 1 and 3</span>
+<pre><code>async function withRetry&lt;T&gt;(
+  fn: (signal: AbortSignal) =&gt; Promise&lt;T&gt;,
+  o: { max: number; baseMs: number; capMs: number; signal: AbortSignal },
+): Promise&lt;T&gt; {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn(o.signal);
+    } catch (e) {
+      if (!isRetryable(e) || attempt &gt;= o.max) throw e;
+      const ceiling = Math.min(o.capMs, o.baseMs * 2 ** attempt);
+      const wait = retryAfterMs(e) ?? Math.random() * ceiling;   // full jitter
+      await sleep(wait, o.signal);
+    }
+  }
+}</code></pre>
+  <ul>
+    <li><strong>Retry only what is safe to retry:</strong> rate limits (429), overload and 5xx on the model call. Honor a <code>Retry-After</code> header.</li>
+    <li><strong>Never blindly retry a write.</strong> Use an idempotency key so a repeat is a no-op.</li>
+    <li><strong>Timeouts everywhere:</strong> connection, first token, total, and each tool.</li>
+    <li><strong>Do not retry after streaming has started</strong> unless you can discard the partial output cleanly.</li>
+    <li><strong>Provider errors can arrive after a tool call.</strong> Map them to retryable or permanent and keep the history valid.</li>
+    <li><strong>Spend limits:</strong> per-turn, per-user and per-project caps enforced by the harness.</li>
+  </ul>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    Exponential backoff with jitter (and why jitter stops thundering herds); circuit breaker; idempotency keys; at-least-once vs exactly-once (you get at-least-once plus idempotency); timeouts vs deadlines; graceful degradation to a cheaper model.
+  </div>
+
+  <!-- 11 -->
+  <h2 id="state">11. Sessions, state and resume</h2>
+  <span class="phase">Plan: Phase 3 and 9</span>
+  <p>Treat the conversation as an append-only log of events. Rebuilding state is replaying the log; resuming after a crash is replaying it and repairing the tail.</p>
+<pre><code>function repairTail(messages: Message[]): Message[] {
+  const last = messages.at(-1);
+  if (last?.role !== "assistant") return messages;
+  const open = last.content.filter((b) =&gt; b.type === "tool_use");
+  if (open.length === 0) return messages;
+  const results = open.map((c) =&gt; errorResult(c.id, "Interrupted before this tool finished."));
+  return [...messages, { role: "user", content: results }];   // no orphaned tool_use
+}</code></pre>
+  <ul>
+    <li>Persist after every completed step, not at the end.</li>
+    <li>Decide what is stored (messages, step outcomes, prompt version) and what must not be (secrets, raw user data you do not need).</li>
+    <li>A cancel mid-stream must leave history valid and resumable.</li>
+    <li>Give the model back the outcome of anything it proposed that a person later confirmed or declined.</li>
+  </ul>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    Event sourcing; checkpointing; durable execution; stateless server with client-resent history vs server-side sessions (trade-offs: simplicity and size caps vs resumability and richer context).
+  </div>
+
+  <!-- 12 -->
+  <h2 id="observability">12. Observability and audit</h2>
+  <span class="phase">Plan: Phase 1 (trace) and 6 (audit)</span>
+  <p>You cannot debug an agent from its final answer. Record one structured <strong>turn record</strong> per turn and one audit row per executed step.</p>
+<pre><code>interface TurnRecord {
+  turnId: string; sessionId: string; userId: string;
+  promptVersion: number;
+  offeredTools: string[];
+  steps: number; stopReason: string;
+  inputTokens: number; outputTokens: number; cacheReadTokens: number;
+  toolCalls: { name: string; ok: boolean; ms: number }[];   // names and counts, not arguments
+  providerError?: { retryable: boolean; status?: number };
+  startedAt: number; durationMs: number;
+}</code></pre>
+  <ul>
+    <li><strong>Log shape, never content.</strong> Counts, ids, versions and timings. Not user text, not model reasoning, not tool results that were built from user input.</li>
+    <li><strong>Version your prompt</strong> and log the version, so a behavior change maps to a change you made.</li>
+    <li><strong>Answer "why did it do that?"</strong> from records: who asked, what was offered, what was proposed, who confirmed, what ran.</li>
+    <li><strong>Trace spans</strong> per model call and per tool run give latency breakdowns.</li>
+  </ul>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    Structured logging; tracing (spans); PII handling; audit trail vs debug log (different readers, retention and content); prompt versioning; cost attribution per user or feature.
+  </div>
+
+  <!-- 13 -->
+  <h2 id="extend">13. User-authored skills, instructions and custom agents</h2>
+  <span class="phase">Plan: Phase 13 (optional)</span>
+  <p>Coding agents let you drop in an <code>AGENTS.md</code>, a skill or a custom agent. None of these is a special feature: each is a file plus a loader in the harness. The design question changes when the author is an <em>end user</em> and not a developer, because now security and multi-tenancy are the whole problem.</p>
+  <table>
+    <thead><tr><th>Mechanism</th><th>What it is</th><th>What the harness does</th></tr></thead>
+    <tbody>
+      <tr><td>Instructions file</td><td>Always-on guidance text</td><td>Injects it into every turn, after the stable prefix.</td></tr>
+      <tr><td>Skill</td><td>A named file with a short description and a body</td><td>Puts only name and description in the prompt (the index). Loads the body on demand through a tool. This is <strong>progressive disclosure</strong>.</td></tr>
+      <tr><td>Custom agent (profile)</td><td>A saved configuration: instructions, tool allowlist, limits, model alias</td><td>Runs a turn under that configuration, always narrowed by the user's own grants.</td></tr>
+    </tbody>
+  </table>
+  <p>Skills work because the index is cheap and always visible while the body is expensive and loaded only when the model decides it is relevant. The <code>description</code> carries most of the weight: it is what the model matches a request against.</p>
+<pre><code>interface Skill {
+  name: string;
+  description: string;      // always in the prompt
+  body: string;             // loaded on demand
+  scope: "personal" | "workspace";
+  version: number;
+  status: "pending" | "active" | "archived";
+  createdBy: string;
+}
+
+const skillIndex = (skills: Skill[]) =&gt;
+  skills
+    .filter((s) =&gt; s.status === "active")
+    .sort((a, b) =&gt; a.name.localeCompare(b.name))     // stable bytes keep the cache warm
+    .map((s) =&gt; `- ${s.name}: ${s.description}`)
+    .join("\n");
+
+// A profile narrows. It never adds.
+const effectiveTools = (profile: Profile | undefined, granted: string[]) =&gt;
+  profile ? granted.filter((t) =&gt; profile.allowedTools.includes(t)) : granted;
+const effectiveMaxSteps = (profile: Profile | undefined, base: number) =&gt;
+  Math.min(base, profile?.maxSteps ?? base);
+
+// Separation of duties: a shared skill needs a second person.
+const canActivate = (actor: User, item: Skill, grants: Grants) =&gt;
+  grants.has(actor.id, "assistant-config:activate") &amp;&amp; item.createdBy !== actor.id;</code></pre>
+  <h3>Prompt layout</h3>
+  <ol>
+    <li>System prompt and tool list: byte-stable, cached.</li>
+    <li>Workspace instructions, then personal instructions.</li>
+    <li>The skill index (active skills only, sorted).</li>
+    <li>The conversation, including any <code>read_skill</code> results.</li>
+  </ol>
+  <p>Everything user-authored sits <em>below</em> the system prompt and is labelled as guidance from the user. It can add guidance. It cannot remove a rule or raise authority.</p>
+  <h3>What changes when the author is an end user</h3>
+  <ul>
+    <li><strong>A skill steers; code enforces.</strong> Anything that must be guaranteed stays in the harness.</li>
+    <li><strong>Profiles only narrow.</strong> Offered tools are the profile's list intersected with the user's grants; each limit is the smaller of the profile's and the base. A profile cannot add a tool, action kind, environment or budget.</li>
+    <li><strong>A shared skill is an injection path.</strong> If an editor writes a workspace skill that an approver's agent then follows, that is indirect prompt injection from a trusted-looking source. Keep personal skills visible to their author only, and require a second person to activate a workspace skill.</li>
+    <li><strong>Writes use the same approval path.</strong> Saving a skill is a proposed action: a card showing the full body, a signed token over its digest, an audit row. No new mechanism.</li>
+    <li><strong>Text only.</strong> No scripts, no fetched URLs, no user-defined tools. Executable skills mean a sandbox, which is a separate project.</li>
+    <li><strong>Limits and linting.</strong> Cap body size, skill count and tokens, refuse unknown frontmatter keys and secret-like strings.</li>
+    <li><strong>Observability without content.</strong> Record skill names, versions and a layout hash in the turn record, never bodies.</li>
+    <li><strong>Stability.</strong> Pin the version a turn reads, so an edit mid-turn does not change its behavior.</li>
+  </ul>
+  <div class="callout tip">
+    <strong class="label">The same pattern already exists in QCMS</strong>
+    The assistant's guidance is maintainer-authored Markdown under <code>apps/api/src/features/agent/prompts/</code>, compiled into a generated file. A <code>recipes/&lt;type&gt;.md</code> body is sent only when the assistant looks it up through the <code>question_recipes</code> tool. Only the type names ride every turn, as that tool's enum. That is progressive disclosure, fixed in the repository and tested by the maintainers. Optional Phase 13 asks what changes when the author is an end user. I found no end-user store in a limited search, so treat that as unverified.
+  </div>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    Progressive disclosure and why it saves context; layered configuration and precedence; least privilege applied to configuration (intersection, never union); separation of duties; indirect injection through shared content; prompt-cache layout; why configuration is data, not code.
+  </div>
+
+  <!-- 14 -->
+  <h2 id="evals">14. Evaluation</h2>
+  <span class="phase">Plan: Phase 10 and 11</span>
+  <p>Three groups of checks answer three different questions. Keep them separate.</p>
+  <table>
+    <thead><tr><th>Group</th><th>Question</th><th>How</th><th>Pass rule</th></tr></thead>
+    <tbody>
+      <tr><td>Deterministic harness tests</td><td>Is my code correct?</td><td>Scripted fake model, injected clock and ids, recorded stream fixtures</td><td>Always passes. Run in CI.</td></tr>
+      <tr><td>Contract tests</td><td>Does the real provider still accept my requests and match my parser?</td><td>A few real calls, run on demand</td><td>Passes or the adapter needs a fix.</td></tr>
+      <tr><td>Live evals</td><td>Does the model plus my prompt and tools do the job?</td><td>Real model, many trials, named graders</td><td>A pass-rate threshold, never 100%.</td></tr>
+    </tbody>
+  </table>
+  <h3>Why trials, and how many</h3>
+  <p>Model output varies between runs, even at temperature 0. One run proves little. Run each task many times (30 or more for the tasks you care about), record pass rate, steps and cost, and report spread.</p>
+  <h3>Comparing two versions: pair the tasks</h3>
+  <p>Run version A and version B on the <em>same</em> tasks, then look at the per-task differences. Pairing removes task difficulty as noise, so you need far fewer trials to see a real change.</p>
+<pre><code>// a[i], b[i] = pass rate of task i under version A and B (0..1)
+function pairedBootstrap(a: number[], b: number[], iters = 10_000): [number, number] {
+  const diffs = a.map((x, i) =&gt; b[i] - x);
+  const means: number[] = [];
+  for (let k = 0; k &lt; iters; k++) {
+    let s = 0;
+    for (let j = 0; j &lt; diffs.length; j++) s += diffs[Math.floor(Math.random() * diffs.length)];
+    means.push(s / diffs.length);
+  }
+  means.sort((x, y) =&gt; x - y);
+  return [means[Math.floor(iters * 0.025)], means[Math.floor(iters * 0.975)]]; // 95% interval
+}
+// If the interval contains 0, you have not shown an improvement.</code></pre>
+  <h3>Two ways to read k trials</h3>
+  <ul>
+    <li><strong>pass@k:</strong> at least one of k tries succeeds. Fits "can it ever do this?".</li>
+    <li><strong>pass^k:</strong> all k tries succeed. Fits "can I rely on it?". It falls fast as k grows.</li>
+  </ul>
+  <div class="callout warn">
+    <strong class="label">Grader traps</strong>
+    A model judging a model is cheap and noisy: it prefers longer answers, favors its own style, and varies run to run. Prefer programmatic graders (does the draft validate, does it contain the reused id, is the sentinel absent). Use a judge only for what code cannot check, and sample its verdicts by hand.
+    Give the harness a <em>scripted approver</em> so evals do not wait on a person.
+  </div>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    Why temperature 0 is not deterministic; golden sets and regression suites; overfitting prompts to a small eval set; contamination; confidence intervals; paired vs unpaired comparison; cost per success as a metric; offline vs online evaluation.
+  </div>
+
+  <!-- 14 -->
+  <h2 id="interview">15. Interview prep</h2>
+  <p>Use the glossary to check you can define each term in one sentence. Use the questions to practice a 60-second answer, then tie each answer to something you built and can demo.</p>
+
+  <h3 id="glossary">Glossary</h3>
+  <label class="lbl" for="gfilter">Filter terms</label>
+  <input id="gfilter" class="field" type="search" placeholder="Type to filter, for example: token, retry, cache" autocomplete="off">
+  <table id="gtable">
+    <thead><tr><th scope="col">Term</th><th scope="col">One-line meaning</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <p class="small" id="gcount" aria-live="polite"></p>
+
+  <h3 id="questions">Common questions (click to reveal an answer outline)</h3>
+  <div id="qa"></div>
+
+  <h3 id="design">System design prompts</h3>
+  <p>Practice each one out loud for ten minutes: clarify requirements, sketch components, name the failure modes, say how you would measure it.</p>
+  <div class="card">
+    <strong>A. An agent that issues refunds</strong>
+    <ul>
+      <li>Authority: model proposes, rules in code decide, humans approve above a threshold.</li>
+      <li>Idempotency key per refund; audit row per action; PII kept out of logs and prompts.</li>
+      <li>Failure modes: duplicate refund, injection in a ticket body, approval of one amount and execution of another.</li>
+      <li>Measure: wrong-refund rate (target zero), escalation rate, cost per ticket.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <strong>B. A long-running research agent</strong>
+    <ul>
+      <li>Loop with budgets (tokens, time, money) and loop detection.</li>
+      <li>Context: summarize, keep a structured notes store, retrieve on demand.</li>
+      <li>Durable state: checkpoint each step, resume after a crash, repair the history tail.</li>
+      <li>Measure: task success on a fixed set, cost per success, drift over long runs.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <strong>C. An eval system for a support agent</strong>
+    <ul>
+      <li>Three groups: deterministic, contract, live. A scripted approver. Programmatic graders first.</li>
+      <li>Trial counts, paired comparison, a dashboard of pass rate with intervals, a cost cap.</li>
+      <li>Failure modes: overfitting to the eval set, flaky graders, silent provider changes.</li>
+    </ul>
+  </div>
+
+  <h3 id="quiz">Self-check quiz</h3>
+  <div id="quizbox"></div>
+  <div class="card" id="quizscore" aria-live="polite" hidden>
+    <span class="score" id="scoretext"></span>
+    <p class="small" id="scorehint"></p>
+    <button class="btn" id="quizreset" type="button">Try again</button>
+  </div>
+
+  <!-- 15 -->
+  <h2 id="antipatterns">16. Anti-patterns to avoid</h2>
+  <table>
+    <thead><tr><th>Anti-pattern</th><th>What to do instead</th></tr></thead>
+    <tbody>
+      <tr><td>Enforcing a rule only in the prompt</td><td>Enforce it in code. Use the prompt to explain it.</td></tr>
+      <tr><td>Letting the model run write actions directly</td><td>Propose, validate, show a card, confirm, execute as the user.</td></tr>
+      <tr><td>A step limit as the only budget</td><td>Add token, time and spend budgets plus loop detection.</td></tr>
+      <tr><td>Checking permissions once, at the start</td><td>Re-check at the executing route.</td></tr>
+      <tr><td>Truncating data the model must send back whole</td><td>Never cap it; use patch tools and forced re-reads.</td></tr>
+      <tr><td>Logging prompts, answers and tool results</td><td>Log counts, ids, versions and timings.</td></tr>
+      <tr><td>Judging a change from one run</td><td>Many trials, paired tasks, an interval.</td></tr>
+      <tr><td>Treating framing or delimiters as a security control</td><td>Treat them as a mitigation. The control is limited authority.</td></tr>
+      <tr><td>Blind retries on writes</td><td>Idempotency keys and recorded steps.</td></tr>
+      <tr><td>Letting a user-authored profile add tools or raise limits</td><td>Intersect with the user's grants and take the smaller limit.</td></tr>
+      <tr><td>Activating a shared skill without a second person</td><td>Separation of duties: the author cannot activate their own workspace skill.</td></tr>
+      <tr><td>Placing user instructions before the stable prefix</td><td>Put them after the cached prefix, and measure the hit rate.</td></tr>
+      <tr><td>Adding a framework before you understand the loop</td><td>Build the loop once by hand, then choose with open eyes.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout tip">
+    <strong class="label">Honest claims</strong>
+    Say what you built and what you did not. "I built the loop, the stream parser and the safety layer against the raw API; I compared my design with an open-source pre-release codebase that uses an SDK loop." is stronger than a vague "I built an agent framework", and it survives follow-up questions.
+  </div>
+</main>
+</div>
+
+<script>
+const GLOSSARY = [
+  ["Agent", "A model plus a role (prompt, tools, goals) running inside a harness."],
+  ["Harness", "The runtime around a model: loop, tools, permissions, context, state, audit, evals."],
+  ["Tool use / function calling", "The model emits a structured request to call a named function. Your code runs it."],
+  ["tool_use / tool_result", "The paired content blocks that carry a call and its outcome, matched by id."],
+  ["ReAct", "A loop pattern: reason, act with a tool, observe the result, repeat."],
+  ["Stop reason", "Why the model stopped: finished, wants a tool, hit an output limit, refused, and so on."],
+  ["SSE", "Server-sent events: a one-way text stream over HTTP, used to stream tokens."],
+  ["Partial JSON", "Tool arguments streamed in fragments, only parseable once the block ends."],
+  ["AbortController", "The standard way to cancel an in-flight request or stream."],
+  ["Backpressure", "Slowing a producer when the consumer cannot keep up."],
+  ["Context window", "The maximum tokens (input plus output) the model can handle in one call."],
+  ["Eviction", "Dropping old content from context, usually leaving a stub that says how to restore it."],
+  ["Compaction", "Summarizing older turns to free context space."],
+  ["Prompt caching", "Reusing a computed prompt prefix across calls to cut cost and latency."],
+  ["Stable prefix", "System prompt and tools kept byte-identical so the cache keeps hitting."],
+  ["RAG", "Retrieval-augmented generation: fetch relevant text and put it in the prompt."],
+  ["Least privilege", "Give each actor only the rights it needs, nothing more."],
+  ["Confused deputy", "A privileged component tricked into acting for someone who lacks the right."],
+  ["Prompt injection", "Text in data that tries to steer the model as if it were an instruction."],
+  ["Indirect injection", "Injection hidden in content the model reads (pages, files, form text), not typed by the user."],
+  ["Mitigation vs control", "A mitigation lowers the odds; a control guarantees a limit regardless of model behavior."],
+  ["Human in the loop", "A person must approve an action before it takes effect."],
+  ["HMAC", "A keyed hash that proves a message was made by someone holding the key and was not altered."],
+  ["Canonical JSON", "A fixed serialization (sorted keys, no extras) so equal data hashes equally."],
+  ["TOCTOU", "Time-of-check to time-of-use: the world changes between checking and acting."],
+  ["Idempotency key", "A client-chosen id that makes a repeated request a no-op."],
+  ["At-least-once delivery", "A message may arrive more than once; handle duplicates."],
+  ["Exponential backoff + jitter", "Wait longer after each failure, with randomness to avoid synchronized retries."],
+  ["Circuit breaker", "Stop calling a failing dependency for a while instead of piling on."],
+  ["Saga", "A multi-step process with per-step records and compensation instead of one big transaction."],
+  ["Event sourcing", "State is rebuilt by replaying an append-only log of events."],
+  ["Turn record", "One structured, content-free log entry per agent turn."],
+  ["Audit trail", "A tamper-resistant record of who did what and when."],
+  ["Prompt version", "An explicit number logged with each turn so behavior changes trace to prompt changes."],
+  ["Deterministic test", "A test that must pass every time, using a scripted model."],
+  ["Contract test", "A real-provider check that your requests and parser still match the API."],
+  ["Live eval", "Running the real model on tasks many times and reporting a pass rate."],
+  ["pass@k", "Probability at least one of k attempts succeeds."],
+  ["pass^k", "Probability all k attempts succeed (a reliability measure)."],
+  ["Paired comparison", "Comparing two versions on identical tasks and analyzing per-task differences."],
+  ["Bootstrap interval", "A confidence interval made by resampling your own results."],
+  ["LLM-as-judge", "Using a model to grade outputs: cheap, but noisy and biased."],
+  ["Subagent", "A separate agent run with its own fresh context, called as a tool."],
+  ["MCP", "Model Context Protocol: an open protocol for exposing tools and resources to a model client."],
+  ["Model routing", "Sending easy requests to a cheaper model and hard ones to a stronger one."],
+  ["Temperature", "A sampling setting for randomness. Zero is not a guarantee of identical output."],
+  ["Structured output", "Constraining the model to emit JSON that matches a schema."],
+  ["Skill", "A named, user-readable file the model can load on demand: a short description always visible, a body read when needed."],
+  ["Progressive disclosure", "Keep a cheap index in context and load the full content only when it is relevant."],
+  ["Instructions file (AGENTS.md)", "Always-loaded guidance text that tells an agent how to behave in a project or workspace."],
+  ["Custom agent (profile)", "A saved agent configuration: instructions, allowed tools, limits and model, narrowed by the user's grants."],
+  ["Separation of duties", "The person who writes a change is not the person who activates it."],
+  ["Token", "The unit a model reads and writes; cost and limits are measured in tokens."]
+];
+
+const QA = [
+  ["What is an agent harness, and how is it different from the agent?",
+   "<p>The agent is a model plus a role: a prompt, tools and goals. The harness is the runtime that makes it act: the loop, streaming, tool execution, permissions, context handling, sessions, audit and evals. Same model, different harness, very different behavior.</p><p>Tie it to your build: name two things your harness enforces that the prompt could never guarantee.</p>"],
+  ["Walk me through the agent loop and its stop conditions.",
+   "<p>Call the model with messages and offered tools. Append its reply. If it asked for no tools, stop. Otherwise validate each call, check permissions, run the tools, append all results in one user message, and repeat.</p><p>Stop on: no tool call, step limit, a tool that was not offered, output-length cutoff, refusal, abort, and token, time or cost budgets. Mention that each ending has its own code.</p>"],
+  ["Why must every tool call get a result? What happens on cancel?",
+   "<p>The API requires every tool_use to be answered by a tool_result in the next user message, so a dangling call makes the next request invalid. On cancel, a crash or a failed tool, still synthesize an error result.</p><p>On resume, repair the tail of the history the same way. Say you tested cancel mid-stream.</p>"],
+  ["How do you handle streamed tool calls?",
+   "<p>Arguments arrive as partial JSON deltas per content block. Buffer them per block index and parse only when the block stops. If parsing fails, or the reply was cut off, answer the call with an error result and never run it.</p><p>Also: keep-alive pings, errors inside a 200 stream, and aborting the upstream call when the client disconnects. Test the parser with recorded byte-level fixtures split mid-event.</p>"],
+  ["How should tools report errors?",
+   "<p>As tool results the model can read, written like prompts: what was wrong and what to try. That lets the model self-correct within the step budget. Do not leak stack traces, internal ids or secrets.</p><p>Distinguish a recoverable argument error from a permanent policy refusal.</p>"],
+  ["How do you stop runaway loops and runaway cost?",
+   "<p>Several layers: step limit, token budget, wall-clock limit, per-user and per-project spend caps, loop detection on repeated identical calls, and ending the turn immediately on a call outside the allowlist.</p><p>Make the budget guard part of the harness so a prompt change cannot weaken it.</p>"],
+  ["How do you design permissions for an agent?",
+   "<p>The model holds no authority; it acts as the signed-in user. Offer only the tools and action kinds that user may use, check each subject at proposal time, and re-check at the route that executes. Treat offered tools as a convenience, not the guard.</p><p>Name least privilege and the confused-deputy problem.</p>"],
+  ["Explain prompt injection and what actually helps.",
+   "<p>Instructions hidden in data the model reads, such as a form title or a web page. Delimiters and warnings are mitigations: they lower the odds. Real controls limit what a fooled model can do: no authority of its own, writes only via a human-confirmed card showing true arguments, tools scoped to the user's rights.</p><p>Describe your test: script a model that obeys the injection and assert nothing runs.</p>"],
+  ["How do you make sure an approved action is exactly what runs?",
+   "<p>Sign a token over what the card showed: user, proposal id, and per step the action kind, a digest of canonical arguments, and the environment, with a short lifetime. Each step carries the token; the route recomputes the digest, checks the user, kind and expiry, and records the step once.</p><p>Mention TOCTOU and canonical JSON. Add that order and failure-stopping are enforced server-side, not just by the client.</p>"],
+  ["How do you make side effects safe to retry?",
+   "<p>Idempotency keys, or a recorded-step check that refuses a repeat. A unique constraint in the same transaction as the effect is the backstop for races. Retry model calls on rate limits and 5xx with backoff and jitter; never blindly retry a write.</p>"],
+  ["The context window is full. What do you do?",
+   "<p>Budget tokens before each call, cap tool output size, evict old read results leaving a stub, and summarize older turns while keeping ids and decisions in a structured list. Retrieve on demand for large stores.</p><p>Key caveat: never truncate data the model must send back whole, such as a draft saved wholesale. Force a fresh read before the write, or use a patch tool.</p>"],
+  ["How does prompt caching work, and how do you design for it?",
+   "<p>The provider caches a prompt prefix; calls starting with identical bytes cost less and run faster. Keep tools and the system prompt byte-stable (no timestamps, stable key order), put volatile content at the tail, set breakpoints deliberately, and measure the hit rate from usage counters.</p><p>Note that eviction in the middle of history changes everything after it.</p>"],
+  ["How do you evaluate an agent?",
+   "<p>Three groups: deterministic harness tests with a scripted model, contract tests against the real provider, and live evals with many trials. Prefer programmatic graders. Use a scripted approver. Report pass rate with spread, steps and cost.</p><p>Compare versions on the same tasks (paired) and look at an interval, not one run.</p>"],
+  ["Is temperature 0 deterministic?",
+   "<p>No. Batching, floating-point non-associativity, hardware differences and silent provider model updates can all change output. So you plan for variance: repeated trials, thresholds, and pinned model ids where possible.</p>"],
+  ["What are the pitfalls of LLM-as-judge?",
+   "<p>Noise between runs, length and style bias, self-preference, and sensitivity to prompt wording. Use it only for what code cannot check, calibrate against human labels, and keep programmatic checks as the main signal.</p>"],
+  ["Why write your own loop instead of using an SDK or framework?",
+   "<p>To learn the parts that frameworks hide: stream parsing, argument assembly, stop-reason mapping, cancellation and history repair. In a real product, an SDK loop is often the right call because those are solved problems; the risk is in policy, approval and evals, which you own either way.</p><p>Say plainly which you would choose at work and why.</p>"],
+  ["When would you use subagents?",
+   "<p>When a subtask would flood the main context (a broad search) or needs different tools or permissions. The subagent runs its own loop with fresh context and returns a short result. Costs: extra tokens, latency, coordination, and a new place for injection and permission leaks. Give it fewer rights, not more.</p>"],
+  ["What is MCP and where does it fit?",
+   "<p>The Model Context Protocol is an open standard for exposing tools, resources and prompts to a model client. Your harness acts as the client. Security notes: servers can be untrusted, and tool descriptions and results are injection surfaces, so apply the same offering, permission and framing rules.</p>"],
+  ["How do you log and trace without leaking data?",
+   "<p>Log shape, not content: ids, counts, versions, token usage, stop reasons, timings, tool names and success flags. Never log prompts, answers or tool results built from user input, and never log model reasoning. Keep audit rows (who did what) separate from debug logs.</p>"],
+  ["A plan has three steps and step two fails. What happens?",
+   "<p>You cannot make it atomic across separate routes, so record per-step outcomes (done, failed, not-run) and refuse step three on the server because step two is not recorded as done. Show the person what was applied. For effects that need undoing, add compensating actions (a saga).</p>"],
+  ["How do you reduce latency and cost?",
+   "<p>Stream for perceived speed, run independent tool calls in parallel, cache the stable prefix, cap tool output, route easy requests to a cheaper model, and set budgets. Measure cost per successful task, not just per call.</p>"],
+  ["How would you let end users create their own skills, instructions or custom agents?",
+   "<p>They are files plus a loader. Store them as versioned rows with a scope (personal or workspace). Put instructions after the stable prefix, put only each skill's name and description in the prompt, and load a body on demand through a read tool. A custom agent is a saved profile.</p><p>The hard part is authority: user text sits below the system prompt, a profile's tools are the intersection with the user's grants, and saving anything goes through the same propose, confirm and audit path as every other write. Add limits, linting and a content-free turn record.</p>"],
+  ["How could a shared skill be used against another user, and what limits it?",
+   "<p>A workspace skill is read by other people's agents, so it is indirect prompt injection from a source that looks trusted. Limits: personal skills visible only to their author, a second person must activate a workspace skill, user text can add guidance but not authority, and the real controls (grants, the approval card, the signed token) are unchanged.</p><p>Test it by scripting a model that obeys a hostile skill and asserting nothing runs without confirmation.</p>"]
+];
+
+const QUIZ = [
+  { q: "A model returns three tool_use blocks in one reply. What must the next request contain?",
+    o: ["Only the result of the first call", "Three tool_result blocks, one per id, in one user message", "A new system prompt", "Nothing; the server remembers"],
+    a: 1, why: "Every tool_use needs a matching tool_result in the next user message. Results for parallel calls are returned together." },
+  { q: "A tool call's JSON arguments fail to parse after the stream ends. What do you do?",
+    o: ["Run it with empty arguments", "Retry the whole turn silently", "Answer the call with an error result and do not run it", "Ignore the block"],
+    a: 2, why: "A half-built or malformed call must never run. An error result lets the model correct itself and keeps the history valid." },
+  { q: "Which is a control, not just a mitigation, against prompt injection?",
+    o: ["Wrapping data in a fenced block", "Telling the model to ignore instructions in data", "Requiring a human-confirmed card that shows the true arguments before any write", "Filtering the phrase 'ignore previous instructions'"],
+    a: 2, why: "Controls limit what a fooled model can do regardless of its behavior. The other options only lower the odds." },
+  { q: "Why sign a digest of canonical JSON instead of the raw argument string?",
+    o: ["Canonical JSON is smaller", "Equal data must produce equal bytes regardless of key order", "It avoids needing a secret key", "It makes the token unreadable"],
+    a: 1, why: "Without a canonical form, the same arguments can serialize differently, so a legitimate step could fail verification or a changed one could slip through." },
+  { q: "Where is the authoritative permission check for an executed step?",
+    o: ["In the system prompt", "When the tool list is built", "At the route that executes the step, using the user's current rights", "On the client"],
+    a: 2, why: "Rights can change between proposal and confirm, and the client is untrusted. Earlier checks are convenience and early failure." },
+  { q: "A save tool replaces a whole draft. The draft is large. What is the safe design?",
+    o: ["Truncate the draft in context and send it back", "Never truncate it, or use a patch tool applied to a fresh read", "Let the model reconstruct it from memory", "Summarize it and save the summary"],
+    a: 1, why: "Truncating then saving wholesale silently deletes content. Keep it whole, or have the harness apply a small patch to a fresh read." },
+  { q: "You changed a prompt and pass rate went from 62% to 66% on one run of 50 tasks. What can you conclude?",
+    o: ["It improved", "It got worse", "Not enough: run many trials on the same tasks and look at the interval", "Variance does not exist at temperature 0"],
+    a: 2, why: "Run-to-run variance can easily exceed four points. Paired comparison over repeated trials tells you whether the interval excludes zero." },
+  { q: "What is the safest way to handle a retry of a write that may have already succeeded?",
+    o: ["Retry immediately", "Never retry", "Use an idempotency key or a recorded-step check so a repeat is a no-op", "Retry after a longer delay"],
+    a: 2, why: "Delay does not make a duplicate safe. Idempotency does." },
+  { q: "Which log field is acceptable in a turn record?",
+    o: ["The user's message text", "The model's reasoning text", "Token counts, stop reason and tool names", "Raw tool results"],
+    a: 2, why: "Log shape, not content. Counts, ids, versions and timings are safe and still answer most debugging questions." },
+  { q: "Why does changing the system prompt on every request hurt?",
+    o: ["It breaks the tool_use pairing", "It invalidates the cached prefix, raising cost and latency", "The model forgets the tools", "It is rejected by the API"],
+    a: 1, why: "Prompt caching depends on identical prefix bytes. Keep the system prompt and tools stable and put volatile content at the tail." },
+  { q: "A user saves a custom agent profile that lists a tool they have no permission for. What happens at run time?",
+    o: ["The tool is offered because the profile asked for it", "The tool is offered after a manager approves", "The tool is not offered: effective tools are the profile's list intersected with the user's grants", "The turn fails with an error"],
+    a: 2, why: "A profile only narrows. Authority comes from the user's grants, and the checks that enforce them do not change." },
+  { q: "Why should a workspace-level skill need a second person to activate it?",
+    o: ["It makes the model faster", "Other users' agents will read it, so a single unreviewed author could steer them (indirect injection)", "Skills cannot be edited after saving", "It reduces token cost"],
+    a: 1, why: "Shared guidance is an injection path from a trusted-looking source. Separation of duties puts a human between the author and everyone else." }
+];
+
+(function glossary() {
+  const body = document.querySelector("#gtable tbody");
+  const rows = GLOSSARY.map(([t, d]) => {
+    const tr = document.createElement("tr");
+    const a = document.createElement("td"); a.textContent = t; a.style.fontWeight = "600";
+    const b = document.createElement("td"); b.textContent = d;
+    tr.append(a, b); body.appendChild(tr);
+    return { tr, text: (t + " " + d).toLowerCase() };
+  });
+  const count = document.getElementById("gcount");
+  function apply() {
+    const q = document.getElementById("gfilter").value.trim().toLowerCase();
+    let n = 0;
+    rows.forEach(r => { const show = !q || r.text.includes(q); r.tr.hidden = !show; if (show) n++; });
+    count.textContent = n + " of " + rows.length + " terms";
+  }
+  document.getElementById("gfilter").addEventListener("input", apply);
+  apply();
+})();
+
+(function questions() {
+  const box = document.getElementById("qa");
+  QA.forEach(([q, a]) => {
+    const d = document.createElement("details"); d.className = "qa";
+    const s = document.createElement("summary"); s.textContent = q;
+    const div = document.createElement("div"); div.className = "ans"; div.innerHTML = a;
+    d.append(s, div); box.appendChild(d);
+  });
+})();
+
+(function quiz() {
+  const box = document.getElementById("quizbox");
+  const scoreCard = document.getElementById("quizscore");
+  let answered = 0, correct = 0;
+
+  function render() {
+    box.innerHTML = ""; answered = 0; correct = 0; scoreCard.hidden = true;
+    QUIZ.forEach((item, qi) => {
+      const wrap = document.createElement("div"); wrap.className = "quiz-q";
+      const p = document.createElement("p"); p.className = "q"; p.textContent = (qi + 1) + ". " + item.q;
+      wrap.appendChild(p);
+      const why = document.createElement("p"); why.className = "why"; why.hidden = true; why.textContent = item.why;
+      const buttons = [];
+      item.o.forEach((text, oi) => {
+        const b = document.createElement("button"); b.type = "button"; b.className = "opt"; b.textContent = text;
+        b.addEventListener("click", () => {
+          buttons.forEach(x => x.disabled = true);
+          buttons[item.a].classList.add("right");
+          if (oi !== item.a) b.classList.add("wrong"); else correct++;
+          why.hidden = false; answered++;
+          if (answered === QUIZ.length) finish();
+        });
+        buttons.push(b); wrap.appendChild(b);
+      });
+      wrap.appendChild(why); box.appendChild(wrap);
+    });
+  }
+
+  function finish() {
+    scoreCard.hidden = false;
+    document.getElementById("scoretext").textContent = "Score: " + correct + " / " + QUIZ.length;
+    document.getElementById("scorehint").textContent = correct >= Math.ceil(QUIZ.length * 0.8)
+      ? "Strong. Move on to the design prompts."
+      : "Re-read the sections behind the questions you missed, then try again.";
+  }
+
+  document.getElementById("quizreset").addEventListener("click", () => {
+    render(); box.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  render();
+})();
+
+(function activeToc() {
+  const links = [...document.querySelectorAll("nav.toc a")];
+  const map = new Map(links.map(a => [a.getAttribute("href").slice(1), a]));
+  if (!("IntersectionObserver" in window)) return;
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(a => a.classList.remove("active"));
+        const a = map.get(e.target.id); if (a) a.classList.add("active");
+      }
+    });
+  }, { rootMargin: "0px 0px -70% 0px" });
+  map.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+})();
+</script>
+</body>
+</html>
