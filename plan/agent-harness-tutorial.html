@@ -98,13 +98,14 @@
   <a href="#reliability">10. Reliability</a>
   <a href="#state">11. Sessions and resume</a>
   <a href="#observability">12. Observability and audit</a>
-  <a href="#evals">13. Evaluation</a>
-  <a href="#interview">14. Interview prep</a>
+  <a href="#extend">13. User-authored skills and agents</a>
+  <a href="#evals">14. Evaluation</a>
+  <a href="#interview">15. Interview prep</a>
   <a href="#glossary">Glossary</a>
   <a href="#questions">Common questions</a>
   <a href="#design">System design prompts</a>
   <a href="#quiz">Quiz</a>
-  <a href="#antipatterns">15. Anti-patterns</a>
+  <a href="#antipatterns">16. Anti-patterns</a>
 </nav>
 
 <main>
@@ -524,7 +525,74 @@ function verify(token: string, key: Buffer, now: number): Claims | null {
   </div>
 
   <!-- 13 -->
-  <h2 id="evals">13. Evaluation</h2>
+  <h2 id="extend">13. User-authored skills, instructions and custom agents</h2>
+  <span class="phase">Plan: Phase 13 (optional)</span>
+  <p>Coding agents let you drop in an <code>AGENTS.md</code>, a skill or a custom agent. None of these is a special feature: each is a file plus a loader in the harness. The design question changes when the author is an <em>end user</em> and not a developer, because now security and multi-tenancy are the whole problem.</p>
+  <table>
+    <thead><tr><th>Mechanism</th><th>What it is</th><th>What the harness does</th></tr></thead>
+    <tbody>
+      <tr><td>Instructions file</td><td>Always-on guidance text</td><td>Injects it into every turn, after the stable prefix.</td></tr>
+      <tr><td>Skill</td><td>A named file with a short description and a body</td><td>Puts only name and description in the prompt (the index). Loads the body on demand through a tool. This is <strong>progressive disclosure</strong>.</td></tr>
+      <tr><td>Custom agent (profile)</td><td>A saved configuration: instructions, tool allowlist, limits, model alias</td><td>Runs a turn under that configuration, always narrowed by the user's own grants.</td></tr>
+    </tbody>
+  </table>
+  <p>Skills work because the index is cheap and always visible while the body is expensive and loaded only when the model decides it is relevant. The <code>description</code> carries most of the weight: it is what the model matches a request against.</p>
+<pre><code>interface Skill {
+  name: string;
+  description: string;      // always in the prompt
+  body: string;             // loaded on demand
+  scope: "personal" | "workspace";
+  version: number;
+  status: "pending" | "active" | "archived";
+  createdBy: string;
+}
+
+const skillIndex = (skills: Skill[]) =&gt;
+  skills
+    .filter((s) =&gt; s.status === "active")
+    .sort((a, b) =&gt; a.name.localeCompare(b.name))     // stable bytes keep the cache warm
+    .map((s) =&gt; `- ${s.name}: ${s.description}`)
+    .join("\n");
+
+// A profile narrows. It never adds.
+const effectiveTools = (profile: Profile | undefined, granted: string[]) =&gt;
+  profile ? granted.filter((t) =&gt; profile.allowedTools.includes(t)) : granted;
+const effectiveMaxSteps = (profile: Profile | undefined, base: number) =&gt;
+  Math.min(base, profile?.maxSteps ?? base);
+
+// Separation of duties: a shared skill needs a second person.
+const canActivate = (actor: User, item: Skill, grants: Grants) =&gt;
+  grants.has(actor.id, "assistant-config:activate") &amp;&amp; item.createdBy !== actor.id;</code></pre>
+  <h3>Prompt layout</h3>
+  <ol>
+    <li>System prompt and tool list: byte-stable, cached.</li>
+    <li>Workspace instructions, then personal instructions.</li>
+    <li>The skill index (active skills only, sorted).</li>
+    <li>The conversation, including any <code>read_skill</code> results.</li>
+  </ol>
+  <p>Everything user-authored sits <em>below</em> the system prompt and is labelled as guidance from the user. It can add guidance. It cannot remove a rule or raise authority.</p>
+  <h3>What changes when the author is an end user</h3>
+  <ul>
+    <li><strong>A skill steers; code enforces.</strong> Anything that must be guaranteed stays in the harness.</li>
+    <li><strong>Profiles only narrow.</strong> Offered tools are the profile's list intersected with the user's grants; each limit is the smaller of the profile's and the base. A profile cannot add a tool, action kind, environment or budget.</li>
+    <li><strong>A shared skill is an injection path.</strong> If an editor writes a workspace skill that an approver's agent then follows, that is indirect prompt injection from a trusted-looking source. Keep personal skills visible to their author only, and require a second person to activate a workspace skill.</li>
+    <li><strong>Writes use the same approval path.</strong> Saving a skill is a proposed action: a card showing the full body, a signed token over its digest, an audit row. No new mechanism.</li>
+    <li><strong>Text only.</strong> No scripts, no fetched URLs, no user-defined tools. Executable skills mean a sandbox, which is a separate project.</li>
+    <li><strong>Limits and linting.</strong> Cap body size, skill count and tokens, refuse unknown frontmatter keys and secret-like strings.</li>
+    <li><strong>Observability without content.</strong> Record skill names, versions and a layout hash in the turn record, never bodies.</li>
+    <li><strong>Stability.</strong> Pin the version a turn reads, so an edit mid-turn does not change its behavior.</li>
+  </ul>
+  <div class="callout tip">
+    <strong class="label">The same pattern already exists in QCMS</strong>
+    The assistant's guidance is maintainer-authored Markdown under <code>apps/api/src/features/agent/prompts/</code>, compiled into a generated file. A <code>recipes/&lt;type&gt;.md</code> body is sent only when the assistant looks it up through the <code>question_recipes</code> tool. Only the type names ride every turn, as that tool's enum. That is progressive disclosure, fixed in the repository and tested by the maintainers. Optional Phase 13 asks what changes when the author is an end user. I found no end-user store in a limited search, so treat that as unverified.
+  </div>
+  <div class="callout interview">
+    <strong class="label">Interview concepts</strong>
+    Progressive disclosure and why it saves context; layered configuration and precedence; least privilege applied to configuration (intersection, never union); separation of duties; indirect injection through shared content; prompt-cache layout; why configuration is data, not code.
+  </div>
+
+  <!-- 14 -->
+  <h2 id="evals">14. Evaluation</h2>
   <span class="phase">Plan: Phase 10 and 11</span>
   <p>Three groups of checks answer three different questions. Keep them separate.</p>
   <table>
@@ -568,7 +636,7 @@ function pairedBootstrap(a: number[], b: number[], iters = 10_000): [number, num
   </div>
 
   <!-- 14 -->
-  <h2 id="interview">14. Interview prep</h2>
+  <h2 id="interview">15. Interview prep</h2>
   <p>Use the glossary to check you can define each term in one sentence. Use the questions to practice a 60-second answer, then tie each answer to something you built and can demo.</p>
 
   <h3 id="glossary">Glossary</h3>
@@ -621,7 +689,7 @@ function pairedBootstrap(a: number[], b: number[], iters = 10_000): [number, num
   </div>
 
   <!-- 15 -->
-  <h2 id="antipatterns">15. Anti-patterns to avoid</h2>
+  <h2 id="antipatterns">16. Anti-patterns to avoid</h2>
   <table>
     <thead><tr><th>Anti-pattern</th><th>What to do instead</th></tr></thead>
     <tbody>
@@ -634,6 +702,9 @@ function pairedBootstrap(a: number[], b: number[], iters = 10_000): [number, num
       <tr><td>Judging a change from one run</td><td>Many trials, paired tasks, an interval.</td></tr>
       <tr><td>Treating framing or delimiters as a security control</td><td>Treat them as a mitigation. The control is limited authority.</td></tr>
       <tr><td>Blind retries on writes</td><td>Idempotency keys and recorded steps.</td></tr>
+      <tr><td>Letting a user-authored profile add tools or raise limits</td><td>Intersect with the user's grants and take the smaller limit.</td></tr>
+      <tr><td>Activating a shared skill without a second person</td><td>Separation of duties: the author cannot activate their own workspace skill.</td></tr>
+      <tr><td>Placing user instructions before the stable prefix</td><td>Put them after the cached prefix, and measure the hit rate.</td></tr>
       <tr><td>Adding a framework before you understand the loop</td><td>Build the loop once by hand, then choose with open eyes.</td></tr>
     </tbody>
   </table>
@@ -694,6 +765,11 @@ const GLOSSARY = [
   ["Model routing", "Sending easy requests to a cheaper model and hard ones to a stronger one."],
   ["Temperature", "A sampling setting for randomness. Zero is not a guarantee of identical output."],
   ["Structured output", "Constraining the model to emit JSON that matches a schema."],
+  ["Skill", "A named, user-readable file the model can load on demand: a short description always visible, a body read when needed."],
+  ["Progressive disclosure", "Keep a cheap index in context and load the full content only when it is relevant."],
+  ["Instructions file (AGENTS.md)", "Always-loaded guidance text that tells an agent how to behave in a project or workspace."],
+  ["Custom agent (profile)", "A saved agent configuration: instructions, allowed tools, limits and model, narrowed by the user's grants."],
+  ["Separation of duties", "The person who writes a change is not the person who activates it."],
   ["Token", "The unit a model reads and writes; cost and limits are measured in tokens."]
 ];
 
@@ -739,7 +815,11 @@ const QA = [
   ["A plan has three steps and step two fails. What happens?",
    "<p>You cannot make it atomic across separate routes, so record per-step outcomes (done, failed, not-run) and refuse step three on the server because step two is not recorded as done. Show the person what was applied. For effects that need undoing, add compensating actions (a saga).</p>"],
   ["How do you reduce latency and cost?",
-   "<p>Stream for perceived speed, run independent tool calls in parallel, cache the stable prefix, cap tool output, route easy requests to a cheaper model, and set budgets. Measure cost per successful task, not just per call.</p>"]
+   "<p>Stream for perceived speed, run independent tool calls in parallel, cache the stable prefix, cap tool output, route easy requests to a cheaper model, and set budgets. Measure cost per successful task, not just per call.</p>"],
+  ["How would you let end users create their own skills, instructions or custom agents?",
+   "<p>They are files plus a loader. Store them as versioned rows with a scope (personal or workspace). Put instructions after the stable prefix, put only each skill's name and description in the prompt, and load a body on demand through a read tool. A custom agent is a saved profile.</p><p>The hard part is authority: user text sits below the system prompt, a profile's tools are the intersection with the user's grants, and saving anything goes through the same propose, confirm and audit path as every other write. Add limits, linting and a content-free turn record.</p>"],
+  ["How could a shared skill be used against another user, and what limits it?",
+   "<p>A workspace skill is read by other people's agents, so it is indirect prompt injection from a source that looks trusted. Limits: personal skills visible only to their author, a second person must activate a workspace skill, user text can add guidance but not authority, and the real controls (grants, the approval card, the signed token) are unchanged.</p><p>Test it by scripting a model that obeys a hostile skill and asserting nothing runs without confirmation.</p>"]
 ];
 
 const QUIZ = [
@@ -772,7 +852,13 @@ const QUIZ = [
     a: 2, why: "Log shape, not content. Counts, ids, versions and timings are safe and still answer most debugging questions." },
   { q: "Why does changing the system prompt on every request hurt?",
     o: ["It breaks the tool_use pairing", "It invalidates the cached prefix, raising cost and latency", "The model forgets the tools", "It is rejected by the API"],
-    a: 1, why: "Prompt caching depends on identical prefix bytes. Keep the system prompt and tools stable and put volatile content at the tail." }
+    a: 1, why: "Prompt caching depends on identical prefix bytes. Keep the system prompt and tools stable and put volatile content at the tail." },
+  { q: "A user saves a custom agent profile that lists a tool they have no permission for. What happens at run time?",
+    o: ["The tool is offered because the profile asked for it", "The tool is offered after a manager approves", "The tool is not offered: effective tools are the profile's list intersected with the user's grants", "The turn fails with an error"],
+    a: 2, why: "A profile only narrows. Authority comes from the user's grants, and the checks that enforce them do not change." },
+  { q: "Why should a workspace-level skill need a second person to activate it?",
+    o: ["It makes the model faster", "Other users' agents will read it, so a single unreviewed author could steer them (indirect injection)", "Skills cannot be edited after saving", "It reduces token cost"],
+    a: 1, why: "Shared guidance is an injection path from a trusted-looking source. Separation of duties puts a human between the author and everyone else." }
 ];
 
 (function glossary() {
@@ -836,7 +922,7 @@ const QUIZ = [
   function finish() {
     scoreCard.hidden = false;
     document.getElementById("scoretext").textContent = "Score: " + correct + " / " + QUIZ.length;
-    document.getElementById("scorehint").textContent = correct >= 8
+    document.getElementById("scorehint").textContent = correct >= Math.ceil(QUIZ.length * 0.8)
       ? "Strong. Move on to the design prompts."
       : "Re-read the sections behind the questions you missed, then try again.";
   }
