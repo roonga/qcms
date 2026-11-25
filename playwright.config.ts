@@ -196,6 +196,9 @@ export default defineConfig({
         // variable from `apps/admin/.env.local`, where a developer may have weakened it.
         QCMS_ADMIN_2FA: "required",
         QCMS_FLAG_AGENT_AUTHORING: "fake",
+        // Matches the composed API's own flag, so the drawer offers the derive row the
+        // `theme-derive` spec drives. `appearance-drawer.test.tsx` covers the row's absence.
+        QCMS_FLAG_THEME_DERIVE: "on",
       },
     },
   ],

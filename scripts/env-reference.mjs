@@ -854,6 +854,14 @@ export const ENV_REFERENCE = [
       "Match the API provider setting to mount the panel and streaming proxy. Browser code receives enabled behavior; provider keys stay in the API.",
   },
   {
+    name: "QCMS_FLAG_THEME_DERIVE",
+    process: "admin",
+    requirement: "optional",
+    fallback: "off",
+    description:
+      "Match the API's `QCMS_FLAG_THEME_DERIVE`. Only `on` offers the appearance drawer's \"From your website\" row; anything else leaves it out, because the derive route that row calls is unmounted. The allowlist, proxy and rate limits stay API-only.",
+  },
+  {
     name: "QCMS_API_BASE_URL",
     process: "admin",
     requirement: "required",

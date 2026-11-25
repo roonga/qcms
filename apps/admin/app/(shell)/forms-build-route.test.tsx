@@ -214,6 +214,15 @@ function flag(on: boolean): void {
   vi.stubEnv("QCMS_FLAG_AGENT_AUTHORING", on ? "fake" : "");
 }
 
+function deriveFlag(value: string): void {
+  vi.stubEnv("QCMS_FLAG_THEME_DERIVE", value);
+}
+
+/** What the builder hands the preview, which is what the drawer reads the flag from. */
+function previewSource(): Record<string, unknown> {
+  return (builderProps[0]?.["preview"] ?? {}) as Record<string, unknown>;
+}
+
 beforeEach(() => {
   formResult = { ok: true, data: FORM_DETAIL };
   accessResult = myAccess(["forms.viewer", "forms.editor"]);
@@ -221,6 +230,7 @@ beforeEach(() => {
   rowMenus.length = 0;
   wizardProps.length = 0;
   flag(true);
+  deriveFlag("");
 });
 
 afterEach(() => {
@@ -344,5 +354,31 @@ describe("the publish wizard's returnTo is decided on the server", () => {
     await renderPublish({});
     expect(wizardProps[0]?.["returnTo"]).toBeUndefined();
     expect(wizardProps[0]?.["changes"]).toBeUndefined();
+  });
+});
+
+describe("the derive flag reaches the drawer through the build route", () => {
+  it("offers no derive row with QCMS_FLAG_THEME_DERIVE unset or off", async () => {
+    await renderFormBuild();
+    expect(previewSource()["deriveEnabled"]).toBe(false);
+    builderProps.length = 0;
+    deriveFlag("off");
+    await renderFormBuild();
+    expect(previewSource()["deriveEnabled"]).toBe(false);
+  });
+
+  it("offers the row with the flag on", async () => {
+    deriveFlag("on");
+    await renderFormBuild();
+    expect(previewSource()["deriveEnabled"]).toBe(true);
+  });
+
+  it("reads only the API's own spelling, so the two sides cannot disagree", async () => {
+    for (const value of ["true", "yes", "1", "ON"]) {
+      builderProps.length = 0;
+      deriveFlag(value);
+      await renderFormBuild();
+      expect(previewSource()["deriveEnabled"], value).toBe(false);
+    }
   });
 });

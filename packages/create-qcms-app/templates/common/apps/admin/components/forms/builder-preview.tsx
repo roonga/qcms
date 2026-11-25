@@ -219,6 +219,8 @@ export interface BuilderPreviewSource {
   readonly faces: readonly FaceChoice[];
   /** Set by the workspace: the drawer shows the reason and attempts no save. */
   readonly appearanceLocked: boolean;
+  /** `QCMS_FLAG_THEME_DERIVE`, read on the server: with it off the drawer offers no derive row. */
+  readonly deriveEnabled: boolean;
   readonly saveAppearance: (appearance: unknown) => Promise<SaveAppearanceState>;
   /** The API makes the one outbound fetch, under SEC-18; nothing in the browser reaches the site. */
   readonly deriveTheme: (url: string) => Promise<DeriveThemeState>;
@@ -295,8 +297,15 @@ export function BuilderPreview({
   }, [saveHandOff]);
 
   useEffect(() => {
-    if (deriveHandOff !== undefined) setDrawerOpen(true);
-  }, [deriveHandOff]);
+    if (deriveHandOff === undefined) return;
+    /* With the derive flag off there is no row to take the address, so the hand-off is dropped
+       rather than left holding the drawer open on a route that answers 404. */
+    if (!source.deriveEnabled) {
+      deriveTaken();
+      return;
+    }
+    setDrawerOpen(true);
+  }, [deriveHandOff, deriveTaken, source.deriveEnabled]);
 
   useEffect(() => {
     if (saveHandOff !== undefined) setDrawerOpen(true);
@@ -701,6 +710,7 @@ export function BuilderPreview({
             themes={themes}
             faces={faces}
             locked={appearanceLocked}
+            deriveEnabled={source.deriveEnabled}
             handedOffAddress={handedOffAddress}
             handedOffThemeName={handedOffThemeName}
             onAddressTaken={deriveTaken}
