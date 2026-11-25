@@ -7,6 +7,8 @@ import type {
   AgentEditState,
   CreateFormCardState,
   CreateFormState,
+  CreateThemeState,
+  DeriveThemeState,
   DraftPreviewState,
   FormStatusState,
   MintLinksState,
@@ -21,6 +23,7 @@ import type {
   StoredDraftState,
   ValidateDraftState,
 } from "@/lib/forms/builder-state";
+import type { NewWorkspaceTheme } from "@/lib/forms/appearance-edit";
 import { blankDraft, formIdFromSlug } from "@/lib/forms/draft";
 import { linkExpiryInstant } from "@/lib/forms/links";
 import { t } from "@/lib/i18n/en";
@@ -49,6 +52,7 @@ import {
   type AgentAdopt,
 } from "@/lib/server/forms";
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
+import { createWorkspaceTheme, deriveWorkspaceTheme } from "@/lib/server/themes";
 import type { AgentProposalRef } from "@/lib/server/agent-proposal";
 import type { BatchOutcome } from "@/lib/server/releases";
 import {
@@ -76,6 +80,9 @@ import { currentWorkspaceId } from "@/lib/server/workspace-context";
 const MAX_DEFINITION_BYTES = 64 * 1024;
 
 const MALFORMED_CODE = "INVALID_FORM_DEFINITION";
+
+/** The derive route's own limit on the address, so a longer one is refused without a request. */
+const URL_MAX = 2048;
 
 /* React has already deserialized the input; this cap bounds outgoing UTF-8 bytes, not received bytes or
    UTF-16 code units. */
@@ -274,27 +281,82 @@ export async function saveAppearanceAction(
   return { status: "saved" };
 }
 
-/* The definition is passed through untouched: its edit token binds that exact post-state. */
+/**
+ * One derive, on the address the person typed on the card or in the drawer. The address is
+ * passed through untouched, because the API checks it under SEC-18 and makes the only fetch;
+ * the host read back here labels the theme row and decides nothing.
+ */
+export async function deriveWorkspaceThemeAction(
+  workspaceId: string,
+  url: string,
+): Promise<DeriveThemeState> {
+  const session = await requireAdminSession();
+  if (typeof url !== "string" || url.length > URL_MAX) {
+    return {
+      status: "error",
+      code: "THEME_DERIVE_REFUSED",
+      message: messageForFormCode("THEME_DERIVE_REFUSED"),
+    };
+  }
+  const result = await deriveWorkspaceTheme(session, workspaceId, url);
+  if (!result.ok) return { status: "error", code: result.code, message: result.message };
+  return { status: "derived", derived: result.data, host: hostOf(url) };
+}
+
+export async function createWorkspaceThemeAction(
+  workspaceId: string,
+  theme: NewWorkspaceTheme,
+): Promise<CreateThemeState> {
+  const session = await requireAdminSession();
+  if (!withinCap(theme)) {
+    return {
+      status: "error",
+      code: MALFORMED_CODE,
+      message: messageForFormCode(MALFORMED_CODE),
+    };
+  }
+  const result = await createWorkspaceTheme(session, workspaceId, theme);
+  if (!result.ok) return { status: "error", code: result.code, message: result.message };
+  revalidatePath(`/workspaces/${workspaceId}/settings`);
+  return { status: "created", themeId: result.data.themeId, name: result.data.name };
+}
+
+/* Both halves are passed through untouched: the edit token binds that exact post-state. */
 export async function applyAgentEditAction(
   formId: string,
   definition: unknown,
   token: string,
+  appearance?: unknown,
 ): Promise<AgentEditState> {
   const session = await requireAdminSession();
-  if (!withinCap(definition) || token === "") {
+  const looks = appearance === undefined || withinCap(appearance);
+  if (!withinCap(definition) || !looks || token === "") {
     return { status: "error", code: MALFORMED_CODE, message: messageForFormCode(MALFORMED_CODE) };
   }
-  const result = await applyAgentEdit(session, formId, definition, token);
+  const result = await applyAgentEdit(session, formId, definition, token, appearance);
   if (!result.ok) return { status: "error", code: result.code, message: result.message };
   revalidatePath(`/forms/${formId}`, "layout");
   return { status: "saved", undoToken: result.data.undoToken };
+}
+
+/** The host for the theme row's "From {host}", read from the address the person typed. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
 }
 
 export async function readStoredDraftAction(formId: string): Promise<StoredDraftState> {
   const session = await requireAdminSession();
   const result = await readStoredDraft(session, formId);
   if (!result.ok) return { status: "error", message: result.message };
-  return { status: "read", definition: result.data };
+  return {
+    status: "read",
+    definition: result.data.definition,
+    appearance: result.data.appearance,
+  };
 }
 
 /** Store the newest version's seeded copy as the open draft the agent builder edits. */

@@ -16,6 +16,8 @@ import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
 import {
   applyAgentEditAction,
+  createWorkspaceThemeAction,
+  deriveWorkspaceThemeAction,
   previewDraftAction,
   readStoredDraftAction,
   saveAppearanceAction,
@@ -84,6 +86,8 @@ export default async function FormBuildPage({
         faces: faceOptions(),
         appearanceLocked: form.appearanceLocked === true,
         saveAppearance: saveAppearanceAction.bind(null, form.formId),
+        deriveTheme: deriveWorkspaceThemeAction.bind(null, form.workspaceId),
+        createTheme: createWorkspaceThemeAction.bind(null, form.workspaceId),
       }}
       {...(form.draftSource === "open"
         ? {}

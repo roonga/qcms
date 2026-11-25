@@ -270,12 +270,13 @@ export async function applyAgentEdit(
   formId: string,
   definition: unknown,
   token: string,
+  appearance?: unknown,
 ): Promise<ApiResult<{ readonly updatedAt: string; readonly undoToken: string | null }>> {
   const result = await read<{ updatedAt?: unknown; agentEdit?: { undoToken?: unknown } }>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft`, {
       method: "PUT",
       headers: { [AGENT_EDIT_HEADER]: token },
-      body: { definition },
+      body: { definition, ...(appearance === undefined ? {} : { appearance }) },
     }),
   );
   if (!result.ok) return result;
@@ -289,16 +290,22 @@ export async function applyAgentEdit(
   };
 }
 
-/** The open draft's definition exactly as stored, which an Undo of a turn's first edit restores. */
+/** The open draft exactly as stored, both halves, which an Undo of a turn's first edit restores. */
 export async function readStoredDraft(
   session: AdminSession,
   formId: string,
-): Promise<ApiResult<unknown>> {
+): Promise<ApiResult<{ readonly definition: unknown; readonly appearance: unknown }>> {
   const result = await read<Record<string, unknown>>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}`),
   );
   if (!result.ok) return result;
-  return { ok: true, data: result.data["draft"] ?? null };
+  return {
+    ok: true,
+    data: {
+      definition: result.data["draft"] ?? null,
+      appearance: result.data["appearance"] ?? null,
+    },
+  };
 }
 
 export interface AgentChange {

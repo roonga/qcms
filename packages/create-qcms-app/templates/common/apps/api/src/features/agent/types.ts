@@ -1,4 +1,4 @@
-import type { FormDefinition, QuestionDefinition, QuestionId } from "@roonga/qcms-core";
+import type { Appearance, FormDefinition, QuestionDefinition, QuestionId } from "@roonga/qcms-core";
 
 import type { PendingQuestionVersion, PublishIssue, PublishWarning } from "../forms/handler.js";
 import type { OfferedActionKind } from "./grant-filter.js";
@@ -605,12 +605,18 @@ export interface BuilderPort {
   readonly formId: string;
   /** The open draft the turn starts from, which the edit tools change a copy of. */
   readonly draft: FormDefinition;
+  /** The appearance the draft holds at turn start, which the appearance tool changes. */
+  readonly appearance: Appearance | null;
   /**
    * Present for an Edit forms holder of the form's workspace. Called once, when the turn ends,
    * with each edit's op and the definition it produces.
    */
   readonly mintEdits?: (
-    edits: readonly { readonly op: BuilderEditOp; readonly definition: FormDefinition }[],
+    edits: readonly {
+      readonly op: BuilderEditOp;
+      readonly definition: FormDefinition;
+      readonly appearance?: Appearance;
+    }[],
   ) => Promise<{
     readonly turnId: string;
     readonly tokens: readonly string[];
@@ -625,6 +631,8 @@ export interface BuilderEditEvent {
   readonly op: BuilderEditOp;
   readonly token: string;
   readonly definition: FormDefinition;
+  /** Present once a turn has changed the appearance: the save sends this with the definition. */
+  readonly appearance?: Appearance;
 }
 
 /** A runtime array rather than a bare union so both halves of the contract stay enumerable in tests. */

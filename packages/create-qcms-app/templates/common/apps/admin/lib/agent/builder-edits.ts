@@ -12,15 +12,27 @@ export interface EditRecord {
   readonly op: BuilderEditOp;
   readonly state: EditRecordState;
   readonly pre?: unknown;
+  /** The appearance before this edit, which an appearance edit's Undo has to restore too. */
+  readonly preAppearance?: unknown;
   readonly undoToken?: string;
   readonly message?: string;
   readonly undoMessage?: string;
 }
 
+/** The draft as the browser last knew it stored: both halves, because a token binds both. */
+export interface StoredDraft {
+  readonly definition: unknown;
+  readonly appearance: unknown;
+}
+
 export interface EditPorts {
   /** The stored draft before the turn's first edit, which that edit's Undo restores. */
-  readonly readStored: () => Promise<unknown>;
-  readonly save: (definition: unknown, token: string) => Promise<AgentEditState>;
+  readonly readStored: () => Promise<StoredDraft | undefined>;
+  readonly save: (
+    definition: unknown,
+    token: string,
+    appearance?: unknown,
+  ) => Promise<AgentEditState>;
 }
 
 export function recordKey(record: Pick<EditRecord, "turnId" | "index">): string {
@@ -52,7 +64,7 @@ export async function applyTurnEdits(
     state: "applying",
   }));
   onChange(records);
-  let before: unknown = await ports.readStored().catch(() => undefined);
+  let before: StoredDraft | undefined = await ports.readStored().catch(() => undefined);
   let stopped = false;
   for (const edit of event.edits) {
     const current = records.find((record) => record.index === edit.index);
@@ -62,7 +74,7 @@ export async function applyTurnEdits(
       continue;
     }
     const saved = await ports
-      .save(edit.definition, edit.token)
+      .save(edit.definition, edit.token, edit.appearance)
       .catch((): AgentEditState => ({ status: "error", code: "UNREACHABLE", message: "" }));
     if (saved.status === "error") {
       records = replaceRecord(records, { ...current, state: "failed", message: saved.message });
@@ -73,9 +85,13 @@ export async function applyTurnEdits(
         state: "applied",
         ...(before === undefined || saved.undoToken === null
           ? {}
-          : { pre: before, undoToken: saved.undoToken }),
+          : {
+              pre: before.definition,
+              preAppearance: before.appearance,
+              undoToken: saved.undoToken,
+            }),
       });
-      before = edit.definition;
+      before = { definition: edit.definition, appearance: edit.appearance ?? before?.appearance };
     }
     onChange(records);
   }
@@ -102,11 +118,13 @@ export function undoableKey(records: readonly EditRecord[]): string | undefined 
 
 export async function undoEdit(record: EditRecord, save: EditPorts["save"]): Promise<EditRecord> {
   if (record.undoToken === undefined || record.pre === undefined) return record;
-  const saved = await save(record.pre, record.undoToken).catch((): AgentEditState => ({
-    status: "error",
-    code: "UNREACHABLE",
-    message: "",
-  }));
+  const saved = await save(record.pre, record.undoToken, record.preAppearance).catch(
+    (): AgentEditState => ({
+      status: "error",
+      code: "UNREACHABLE",
+      message: "",
+    }),
+  );
   if (saved.status === "error") {
     return {
       turnId: record.turnId,

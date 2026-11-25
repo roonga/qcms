@@ -5,11 +5,13 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { AgentPlanStep, AgentProposal } from "@/lib/forms/assist-stream";
 import {
   isTypedConfirmed,
+  isTypedInputReady,
   minutesLeft,
   planNames,
   planTitleSubject,
   stepTitle,
   typedConfirmation,
+  typedInputField,
 } from "@/lib/agent/card-copy";
 import {
   canConfirm,
@@ -32,7 +34,8 @@ export interface ActionCardProps {
   readonly proposal: AgentProposal;
   readonly card: AgentCardView;
   readonly reason?: string;
-  readonly onConfirm: () => void;
+  /** The value the person typed on the card, where the plan asked for one. */
+  readonly onConfirm: (typedInput?: string) => void;
   readonly onCancel: () => void;
   readonly onStop: () => void;
   readonly onOpenScreen?: () => void;
@@ -53,6 +56,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const openRef = useRef<HTMLButtonElement>(null);
   const [typed, setTyped] = useState("");
+  const [input, setInput] = useState("");
   const [open, setOpen] = useState(false);
   const wasOpen = useRef(false);
   const remainingMs = props.remainingMs ?? proposalWindowMs(proposal);
@@ -76,7 +80,12 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
   const reported = reportedResults(card);
   const multi = proposal.steps.length > 1;
   const required = typedConfirmation(proposal.steps);
-  const confirmable = canConfirm(card) && isTypedConfirmed(typed, required);
+  const inputField = typedInputField(proposal.steps);
+  const confirmable =
+    canConfirm(card) && isTypedConfirmed(typed, required) && isTypedInputReady(inputField, input);
+  const confirm = (): void => {
+    props.onConfirm(inputField === undefined ? undefined : input.trim());
+  };
   const live = runningLine(card);
   const minutes = minutesLeft(remainingMs);
   const names = planNames(proposal, props.names);
@@ -148,9 +157,12 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
           typed={typed}
           onTyped={setTyped}
           required={required}
+          inputField={inputField}
+          input={input}
+          onInput={setInput}
           idBase={base}
           reportsResult={!open && props.held !== true}
-          onConfirm={props.onConfirm}
+          onConfirm={confirm}
           onCancel={props.onCancel}
           onStop={props.onStop}
           onOpenScreen={props.onOpenScreen}
@@ -181,9 +193,12 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
           typed={typed}
           onTyped={setTyped}
           required={required}
+          inputField={inputField}
+          input={input}
+          onInput={setInput}
           idBase={`${base}-dialog`}
           onDismissReveal={props.onDismissReveal}
-          onConfirm={props.onConfirm}
+          onConfirm={confirm}
           onCancel={props.onCancel}
           onStop={props.onStop}
           onOpenScreen={

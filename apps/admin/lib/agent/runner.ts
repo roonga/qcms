@@ -32,6 +32,8 @@ export interface RunPlanInput {
   ) => void;
 
   readonly onChange?: (card: AgentCardView) => void;
+  /** The value the card collected for a step's `typedInput`, which only the person typed. */
+  readonly typedInput?: string;
   readonly now: () => Date;
   /** Check the monotonic waiting window before sending step zero; the API separately checks token expiry. */
   readonly windowLeftMs: () => number;
@@ -86,6 +88,21 @@ function unsendable(
   return undefined;
 }
 
+/**
+ * A hand-off's arguments, plus the one the card asked the person to type. The typed value
+ * reaches the screen control alone: no step carries it, so it is in no token and no route.
+ */
+function handOffArgs(
+  input: RunPlanInput,
+  step: AgentPlanStep,
+  card: AgentCardView,
+): Readonly<Record<string, unknown>> {
+  const field = step.card.typedInput;
+  const args = resolveArgs(step, card);
+  if (field === undefined || input.typedInput === undefined) return args;
+  return { ...args, [field]: input.typedInput };
+}
+
 export async function runPlan(input: RunPlanInput): Promise<AgentCardView> {
   let card = input.card;
   let tokenStep = 0;
@@ -100,7 +117,7 @@ export async function runPlan(input: RunPlanInput): Promise<AgentCardView> {
 
     if (step.handOff) {
       emit(startStep(card, index));
-      input.onHandOff?.(step, index, resolveArgs(step, card));
+      input.onHandOff?.(step, index, handOffArgs(input, step, card));
       return card;
     }
 

@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { createRequire } from "node:module";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -24,6 +25,11 @@ import {
   NOW,
   type TestDb,
 } from "../../../api/e2e/support/index.js";
+import {
+  fixtureBrandFetcher,
+  startBrandFixtureServer,
+  type BrandFixtureServer,
+} from "../../../api/e2e/support/brand-fixture-server.js";
 import { createJsonLogger } from "../../../api/src/logger.js";
 
 import { ADMIN_BASE_URL, FIXED_AUTH_SECRET } from "../../../admin/e2e/support/harness-config.js";
@@ -119,6 +125,35 @@ export interface PortalFixtures {
 interface RunningApi {
   readonly testDb: TestDb;
   readonly server: ClosableServer;
+  /** The local TLS origin the derive route's fetcher is pointed at. */
+  readonly brandSite: BrandFixtureServer;
+}
+
+/** The brand site the derive specs read: a colour, a face and a logo, and nothing else. */
+const BRAND_PAGE = `<!doctype html><html><head><title>Bright Start</title>
+<meta name="theme-color" content="#0f766e">
+<link rel="apple-touch-icon" href="/logo.png">
+<style>body{color:#111111;background:#ffffff;font-family:Lexend,sans-serif}</style>
+</head><body><h1>Bright Start Early Learning</h1></body></html>`;
+
+/** A page that declares no colour at all, which is the route's `nothing found`. */
+const PLAIN_PAGE =
+  "<!doctype html><html><head><title>Plain</title></head><body>Hello</body></html>";
+
+/* A one-pixel PNG, so the derive exercises the sniff and the re-encode with no fixture file. */
+const LOGO_PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+function serveBrandSite(site: BrandFixtureServer): void {
+  site.route("brand.example", "/", (_request, response) => {
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(BRAND_PAGE);
+  });
+  site.route("brand.example", "/logo.png", (_request, response) => {
+    response.writeHead(200, { "content-type": "image/png" }).end(Buffer.from(LOGO_PNG, "base64"));
+  });
+  site.route("other-site.example", "/", (_request, response) => {
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(PLAIN_PAGE);
+  });
 }
 
 let running: RunningApi | undefined;
@@ -174,7 +209,13 @@ export async function startApiServer(): Promise<void> {
     QCMS_AGENT_THINKING: "summary",
   });
   const databases = environmentDatabases(testDb);
-  const composed = composeApi(testDb.db, env, MOUNT.all, { logger: apiLogger, databases });
+  const brandSite = await startBrandFixtureServer();
+  serveBrandSite(brandSite);
+  const composed = composeApi(testDb.db, env, MOUNT.all, {
+    logger: apiLogger,
+    databases,
+    brandFetcher: fixtureBrandFetcher(brandSite),
+  });
   const app = composed.app;
   const config = composed.deps.config;
 
@@ -293,7 +334,7 @@ export async function startApiServer(): Promise<void> {
   writeFileSync(FIXTURES_PATH, JSON.stringify(fixtures, null, 2), "utf8");
 
   const server = serve({ fetch: app.fetch, port: API_PORT, hostname: "127.0.0.1" });
-  running = { testDb, server };
+  running = { testDb, server, brandSite };
 }
 
 interface CoreAppearance {
@@ -345,5 +386,6 @@ export async function stopApiServer(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     current.server.close((err) => (err ? reject(err) : resolve()));
   });
+  await current.brandSite.close();
   await current.testDb.teardown();
 }

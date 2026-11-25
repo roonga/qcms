@@ -163,6 +163,8 @@ const UnpublishedPinFact = z.strictObject({
 
 export const builderFacts = z.strictObject({
   ...FormSubjectFacts,
+  /** The form's workspace, which the theme acts name and no route param gives this screen. */
+  workspaceId: z.string(),
   stepCount: z.number().int(),
   questionCount: z.number().int(),
   ruleCount: z.number().int(),
@@ -215,6 +217,7 @@ async function structureFacts(input: ScreenBuildInput): Promise<z.infer<typeof b
   const shape = definition as DraftShape | undefined;
   return {
     ...subject,
+    workspaceId,
     stepCount: shape?.steps?.length ?? 0,
     questionCount: (shape?.steps ?? []).reduce((total, step) => total + stepQuestionCount(step), 0),
     ruleCount: shape?.rules?.length ?? 0,

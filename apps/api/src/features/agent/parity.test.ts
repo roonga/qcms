@@ -34,6 +34,8 @@ const CONFIRMED_THROUGH: Readonly<
 > = {
   "apply-draft": { method: "POST", path: "/admin/forms/{id}/draft/assist/accept" },
   "response.export": { method: "GET", path: "/admin/forms/{id}/export" },
+  "theme.derive": { method: "POST", path: "/admin/workspaces/{id}/themes/derive" },
+  "theme.save": { method: "POST", path: "/admin/workspaces/{id}/themes" },
 };
 
 describe("every action kind asks for exactly what its own route asks for (criterion 90)", () => {
@@ -217,7 +219,7 @@ describe("what each role is offered, for each environment", () => {
 });
 
 describe("the agent builder's own key sets", () => {
-  it("offers the library writes alone, and no publish, release, link or webhook kind", () => {
+  it("offers the library writes and the theme acts, and no publish, release, link or webhook kind", () => {
     const offered = ACTION_KIND_NAMES.filter((name) =>
       offeredFor({
         role: "forms.editor",
@@ -226,7 +228,13 @@ describe("the agent builder's own key sets", () => {
         screen: BUILDER_SCREEN,
       }).includes(name),
     );
-    expect(offered).toEqual(["question.create", "question.saveDraft", "question.newVersion"]);
+    expect(offered).toEqual([
+      "question.create",
+      "question.saveDraft",
+      "question.newVersion",
+      "theme.derive",
+      "theme.save",
+    ]);
     expect(BUILDER_ACTION_KINDS).toEqual(offered);
   });
 
@@ -308,6 +316,7 @@ const TOOL_ROUTES: Readonly<Record<AgentToolName, readonly [string, string] | un
   edit_step: undefined,
   edit_rule: undefined,
   edit_copy: undefined,
+  edit_appearance: undefined,
   open_publish_wizard: undefined,
 };
 

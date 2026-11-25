@@ -99,7 +99,7 @@ describe("every kind's arguments come from its route's request schema", () => {
     }
   });
 
-  it("reaches no route for the two kinds that carry no token", () => {
+  it("reaches no route for the kinds that carry no token", () => {
     for (const def of Object.values(ACTION_KINDS)) {
       if (def.route !== undefined) continue;
       expect(def.handOff === true || def.local === true, def.kind).toBe(true);
