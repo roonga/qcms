@@ -1131,7 +1131,10 @@ const SINGLE_ACTIONS: Readonly<
   }),
   "propose-theme-save": (prompt) => ({
     kind: "theme.save",
-    args: { workspaceId: factWorkspaceId(prompt), name: "From the website" },
+    args: {
+      workspaceId: factWorkspaceId(prompt),
+      name: `From the website ${directiveWord(prompt)}`,
+    },
   }),
   "propose-form-settings": (prompt) => ({
     kind: "form.settings",

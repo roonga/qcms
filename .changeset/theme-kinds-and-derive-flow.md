@@ -16,7 +16,9 @@ drawer's own Get theme the typed address and the click is the confirm. `theme.sa
 look the drawer is showing as a workspace theme and names the theme alone. `edit_appearance`
 is a draft-scoped edit like the other four builder tools: it auto-applies with an Undo and
 takes no card. One brand colour derives the colours for all four modes through the kernel,
-which moves any pair too faint to read; the logo stays the person's own upload.
+which moves any pair too faint to read; the logo stays the person's own upload. The open
+builder preview follows the draft a turn leaves, so an appearance edit and its Undo show
+without a reload, except while the drawer is holding a look the draft has not got.
 
 The drawer gains "From your website": an address, Get theme, and the look it answered as
 value rows, with the line that nothing from the site is stored except those values and the
@@ -35,5 +37,7 @@ hex colours, a registry face, whether a logo came with it, and which colours mov
 host, logo key or page text; no value that is not one of those shapes becomes a fact at all
 (SEC-18 M1, M2, M3).
 
-`SYSTEM_PROMPT_VERSION` is 37: a new system section for the three acts, the builder section
-now names five edit tools, and a derive no longer claims to report to the model.
+`SYSTEM_PROMPT_VERSION` is 38: a new system section for the three acts, the builder section
+now names five edit tools, a derive no longer claims to report to the model, and the
+appearance text says modes rather than palettes, as the glossary reserves palette for the
+preview sets.

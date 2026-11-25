@@ -335,13 +335,16 @@ describe("the theme acts reach the builder as a Confirm card", () => {
 
   it("proposes theme.save with the name it chose and nothing of the look", async () => {
     const events = await run(
-      builderTurn({ message: "keep that look #qcms-fake:propose-theme-save", propose: true }),
+      builderTurn({
+        message: "keep that look #qcms-fake:propose-theme-save #qcms-fake-new:kept",
+        propose: true,
+      }),
     );
     const plans = events.flatMap((event) => (event.type === "plan" ? [event.proposal] : []));
     expect(plans.map((plan) => plan.steps.map((step) => step.kind))).toEqual([["theme.save"]]);
     expect(plans[0]?.steps[0]?.args).toEqual({
       workspaceId: WORKSPACE_ID,
-      name: "From the website",
+      name: "From the website kept",
     });
   });
 });

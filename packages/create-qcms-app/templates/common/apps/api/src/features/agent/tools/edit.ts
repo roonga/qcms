@@ -112,8 +112,8 @@ export const EditCopyInput = z.strictObject({
  */
 export const EditAppearanceInput = z.strictObject({
   primary: HexColor.optional().describe(
-    "The brand colour all four palettes are derived from, as #rrggbb. Required for a form " +
-      "that has no appearance yet.",
+    "The brand colour every mode's colours are derived from, as #rrggbb. Required for a " +
+      "form that has no appearance yet.",
   ),
   secondary: HexColor.optional().describe(
     "A second brand colour, as #rrggbb. Derived when absent.",

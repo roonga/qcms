@@ -33,7 +33,8 @@ const REFUSED_SITE = "https://not-a-fixture.example/";
 /* Longer than the card is wide, so the echo above Confirm has to wrap to show the host. */
 const LONG_SITE =
   "https://brand.example/our-setting/early-learning-and-childcare/enrolments?ref=print&from=assistant";
-const CARD_THEME_NAME = "From the website";
+/* The save script names the theme after this run's own word, so a rerun takes no name twice. */
+const CARD_THEME_NAME = `From the website ${RUN}`;
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
@@ -117,20 +118,12 @@ async function deriveContacts(): Promise<number> {
   return (await auditDetails(WORKSPACE_ID, "derive")).length;
 }
 
-/**
- * The look the draft itself holds, read by a second load of the builder: the preview is
- * seeded from the server once, so the open page keeps showing what it was given.
- */
+/** The look the draft itself holds, read by a fresh load of the builder. */
 async function storedPrimary(page: Page): Promise<string> {
-  const other = await page.context().newPage();
-  try {
-    await other.goto(`/forms/${formId}/build`);
-    await waitForHydration(other);
-    await expect(surface(other).getByText(TEXT_LABEL)).toBeVisible({ timeout: 30_000 });
-    return await token(surface(other), "--color-primary");
-  } finally {
-    await other.close();
-  }
+  await page.reload();
+  await waitForHydration(page);
+  await expect(surface(page).getByText(TEXT_LABEL)).toBeVisible({ timeout: 30_000 });
+  return await token(surface(page), "--color-primary");
 }
 
 test.beforeAll(async () => {
@@ -297,7 +290,7 @@ test("reads the address typed on a confirmed card, once, and keeps the look", as
   expect(read, "the confirmed address was read").toBeGreaterThan(before);
   await axeClean(page, "the drawer a confirmed card handed an address");
 
-  await say(page, "#qcms-fake:propose-theme-save keep this look for the workspace");
+  await say(page, `#qcms-fake:propose-theme-save keep this #qcms-fake-new:${RUN}`);
   await expect(card(page)).toContainText(CARD_THEME_NAME, { timeout: 60_000 });
   await confirmOnCard(page).click();
   const name = page.getByTestId("qcms-appearance-theme-name");
@@ -353,9 +346,14 @@ test("applies the assistant's appearance edit to the draft, with its own Undo", 
   await expect(edits.nth(0)).toHaveAttribute("data-state", "applied", { timeout: 60_000 });
   await expect(edits.nth(0)).toContainText("Changed how it looks");
   await expect(card(page)).toHaveCount(0);
-  expect(await storedPrimary(page)).toBe("#2e7d32");
+
+  // The open preview follows the draft the turn left, with no reload of its own.
+  await expect.poll(() => token(surface(page), "--color-primary")).toBe("#2e7d32");
 
   await edits.nth(0).getByRole("button", { name: /^Undo/u }).click();
   await expect(edits.nth(0)).toHaveAttribute("data-state", "undone", { timeout: 60_000 });
+  await expect.poll(() => token(surface(page), "--color-primary")).toBe(was);
+
+  // The Undo reached the draft itself, not only this page.
   expect(await storedPrimary(page)).toBe(was);
 });

@@ -29,6 +29,7 @@ import {
   type PreviewRailQuestion,
 } from "@/components/forms/preview-portal-chrome";
 import type { NewWorkspaceTheme, ThemeOption } from "@/lib/forms/appearance-edit";
+import { useSeededAppearance } from "@/lib/forms/appearance-seed";
 import type {
   CreateThemeState,
   DeriveThemeState,
@@ -238,8 +239,10 @@ export function BuilderPreview({
   const { createTheme } = source;
   const previewLocale = usePreviewLocale();
   const { answers, state, handleChange, clearAnswers } = useDraftPreview(draft, preview);
-  /* The drawer's changes render here before they are saved, which is what makes the preview live. */
-  const [appearance, setAppearance] = useState<Appearance | null>(source.appearance);
+  /* The drawer's changes render here before they are saved, which is what makes the preview
+     live, and the stored draft re-seeds it when a turn's own edit or its Undo changes it. */
+  const stored = useSeededAppearance(source.appearance);
+  const appearance = stored.appearance;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const appearanceToggle = useRef<HTMLButtonElement>(null);
   const [frame, setFrame] = useState<FrameState>(INITIAL_FRAME);
@@ -717,8 +720,12 @@ export function BuilderPreview({
                 sourceHost,
               })
             }
-            onPreview={setAppearance}
-            onSave={saveAppearance}
+            onPreview={stored.preview}
+            onSave={async (next) => {
+              const saved = await saveAppearance(next);
+              if (saved.status === "saved") stored.settle();
+              return saved;
+            }}
             onClose={() => {
               setDrawerOpen(false);
               appearanceToggle.current?.focus();

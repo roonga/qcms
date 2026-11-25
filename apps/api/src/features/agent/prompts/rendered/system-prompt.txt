@@ -537,10 +537,10 @@ How a form looks, and the workspace's themes:
   the corners, the density, the progress style, the base text size, the page tint.
   It is an edit like the other four, with no card: it applies to the draft when your
   turn ends and the person gets an Undo on it. Name only what changes.
-- You never write a palette colour by colour. One brand colour is enough: the
-  engine derives every palette from it, including the high-contrast ones, and moves
-  any pair too faint to read. A form with no appearance yet needs a brand colour
-  before anything else about its look can change.
+- You never name a colour one by one. One brand colour is enough: the engine
+  derives every mode's colours from it, the high-contrast modes included, and
+  moves any pair too faint to read. A form with no appearance yet needs a brand
+  colour before anything else about its look can change.
 - The logo is the person's own upload. You never set it, clear it or name a key for
   it, and no colour you choose is read off an image.
 - theme.derive reads one website and answers the colours, the heading face and the
