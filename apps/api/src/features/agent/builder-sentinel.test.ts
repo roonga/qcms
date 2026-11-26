@@ -8,10 +8,9 @@ import { ActionStepResultBody, BUILDER_FACTS, stepResultRefusal } from "./schema
 import { AGENT_BUILDER_TOOL_NAMES, AGENT_TOOL_NAMES, TOOLS } from "./tools/registry.js";
 
 /**
- * X4, over everything tasks 111, 112 and 117 added: each builder fact, each builder tool and
- * each builder action kind is walked for a slot that could carry a respondent's words, or a
- * website's, to the model. The three registries drive the walks, so a fact, tool or kind
- * added later arrives here uncovered and fails rather than passing unexamined.
+ * X4 over what tasks 111, 112 and 117 added: every builder fact, tool and action kind walked for
+ * a slot that could carry a respondent's words, or a website's, to the model. The registries
+ * drive the walks, so one added later arrives uncovered and fails.
  */
 
 const SENTINEL = "RESPONDENT-ONLY-SENTINEL-VALUE";
