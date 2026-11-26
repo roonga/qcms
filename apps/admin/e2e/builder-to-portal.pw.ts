@@ -9,7 +9,7 @@ import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { addStep, createForm, pinQuestion, waitForSaved } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
-import { chooseDestination, chooseSource } from "./support/publish.js";
+import { chooseDestination, chooseSource, releaseThroughWizard } from "./support/publish.js";
 import { confirmLifecycle, createDraft, draftLabel } from "./support/questions.js";
 
 /**
@@ -117,23 +117,24 @@ test("dresses it in the drawer, publishes through the wizard and hands back to t
   await waitForHydration(page);
   // The publish took the draft with it, so the builder offers another rather than a preview.
   await expect(page.getByTestId("qcms-builder")).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Start a new draft", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start a new draft", exact: true })).toBeVisible();
 });
 
-test("the respondent reads the published look in the portal", async ({ context }) => {
+test("the respondent reads the published look in the portal", async ({ page }) => {
   test.setTimeout(300_000);
-  const portal = await context.newPage();
-  await portal.goto(`http://localhost:${String(PORTAL_PORT)}/f/${FORM_SLUG}`);
-  await portal.getByRole("button", { name: "Start" }).click();
-  await portal.waitForURL(/\/s\/ses_/u);
-  await expect(portal.getByTestId("step-card")).toBeVisible({ timeout: 60_000 });
+  await signInWithTotp(page, EMAIL, totpSecret);
+  // There is no anonymous entry under an environment prefix, so the respondent's own address
+  // reaches `prod` alone: the version the builder dressed has to be released there first.
+  await releaseThroughWizard(page, { formId, version: 1, environment: "prod" });
+
+  await page.goto(`http://localhost:${String(PORTAL_PORT)}/f/${FORM_SLUG}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/u);
+  await expect(page.getByTestId("step-card")).toBeVisible({ timeout: 60_000 });
 
   // The frozen version's own appearance, on the first byte: the carrier, the palette the
   // drawer chose and the base size it set, not the deployment's.
-  await expect(portal.locator("html")).toHaveAttribute("data-qcms-form-appearance", /.+/u);
-  expect(await rootToken(portal, "--color-primary")).toBe(PLUM.light.primary);
-  expect(await rootToken(portal, "--text-base")).toBe(String(TEXT_BASE_PX / 16));
-  await portal.close();
+  await expect(page.locator("html")).toHaveAttribute("data-qcms-form-appearance", "");
+  expect(await rootToken(page, "--color-primary")).toBe(PLUM.light.primary);
+  expect(await rootToken(page, "--text-base")).toBe(String(TEXT_BASE_PX / 16));
 });

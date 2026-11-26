@@ -17,7 +17,9 @@ import { AGENT_BUILDER_TOOL_NAMES, AGENT_TOOL_NAMES, TOOLS } from "./tools/regis
 const SENTINEL = "RESPONDENT-ONLY-SENTINEL-VALUE";
 
 function lowerHex(palette: Record<string, string>): Record<string, string> {
-  return Object.fromEntries(Object.entries(palette).map(([token, hex]) => [token, hex.toLowerCase()]));
+  return Object.fromEntries(
+    Object.entries(palette).map(([token, hex]) => [token, hex.toLowerCase()]),
+  );
 }
 
 /** One accepted instance per fact, which the sentinel walk then attacks slot by slot. */
@@ -208,8 +210,10 @@ describe("the builder action kinds", () => {
       const foreign = everyField.filter((field) => !allowed.includes(field));
       expect(foreign.length, kind).toBeGreaterThan(0);
       for (const field of foreign) {
-        expect(stepResultRefusal({ kind, outcome: "done", result: { [field]: SENTINEL } }), field)
-          .toContain(field);
+        expect(
+          stepResultRefusal({ kind, outcome: "done", result: { [field]: SENTINEL } }),
+          field,
+        ).toContain(field);
       }
     }
   });

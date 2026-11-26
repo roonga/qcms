@@ -216,7 +216,8 @@ the host. A listed host that resolves to a private address is refused anyway, as
 private, loopback, link-local, mapped or NAT64 answer, every port but 443, a URL carrying
 userinfo, a cross-site redirect, a second redirect, an oversize or slow body and a content
 type outside the allowed list. Every refusal is the same uniform error, so the route is no
-port scanner. One `derive` row is written to the workspace audit per fetch.
+port scanner. One `derive` row is written to the workspace audit for each host contacted,
+before it is: the typed host, a redirect target, a stylesheet's host and the logo's.
 
 **Do not put a credential in a webhook endpoint URL.** Not a bearer token in a query
 parameter, not an API key, not `https://user:pass@host/`. Authenticate the delivery with

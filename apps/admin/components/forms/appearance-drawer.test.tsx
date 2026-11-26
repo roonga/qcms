@@ -534,9 +534,7 @@ describe("the derive flag decides whether a website row is offered at all", () =
   });
 
   it("fetches nothing for an address a card handed over while the flag is off", async () => {
-    const onDerive = vi.fn<(url: string) => Promise<DeriveThemeState>>(() =>
-      Promise.resolve(READ),
-    );
+    const onDerive = vi.fn<(url: string) => Promise<DeriveThemeState>>(() => Promise.resolve(READ));
     const onAddressTaken = vi.fn();
     render(
       <AppearanceDrawer
