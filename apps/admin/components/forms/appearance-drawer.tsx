@@ -207,6 +207,7 @@ export function AppearanceDrawer({
   themes,
   faces,
   locked,
+  deriveEnabled,
   handedOffAddress,
   handedOffThemeName,
   onAddressTaken,
@@ -222,6 +223,8 @@ export function AppearanceDrawer({
   readonly themes: readonly ThemeOption[];
   readonly faces: readonly FaceChoice[];
   readonly locked: boolean;
+  /** `QCMS_FLAG_THEME_DERIVE`. With it off the derive route is a 404, so no row offers a fetch. */
+  readonly deriveEnabled: boolean;
   /** The address a confirmed `theme.derive` card collected, which only the person typed. */
   readonly handedOffAddress: { readonly url: string; readonly nonce: number } | undefined;
   /** The theme name a confirmed `theme.save` card named. */
@@ -528,6 +531,7 @@ export function AppearanceDrawer({
 
         <AppearanceDerive
           locked={locked}
+          enabled={deriveEnabled}
           describedBy={reason}
           handedOff={handedOffAddress}
           handedOffName={handedOffThemeName}

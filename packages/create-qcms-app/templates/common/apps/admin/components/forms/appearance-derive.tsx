@@ -99,6 +99,8 @@ function Corrections({ derived }: { readonly derived: DerivedTheme }): ReactNode
 
 export interface AppearanceDeriveProps {
   readonly locked: boolean;
+  /** `QCMS_FLAG_THEME_DERIVE`: off leaves the website row out and keeps the theme save. */
+  readonly enabled: boolean;
   /** The lock sentence's id, which every disabled control here points at. */
   readonly describedBy: string | undefined;
   /** An address the assistant's card collected and the person confirmed, derived on arrival. */
@@ -220,7 +222,7 @@ function saveLabel(pending: boolean, naming: boolean): MessageKey {
  * workspace theme. Every fetch is the API's, behind SEC-18: nothing here reaches the website.
  */
 export function AppearanceDerive(props: AppearanceDeriveProps): ReactNode {
-  const { locked, describedBy, handedOff, handedOffName, onDerive, onApply } = props;
+  const { locked, enabled, describedBy, handedOff, handedOffName, onDerive, onApply } = props;
   const { onTaken, onNameTaken } = props;
   const [typed, setTyped] = useState("");
   const [state, setState] = useState<DeriveThemeState | undefined>(undefined);
@@ -248,10 +250,10 @@ export function AppearanceDerive(props: AppearanceDeriveProps): ReactNode {
     if (handedOff === undefined || taken.current.derive === handedOff.nonce) return;
     taken.current.derive = handedOff.nonce;
     onTaken();
-    if (locked) return;
+    if (locked || !enabled) return;
     setTyped(handedOff.url);
     if (isDerivableAddress(handedOff.url)) derive(handedOff.url);
-  }, [derive, handedOff, locked, onTaken]);
+  }, [derive, enabled, handedOff, locked, onTaken]);
 
   useEffect(() => {
     if (handedOffName === undefined || taken.current.save === handedOffName.nonce) return;
@@ -266,81 +268,89 @@ export function AppearanceDerive(props: AppearanceDeriveProps): ReactNode {
   const derived = state?.status === "derived" ? state.derived : undefined;
   const ready = isDerivableAddress(typed);
 
+  if (!enabled && !props.canSave) return null;
+
   return (
     <div className="qcms-adrawer__field qcms-aderive" data-testid="qcms-appearance-derive">
-      <hr className="qcms-adrawer__rule" />
-      <span className="qcms-adrawer__label">{t("appearance.derive.heading")}</span>
-      <label className="qcms-adrawer__label" htmlFor={URL_FIELD_ID}>
-        {t("appearance.derive.label")}
-      </label>
-      <input
-        id={URL_FIELD_ID}
-        type="url"
-        inputMode="url"
-        className="qcms-adrawer__url"
-        data-testid="qcms-appearance-derive-url"
-        placeholder={t("appearance.derive.placeholder")}
-        aria-describedby={[URL_HINT_ID, describedBy].filter((id) => id !== undefined).join(" ")}
-        disabled={locked}
-        value={typed}
-        onChange={(event) => {
-          setTyped(event.target.value);
-        }}
-      />
-      <p className="qcms-adrawer__hint" id={URL_HINT_ID}>
-        {t("appearance.derive.hint")}
-      </p>
-      <button
-        type="button"
-        className="qcms-adrawer__derive"
-        data-testid="qcms-appearance-derive-get"
-        disabled={locked || pending || !ready}
-        {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
-        onClick={() => {
-          derive(typed.trim());
-        }}
-      >
-        {t(pending ? "appearance.derive.working" : "appearance.derive.get")}
-      </button>
+      {enabled && (
+        <>
+          <hr className="qcms-adrawer__rule" />
+          <span className="qcms-adrawer__label">{t("appearance.derive.heading")}</span>
+          <label className="qcms-adrawer__label" htmlFor={URL_FIELD_ID}>
+            {t("appearance.derive.label")}
+          </label>
+          <input
+            id={URL_FIELD_ID}
+            type="url"
+            inputMode="url"
+            className="qcms-adrawer__url"
+            data-testid="qcms-appearance-derive-url"
+            placeholder={t("appearance.derive.placeholder")}
+            aria-describedby={[URL_HINT_ID, describedBy].filter((id) => id !== undefined).join(" ")}
+            disabled={locked}
+            value={typed}
+            onChange={(event) => {
+              setTyped(event.target.value);
+            }}
+          />
+          <p className="qcms-adrawer__hint" id={URL_HINT_ID}>
+            {t("appearance.derive.hint")}
+          </p>
+          <button
+            type="button"
+            className="qcms-adrawer__derive"
+            data-testid="qcms-appearance-derive-get"
+            disabled={locked || pending || !ready}
+            {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
+            onClick={() => {
+              derive(typed.trim());
+            }}
+          >
+            {t(pending ? "appearance.derive.working" : "appearance.derive.get")}
+          </button>
 
-      {state?.status === "error" && (
-        <div data-testid="qcms-appearance-derive-error">
-          <Alert variant="error">{t("appearance.derive.failed", { message: state.message })}</Alert>
-        </div>
-      )}
+          {state?.status === "error" && (
+            <div data-testid="qcms-appearance-derive-error">
+              <Alert variant="error">
+                {t("appearance.derive.failed", { message: state.message })}
+              </Alert>
+            </div>
+          )}
 
-      {derived !== undefined && (
-        <div className="qcms-aderive__result">
-          <span className="qcms-adrawer__label">{t("appearance.derive.found")}</span>
-          <FoundValues derived={derived} />
-          <p className="qcms-adrawer__hint">{t("appearance.derive.stored")}</p>
-          <Corrections derived={derived} />
-          <div className="qcms-aderive__actions">
-            <button
-              type="button"
-              className="qcms-adrawer__reset"
-              data-testid="qcms-appearance-derive-adjust"
-              onClick={() => {
-                setState(undefined);
-              }}
-            >
-              {t("appearance.derive.adjust")}
-            </button>
-            <button
-              type="button"
-              className="qcms-adrawer__reset"
-              data-testid="qcms-appearance-derive-cancel"
-              onClick={() => {
-                setState(undefined);
-                setNaming(false);
-                setName("");
-                props.onDiscard();
-              }}
-            >
-              {t("appearance.derive.cancel")}
-            </button>
-          </div>
-        </div>
+          {derived !== undefined && (
+            <div className="qcms-aderive__result">
+              <span className="qcms-adrawer__label">{t("appearance.derive.found")}</span>
+              <FoundValues derived={derived} />
+              <p className="qcms-adrawer__hint">{t("appearance.derive.stored")}</p>
+              <Corrections derived={derived} />
+              <div className="qcms-aderive__actions">
+                <button
+                  type="button"
+                  className="qcms-adrawer__reset"
+                  data-testid="qcms-appearance-derive-adjust"
+                  onClick={() => {
+                    setState(undefined);
+                  }}
+                >
+                  {t("appearance.derive.adjust")}
+                </button>
+                <button
+                  type="button"
+                  className="qcms-adrawer__reset"
+                  data-testid="qcms-appearance-derive-cancel"
+                  onClick={() => {
+                    setState(undefined);
+                    setNaming(false);
+                    setName("");
+                    props.onDiscard();
+                  }}
+                >
+                  {t("appearance.derive.cancel")}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {props.canSave && (

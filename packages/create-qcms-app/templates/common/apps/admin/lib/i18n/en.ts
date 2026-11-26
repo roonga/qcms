@@ -1266,6 +1266,8 @@ export const messages = {
     "There is no other workspace you hold Edit forms in, so there is nowhere to move this form.",
   "forms.move.summary":
     "This form moves from {source} to {destination} with its versions and its responses. {destination}'s access groups will apply.",
+  "forms.move.appearance":
+    "The form keeps the appearance it has now, on its draft and on every version. If {destination} has set an appearance lock, later changes to that appearance are refused there.",
   "forms.move.gainsOne": "Gains access: 1 person",
   "forms.move.gains": "Gains access: {count} people",
   "forms.move.losesOne": "Loses access: 1 person",

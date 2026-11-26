@@ -121,7 +121,8 @@ forwarded header, every caller shares one bucket.
 `QCMS_AGENT_BASE_URL`, `QCMS_AGENT_MAX_STEPS` and `QCMS_AGENT_THINKING`.
 
 `QCMS_FLAG_THEME_DERIVE` (`off` by default), with `QCMS_THEME_DERIVE_ALLOWED_HOSTS` and
-`QCMS_THEME_DERIVE_PROXY`.
+`QCMS_THEME_DERIVE_PROXY`. Set the flag to the same value on the admin service: off, the
+appearance drawer offers no website row, because the route behind it is not mounted.
 
 Outbound mail: `QCMS_SMTP_HOST`, `QCMS_SMTP_PORT`, `QCMS_SMTP_SECURITY`, `QCMS_SMTP_USER`,
 `QCMS_SMTP_PASSWORD`, `QCMS_SMTP_FROM` and `QCMS_SMTP_TIMEOUT_MS`. Unset leaves mail unconfigured.

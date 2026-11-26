@@ -79,6 +79,9 @@ export function MoveFormPanel({
       ) : (
         <div className="flex min-w-0 flex-col gap-3" data-testid="qcms-move-preview">
           <p className="text-sm">{t("forms.move.summary", { source, destination: chosen.name })}</p>
+          <p className="text-sm" data-testid="qcms-move-appearance">
+            {t("forms.move.appearance", { destination: chosen.name })}
+          </p>
           <People
             label={tPlural("forms.move.gainsOne", "forms.move.gains", preview.gains.length)}
             people={preview.gains}

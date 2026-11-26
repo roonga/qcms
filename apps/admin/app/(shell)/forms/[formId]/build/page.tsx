@@ -6,7 +6,7 @@ import { BuilderShell } from "@/components/forms/builder-shell";
 import { builderFormName, mayBuildForm } from "@/lib/forms/build-access";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
-import { agentAuthoringEnabled } from "@/lib/server/agent";
+import { agentAuthoringEnabled, themeDeriveEnabled } from "@/lib/server/agent";
 import { faceOptions, shippedThemeOptions } from "@/lib/server/appearance-options";
 import { previewPortalBrand, previewPortalTheme } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
@@ -85,6 +85,7 @@ export default async function FormBuildPage({
         themes,
         faces: faceOptions(),
         appearanceLocked: form.appearanceLocked === true,
+        deriveEnabled: themeDeriveEnabled(),
         saveAppearance: saveAppearanceAction.bind(null, form.formId),
         deriveTheme: deriveWorkspaceThemeAction.bind(null, form.workspaceId),
         createTheme: createWorkspaceThemeAction.bind(null, form.workspaceId),

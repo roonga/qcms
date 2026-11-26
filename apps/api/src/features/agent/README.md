@@ -113,6 +113,14 @@ screen, and the two tools whose only consumer that card is
 the same work is a plan of `question.create` steps and one `form.saveDraft`, and
 both the refusal and the system prompt say so.
 
+**A kind can also be turned off by the deployment.** `theme.derive` names
+`QCMS_FLAG_THEME_DERIVE` on its own definition, and the grant filter withholds a
+kind whose flag is off from every caller: it is absent from the propose tool's
+schema, so no plan can name it, and a plan that names it anyway is refused as
+turned off rather than as a permission nobody holds. The route is unmounted and
+the appearance drawer offers no website row in such a deployment, so a card for
+it could never be finished.
+
 ## A kind's arguments are the route's own schema
 
 Every argument of every kind is built from the Zod schema its route publishes,

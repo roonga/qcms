@@ -167,6 +167,7 @@ function offeredFor(args: {
     grants,
     environments: [...ENVIRONMENTS],
     current: args.current,
+    enabledFlags: ["themeDerive"],
     ...(args.screen === undefined ? {} : { screen: args.screen }),
   }).map((entry) => entry.kind);
 }

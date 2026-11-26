@@ -15,7 +15,7 @@ import {
 import type { PendingQuestionVersion, PublishIssue, PublishWarning } from "../../forms/handler.js";
 import { checkQuestionDefinition } from "../../questions/create.js";
 import { actionKind, actsInOneEnvironment } from "../actions/registry.js";
-import type { ActionKindDef } from "../actions/types.js";
+import type { ActionKindDef, ActionKindFlag } from "../actions/types.js";
 import type { PinnedQuestion, SavedDraftPins } from "../draft-pins.js";
 import { offeredEnvironments, type OfferedActionKind } from "../grant-filter.js";
 import { isOperationalScreen } from "../screens.js";
@@ -156,6 +156,11 @@ export interface ProposeInput {
    */
   readonly screen?: string | undefined;
   readonly offered: readonly OfferedActionKind[];
+  /**
+   * The deployment flags that are on, so a kind its own flag withholds is refused as turned
+   * off rather than as a permission the caller does not hold.
+   */
+  readonly enabledFlags?: readonly ActionKindFlag[] | undefined;
   /** The workspace's ADR-41 switch, which refuses a publish-then-release-to-prod plan. */
   readonly requireSecondApprover: boolean;
   /** The environment name a production act runs in, from the deployment's own mount. */
@@ -544,6 +549,27 @@ function defaultedStep(input: ProposeInput): (step: ProposedStep) => ProposedSte
   };
 }
 
+/**
+ * Why a kind the grant filter withheld is absent: where the turn is, what the deployment has
+ * turned off, or a permission. A grant is the last of the three, not the only one.
+ */
+function unofferedReason(input: ProposeInput, def: ActionKindDef, kind: string): string {
+  if (def.local === true && def.screen !== input.screen) {
+    return (
+      `${kind} is run by the ${def.screen} screen itself, so it can only be proposed ` +
+      "from there. From anywhere else, propose a question.create step per new question " +
+      "and one form.saveDraft step carrying the whole draft."
+    );
+  }
+  if (def.flag !== undefined && !(input.enabledFlags ?? []).includes(def.flag)) {
+    return (
+      `${kind} is turned off in this deployment, so it cannot be proposed. Say so and ` +
+      "carry on with the rest."
+    );
+  }
+  return `This user does not hold the permission "${def.cell.resource}: ${def.cell.action}", so ${kind} cannot be proposed. Explain and navigate instead.`;
+}
+
 async function stepRefusal(
   input: ProposeInput,
   proposed: ProposedStep,
@@ -558,21 +584,7 @@ async function stepRefusal(
   const step = withScreenDefaults(input, def, proposed);
 
   const allowed = offeredEnvironments(input.offered, step.kind);
-  if (allowed.length === 0) {
-    // A local kind away from its own screen is absent because of where the turn is rather
-    // than because of a grant, so it says so and names the kinds that work from anywhere.
-    if (def.local === true && def.screen !== input.screen) {
-      return {
-        reason:
-          `${step.kind} is run by the ${def.screen} screen itself, so it can only be proposed ` +
-          "from there. From anywhere else, propose a question.create step per new question " +
-          "and one form.saveDraft step carrying the whole draft.",
-      };
-    }
-    return {
-      reason: `This user does not hold the permission "${def.cell.resource}: ${def.cell.action}", so ${step.kind} cannot be proposed. Explain and navigate instead.`,
-    };
-  }
+  if (allowed.length === 0) return { reason: unofferedReason(input, def, step.kind) };
 
   const referenceIssue = stepReferenceRefusal(input, step, index);
   if (referenceIssue !== undefined) return { reason: referenceIssue };

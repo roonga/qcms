@@ -72,10 +72,18 @@ export interface ActionCardTemplate {
   readonly typedInput?: string;
 }
 
+/** A deployment flag that withholds a kind from everyone while it is off. */
+export type ActionKindFlag = "themeDerive";
+
 export interface ActionKindDef {
   readonly kind: string;
 
   readonly screen: ScreenId;
+  /**
+   * The deployment flag this kind needs on. With it off the kind is offered to nobody, so no
+   * card is ever put up for an act the deployment has no route and no screen control for.
+   */
+  readonly flag?: ActionKindFlag;
   /**
    * Absent for a hand-off and for a local step: both carry no token, so no request is ever
    * routed to them.

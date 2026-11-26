@@ -219,6 +219,8 @@ export interface BuilderPreviewSource {
   readonly faces: readonly FaceChoice[];
   /** Set by the workspace: the drawer shows the reason and attempts no save. */
   readonly appearanceLocked: boolean;
+  /** `QCMS_FLAG_THEME_DERIVE`, read on the server: with it off the drawer offers no derive row. */
+  readonly deriveEnabled: boolean;
   readonly saveAppearance: (appearance: unknown) => Promise<SaveAppearanceState>;
   /** The API makes the one outbound fetch, under SEC-18; nothing in the browser reaches the site. */
   readonly deriveTheme: (url: string) => Promise<DeriveThemeState>;
@@ -294,6 +296,9 @@ export function BuilderPreview({
     return { name, nonce: saveHandOff.nonce };
   }, [saveHandOff]);
 
+  /* The API withholds the derive kind while its flag is off, so no hand-off can arrive without
+     a website row. If one does, the drawer still opens and the row takes the address without
+     fetching, rather than the step starting and the screen saying nothing. */
   useEffect(() => {
     if (deriveHandOff !== undefined) setDrawerOpen(true);
   }, [deriveHandOff]);
@@ -701,6 +706,7 @@ export function BuilderPreview({
             themes={themes}
             faces={faces}
             locked={appearanceLocked}
+            deriveEnabled={source.deriveEnabled}
             handedOffAddress={handedOffAddress}
             handedOffThemeName={handedOffThemeName}
             onAddressTaken={deriveTaken}

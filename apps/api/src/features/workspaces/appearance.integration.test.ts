@@ -9,6 +9,7 @@ import {
   createQuestion,
   createQuestionVersion,
   getDraft,
+  getForm,
   getFormVersion,
   insertFormRelease,
   insertFormVersion,
@@ -1378,3 +1379,114 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
     expect(await codeOf(res)).toBe("LOGO_NOT_FOUND");
   });
 });
+
+describe(
+  "a Move form carries the form's appearance by value (criterion 123)",
+  { timeout: TIMEOUT_MS },
+  () => {
+    /** A published form with an appearance and an open draft holding the same one. */
+    async function movable(
+      appearance: Appearance,
+      options: { readonly lockDestination?: boolean } = {},
+    ): Promise<{
+      source: string;
+      destination: string;
+      formId: FormId;
+      version: number;
+    }> {
+      const source = await newWorkspace("move-source");
+      const destination = await newWorkspace("move-destination");
+      const formId = await newForm(source);
+      const saved = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance,
+      });
+      expect(saved.status, await saved.clone().text()).toBe(200);
+      const version = await publishAndRelease(formId);
+      // Publishing takes the draft, so the form opens another to be edited after the move.
+      const again = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance,
+      });
+      expect(again.status, await again.clone().text()).toBe(200);
+      if (options.lockDestination === true) {
+        const locked = await send("PUT", `/workspaces/${destination}/appearance-lock`, {
+          locked: true,
+        });
+        expect(locked.status, await locked.clone().text()).toBe(200);
+      }
+      return { source, destination, formId, version };
+    }
+
+    async function moveTo(formId: FormId, workspaceId: string): Promise<Response> {
+      return send("POST", `/forms/${formId}/workspace`, { workspaceId });
+    }
+
+    it("leaves the draft and every version holding the appearance they already had", async () => {
+      const appearance = appearanceFor("#1d4ed8");
+      const { destination, formId, version } = await movable(appearance);
+
+      const moved = await moveTo(formId, destination);
+      expect(moved.status, await moved.clone().text()).toBe(200);
+      expect((await getForm(testDb.db, formId))?.workspaceId).toBe(destination);
+
+      // By value: nothing on either row names a workspace or a theme, so the move
+      // carries the colours themselves rather than a reference that could resolve
+      // differently in the destination.
+      expect((await getDraft(testDb.db, formId))?.appearance).toStrictEqual(appearance);
+      expect((await getFormVersion(testDb.db, formId, version))?.appearance).toStrictEqual(
+        appearance,
+      );
+    });
+
+    it("moves into a locked destination and refuses the appearance edit that follows", async () => {
+      const appearance = appearanceFor("#1d4ed8");
+      const { destination, formId, version } = await movable(appearance, {
+        lockDestination: true,
+      });
+
+      // The lock refuses appearance edits, not the move.
+      const moved = await moveTo(formId, destination);
+      expect(moved.status, await moved.clone().text()).toBe(200);
+      expect((await getForm(testDb.db, formId))?.workspaceId).toBe(destination);
+      expect((await getDraft(testDb.db, formId))?.appearance).toStrictEqual(appearance);
+      expect((await getFormVersion(testDb.db, formId, version))?.appearance).toStrictEqual(
+        appearance,
+      );
+
+      const refused = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance: appearanceFor("#0f766e"),
+      });
+      expect(refused.status, await refused.clone().text()).toBe(409);
+      expect(await codeOf(refused)).toBe("APPEARANCE_LOCKED");
+      expect((await getDraft(testDb.db, formId))?.appearance).toStrictEqual(appearance);
+
+      // A save that changes no appearance still goes through, as it does for any locked
+      // workspace: the lock is the destination's now.
+      const kept = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+      });
+      expect(kept.status, await kept.clone().text()).toBe(200);
+      expect((await getDraft(testDb.db, formId))?.appearance).toStrictEqual(appearance);
+    });
+
+    it("leaves a source lock behind, so the destination decides what may be edited", async () => {
+      const appearance = appearanceFor("#1d4ed8");
+      const { source, destination, formId } = await movable(appearance);
+      const locked = await send("PUT", `/workspaces/${source}/appearance-lock`, { locked: true });
+      expect(locked.status).toBe(200);
+
+      const moved = await moveTo(formId, destination);
+      expect(moved.status, await moved.clone().text()).toBe(200);
+
+      const changed = appearanceFor("#0f766e");
+      const edited = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance: changed,
+      });
+      expect(edited.status, await edited.clone().text()).toBe(200);
+      expect((await getDraft(testDb.db, formId))?.appearance).toStrictEqual(changed);
+    });
+  },
+);

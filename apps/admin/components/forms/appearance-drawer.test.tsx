@@ -1,6 +1,6 @@
 import type { Appearance } from "@roonga/qcms-core";
 import { SHIPPED_THEMES } from "@roonga/qcms-ui/shipped-themes";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -84,6 +84,7 @@ function drawer(
   appearance: Appearance | null,
   overrides: {
     readonly locked?: boolean;
+    readonly deriveEnabled?: boolean;
     readonly handedOffAddress?: { readonly url: string; readonly nonce: number };
     readonly handedOffThemeName?: { readonly name: string; readonly nonce: number };
     readonly onDerive?: (url: string) => Promise<DeriveThemeState>;
@@ -104,6 +105,7 @@ function drawer(
       themes={[PLUM]}
       faces={FACES}
       locked={overrides.locked ?? false}
+      deriveEnabled={overrides.deriveEnabled ?? true}
       handedOffAddress={overrides.handedOffAddress}
       handedOffThemeName={overrides.handedOffThemeName}
       onAddressTaken={() => undefined}
@@ -168,6 +170,7 @@ function HandOffHost({
           themes={[PLUM]}
           faces={FACES}
           locked={false}
+          deriveEnabled
           handedOffAddress={
             held === undefined || url === undefined ? undefined : { url, nonce: held.nonce }
           }
@@ -500,5 +503,63 @@ describe("keeping the drawer's look as a workspace theme", () => {
     expect((await screen.findByTestId("qcms-appearance-theme-save-error")).textContent).toContain(
       "already has a theme with that name",
     );
+  });
+});
+
+describe("the derive flag decides whether a website row is offered at all", () => {
+  it("offers the row, and a fetch, with QCMS_FLAG_THEME_DERIVE on", () => {
+    render(drawer(APPLIED, { deriveEnabled: true }));
+    expect(screen.getByText("From your website")).toBeTruthy();
+    expect(screen.getByTestId("qcms-appearance-derive-url")).toBeTruthy();
+    expect(getTheme()).toBeTruthy();
+  });
+
+  it("offers no row with the flag off, because the route it calls is not mounted", () => {
+    render(drawer(APPLIED, { deriveEnabled: false }));
+    expect(screen.queryByText("From your website")).toBeNull();
+    expect(screen.queryByTestId("qcms-appearance-derive-url")).toBeNull();
+    expect(screen.queryByTestId("qcms-appearance-derive-get")).toBeNull();
+  });
+
+  it("keeps the workspace theme save, which is not behind that flag", () => {
+    render(drawer(APPLIED, { deriveEnabled: false }));
+    expect(screen.getByTestId("qcms-appearance-theme-save")).toBeTruthy();
+  });
+
+  it("leaves every other axis of the drawer in place", () => {
+    render(drawer(APPLIED, { deriveEnabled: false }));
+    expect(picker("Theme")).toBeTruthy();
+    expect(picker("Face")).toBeTruthy();
+    expect(screen.getByTestId("qcms-appearance-text-size")).toBeTruthy();
+  });
+
+  it("fetches nothing for an address a card handed over while the flag is off", async () => {
+    const onDerive = vi.fn<(url: string) => Promise<DeriveThemeState>>(() => Promise.resolve(READ));
+    const onAddressTaken = vi.fn();
+    render(
+      <AppearanceDrawer
+        appearance={APPLIED}
+        themes={[PLUM]}
+        faces={FACES}
+        locked={false}
+        deriveEnabled={false}
+        handedOffAddress={{ url: "https://brand.example/", nonce: 1 }}
+        handedOffThemeName={undefined}
+        onAddressTaken={onAddressTaken}
+        onThemeNameTaken={() => undefined}
+        onDeriveDropped={() => undefined}
+        onDerive={onDerive}
+        onCreateTheme={() => Promise.resolve(KEPT)}
+        onPreview={() => undefined}
+        onSave={() => Promise.resolve(SAVED)}
+        onClose={() => undefined}
+      />,
+    );
+    // Taken, so the builder stops holding it, and not acted on.
+    await waitFor(() => {
+      expect(onAddressTaken).toHaveBeenCalled();
+    });
+    expect(onDerive).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("qcms-appearance-derive-values")).toBeNull();
   });
 });

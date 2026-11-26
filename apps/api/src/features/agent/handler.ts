@@ -35,7 +35,12 @@ import { holdsInstallationClaim, type ResolvedMembership } from "../membership/r
 import { ACCEPT_HEADER, ACCEPT_KIND, ADOPT_KIND, type AcceptRefusalCode } from "./accept-token.js";
 import { admitAgentAccept, recordAgentAccept, verifyAgentAccept } from "./audit.js";
 import { savedDraftPins } from "./draft-pins.js";
-import { mergeOffers, offeredActionKinds, offersNoAction } from "./grant-filter.js";
+import {
+  enabledActionKindFlags,
+  mergeOffers,
+  offeredActionKinds,
+  offersNoAction,
+} from "./grant-filter.js";
 import { buildProposal, type StepSubject } from "./tools/propose.js";
 import {
   AGENT_PROPOSE_TOOL_NAMES,
@@ -292,6 +297,7 @@ function actionPorts(args: {
   readonly tools: readonly AgentToolName[];
   readonly ports: Partial<Pick<AgentContext, "propose" | "offeredActionKinds">>;
 } {
+  const enabledFlags = enabledActionKindFlags(args.deps.config.flags);
   const offered = mergeOffers(
     args.held.map((membership) =>
       offeredActionKinds({
@@ -300,6 +306,7 @@ function actionPorts(args: {
         environments: args.deps.databases.names,
         current: args.build.environment,
         screen: args.screen,
+        enabledFlags,
       }),
     ),
   );
@@ -323,6 +330,7 @@ function actionPorts(args: {
           current: args.build.environment,
           screen: args.screen,
           offered,
+          enabledFlags,
           savedDraft: (formId) => savedDraftsFor(args.deps, formId),
           subjectAllows: (request) => subjectAllows(args.build, request),
           questionIdTaken: (questionId) => questionIdTaken(args.deps, questionId),

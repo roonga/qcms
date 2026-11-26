@@ -288,6 +288,8 @@ services:
       QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}
       # Admin receives only the feature flag; model and provider credentials stay on the API.
       QCMS_FLAG_AGENT_AUTHORING: ${QCMS_FLAG_AGENT_AUTHORING:-}
+      # Match the API's derive flag: off leaves the drawer with no website row to offer.
+      QCMS_FLAG_THEME_DERIVE: ${QCMS_FLAG_THEME_DERIVE:-}
     depends_on:
       api:
         condition: service_healthy
