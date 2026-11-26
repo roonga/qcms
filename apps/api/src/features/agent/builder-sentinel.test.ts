@@ -88,7 +88,8 @@ function withValue(value: unknown, path: readonly string[], replacement: string)
   const [head, ...rest] = path;
   if (head === undefined) return replacement;
   if (Array.isArray(value)) {
-    return value.map((item, index) =>
+    const items = value as readonly unknown[];
+    return items.map((item, index) =>
       String(index) === head ? withValue(item, rest, replacement) : item,
     );
   }
@@ -188,7 +189,9 @@ describe("the builder tools the model may call", () => {
         (path) => `output ${name}${path}`,
       ),
     );
-    expect(open.sort()).toEqual([...SERVER_WRITTEN].sort());
+    expect([...open].sort((a, b) => a.localeCompare(b))).toEqual(
+      [...SERVER_WRITTEN].sort((a, b) => a.localeCompare(b)),
+    );
   });
 });
 
