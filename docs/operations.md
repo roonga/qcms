@@ -190,16 +190,33 @@ than reading as clean.
 
 ### Outbound network the API needs
 
-Two destinations, both from `qcms-api` only, and both worth knowing before you write
+Three destinations, all from `qcms-api` only, and all worth knowing before you write
 an egress firewall rule:
 
-| Destination                      | When                                                                                                                                                                                                | If it is blocked                                                                                                                                                                                       |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Your webhook consumers           | Whenever a submission is delivered (SEC-6, SSRF-guarded)                                                                                                                                            | Deliveries retry and eventually park in the outbox; nothing else is affected.                                                                                                                          |
-| `api.pwnedpasswords.com` (HTTPS) | Only while an **admin password is being set**: `qcms:create-admin`, change-password, and the claim of a new account (SEC-1). A lookup that has not answered in three seconds counts as unreachable. | **The password is refused, by design.** A first admin cannot be created at all. Set `QCMS_ADMIN_PASSWORD_BREACH_CHECK=false` for a deployment that is genuinely offline; see the variable's row below. |
+| Destination                                    | When                                                                                                                                                                                                              | If it is blocked                                                                                                                                                                                       |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Your webhook consumers                         | Whenever a submission is delivered (SEC-6, SSRF-guarded)                                                                                                                                                          | Deliveries retry and eventually park in the outbox; nothing else is affected.                                                                                                                          |
+| `api.pwnedpasswords.com` (HTTPS)               | Only while an **admin password is being set**: `qcms:create-admin`, change-password, and the claim of a new account (SEC-1). A lookup that has not answered in three seconds counts as unreachable.               | **The password is refused, by design.** A first admin cannot be created at all. Set `QCMS_ADMIN_PASSWORD_BREACH_CHECK=false` for a deployment that is genuinely offline; see the variable's row below. |
+| A website somebody typed, for a theme (SEC-18) | Only with `QCMS_FLAG_THEME_DERIVE=on`, and only while an author asks the appearance drawer to read one site: that page, up to two of its own stylesheets and one PNG or JPEG logo. Never on a respondent request. | The derive answers one refusal and saves nothing; authoring a theme by hand is unaffected. The flag is `off` by default, so a deployment that never sets it makes no request of this kind at all.      |
 
 Nothing else in the API reaches the internet. The portal and the admin reach only the
 API.
+
+**The theme derive is off until you turn it on, and only narrows from there** (SEC-18,
+agent-builder Q20). `QCMS_FLAG_THEME_DERIVE` is its own flag: `QCMS_FLAG_AGENT_AUTHORING`
+does not enable it, and the webhook `QCMS_WEBHOOK_ALLOW_PRIVATE` switch is never inherited.
+With it off the route is the router's 404, so no policy, rate limiter or socket runs, and
+the admin's appearance drawer offers no "From your website" row at all; set the same value
+on the `api` and the `admin` services so the two agree. Two further knobs narrow the fetch
+and neither widens it. `QCMS_THEME_DERIVE_ALLOWED_HOSTS` is a comma-separated list of host
+names a derive may read, each matching itself and its subdomains, and
+`QCMS_THEME_DERIVE_PROXY` is an `http://host:port` CONNECT proxy, without credentials,
+handed the already-checked address rather than the host name, with TLS still verified for
+the host. A listed host that resolves to a private address is refused anyway, as is every
+private, loopback, link-local, mapped or NAT64 answer, every port but 443, a URL carrying
+userinfo, a cross-site redirect, a second redirect, an oversize or slow body and a content
+type outside the allowed list. Every refusal is the same uniform error, so the route is no
+port scanner. One `derive` row is written to the workspace audit per fetch.
 
 **Do not put a credential in a webhook endpoint URL.** Not a bearer token in a query
 parameter, not an API key, not `https://user:pass@host/`. Authenticate the delivery with

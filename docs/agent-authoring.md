@@ -146,6 +146,50 @@ Whether the panel is open and how wide are remembered in a cookie, so it is alre
 
 The header's context chip names what the assistant can see from where you are, screen by screen: the form and its draft on the builder, "Response metadata across forms, no answers" on the response list, "Workspace settings" on Settings. What that line says is what the turn carries. **One conversation follows you across all of them** (Code Owner, 2026-11-02), so the chip is also the answer to "which screen will the next turn use"; section 8 has the rest.
 
+### The agent builder
+
+**A second screen, and a mode of its own**, like Operations (agent-builder Q13). The docked panel
+above is unchanged by it. Two entries open it, both behind the same flag: the New form screen
+offers "Build with the assistant" beside "Start blank", and a form's own menu offers "Edit with
+the agent builder". There is no top-bar entry, and with the flag off both entries are absent and
+the routes answer 404.
+
+- `/forms/new/build` opens on an empty form. **Nothing is created until the first confirmed
+  step**, so an abandoned session leaves no form and no draft.
+- `/forms/[formId]/build` opens on that form's **open draft** and never on a released version. A
+  form with no open draft offers "Start a new draft" first, as the publish wizard does.
+- The mode's top bar carries the title, the form's name and an Exit that returns where you came
+  from. The heading row holds **Edit by hand**, which is the ordinary builder at `/forms/<id>`,
+  Share preview, and Publish. Below 64rem the assistant pane and the preview become two tabs.
+- The assistant pane sits beside a **live preview** of the draft as a respondent would see it: a
+  device frame with widths, rotation, zoom, polarity and high contrast, Reset answers, and an
+  Inspect mode that tells the assistant which question you picked. Authoring ignores the
+  environment, so the builder has no environment selector.
+- The conversation here is the builder's own, held for the tab only, keyed to you, the workspace
+  and the form, and cleared at sign-out with the dock's. Nothing of it is stored on the server.
+- **Publishing stays in the publish wizard.** The assistant may open it, which is a navigation and
+  not an act, and the wizard shows the cumulative agent diff since the last revision a human
+  reviewed, so whoever publishes sees every assisted edit and every Undo in one list. The wizard
+  hands back to the build screen it was opened from.
+
+### Draft edits without a card, and Undo
+
+In the builder, an edit to the **open draft** applies when the turn ends rather than waiting for a
+Confirm (agent-builder Q14, narrowed by Q22). The reason is reversibility, not convenience: the
+edit goes through the one draft save path every human save uses, each edit writes its own row to
+the append-only agent audit, each is capped per turn, and each arrives with an **Undo** beside it
+in the conversation. Undo reverses the draft op and writes its own audit row.
+
+What stays a Confirm card in the builder: creating the form, because the slug is permanent and
+names the workspace it is created in; a question written to the **shared question library**,
+because an unpublished library version persists until it is deprecated and Undo does not reverse
+it; and the two theme acts, reading a website and keeping a look as a workspace theme.
+
+Appearance is an edit like the other four: a brand colour, the face, the corners, the density, the
+progress style, the base text size, the page tint. The assistant names only what changes, never a
+colour one by one, and the engine derives every mode's palette from the brand colour. The logo is
+yours alone: no tool sets it, clears it or names a key for it.
+
 ### Can
 
 - **Read the screen you are on, and take you to what it names.** Each screen hands the turn its own facts and its own read tools: the form and its draft on the builder, the versions and releases on the versions screen, response metadata with no answer values, the endpoints and their delivery states, the question library, the workspace's groups and members.
@@ -176,6 +220,17 @@ Not "is instructed not to". **Cannot**, structurally.
 - **Read responses, answers, submissions or exports.** No read tool and no screen context can return an answer value, the answer ledger or a webhook payload. Response metadata is a projection with no answer column.
 - **Write its own card.** The title, the consequence lines and the argument lines are rendered by the admin from the act's kind and its structured arguments. The model's words appear only as a visibly quoted reason, so an injected instruction cannot label a production release "Release to test" or hide a step.
 - **Keep a secret.** A webhook secret, a minted link URL and an export's bytes reach your screen and stop there; the next turn is told only an allowlisted summary ("rotated the endpoint's secret", never the secret). An act that needs you to type a secret opens the screen's own control instead, and may only be the last step of a plan.
+- **Publish, release, mint or revoke a link, or touch a webhook from the builder.** The
+  builder's own kind set holds none of them, pinned by a key-set test, and its tool set holds no
+  publish executor: the open-wizard tool navigates and is offered only where you hold Publish
+  forms. Its draft edits reach the open draft and nothing else, and a locked workspace's
+  appearance is refused by the draft save rather than by the assistant declining.
+- **Supply the address a theme is read from, or see what the page said.** You type the address on
+  the card, where it is shown in full, and nothing is fetched before you confirm. The assistant is
+  never told an address it did not get from you, and never asks you to paste one into the chat.
+  What the fetch answers is a strict schema of hex colours, a registry face and booleans, handed
+  to your appearance drawer: no page text, no title, no alt text, no logo bytes. Text arriving
+  from a site is data, whatever it claims to be.
 - **Change deployment configuration, or reach the database at all.**
 
 A tool call outside the registry, or one your own grants do not reach, is refused server-side before dispatch and logged, and the turn that attempted it produces **no proposal at all**.

@@ -152,8 +152,6 @@ describe("what the confirmation says about the form's appearance (criterion 123)
         formId="frm_intake"
         source="Clinical"
         destinations={DESTINATIONS}
-        chosen={undefined}
-        preview={undefined}
         move={vi.fn()}
       />,
     );

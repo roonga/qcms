@@ -65,13 +65,31 @@ layout stamps them onto `<html>` during SSR:
 | `QCMS_PORTAL_FONT`    | `system` (default) or any registry key      | default font        |
 | `QCMS_PORTAL_FONTS`   | registry keys, comma/space separated        | the offered subset  |
 
-Every theme is authored in Light and Dark and shares ONE High-contrast mode
-layer. `?mode=light|dark|hc` and the `qcms-theme` cookie override the configured
-default; the respondent-facing switcher is task 053.
+Every theme is authored in Light and Dark, and ships its own **light** and **dark**
+high-contrast palettes in full, every colour token in each, with body text at 7:1
+(ADR-30 as amended by agent-builder Q5). `?mode=light|dark|hc` and the `qcms-theme`
+cookie override the configured default.
 
-A form version may carry its own appearance. A step page and the completion page
-render the appearance of the version the session is pinned to, over these defaults and
-under the respondent's own choices; see "Per-form appearance" in `docs/theming.md`.
+### Per-form appearance, and what the respondent decides
+
+A form version may carry its own appearance: palettes, logo, face, corners, density,
+progress mode, page tint and a base text size. A step page and the completion page render
+the appearance of the version the session is **pinned** to, so a later publish, or a
+workspace theme changed or deleted after publish, never reaches a respondent mid-session
+(ADR-07). The root layout reads it from the session's status and writes it onto `<html>`
+in the first byte, as `data-qcms-form-appearance` plus a nonced `<style>` holding the four
+palettes; a version with no appearance keeps the deployment configuration above. A form
+logo is served from the portal's own `/logo/:key`, so SEC-9's `img-src 'self'` is not
+widened.
+
+The header's **Appearance** disclosure is the respondent's own: mode (Light, Dark, High
+contrast), a legibility face from the deployment's curated registry plus the form's own,
+and text size at 100, 125, 150 or 200 percent. Each writes a cookie and a root class, so
+there is no pre-paint flash and no JavaScript is required: without it the controls post a
+form to `POST /appearance` and come back to the same step. Text size **compounds** with the
+form's base, capped at 32 px, and the layout is proven to reflow at 320 px. Density is the
+author's, not the respondent's. See "Per-form appearance" and "Respondent runtime controls"
+in `docs/theming.md`.
 
 The font registry (task 052) lives in `@roonga/qcms-ui` and is **entirely self-hosted**:
 the `woff2` binaries are committed in the package, so no font selection causes an
