@@ -4,13 +4,18 @@ import { z } from "zod";
 import { APPEARANCE_COLOR_TOKENS, deriveAppearance } from "@roonga/qcms-core";
 
 import { ACTION_KIND_NAMES, BUILDER_ACTION_KINDS, actionKind } from "./actions/registry.js";
-import { ActionStepResultBody, BUILDER_FACTS, stepResultRefusal } from "./schema.js";
+import {
+  ActionStepResultBody,
+  BUILDER_FACTS,
+  DerivedThemeFact,
+  stepResultRefusal,
+} from "./schema.js";
 import { AGENT_BUILDER_TOOL_NAMES, AGENT_TOOL_NAMES, TOOLS } from "./tools/registry.js";
 
 /**
- * X4 over what tasks 111, 112 and 117 added: every builder fact, tool and action kind walked for
- * a slot that could carry a respondent's words, or a website's, to the model. The registries
- * drive the walks, so one added later arrives uncovered and fails.
+ * X4: every builder fact, tool and action kind walked for a slot that could carry a
+ * respondent's words, or a website's, to the model. The registries drive the walks, so one
+ * added later arrives uncovered and fails.
  */
 
 const SENTINEL = "RESPONDENT-ONLY-SENTINEL-VALUE";
@@ -101,7 +106,11 @@ function jsonSchemaOf(schema: z.ZodType): unknown {
   return z.toJSONSchema(schema, { io: "output", unrepresentable: "any" });
 }
 
-/** A string slot the schema leaves open: no enum, pattern, format or length to hold it. */
+/**
+ * A string slot the schema leaves open: no enum, pattern or format to hold it to a vocabulary.
+ * A length cap is not one of those, because two hundred characters of somebody else's words is
+ * still a sentence of instruction, so a capped free string is listed here too.
+ */
 function freeStringPaths(node: unknown, at = "", found: string[] = []): readonly string[] {
   if (Array.isArray(node)) {
     node.forEach((item, index) => freeStringPaths(item, `${at}[${String(index)}]`, found));
@@ -110,7 +119,7 @@ function freeStringPaths(node: unknown, at = "", found: string[] = []): readonly
   if (node === null || typeof node !== "object") return found;
   const record = node as Record<string, unknown>;
   if (record["type"] === "string") {
-    const bounded = ["enum", "const", "pattern", "format", "maxLength"].some((key) =>
+    const bounded = ["enum", "const", "pattern", "format"].some((key) =>
       Object.hasOwn(record, key),
     );
     if (!bounded) found.push(at);
@@ -149,6 +158,25 @@ describe("the sentinel walk over every builder fact", () => {
         expect(schema.safeParse(attacked).success, `${name} at ${path.join(".")}`).toBe(false);
       }
     }
+  });
+
+  /**
+   * The walks above attack the slots a hand-written sample happens to hold. This one reads the
+   * schemas themselves, so a free string added to an existing fact fails here even though no
+   * sample names it.
+   */
+  const OPEN_FACT_STRINGS: readonly string[] = [];
+
+  it("leaves no free string slot in any fact schema", () => {
+    const open = BUILDER_FACTS.flatMap(({ name, schema }) =>
+      freeStringPaths(jsonSchemaOf(schema)).map((path) => `${name}${path}`),
+    );
+    expect([...open].sort((a, b) => a.localeCompare(b))).toEqual([...OPEN_FACT_STRINGS]);
+  });
+
+  it("would catch one: a free string added to a fact is listed", () => {
+    const probe = z.strictObject({ ...DerivedThemeFact.shape, siteCaption: z.string().optional() });
+    expect(freeStringPaths(jsonSchemaOf(probe))).toEqual([".siteCaption"]);
   });
 
   it("refuses a long passage in every string slot of every fact", () => {

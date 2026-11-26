@@ -183,7 +183,9 @@ in the conversation. Undo reverses the draft op and writes its own audit row.
 What stays a Confirm card in the builder: creating the form, because the slug is permanent and
 names the workspace it is created in; a question written to the **shared question library**,
 because an unpublished library version persists until it is deprecated and Undo does not reverse
-it; and the two theme acts, reading a website and keeping a look as a workspace theme.
+it; and the two theme acts, reading a website and keeping a look as a workspace theme. The
+website read is offered only where `QCMS_FLAG_THEME_DERIVE=on`: with the flag off the assistant is
+offered no card for it, because the drawer that would finish one has no such row.
 
 Appearance is an edit like the other four: a brand colour, the face, the corners, the density, the
 progress style, the base text size, the page tint. The assistant names only what changes, never a

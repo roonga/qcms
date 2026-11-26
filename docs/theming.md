@@ -750,8 +750,9 @@ once, and Done is the draft save, so nothing can be kept that the token contract
   from 16 to 24 px, all written into the one `appearance` object the draft carries.
 - **From your website.** An address the person types, read once by the API under SEC-18. Nothing
   in the browser reaches the site and no page text, title or alt text reaches a model. The row is
-  offered only where `QCMS_FLAG_THEME_DERIVE=on`; with the flag off the derive route is a 404 and
-  the drawer leaves the row out while the theme save stays. What the fetch found is shown in full,
+  offered only where `QCMS_FLAG_THEME_DERIVE=on`; with the flag off the derive route is a 404,
+  the drawer leaves the row out while the theme save stays, and the agent builder is offered no
+  card for it either. What the fetch found is shown in full,
   with every colour it had to move to stay readable and every palette a page tint was dropped for,
   and the Theme row reads "Not saved" until the look is kept as a workspace theme.
 - **Workspace themes and the appearance lock** are on the workspace's Settings screen. Saving a

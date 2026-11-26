@@ -296,16 +296,12 @@ export function BuilderPreview({
     return { name, nonce: saveHandOff.nonce };
   }, [saveHandOff]);
 
+  /* The API withholds the derive kind while its flag is off, so no hand-off can arrive without
+     a website row. If one does, the drawer still opens and the row takes the address without
+     fetching, rather than the step starting and the screen saying nothing. */
   useEffect(() => {
-    if (deriveHandOff === undefined) return;
-    /* With the derive flag off there is no row to take the address, so the hand-off is dropped
-       rather than left holding the drawer open on a route that answers 404. */
-    if (!source.deriveEnabled) {
-      deriveTaken();
-      return;
-    }
-    setDrawerOpen(true);
-  }, [deriveHandOff, deriveTaken, source.deriveEnabled]);
+    if (deriveHandOff !== undefined) setDrawerOpen(true);
+  }, [deriveHandOff]);
 
   useEffect(() => {
     if (saveHandOff !== undefined) setDrawerOpen(true);

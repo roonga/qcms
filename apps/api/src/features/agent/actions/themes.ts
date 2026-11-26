@@ -24,6 +24,7 @@ const WorkspaceIdArg = z
 export const deriveWorkspaceTheme: ActionKindDef = {
   kind: "theme.derive",
   screen: "/forms/[formId]/build",
+  flag: "themeDerive",
   cell: { resource: "form", action: "write" },
   environmentFrom: "switcher",
   // No `url` member, so a proposal that names an address is refused on its arguments alone.

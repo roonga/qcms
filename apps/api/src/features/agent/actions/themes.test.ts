@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { loadConfig } from "../../../config.js";
+import { validEnv } from "../../../test-support.js";
 import { BUILDER_SCREEN } from "../edit-token.js";
-import { offeredActionKinds } from "../grant-filter.js";
+import { enabledActionKindFlags, offeredActionKinds } from "../grant-filter.js";
+import type { ActionKindFlag } from "./types.js";
 import type { HeldGrant } from "../../membership/policy.js";
 import { actionKind } from "./registry.js";
 
@@ -14,13 +17,17 @@ import { actionKind } from "./registry.js";
 const EDITOR: HeldGrant = { roles: ["forms.editor"], environments: ["test", "prod"] };
 const VIEWER: HeldGrant = { roles: ["forms.viewer"], environments: ["test", "prod"] };
 
-function offeredOnBuilder(grant: HeldGrant): readonly string[] {
+function offeredOnBuilder(
+  grant: HeldGrant,
+  enabledFlags: readonly ActionKindFlag[] = ["themeDerive"],
+): readonly string[] {
   return offeredActionKinds({
     memberRole: undefined,
     grants: [grant],
     environments: ["test", "prod"],
     current: "test",
     screen: BUILDER_SCREEN,
+    enabledFlags,
   }).map((entry) => entry.kind);
 }
 
@@ -98,8 +105,42 @@ describe("who the builder offers them to", () => {
       environments: ["test", "prod"],
       current: "test",
       screen: "/forms/[formId]",
+      enabledFlags: ["themeDerive"],
     }).map((entry) => entry.kind);
     expect(elsewhere).not.toContain("theme.derive");
     expect(elsewhere).not.toContain("theme.save");
+  });
+});
+
+/**
+ * SEC-18 S1 at the model-facing end: an act the deployment has no route for is offered to
+ * nobody, so the builder never puts up a card the appearance drawer has no row to finish.
+ */
+describe("the derive flag decides whether the kind is offered at all", () => {
+  it("reads the flag off the deployment configuration, in both states", () => {
+    const off = loadConfig(validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }));
+    expect(off.flags.themeDerive).toBe("off");
+    expect(enabledActionKindFlags(off.flags)).toEqual([]);
+
+    const on = loadConfig(
+      validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake", QCMS_FLAG_THEME_DERIVE: "on" }),
+    );
+    expect(enabledActionKindFlags(on.flags)).toEqual(["themeDerive"]);
+  });
+
+  it("withholds theme.derive with the flag off and keeps every other builder kind", () => {
+    const off = offeredOnBuilder(EDITOR, []);
+    expect(off).not.toContain("theme.derive");
+    expect(off).toContain("theme.save");
+    expect(off).toContain("question.create");
+  });
+
+  it("offers it with the flag on", () => {
+    expect(offeredOnBuilder(EDITOR, ["themeDerive"])).toContain("theme.derive");
+  });
+
+  it("names the flag on the kind, so nothing has to hold a second list", () => {
+    expect(actionKind("theme.derive")?.flag).toBe("themeDerive");
+    expect(actionKind("theme.save")?.flag).toBeUndefined();
   });
 });

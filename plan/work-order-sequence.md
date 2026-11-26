@@ -223,6 +223,14 @@ are repository-relative.
 | X3 Playwright admin: the shell, the device switch, inspect, the drawer through to the portal, the derive against a local fixture server                                                                                                                                                                | 113 to 117, 121 | `apps/admin/e2e/agent-builder-shell.pw.ts`, `apps/admin/e2e/agent-builder-preview.pw.ts`, `apps/admin/e2e/agent-builder-edits.pw.ts`, `apps/admin/e2e/appearance-drawer.pw.ts`, `apps/admin/e2e/theme-derive.pw.ts`, and across both stacks `apps/admin/e2e/builder-to-portal.pw.ts`                           |
 | X4 SEC-17 sentinel and vocabulary over every new fact, tool and kind, the derive output included                                                                                                                                                                                                       | 121             | `apps/api/src/features/agent/builder-sentinel.test.ts` (the three registries walked), `apps/api/src/features/agent/screens.test.ts`, `apps/api/src/features/agent/schema.test.ts`, `apps/api/src/features/workspaces/brand-fetcher/derive-sentinel.test.ts`, `apps/admin/lib/i18n/card-vocabulary.test.ts`     |
 
+The cross-flow the work order asks for is proven by composition, which the Code Owner accepted
+(2026-11-27). Builder create and card-less edits are `apps/admin/e2e/agent-builder-edits.pw.ts`,
+the derived theme is `apps/admin/e2e/theme-derive.pw.ts`, the portal logo is
+`apps/portal/e2e/form-appearance.pw.ts`, and `apps/admin/e2e/builder-to-portal.pw.ts` proves the
+drawer-to-portal crossing with a shipped theme. The derived theme needs no portal leg of its own:
+appearance travels by value, so what the portal serves is the same object whichever control wrote
+it.
+
 ## Code Owner rulings
 
 All seven ruled as recommended (Code Owner, 2026-11-13).

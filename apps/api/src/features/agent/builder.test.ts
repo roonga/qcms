@@ -356,6 +356,7 @@ describe("the builder's key set (Q16)", () => {
     environments: ["test", "prod"],
     current: "test",
     screen: BUILDER_SCREEN,
+    enabledFlags: ["themeDerive"],
   }).map((entry) => entry.kind);
 
   it("pins the kinds, tools and edit ops the builder may offer", () => {
