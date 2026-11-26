@@ -126,3 +126,38 @@ describe("the Move form screen's preview (criterion 101)", () => {
     expect(screen.queryByTestId("qcms-move-preview")).toBeNull();
   });
 });
+
+describe("what the confirmation says about the form's appearance (criterion 123)", () => {
+  it("says the appearance travels and that a destination lock stops later changes", () => {
+    render(
+      <MoveFormPanel
+        formId="frm_intake"
+        source="Clinical"
+        destinations={DESTINATIONS}
+        chosen={CHOSEN}
+        preview={preview()}
+        move={vi.fn()}
+      />,
+    );
+
+    const said = screen.getByTestId("qcms-move-appearance").textContent ?? "";
+    expect(said).toBe(t("forms.move.appearance", { destination: "Finance" }));
+    expect(said).toContain("keeps the appearance it has now");
+    expect(said).toContain("Finance has set an appearance lock");
+  });
+
+  it("says nothing about appearance before a destination is chosen", () => {
+    render(
+      <MoveFormPanel
+        formId="frm_intake"
+        source="Clinical"
+        destinations={DESTINATIONS}
+        chosen={undefined}
+        preview={undefined}
+        move={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByTestId("qcms-move-appearance")).toBeNull();
+  });
+});

@@ -2,8 +2,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { FormId, QuestionId, parseQuestionDefinition } from "@roonga/qcms-core";
-import type { FormDefinition } from "@roonga/qcms-core";
+import { FormId, QuestionId, deriveAppearance, parseQuestionDefinition } from "@roonga/qcms-core";
+import type { Appearance, FormDefinition } from "@roonga/qcms-core";
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import {
   SEED_WORKSPACE_ID,
@@ -16,6 +16,7 @@ import {
   deleteAccessGroup,
   ensureWorkspaceMember,
   getDraft,
+  getFormVersion,
   insertFormRelease,
   insertFormVersion,
   listAccessAudit,
@@ -234,6 +235,34 @@ async function saveDraft(token: string, formId: FormId): Promise<number> {
   await seedQuestion();
   const saved = await call(token, "PUT", `/forms/${formId}/draft`, {
     definition: draftDefinition(formId),
+  });
+  expect(saved.status, JSON.stringify(saved.body)).toBe(200);
+  return (await getDraft(control, formId))!.revision;
+}
+
+function appearanceFor(primary: string): Appearance {
+  const derived = deriveAppearance({ primary });
+  return {
+    palettes: derived.palettes,
+    logo: null,
+    face: derived.face,
+    corners: "subtle",
+    density: "comfortable",
+    textSize: 16,
+    progress: "top-indicator",
+    pageTint: derived.pageTint,
+  };
+}
+
+/** The same questions, a different look: the appearance-only change of criterion 117. */
+async function saveAppearance(
+  token: string,
+  formId: FormId,
+  appearance: Appearance,
+): Promise<number> {
+  const saved = await call(token, "PUT", `/forms/${formId}/draft`, {
+    definition: draftDefinition(formId),
+    appearance,
   });
   expect(saved.status, JSON.stringify(saved.body)).toBe(200);
   return (await getDraft(control, formId))!.revision;
@@ -1625,6 +1654,53 @@ describe("a held draft publish on a site whose only environment is prod (criteri
       expect(held.status, JSON.stringify(held.body)).toBe(202);
       expect(held.body.request).toMatchObject({ kind: "draft-publish", status: "pending" });
       expect(await listFormVersions(control, formId)).toEqual([]);
+    });
+  });
+
+  it("refuses the approval after an appearance-only change (criterion 117)", async () => {
+    await withRuleOn(async () => {
+      const formId = await seedForm(0);
+      const held = await requestPublish(
+        prodOnlyAuthor.token,
+        formId,
+        await saveDraft(prodOnlyAuthor.token, formId),
+      );
+      expect(held.status, JSON.stringify(held.body)).toBe(202);
+
+      // Nothing but the look changes, and the request is bound to the draft it froze.
+      const look = appearanceFor("#1d4ed8");
+      const changed = await saveAppearance(prodOnlyAuthor.token, formId, look);
+
+      const refused = await decide(prodPublisher.token, formId, requestIdOf(held.body), "approve");
+      expect(refused.status, JSON.stringify(refused.body)).toBe(409);
+      expect(codeOf(refused.body)).toBe("DRAFT_CHANGED_SINCE_REQUEST");
+      expect((refused.body as { error: { message: string } }).error.message).toBe(
+        "This draft has changed since publishing was requested. Request publishing again.",
+      );
+      expect(await listFormVersions(control, formId)).toEqual([]);
+
+      const listed = await call(
+        prodPublisher.token,
+        "GET",
+        `/forms/${formId}/publish-requests`,
+        undefined,
+        prodOnlyApp,
+      );
+      expect((listed.body.requests as Record<string, unknown>[])[0]).toMatchObject({
+        status: "lapsed",
+      });
+
+      // A new request on the changed draft is taken, and freezes the look with it.
+      const renewed = await requestPublish(prodOnlyAuthor.token, formId, changed);
+      expect(renewed.status, JSON.stringify(renewed.body)).toBe(202);
+      const approved = await decide(
+        prodPublisher.token,
+        formId,
+        requestIdOf(renewed.body),
+        "approve",
+      );
+      expect(approved.status, JSON.stringify(approved.body)).toBe(200);
+      expect((await getFormVersion(control, formId, 1))?.appearance).toStrictEqual(look);
     });
   });
 
