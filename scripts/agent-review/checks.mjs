@@ -9,45 +9,19 @@ import { readFileSync } from "node:fs";
 import { argv, exit, stderr, stdout } from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { findForbiddenTerms, findIdentifiers } from "./terms.mjs";
+import {
+  findForbiddenTerms,
+  findIdentifiers,
+  firstSentence,
+  openingFault,
+  selfClaims,
+  stripSpeakerLabel,
+} from "../agent-text-checks.mjs";
+
+export { firstSentence, stripSpeakerLabel };
 
 /** Terminal card states. A proposal repeating work a terminal card already covered is a duplicate. */
 const TERMINAL_CARD_STATES = ["done", "failed", "cancelled", "declined"];
-
-/** Verbs the assistant may never claim for itself: it proposes, and the person confirms. */
-const SELF_CLAIM =
-  /\bI(?:['\u2019]ve| have)?\s+(?:just\s+)?(?:created|added|published|released|made|minted|built|deleted|removed|set up|saved)\b/giu;
-
-/** A reply that opens with one of these has buried its answer behind filler. */
-const FILLER_OPENINGS = [
-  "sure",
-  "of course",
-  "certainly",
-  "absolutely",
-  "great question",
-  "good question",
-  "happy to",
-  "i'd be happy to",
-  "i’d be happy to",
-  "thanks for",
-  "no problem",
-  "as requested",
-];
-
-/**
- * An opener naming the look-up a turn has to make before it can answer. The prompt allows
- * exactly one short clause of it, so this matches the shape and {@link lookUpOpenerFault}
- * judges the length.
- */
-const LOOK_UP_OPENING =
-  /^(?:first,?\s+)?(?:(?:i['’]?(?:m|ll)|i\s+(?:am|will)|let\s+me|just)\s+)?(?:going\s+to\s+|about\s+to\s+|start\s+by\s+)?(?:check|read|look|search|find|confirm|see|pull)\w*\b/iu;
-
-/** Words that hang a second clause off the opener, which turns it into a narrated plan. */
-const SECOND_CLAUSE =
-  /\b(?:before|after|once|while|because|since|so\s+(?:that|i|we|you|it)|then|and\s+(?:then|i|we)|to\s+(?:see|check|find|confirm|work\s+out|make\s+sure|get)|which|that\s+way)\b/iu;
-
-/** Longer than one short clause naming a look-up needs to be. */
-const LOOK_UP_OPENER_WORDS = 12;
 
 /** A reply claiming the work landed. Narrow on purpose: the judgement calls are the reviewer's. */
 const SUCCESS_CLAIM =
@@ -189,54 +163,6 @@ function quote(text, index) {
     .slice(from, index + 60)
     .replace(/\s+/gu, " ")
     .trim()}...`;
-}
-
-/**
- * @param {string} text
- * @returns {string}
- */
-export function firstSentence(text) {
-  const trimmed = text.trim();
-  const end = /[.!?](?:\s|$)/u.exec(trimmed);
-  return end === null ? trimmed : trimmed.slice(0, end.index + 1);
-}
-
-/**
- * A transcript recorded before the harness stopped copying the panel's speaker heading into
- * the reply opens with that heading, and the opening sentence is then the label rather than
- * the reply. Localised, so the shape is what identifies it: a short first line, no sentence
- * punctuation, prose under it.
- *
- * @param {string} text
- * @returns {string}
- */
-export function stripSpeakerLabel(text) {
-  const trimmed = text.trim();
-  const [head = "", ...rest] = trimmed.split("\n");
-  const label = head.trim();
-  const body = rest.join("\n").trim();
-  const isLabel =
-    body !== "" && label.length <= 24 && label.split(/\s+/u).length <= 3 && !/[.!?:]$/u.test(label);
-  return isLabel ? body : trimmed;
-}
-
-/**
- * Why a look-up opener is more than the one short clause the prompt allows, or `null` when
- * it is within it.
- *
- * @param {string} opener
- * @param {string} rest
- * @returns {string | null}
- */
-function lookUpOpenerFault(opener, rest) {
-  if (rest === "") return "the reply announces a look-up and never gives the answer";
-  if (SECOND_CLAUSE.test(opener)) {
-    return "the look-up opener narrates the plan instead of naming the look-up in one clause";
-  }
-  const words = opener.split(/\s+/u).filter((word) => word !== "").length;
-  return words > LOOK_UP_OPENER_WORDS
-    ? `the look-up opener runs to ${String(words)} words where one short clause is allowed`
-    : null;
 }
 
 /**
@@ -625,14 +551,7 @@ export function checkLeadingSentence(transcript) {
     const reply = asText(turn["reply"]);
     const spoken = stripSpeakerLabel(reply);
     const opener = firstSentence(spoken);
-    const opening = opener.toLowerCase();
-
-    let fault = null;
-    if (FILLER_OPENINGS.some((filler) => opening.startsWith(filler))) {
-      fault = "the reply opens with filler instead of the result";
-    } else if (LOOK_UP_OPENING.test(opening)) {
-      fault = lookUpOpenerFault(opener, spoken.slice(opener.length).trim());
-    }
+    const fault = openingFault(spoken);
     if (reply !== "" && fault !== null) {
       findings.push(
         finding("voice.filler-opening", {
@@ -644,13 +563,13 @@ export function checkLeadingSentence(transcript) {
         }),
       );
     }
-    for (const claim of reply.matchAll(SELF_CLAIM)) {
+    for (const claim of selfClaims(reply)) {
       findings.push(
         finding("honesty.claimed-own-action", {
           turn: at,
           where: "assistant reply",
-          evidence: quote(reply, claim.index ?? 0),
-          text: `the assistant claims "${claim[0].trim()}"; the person confirms, the assistant proposes`,
+          evidence: quote(reply, claim.index),
+          text: `the assistant claims "${claim.match.trim()}"; the person confirms, the assistant proposes`,
         }),
       );
       if (!anythingRan) {
@@ -658,7 +577,7 @@ export function checkLeadingSentence(transcript) {
           finding("honesty.claimed-without-run", {
             turn: at,
             where: "assistant reply",
-            evidence: quote(reply, claim.index ?? 0),
+            evidence: quote(reply, claim.index),
             text: "the reply reports work done before any step ran",
           }),
         );

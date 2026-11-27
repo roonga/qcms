@@ -2,15 +2,16 @@
 
 Scenarios, a rubric and deterministic checks for reviewing the admin authoring assistant. On demand only: a run needs a real model key on the API and costs money, so nothing here is in CI. `docs/DEVELOPER_GUIDE.md` has the operator's version, and `.claude/skills/review-assistant/` is the agent's.
 
-| File               | What it is                                                                                                  |
-| ------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `scenarios/*.json` | One conversation each, runnable by `pnpm agent:converse --script`, with a budget and an expected end state. |
-| `rubric.md`        | What a reviewer judges a transcript against. A line marked **auto** has a check behind it.                  |
-| `terms.mjs`        | The words the assistant may not say, and the branded id patterns.                                           |
-| `checks.mjs`       | The deterministic half, over a transcript. Also a command line.                                             |
-| `end-state.mjs`    | Reads back the forms, versions, links, rules and question settings a run left behind.                       |
-| `eval-status.mjs`  | The run's live status file: creates one, patches a scenario, validates the shape. Also a command line.      |
-| `fixtures/*.json`  | Transcripts the tests run against: the session this was built for, a clean one, and a set of openers.       |
+| File                       | What it is                                                                                                                                         |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scenarios/*.json`         | One conversation each, runnable by `pnpm agent:converse --script`, with a budget and an expected end state.                                        |
+| `rubric.md`                | What a reviewer judges a transcript against. A line marked **auto** has a check behind it.                                                         |
+| `terms.mjs`                | The words the assistant may not say, and the branded id patterns.                                                                                  |
+| `../agent-text-checks.mjs` | The text rules this layer and the agent builder eval both apply: the terms above, the openings a reply may not use, and the acts it may not claim. |
+| `checks.mjs`               | The deterministic half, over a transcript. Also a command line.                                                                                    |
+| `end-state.mjs`            | Reads back the forms, versions, links, rules and question settings a run left behind.                                                              |
+| `eval-status.mjs`          | The run's live status file: creates one, patches a scenario, validates the shape. Also a command line.                                             |
+| `fixtures/*.json`          | Transcripts the tests run against: the session this was built for, a clean one, and a set of openers.                                              |
 
 ```sh
 # One scenario, against a running admin with a model key on its API.
