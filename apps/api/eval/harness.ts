@@ -32,6 +32,7 @@ import type { EvalConfig } from "./config.js";
 import { createRecorder, type ModelRecorder } from "./recorder.js";
 import type { EvalScenario } from "./scenarios.js";
 import {
+  replyOf,
   reportedModelOf,
   usageOfTurn,
   type ModelCall,
@@ -95,13 +96,6 @@ function eventsOf(body: string): AssistEvent[] {
     .map((chunk) => chunk.split("\n").find((line) => line.startsWith("data: ")))
     .filter((line): line is string => line !== undefined)
     .map((line) => JSON.parse(line.slice("data: ".length)) as AssistEvent);
-}
-
-function replyOfEvents(events: readonly AssistEvent[]): string {
-  return events
-    .filter((event): event is Extract<AssistEvent, { type: "text" }> => event.type === "text")
-    .map((event) => event.delta)
-    .join("");
 }
 
 export async function startHarness(options: {
@@ -253,7 +247,9 @@ export async function startHarness(options: {
         const traced: TurnTrace = { index: index + 1, message, calls: turnCalls, events };
         turns.push(traced);
         gate.charge(usageOfTurn(traced));
-        conversation.push({ role: "assistant", content: replyOfEvents(events) });
+        // A turn can end with a card and no words, and the route takes no empty content.
+        const reply = replyOf(traced);
+        if (reply !== "") conversation.push({ role: "assistant", content: reply });
       }
 
       return {
