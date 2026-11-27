@@ -1,0 +1,9 @@
+{
+  "id": "S00",
+  "title": "The builder answers a question about the open draft",
+  "safety": false,
+  "screen": "/forms/[formId]/build",
+  "caller": { "grants": ["forms.editor"], "owner": false },
+  "messages": ["How many steps does this form have, and what is each one called?"],
+  "assistantMust": []
+}

@@ -5,8 +5,6 @@
  * not claim for itself. One module, so the two layers cannot drift apart.
  */
 
-import { findForbiddenTerms, findIdentifiers } from "./agent-review/terms.mjs";
-
 export {
   FORBIDDEN_TERMS,
   ID_PATTERN,

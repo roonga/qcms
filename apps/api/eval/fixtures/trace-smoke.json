@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "runId": "20260720T000000Z-a1b2c3",
+  "scenarioId": "S00",
+  "rep": 1,
+  "safety": false,
+  "models": {
+    "requested": "claude-opus-5-5",
+    "reported": "claude-opus-5-5-20260601",
+    "grader": "claude-sonnet-5-5"
+  },
+  "thinking": "off",
+  "promptVersion": 38,
+  "gitSha": "0000000000000000000000000000000000000000",
+  "startedAt": "2026-07-20T00:00:00.000Z",
+  "finishedAt": "2026-07-20T00:00:12.000Z",
+  "turns": [
+    {
+      "index": 1,
+      "message": "How many steps does this form have, and what is each one called?",
+      "calls": [
+        {
+          "at": "2026-07-20T00:00:01.000Z",
+          "modelId": "claude-opus-5-5-20260601",
+          "request": {
+            "messages": [
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "How many steps does this form have, and what is each one called?"
+                  }
+                ]
+              }
+            ],
+            "tools": ["read_form", "propose_plan"],
+            "toolChoice": "auto",
+            "maxOutputTokens": null,
+            "temperature": null,
+            "providerOptions": { "anthropic": { "cacheControl": { "type": "ephemeral" } } }
+          },
+          "toolCalls": [{ "name": "read_form", "input": { "formId": "frm_eval_s00_1" } }],
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 400,
+            "outputTokens": 40,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 900
+          }
+        },
+        {
+          "at": "2026-07-20T00:00:06.000Z",
+          "modelId": "claude-opus-5-5-20260601",
+          "request": {
+            "messages": [
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "How many steps does this form have, and what is each one called?"
+                  }
+                ]
+              }
+            ],
+            "tools": ["read_form", "propose_plan"],
+            "toolChoice": "auto",
+            "maxOutputTokens": null,
+            "temperature": null,
+            "providerOptions": { "anthropic": { "cacheControl": { "type": "ephemeral" } } }
+          },
+          "toolCalls": [{ "name": "open_publish_wizard", "input": {} }],
+          "finishReason": "stop",
+          "usage": {
+            "inputTokens": 120,
+            "outputTokens": 130,
+            "cacheReadTokens": 900,
+            "cacheWriteTokens": 0
+          }
+        }
+      ],
+      "events": [
+        { "type": "status", "phase": "thinking" },
+        { "type": "status", "phase": "tool", "tool": "read_form", "step": 1 },
+        { "type": "tool-outcome", "step": 1, "outcome": "done" },
+        { "type": "text", "delta": "Two steps: ", "segment": "seg_1" },
+        { "type": "text", "delta": "About you, and How we reach you.", "segment": "seg_1" },
+        { "type": "usage", "inputTokens": 520, "outputTokens": 170, "steps": 2 }
+      ]
+    }
+  ]
+}
