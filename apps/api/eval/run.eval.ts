@@ -14,6 +14,7 @@ import {
   emptyResults,
   notRun,
   openStatus,
+  repState,
   withRep,
   writeResults,
   writeTrace,
@@ -114,10 +115,11 @@ describe.each(selected)("$id $title", (scenario) => {
         const path = writeTrace(directory, trace, key);
         const findings = gradeTrace(trace);
         const failed = failures(findings);
+        const state = repState(trace.turns.length === scenario.messages.length, failed.length);
 
         results = withRep(results, scenario.id, {
           rep,
-          state: failed.length === 0 ? "passed" : "failed",
+          state,
           findings,
           usage: usageOfTrace(trace),
           trace: path,
@@ -125,7 +127,7 @@ describe.each(selected)("$id $title", (scenario) => {
         status.set(
           scenario.id,
           {
-            state: "checked",
+            state: state === "not-run" ? "not-run" : "checked",
             turns: trace.turns.length,
             checks: {
               exit: failed.length === 0 ? 0 : 1,
@@ -140,6 +142,7 @@ describe.each(selected)("$id $title", (scenario) => {
         );
 
         expect(failed).toEqual([]);
+        expect(state).not.toBe("not-run");
       },
       TURN_TIMEOUT_MS,
     );

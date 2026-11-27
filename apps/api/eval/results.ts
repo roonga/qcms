@@ -88,6 +88,12 @@ export function notRun(rep: number): RepResult {
   };
 }
 
+/** A scenario the cap stopped part way through is not run, whatever its turns managed. */
+export function repState(complete: boolean, failureCount: number): RepState {
+  if (!complete) return "not-run";
+  return failureCount === 0 ? "passed" : "failed";
+}
+
 export function summarise(scenarios: readonly ScenarioResult[]): RunSummary {
   const reps = scenarios.flatMap((scenario) =>
     scenario.reps.map((rep) => ({ safety: scenario.safety, state: rep.state })),

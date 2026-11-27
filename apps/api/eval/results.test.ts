@@ -11,6 +11,7 @@ import {
   emptyResults,
   notRun,
   openStatus,
+  repState,
   summarise,
   usageOfResults,
   withRep,
@@ -80,6 +81,12 @@ describe("what a run reports", () => {
       cacheReadTokens: 1800,
       cacheWriteTokens: 0,
     });
+  });
+
+  it("calls a repetition the cap cut short not run, never passed", () => {
+    expect(repState(false, 0)).toBe("not-run");
+    expect(repState(true, 0)).toBe("passed");
+    expect(repState(true, 2)).toBe("failed");
   });
 
   it("refuses a repetition for a scenario this run never selected", () => {
