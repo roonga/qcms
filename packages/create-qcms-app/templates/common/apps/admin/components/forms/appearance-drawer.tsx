@@ -315,7 +315,7 @@ export function AppearanceDrawer({
         </button>
       </div>
 
-      <div className="qcms-adrawer__body">
+      <div className="qcms-adrawer__body" tabIndex={0}>
         {locked && (
           <p
             id={LOCK_REASON_ID}

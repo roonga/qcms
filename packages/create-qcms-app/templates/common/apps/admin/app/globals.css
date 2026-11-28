@@ -589,12 +589,13 @@ button {
   margin-inline-start: auto;
   gap: var(--space-1);
 }
-/* The edge straddles the pane border so a pointer finds it from either side. */
+/* Inside the pane, not across its border: the first paint is one pane wide, and anything
+   outside it widens the document past the viewport. */
 .qcms-builder__pane-edge {
   position: absolute;
   z-index: 1;
   inset-block: 0;
-  inset-inline-end: -3px;
+  inset-inline-end: 0;
   inline-size: 6px;
   cursor: col-resize;
   background-color: transparent;
