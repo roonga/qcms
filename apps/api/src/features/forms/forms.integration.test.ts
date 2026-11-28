@@ -1017,10 +1017,8 @@ describe("draft preview: the dry-run compile the admin renders (034)", () => {
 
     const refused = await post(`/forms/${draftFormId}/publish`);
     expect(refused.status).toBe(422);
-    const failure = (await refused.json()) as {
-      details?: { issues?: { code: string }[] };
-    };
-    expect(failure.details?.issues?.map((issue) => issue.code)).toContain(
+    const failure = (await refused.json()) as ErrBody;
+    expect(failure.error.details?.issues?.map((issue) => issue.code)).toContain(
       "UNPUBLISHED_QUESTION_PIN",
     );
   });
