@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { HeldPublishPanel } from "./held-publish-panel.tsx";
 import type { HeldDecisionState, HeldPublishView } from "../../lib/forms/held-publish.ts";
+import { environmentLabel } from "../../lib/environment.ts";
 import { t } from "../../lib/i18n/en.ts";
 
 const refresh = vi.fn();
@@ -49,7 +50,9 @@ describe("HeldPublishPanel", () => {
   it("gives no decision to a viewer without Publish forms in prod", () => {
     renderPanel([view({ decides: false })]);
     expect(
-      screen.getByText(t("forms.publish.held.requestNote", { environment: "prod" })),
+      screen.getByText(
+        t("forms.publish.held.requestNote", { environment: environmentLabel("prod") }),
+      ),
     ).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
   });
@@ -74,7 +77,9 @@ describe("HeldPublishPanel", () => {
       .click(screen.getByRole("button", { name: t("forms.publish.requests.approve") }));
     expect(decide).toHaveBeenCalledWith("apr_1", "approve");
     expect(
-      await screen.findByText("v5 frozen by Grace Mensah, approved by Luis Ortega, live in prod."),
+      await screen.findByText(
+        "v5 frozen by Grace Mensah, approved by Luis Ortega, live in Production.",
+      ),
     ).toBeTruthy();
     expect(refresh).toHaveBeenCalled();
   });
@@ -105,7 +110,7 @@ describe("HeldPublishPanel", () => {
     await userEvent
       .setup()
       .click(screen.getByRole("button", { name: t("forms.publish.requests.approve") }));
-    const sentence = "v5 frozen by Grace Mensah, approved by Luis Ortega, live in prod.";
+    const sentence = "v5 frozen by Grace Mensah, approved by Luis Ortega, live in Production.";
     expect(await screen.findByText(sentence)).toBeTruthy();
 
     rerender(<HeldPublishPanel views={[]} summaries={{}} environment="prod" decide={decide} />);

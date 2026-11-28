@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Alert, Button, Dialog, Select, TextField } from "@/components/kit";
+import { environmentLabel } from "@/lib/environment";
 import type { ErasureReason } from "@/lib/ops/erasure";
 import { DEFAULT_ERASURE_REASON, ERASURE_REASONS, isErasureConfirmed } from "@/lib/ops/erasure";
 import { t } from "@/lib/i18n/en";
@@ -42,7 +43,7 @@ export function EraseDialog({
         <p className="text-sm text-(--color-text)">{t("ops.erase.tombstoneStays")}</p>
         <p className="text-sm text-(--color-text)">{t("ops.erase.consumersUnaffected")}</p>
         <p className="text-sm font-semibold" data-testid="qcms-erase-environment">
-          {t("environment.inThis", { environment })}
+          {t("environment.inThis", { environment: environmentLabel(environment) })}
         </p>
         <Select
           label={t("ops.erase.reason")}

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { PublishWizard } from "./publish-wizard.tsx";
 import type { ReleaseReview } from "../../lib/forms/release-candidate.ts";
+import { environmentLabel } from "../../lib/environment.ts";
 import { t } from "../../lib/i18n/en.ts";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -51,7 +52,7 @@ async function toReview(props: {
     />,
   );
   await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
-  await user.click(await screen.findByRole("checkbox", { name: "prod" }));
+  await user.click(await screen.findByRole("checkbox", { name: environmentLabel("prod") }));
   await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
   return user;
 }
@@ -247,7 +248,9 @@ describe("the fixed prod floor", () => {
     expect(blocker.textContent).toBe(
       t("forms.publish.blocked.priorRelease", { environments: "test or staging" }),
     );
-    expect(screen.getByRole("checkbox", { name: "prod" }).hasAttribute("disabled")).toBe(true);
+    expect(
+      screen.getByRole("checkbox", { name: environmentLabel("prod") }).hasAttribute("disabled"),
+    ).toBe(true);
   });
 });
 
@@ -285,7 +288,7 @@ describe("a refusal says which rule refused it", () => {
       targets: [{ ...PROD_TARGET, blockers: DRAFT_BLOCKED }],
     });
     expect(blocker.textContent).toBe(
-      t("forms.publish.blocked.draftNotAllowedProd", { environment: "prod" }),
+      t("forms.publish.blocked.draftNotAllowedProd", { environment: environmentLabel("prod") }),
     );
   });
 
@@ -299,7 +302,7 @@ describe("a refusal says which rule refused it", () => {
       targets: [{ ...PROD_TARGET, blockers: DRAFT_BLOCKED }],
     });
     expect(blocker.textContent).toBe(
-      t("forms.publish.blocked.draftNotAllowedOnly", { environment: "prod" }),
+      t("forms.publish.blocked.draftNotAllowedOnly", { environment: environmentLabel("prod") }),
     );
   });
 
@@ -314,7 +317,7 @@ describe("a refusal says which rule refused it", () => {
       ],
     });
     expect(blocker.textContent).toBe(
-      t("forms.publish.blocked.draftNotAllowed", { environment: "staging" }),
+      t("forms.publish.blocked.draftNotAllowed", { environment: environmentLabel("staging") }),
     );
   });
 
@@ -335,7 +338,7 @@ describe("a refusal says which rule refused it", () => {
       targets: [{ ...PROD_TARGET, blockers: AUTHOR_BLOCKED }],
     });
     expect(blocker.textContent).toBe(
-      t("forms.publish.blocked.approverIsAuthor", { environment: "prod" }),
+      t("forms.publish.blocked.approverIsAuthor", { environment: environmentLabel("prod") }),
     );
   });
 });
@@ -365,7 +368,7 @@ describe("moving between steps", () => {
       t("forms.publish.step.announce", { step: t("forms.publish.step.destinations") }),
     );
 
-    await user.click(await screen.findByRole("checkbox", { name: "prod" }));
+    await user.click(await screen.findByRole("checkbox", { name: environmentLabel("prod") }));
     await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
     expect(document.activeElement?.textContent).toBe(t("forms.publish.step.review"));
 

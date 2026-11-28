@@ -17,6 +17,6 @@
 
 **Say this**
 
-> The plan asks for the two dates separately. The form cannot check that the second comes after the first, so a response can arrive with them the wrong way round. There is a line of guidance under the end date, which is as far as this goes.
+> The plan asks for the two dates separately. The form cannot check that the second comes after the first, so a response can arrive with them the wrong way round. There is a line of help text under the end date, which is as far as this goes.
 
 **Corpus sources:** Australian national private patient hospital claim (admission and separation dates and times), US health insurance claim CMS-1500 (six service lines with dates), Canadian adult passport (address and occupation history), US naturalization N-400 (residence, employment and travel history).

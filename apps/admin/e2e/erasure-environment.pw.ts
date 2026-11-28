@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
+import { environmentLabel } from "../lib/environment.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { chooseEnvironment } from "./support/environment.js";
@@ -45,7 +46,7 @@ test("the erasure confirmation names the environment it would act in", async ({ 
   const dialog = page.getByTestId("qcms-erase-dialog");
   await expect(dialog).toBeVisible();
 
-  await expect(dialog).toContainText("prod");
+  await expect(dialog).toContainText(environmentLabel("prod"));
   await expect(dialog.getByRole("button", { name: "Erase permanently" })).toBeDisabled();
 });
 

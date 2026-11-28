@@ -86,8 +86,8 @@ describe("readOnlyNotice", () => {
 describe("responsesUnavailable", () => {
   it("names the environments where View responses is held", () => {
     expect(responsesUnavailable(access([authors]), "ws_clinical", "prod", "en")).toEqual({
-      heading: "Responses are not available in prod",
-      body: "You have View responses in test only. Response viewers gives it in prod.",
+      heading: "Responses are not available in Production",
+      body: "You have View responses in test only. Response viewers gives it in Production.",
       suspended: false,
     });
   });
@@ -104,7 +104,7 @@ describe("responsesUnavailable", () => {
       })),
     };
     expect(responsesUnavailable(suspended, "ws_clinical", "prod", "en")).toMatchObject({
-      body: "Your View responses in prod is suspended until a Workspace administrator re-confirms it.",
+      body: "Your View responses in Production is suspended until a Workspace administrator re-confirms it.",
       suspended: true,
     });
     expect(responsesUnavailable(suspended, "ws_clinical", "test", "en").suspended).toBe(false);
@@ -120,7 +120,7 @@ describe("responsesUnavailable", () => {
 describe("eraseUnavailable", () => {
   it("names Response erasers in prod only, where it carries Erase responses", () => {
     expect(eraseUnavailable("prod")).toBe(
-      "Erasing responses in prod needs Erase responses there. Response erasers gives it; erasing does not need View responses.",
+      "Erasing responses in Production needs Erase responses there. Response erasers gives it; erasing does not need View responses.",
     );
     expect(eraseUnavailable("test")).toBe(
       "Erasing responses in test needs Erase responses there. Ask a Workspace administrator; erasing does not need View responses.",

@@ -92,7 +92,10 @@ What the [assistant](#assistant) hands you instead of acting: a list of every st
 with **Confirm** and **Cancel**. Nothing on a card has happened until you confirm it, the act then
 runs as you, and a card you leave alone expires.
 
-A card's state is shown in words: Proposed, Running, Done, Pending approval, Cancelled, Expired.
+A card's state is shown in words: Proposed, Running, Done, Failed, Pending approval, Not run,
+Cancelled, Expired. Above the card the assistant also lists the steps it took to write it, which
+are its own work rather than the card's: those read In progress, Done, Failed, Tried again or
+Did not finish.
 
 ## Condition
 
@@ -104,9 +107,12 @@ A condition can only read questions a respondent has already reached.
 
 ## Constraint
 
-A limit on what counts as an acceptable [answer](#answer): a shortest and longest length, a smallest
-and largest number, whole numbers only, an earliest and latest date, a checked format such as an
-email address or a postcode, or how many options may be selected.
+A limit on what counts as an acceptable [answer](#answer): **Fewest characters** and **Most
+characters**, a smallest and largest number, whole numbers only, an earliest and latest date, a
+checked format such as an email address or a postcode, or how many options may be selected.
+
+A length is counted in characters everywhere it is shown, on the editor and on an
+[assistant](#assistant) [card](#card) alike, so the two read the same.
 
 A constraint that is not met shows the question's [validation message](#validation-message). See
 also [Required](#required).
@@ -138,7 +144,7 @@ one; the names are chosen per site.
 
 A [version](#version) is **live** in an environment once it has been published there, and the same
 version can be live in two environments at once. The environment chooser shows whatever name your
-site gave each one.
+site gave each one, except [Production](#production), which QCMS always writes by that name.
 
 ## Erase
 
@@ -156,8 +162,10 @@ The [role](#role) that lets somebody erase responses and clear their flags in th
 
 ## Expiry
 
-The day a [secure link](#secure-link) stops working. A link can also stop early by being
-[revoked](#revoke), or by being used once if it is a [one-time link](#one-time-link).
+The day a [secure link](#secure-link) stops working, after which it shows as **Expired**. A link
+can also stop early by being [revoked](#revoke), or by being used once if it is a
+[one-time link](#one-time-link). See [Secure link](#secure-link) for the four states a link is
+shown in.
 
 ## Export
 
@@ -205,7 +213,9 @@ The short, fixed name a [question](#question), [form](#form), [option](#option) 
 even when the name people read does, which is what lets an [export](#export) or a
 [rule](#rule) keep pointing at the same thing.
 
-Workspace settings shows it as **Stored identifier**, and says it cannot change.
+Workspace settings shows it as **Stored identifier**, and says it cannot change. An
+assistant [card](#card) keeps the identifiers of everything it names behind a disclosure
+called **Identifiers**, because the titles above them are what you read the card by.
 
 ## Instance
 
@@ -284,6 +294,10 @@ any answer being kept. The form builder can also share a preview with somebody w
 The [environment](#environment) that holds real respondent data. It is the one
 [second approval](#second-approval) protects, and where a site has a test environment, a
 [version](#version) has to be live there before it can go to production.
+
+Every site has one, and QCMS writes it as **Production** everywhere you read it: the environment
+chooser, the Operations bar, every chip, every confirmation and the [assistant](#assistant)'s own
+replies. The other environments are shown under whatever name the site gave them.
 
 ## Public form link
 
@@ -423,6 +437,13 @@ A link issued to one person so they, and only they, can open one form in one
 You make them with **Create links** on the Links screen. The web addresses are shown once, then, and
 cannot be shown again, so copy or download them before you leave. A secure link for a test
 [environment](#environment) is often called a test link, which is the same thing said shorter.
+
+The Links screen shows each one in one of four states, and a link only ever leaves **Active**:
+
+- **Active**, it works
+- **Used**, a [one-time link](#one-time-link) that has been opened
+- **Expired**, its [expiry](#expiry) has passed
+- **Revoked**, somebody [revoked](#revoke) it
 
 ## Session
 

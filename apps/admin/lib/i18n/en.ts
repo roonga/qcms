@@ -81,6 +81,8 @@ export const messages = {
 
   /** Environment names are API data, never a closed catalog vocabulary. */
   "environment.legend": "Environment",
+  /** The glossary's own word for production; every other environment is named by the site. */
+  "environment.production": "Production",
   /** The trigger's own visible text has to appear in its name, in order and unbroken (WCAG 2.5.3). */
   "environment.trigger": "Environment {environment}",
   /** Announce switches only; first render already names the environment. */
@@ -335,8 +337,8 @@ export const messages = {
   "questions.editor.frozen":
     "This version is frozen: its content can never change again. Create a new version to make an edit.",
 
-  "questions.constraint.minLength": "Shortest answer",
-  "questions.constraint.maxLength": "Longest answer",
+  "questions.constraint.minLength": "Fewest characters",
+  "questions.constraint.maxLength": "Most characters",
   "questions.constraint.pattern": "Pattern",
   "questions.constraint.patternHint":
     "A regular expression the answer must match. The engine accepts a safe subset and has the final say on save.",
@@ -351,12 +353,12 @@ export const messages = {
     "A browser reads the pattern attribute more strictly than this and would ignore this expression. Answers are still checked by the engine, but the in-page hint is lost.",
   "questions.constraint.format": "Checked format",
   "questions.constraint.formatHint":
-    "Fills the pattern and the longest answer with tested values, and writes a matching message. All three stay editable afterwards.",
+    "Fills the pattern and Most characters with tested values, and writes a matching message. All three stay editable afterwards.",
   "questions.constraint.formatPlaceholder": "Choose a format",
   "questions.constraint.formatExample": "Accepts values like {example}.",
   "questions.constraint.formatApply": "Use this format",
   "questions.constraint.formatApplied":
-    "{label} applied to the pattern and the longest answer. Its wording is on the validation messages panel.",
+    "{label} applied to the pattern and Most characters. Its wording is on the validation messages panel.",
   "questions.format.email": "Email address",
   "questions.format.phone": "Phone number, any country",
   "questions.format.postcode-au": "Postcode, Australia",
@@ -1886,8 +1888,10 @@ export const messages = {
   "forms.assist.definition.questionId": "Id",
   "forms.assist.definition.type": "Type",
   "forms.assist.definition.label": "Label",
-  "forms.assist.definition.help": "Help",
-  "forms.assist.definition.required": "Required",
+  "forms.assist.definition.help": "Help text",
+  /** The question editor's own sentence, so the card and the editor read the same. */
+  "forms.assist.definition.requiredYes": "An answer is required",
+  "forms.assist.definition.requiredNo": "An answer is optional",
   "forms.assist.definition.constraints": "Constraints",
   "forms.assist.definition.messages": "Validation messages",
   "forms.assist.definition.options": "Options",
@@ -1917,6 +1921,7 @@ export const messages = {
   /** A step naming no title of its own still has to read as a sentence about something. */
   "agent.card.subject.form": "this form",
   "agent.card.subject.question": "this question",
+  "agent.card.subject.group": "this access group",
   /** The tail of an id, when nothing the screen can read names the subject. */
   "agent.card.subject.ending": "\u2026{suffix}",
   /** The screen's own title stands; a plan writing another one is proposing a rename. */
@@ -1941,7 +1946,7 @@ export const messages = {
     "Starts a new version, copied from the latest one and not published yet. Nothing published changes, and no form moves to it until a form uses it.",
   "agent.card.form.create.title": "Create the {form} form",
   "agent.card.form.create.consequence":
-    "Creates the form and its first empty draft. The address is fixed when the form is created and cannot be changed afterwards. Nobody can answer the form until you publish it to an environment.",
+    "Creates the form and its first empty draft. Its identifier is fixed when the form is created and cannot be changed afterwards. Nobody can answer the form until you publish it to an environment.",
   "agent.card.form.publish.title": "Publish {form} to {environment}",
   "agent.card.form.publish.consequence":
     "Freezes the working draft as a version that never changes and makes that version live in {environment}, in one step. Anyone starting from now gets it there.",
@@ -2025,13 +2030,13 @@ export const messages = {
   "agent.card.access.groupCreate.title": "Create the access group {name} with the roles {roles}",
   "agent.card.access.groupCreate.consequence":
     "The group exists but grants nobody anything yet. Being in the group is the grant, so nobody's access changes until somebody is added to it.",
-  "agent.card.access.groupRemove.title": "Remove the access group {teamId}",
+  "agent.card.access.groupRemove.title": "Remove the access group {group}",
   "agent.card.access.groupRemove.consequence":
     "Everybody in this group loses the access it carried, at once. One revoke row is written for each of them.",
-  "agent.card.access.grant.title": "Grant the access group {teamId} to {email}",
+  "agent.card.access.grant.title": "Put {email} in the access group {group}",
   "agent.card.access.grant.consequence":
     "That person gains everything the group's role, environments and forms allow, from now on.",
-  "agent.card.access.revoke.title": "Revoke {userId} from the access group {teamId}",
+  "agent.card.access.revoke.title": "Revoke {userId} from the access group {group}",
   "agent.card.access.revoke.consequence":
     "That person loses the access this group carried. Everybody else in it keeps theirs.",
   "agent.card.member.role.title": "Set {userId} to {role} in this workspace",
@@ -2057,7 +2062,7 @@ export const messages = {
   /** Ids are support detail, not the subject of a sentence; the card names its subject by title. */
   "agent.card.ids": "Identifiers",
   "agent.card.arg.formId": "Form",
-  "agent.card.arg.slug": "Address",
+  "agent.card.arg.slug": "Identifier",
   "agent.card.arg.questionId": "Question",
   "agent.card.arg.definition": "Definition",
   "agent.card.arg.defaultLocale": "Language you write in",

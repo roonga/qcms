@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { FormAvailability } from "./form-availability.tsx";
+import { environmentLabel } from "../../lib/environment.ts";
 import { t } from "../../lib/i18n/en.ts";
 
 function setStatus(): Promise<never> {
@@ -32,7 +33,9 @@ describe("the availability door on a form with no release in this environment", 
     );
 
     expect(
-      screen.getByRole("button", { name: t("forms.lifecycle.close", { environment: "prod" }) }),
+      screen.getByRole("button", {
+        name: t("forms.lifecycle.close", { environment: environmentLabel("prod") }),
+      }),
     ).toBeTruthy();
     expect(screen.queryByTestId("qcms-form-not-released")).toBeNull();
   });

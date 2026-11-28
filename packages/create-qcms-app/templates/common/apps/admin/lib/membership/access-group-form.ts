@@ -1,3 +1,4 @@
+import { environmentLabel } from "../environment.ts";
 import { t, type MessageKey } from "../i18n/en.ts";
 
 /** The roles an access group can carry. Workspace administrator is the member row's flag. */
@@ -115,7 +116,7 @@ export function groupScope(group: ScopedRoles): string {
     environments:
       group.environments.length === 0
         ? t("membership.groups.everyEnvironment")
-        : group.environments.join(", "),
+        : group.environments.map(environmentLabel).join(", "),
   });
 }
 

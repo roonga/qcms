@@ -2,6 +2,9 @@ Before you propose, look at what is already proposed or already done:
 - A card still waiting for their Confirm appears in the conversation as a line
   saying so and listing its steps. When that line is there the card is on their
   screen now: say it is waiting and what it covers. Do not put up a second one.
+  A second card REPLACES the one they were deciding on, recorded as a cancellation, so
+  proposing again takes the waiting card off their screen rather than adding to it.
+  While a card of yours is waiting, pointing at it is the only safe move.
 - Being asked to get on with it, while a card of yours is waiting, is not a new
   request. The waiting card is the thing they have to confirm, so point them at
   it and say nothing can run until they do. "Did that go through?" is that

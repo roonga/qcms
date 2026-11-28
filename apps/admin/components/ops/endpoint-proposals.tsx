@@ -6,6 +6,7 @@ import { useEnvironmentUnknown } from "@/components/environment-scope";
 import { EntityId } from "@/components/entity-id";
 import { Alert, Button, Dialog } from "@/components/kit";
 import { OperatorDateTime } from "@/components/operator-time";
+import { environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import type { EndpointProposal } from "@/lib/ops/types";
 import { unexpected } from "@/lib/ops/unexpected";
@@ -20,18 +21,26 @@ function dialogSentence(act: "confirm" | "withdraw", proposal: EndpointProposal)
   const environment = proposal.environment;
   if (act === "withdraw") {
     return proposal.confirmedAt === null
-      ? t("ops.proposals.withdrawBody", { environment })
-      : t("ops.proposals.withdrawBodyConfirmed", { environment });
+      ? t("ops.proposals.withdrawBody", { environment: environmentLabel(environment) })
+      : t("ops.proposals.withdrawBodyConfirmed", { environment: environmentLabel(environment) });
   }
   if (proposal.kind === "deactivate") {
-    return t("ops.proposals.confirmBody.deactivate", { environment });
+    return t("ops.proposals.confirmBody.deactivate", {
+      environment: environmentLabel(environment),
+    });
   }
   if (proposal.url === null) {
-    return t("ops.proposals.confirmBody.update", { environment });
+    return t("ops.proposals.confirmBody.update", { environment: environmentLabel(environment) });
   }
   return proposal.kind === "create"
-    ? t("ops.proposals.confirmBody.create", { environment, url: proposal.url })
-    : t("ops.proposals.confirmBody.retarget", { environment, url: proposal.url });
+    ? t("ops.proposals.confirmBody.create", {
+        environment: environmentLabel(environment),
+        url: proposal.url,
+      })
+    : t("ops.proposals.confirmBody.retarget", {
+        environment: environmentLabel(environment),
+        url: proposal.url,
+      });
 }
 
 export function EndpointProposals({
@@ -179,7 +188,9 @@ export function EndpointProposals({
           <div className="flex flex-col gap-4" data-testid="qcms-proposal-dialog">
             <p className="text-sm">{dialogSentence(dialog.act, dialog.proposal)}</p>
             <p className="text-sm font-semibold" data-testid="qcms-proposal-environment">
-              {t("environment.inThis", { environment: dialog.proposal.environment })}
+              {t("environment.inThis", {
+                environment: environmentLabel(dialog.proposal.environment),
+              })}
             </p>
             {dialog.act === "confirm" && (
               <Alert variant="warning">{t("ops.proposals.confirmWarning")}</Alert>

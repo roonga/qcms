@@ -6,13 +6,17 @@ const reads = vi.hoisted(
   (): {
     forms: unknown;
     questions: unknown;
+    groups: unknown;
     listAllForms: Mock<() => Promise<unknown>>;
     listQuestions: Mock<() => Promise<unknown>>;
+    listAccessGroups: Mock<() => Promise<unknown>>;
   } => ({
     forms: { ok: true, data: [] },
     questions: { ok: true, data: [] },
+    groups: { ok: true, data: { workspaceId: "org_default_workspace", groups: [] } },
     listAllForms: vi.fn(() => Promise.resolve(reads.forms)),
     listQuestions: vi.fn(() => Promise.resolve(reads.questions)),
+    listAccessGroups: vi.fn(() => Promise.resolve(reads.groups)),
   }),
 );
 
@@ -27,6 +31,9 @@ vi.mock("@/lib/server/forms", () => ({
 }));
 vi.mock("@/lib/server/questions", () => ({
   listQuestions: reads.listQuestions,
+}));
+vi.mock("@/lib/server/membership", () => ({
+  listAccessGroups: reads.listAccessGroups,
 }));
 
 const { readSubjectTitlesAction } = await import("@/app/(shell)/assist/titles");
@@ -64,19 +71,41 @@ describe("the titles a card asks the screen for", () => {
     });
   });
 
+  it("names an access group the operator can already see listed", async () => {
+    reads.forms = { ok: true, data: [] };
+    reads.questions = { ok: true, data: [] };
+    reads.groups = {
+      ok: true,
+      data: {
+        workspaceId: "org_default_workspace",
+        groups: [
+          { teamId: "tem_authors", name: "Authors" },
+          { teamId: "tem_other", name: "Publishers" },
+        ],
+      },
+    };
+
+    await expect(readSubjectTitlesAction(["tem_authors"])).resolves.toEqual({
+      tem_authors: "Authors",
+    });
+  });
+
   it("returns nothing when a read fails", async () => {
     reads.forms = { ok: false, code: "FORBIDDEN", message: "no" };
     reads.questions = { ok: false, code: "FORBIDDEN", message: "no" };
+    reads.groups = { ok: false, code: "FORBIDDEN", message: "no" };
 
-    await expect(readSubjectTitlesAction(["frm_a"])).resolves.toEqual({});
+    await expect(readSubjectTitlesAction(["frm_a", "tem_authors"])).resolves.toEqual({});
   });
 
   it("makes no read at all for an empty ask", async () => {
     reads.listAllForms.mockClear();
     reads.listQuestions.mockClear();
+    reads.listAccessGroups.mockClear();
 
     await expect(readSubjectTitlesAction([])).resolves.toEqual({});
     expect(reads.listAllForms).not.toHaveBeenCalled();
     expect(reads.listQuestions).not.toHaveBeenCalled();
+    expect(reads.listAccessGroups).not.toHaveBeenCalled();
   });
 });

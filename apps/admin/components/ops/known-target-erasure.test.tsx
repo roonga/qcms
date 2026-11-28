@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { environmentLabel } from "../../lib/environment.ts";
 import { t } from "../../lib/i18n/en.ts";
 import type { KnownTargetLookup } from "../../lib/ops/known-target.ts";
 import { unexpected } from "../../lib/ops/unexpected.ts";
@@ -75,7 +76,10 @@ describe("the known-target erasure", () => {
     await findSession(user, "ses_nope");
     expect(
       await screen.findByText(
-        t("ops.erase.known.missing", { sessionId: "ses_nope", environment: "prod" }),
+        t("ops.erase.known.missing", {
+          sessionId: "ses_nope",
+          environment: environmentLabel("prod"),
+        }),
       ),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: t("ops.erase.button") })).toBeNull();
@@ -91,7 +95,9 @@ describe("the known-target erasure", () => {
 
     await user.click(await screen.findByRole("button", { name: t("ops.erase.button") }));
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByTestId("qcms-erase-environment").textContent).toContain("prod");
+    expect(within(dialog).getByTestId("qcms-erase-environment").textContent).toContain(
+      environmentLabel("prod"),
+    );
     const confirm = within(dialog).getByRole("button", { name: t("ops.erase.confirm") });
     expect(confirm.hasAttribute("disabled") || confirm.getAttribute("aria-disabled")).toBeTruthy();
     await user.type(

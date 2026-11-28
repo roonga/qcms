@@ -19,6 +19,7 @@ import {
   waitForSaveAfter,
 } from "../admin/e2e/support/forms.js";
 import { chooseEnvironment } from "../admin/e2e/support/environment.js";
+import { environmentLabel } from "../admin/lib/environment.js";
 import { publishDraftThroughWizard } from "../admin/e2e/support/publish.js";
 import { waitForHydration as waitForAdminHydration } from "../admin/e2e/support/hydration.js";
 import { waitForHydration as waitForPortalHydration } from "../portal/e2e/support/hydration.js";
@@ -305,7 +306,7 @@ test.describe.serial("conditional form journey", () => {
       await page
         .getByRole("dialog")
         .getByRole("button", {
-          name: t("forms.links.confirmMint", { environment: "prod" }),
+          name: t("forms.links.confirmMint", { environment: environmentLabel("prod") }),
           exact: true,
         })
         .click();

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { SecureLinks } from "./secure-links.tsx";
 import { IDLE_MINT, IDLE_REVOKE } from "../../lib/forms/builder-state.ts";
 import type { SecureLink } from "../../lib/forms/types.ts";
+import { environmentLabel } from "../../lib/environment.ts";
 import { t } from "../../lib/i18n/en.ts";
 import { unexpected } from "../../lib/ops/unexpected.ts";
 
@@ -48,7 +49,7 @@ describe("a rejected secure-link action", { timeout: 30_000 }, () => {
 
     await user.click(
       within(dialog).getByRole("button", {
-        name: t("forms.links.confirmMint", { environment: "prod" }),
+        name: t("forms.links.confirmMint", { environment: environmentLabel("prod") }),
       }),
     );
 
@@ -140,7 +141,7 @@ describe("a refused clipboard write on a minted link", { timeout: 30_000 }, () =
     await user.keyboard("01012027");
     await user.click(
       within(dialog).getByRole("button", {
-        name: t("forms.links.confirmMint", { environment: "prod" }),
+        name: t("forms.links.confirmMint", { environment: environmentLabel("prod") }),
       }),
     );
 

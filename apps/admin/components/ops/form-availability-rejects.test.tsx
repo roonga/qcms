@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { FormAvailability } from "./form-availability.tsx";
+import { environmentLabel } from "../../lib/environment.ts";
 import { t } from "../../lib/i18n/en.ts";
 import { unexpected } from "../../lib/ops/unexpected.ts";
 
@@ -23,12 +24,14 @@ describe("a rejected availability act", () => {
     );
 
     await user.click(
-      screen.getByRole("button", { name: t("forms.lifecycle.close", { environment: "prod" }) }),
+      screen.getByRole("button", {
+        name: t("forms.lifecycle.close", { environment: environmentLabel("prod") }),
+      }),
     );
     const dialog = await screen.findByRole("alertdialog");
     await user.click(
       await screen.findByRole("button", {
-        name: t("forms.lifecycle.confirmClose", { environment: "prod" }),
+        name: t("forms.lifecycle.confirmClose", { environment: environmentLabel("prod") }),
       }),
     );
 

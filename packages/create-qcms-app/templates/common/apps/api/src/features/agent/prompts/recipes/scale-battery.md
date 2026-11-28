@@ -14,7 +14,7 @@
 - A matrix, grid or table layout for a set of questions. The table layout exists only for a repeating group, which is one set of questions answered once per thing, and a battery is not that: the statements differ, so each is its own question.
 - Column headings shown once above the block. The scale labels repeat on every statement.
 - A score, a total or a subscale over the block.
-- A recall period as a property of the questions. It is prose in the step title or in each question's help.
+- A recall period as a property of the questions. It is prose in the step title or in each question's `help`.
 
 **Say this**
 

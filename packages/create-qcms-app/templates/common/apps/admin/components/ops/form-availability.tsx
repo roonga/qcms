@@ -9,6 +9,7 @@ import { useEnvironmentUnknown } from "@/components/environment-scope";
 import type { FormStatusState } from "@/lib/forms/builder-state";
 import { IDLE_FORM_STATUS } from "@/lib/forms/builder-state";
 import type { FormAvailability } from "@/lib/forms/types";
+import { environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
@@ -59,8 +60,8 @@ export function FormAvailability({
 
   const verb =
     status === "open"
-      ? t("forms.lifecycle.close", { environment })
-      : t("forms.lifecycle.reopen", { environment });
+      ? t("forms.lifecycle.close", { environment: environmentLabel(environment) })
+      : t("forms.lifecycle.reopen", { environment: environmentLabel(environment) });
   const door =
     unavailable === undefined ? (
       <Button
@@ -107,7 +108,7 @@ export function FormAvailability({
 
       {status === "closed" && (
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-form-closed">
-          {t("forms.lifecycle.closedNote", { environment })}
+          {t("forms.lifecycle.closedNote", { environment: environmentLabel(environment) })}
         </p>
       )}
 
@@ -129,13 +130,19 @@ export function FormAvailability({
           role="alertdialog"
           title={
             dialog === "close"
-              ? t("forms.lifecycle.closeTitle", { slug, environment })
-              : t("forms.lifecycle.reopenTitle", { slug, environment })
+              ? t("forms.lifecycle.closeTitle", {
+                  slug,
+                  environment: environmentLabel(environment),
+                })
+              : t("forms.lifecycle.reopenTitle", {
+                  slug,
+                  environment: environmentLabel(environment),
+                })
           }
           description={
             dialog === "close"
-              ? t("forms.lifecycle.closeBody", { environment })
-              : t("forms.lifecycle.reopenBody", { environment })
+              ? t("forms.lifecycle.closeBody", { environment: environmentLabel(environment) })
+              : t("forms.lifecycle.reopenBody", { environment: environmentLabel(environment) })
           }
           isDismissable={!isPending}
           onOpenChange={(isOpen) => {
@@ -147,7 +154,7 @@ export function FormAvailability({
                 the closed state is per (form, environment), so a confirmation that said
                 nothing about where it lands would be ambiguous rather than unhelpful. */}
             <p className="text-sm font-semibold" data-testid="qcms-lifecycle-environment">
-              {t("environment.inThis", { environment })}
+              {t("environment.inThis", { environment: environmentLabel(environment) })}
             </p>
             {lifecycle.status === "error" && (
               <Alert variant="error">
@@ -186,6 +193,6 @@ export function FormAvailability({
 /** The verb on a lifecycle dialog's confirm button, naming the environment it acts in. */
 function confirmLabel(intent: "close" | "reopen", environment: string): string {
   return intent === "close"
-    ? t("forms.lifecycle.confirmClose", { environment })
-    : t("forms.lifecycle.confirmReopen", { environment });
+    ? t("forms.lifecycle.confirmClose", { environment: environmentLabel(environment) })
+    : t("forms.lifecycle.confirmReopen", { environment: environmentLabel(environment) });
 }

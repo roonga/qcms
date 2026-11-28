@@ -16,7 +16,7 @@ import {
 import { AgentProvenanceTag } from "@/components/forms/agent-provenance-tag";
 import { PublishChanges, type PublishChangesRead } from "@/components/forms/publish-changes";
 import { HelpTip } from "@/components/help-tip";
-import { environmentCookie } from "@/lib/environment";
+import { environmentCookie, environmentLabel } from "@/lib/environment";
 import type { PublishBatchState } from "@/lib/forms/builder-state";
 import { IDLE_PUBLISH_BATCH } from "@/lib/forms/builder-state";
 import { expirySentence } from "@/lib/forms/held-publish";
@@ -53,10 +53,15 @@ function stepName(step: Step): string {
  */
 function draftRefusal(target: ReviewTarget, floor: boolean): string {
   const environment = target.environment;
-  if (!target.protected) return t("forms.publish.blocked.draftNotAllowed", { environment });
+  if (!target.protected)
+    return t("forms.publish.blocked.draftNotAllowed", {
+      environment: environmentLabel(environment),
+    });
   return floor
-    ? t("forms.publish.blocked.draftNotAllowedProd", { environment })
-    : t("forms.publish.blocked.draftNotAllowedOnly", { environment });
+    ? t("forms.publish.blocked.draftNotAllowedProd", { environment: environmentLabel(environment) })
+    : t("forms.publish.blocked.draftNotAllowedOnly", {
+        environment: environmentLabel(environment),
+      });
 }
 
 function blockerSentence(
@@ -71,7 +76,7 @@ function blockerSentence(
     case "PRIOR_RELEASE_REQUIRED":
       // Any one of them satisfies the rule, so they are joined as alternatives.
       return t("forms.publish.blocked.priorRelease", {
-        environments: blocker.requiresAnyOf.join(" or "),
+        environments: blocker.requiresAnyOf.map(environmentLabel).join(" or "),
       });
     case "DRAFT_PUBLISH_NOT_ALLOWED":
       return draftRefusal(target, floor);
@@ -80,7 +85,9 @@ function blockerSentence(
     case "APPROVER_IS_AUTHOR":
       return isDraft
         ? t("forms.publish.blocked.draftSecondApproval")
-        : t("forms.publish.blocked.approverIsAuthor", { environment });
+        : t("forms.publish.blocked.approverIsAuthor", {
+            environment: environmentLabel(environment),
+          });
     case "APPROVER_UNKNOWN_AUTHOR":
       return t("forms.publish.blocked.approverUnknownAuthor");
     default:
@@ -103,12 +110,12 @@ function transition(target: ReviewTarget, review: ReleaseReview): string {
   }
   if (isDraft) {
     return t("forms.publish.review.transitionDraft", {
-      environment: target.environment,
+      environment: environmentLabel(target.environment),
       current: target.currentVersion,
     });
   }
   return t("forms.publish.review.transition", {
-    environment: target.environment,
+    environment: environmentLabel(target.environment),
     current: target.currentVersion,
     version: review.source.kind === "version" ? review.source.version : 0,
   });
@@ -190,7 +197,9 @@ function PublishResult({
                   openOperations(release.environment);
                 }}
               >
-                {t("forms.publish.result.operations", { environment: release.environment })}
+                {t("forms.publish.result.operations", {
+                  environment: environmentLabel(release.environment),
+                })}
               </Button>
             </li>
           ))}
@@ -447,11 +456,11 @@ export function PublishWizard({
     heldTarget === undefined
       ? t("forms.publish.wizardConfirm", {
           environments: formatList(
-            selected.map((target) => target.environment),
+            selected.map((target) => environmentLabel(target.environment)),
             DEFAULT_LOCALE,
           ),
         })
-      : t("forms.publish.held.request", { environment: heldTarget.environment });
+      : t("forms.publish.held.request", { environment: environmentLabel(heldTarget.environment) });
   const pendingLabel =
     heldTarget === undefined
       ? t("forms.publish.wizardPending")
@@ -666,7 +675,7 @@ export function PublishWizard({
                 data-eligible={eligible ? "true" : "false"}
               >
                 <Checkbox
-                  label={target.environment}
+                  label={environmentLabel(target.environment)}
                   isSelected={chosen.includes(target.environment)}
                   isDisabled={!eligible}
                   onChange={(next) => {
@@ -762,10 +771,14 @@ export function PublishWizard({
               data-testid="qcms-publish-held-request"
             >
               <p className="font-semibold">
-                {t("forms.publish.held.requestHeading", { environment: heldTarget.environment })}
+                {t("forms.publish.held.requestHeading", {
+                  environment: environmentLabel(heldTarget.environment),
+                })}
               </p>
               <p className="text-sm">
-                {t("forms.publish.held.requestNote", { environment: heldTarget.environment })}
+                {t("forms.publish.held.requestNote", {
+                  environment: environmentLabel(heldTarget.environment),
+                })}
               </p>
             </div>
           )}
@@ -787,7 +800,7 @@ export function PublishWizard({
                   review.source.version < target.currentVersion && (
                     <span className="text-sm" data-testid="qcms-publish-rollback">
                       {t("forms.publish.destinations.rollbackNote", {
-                        environment: target.environment,
+                        environment: environmentLabel(target.environment),
                         current: target.currentVersion,
                       })}
                     </span>
@@ -799,13 +812,15 @@ export function PublishWizard({
                   >
                     {t("forms.publish.destinations.evidence", {
                       version: row.version,
-                      environment: row.environment,
+                      environment: environmentLabel(row.environment),
                     })}
                   </span>
                 ))}
                 {target.twoPerson.applies && !target.twoPerson.heldForApproval && (
                   <span className="text-sm" data-testid="qcms-publish-second-person">
-                    {t("forms.publish.review.secondPerson", { environment: target.environment })}
+                    {t("forms.publish.review.secondPerson", {
+                      environment: environmentLabel(target.environment),
+                    })}
                   </span>
                 )}
               </li>

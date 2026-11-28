@@ -11,6 +11,7 @@ import {
   type HeldDecisionState,
   type HeldPublishView,
 } from "@/lib/forms/held-publish";
+import { environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
@@ -52,12 +53,14 @@ function OutcomeNotice({
       {state?.status === "approved" && (
         <Alert variant="success">
           {state.version === undefined
-            ? t("forms.publish.requests.approvedUnread", { environment })
+            ? t("forms.publish.requests.approvedUnread", {
+                environment: environmentLabel(environment),
+              })
             : t("forms.publish.requests.approved", {
                 version: state.version,
                 requester: state.requester ?? t("forms.publish.requests.someone"),
                 approver: state.approver ?? t("forms.publish.requests.you"),
-                environment,
+                environment: environmentLabel(environment),
               })}
         </Alert>
       )}
@@ -198,7 +201,7 @@ export function HeldPublishPanel({
           data-viewer={viewerOf(view)}
         >
           <h2 id={`qcms-held-${view.requestId}`} className="text-base font-semibold">
-            {t("forms.publish.requests.label", { environment })}
+            {t("forms.publish.requests.label", { environment: environmentLabel(environment) })}
           </h2>
           <Waiting view={view} />
           {view.decides ? (
@@ -217,7 +220,9 @@ export function HeldPublishPanel({
               <p className="text-sm">
                 {view.own
                   ? t("forms.publish.held")
-                  : t("forms.publish.held.requestNote", { environment })}
+                  : t("forms.publish.held.requestNote", {
+                      environment: environmentLabel(environment),
+                    })}
               </p>
               {view.block !== undefined && (
                 <p className="text-sm" data-testid="qcms-held-publish-block">

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ResolvedEnvironment } from "../environment.ts";
+import { environmentLabel, type ResolvedEnvironment } from "../environment.ts";
 import { t } from "../i18n/en.ts";
 
 /** What the request resolves to; set before each test. Hoisted, so it cannot name the type. */
@@ -138,7 +138,9 @@ describe.each(ACTIONS)("$name", ({ run }) => {
     const state = await run("prod");
 
     expect(state.status).toBe("error");
-    expect(state.message).toBe(t("environment.switched", { shown: "prod", current: "test" }));
+    expect(state.message).toBe(
+      t("environment.switched", { shown: environmentLabel("prod"), current: "test" }),
+    );
     expect(sent.count).toBe(0);
   });
 
@@ -148,7 +150,9 @@ describe.each(ACTIONS)("$name", ({ run }) => {
     const state = await run("test");
 
     expect(state.status).toBe("error");
-    expect(state.message).toBe(t("environment.switched", { shown: "test", current: "prod" }));
+    expect(state.message).toBe(
+      t("environment.switched", { shown: "test", current: environmentLabel("prod") }),
+    );
     expect(sent.count).toBe(0);
   });
 

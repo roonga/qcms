@@ -151,6 +151,22 @@ describe("the assistant conversation's route", () => {
     expect(JSON.parse(init.body)).toMatchObject({ viewerToday: "2026-07-21" });
   });
 
+  it("sends the instant and the zone beside that day, so an expiry can be worked out", async () => {
+    const fetchMock = sent();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 21, 0, 30));
+    try {
+      mount(false);
+      await send(fetchMock);
+    } finally {
+      vi.useRealTimers();
+    }
+    const init = fetchMock.mock.calls[0]?.[1] as { body: string };
+    const body = JSON.parse(init.body) as { viewerNow?: string; viewerZone?: string };
+    expect(body.viewerNow).toBe(new Date(2026, 6, 21, 0, 30).toISOString());
+    expect(body.viewerZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  });
+
   it("pads a single-digit month and day, so the API's own shape check accepts it", () => {
     expect(viewerDay(new Date(2026, 0, 9))).toBe("2026-01-09");
     expect(viewerDay(new Date(2026, 11, 31))).toBe("2026-12-31");

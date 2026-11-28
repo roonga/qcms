@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { t } from "@/lib/i18n/en";
 import { roleName } from "@/lib/membership/access-group-form";
+import { environmentLabel } from "@/lib/environment";
 import {
   explainAccess,
   type AccessCapabilities,
@@ -43,7 +44,7 @@ export function AccessExplanation({
             </th>
             {environments.map((environment) => (
               <th key={environment} scope="col" className="px-2 py-1 text-left font-medium">
-                {environment}
+                {environmentLabel(environment)}
               </th>
             ))}
           </tr>

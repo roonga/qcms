@@ -168,7 +168,7 @@ describe("what the account holds", () => {
     const [authors, viewers] = HOLDINGS.groups;
     if (authors === undefined || viewers === undefined) throw new Error("fixture");
     expect(heldGroupLabel(authors, "en-GB")).toBe("Authors");
-    expect(heldGroupLabel(viewers, "en-GB")).toBe("Response viewers (prod)");
+    expect(heldGroupLabel(viewers, "en-GB")).toBe("Response viewers (Production)");
   });
 
   it("lists the workspaces a disable leaves with no Workspace administrator", () => {

@@ -8,6 +8,7 @@ import { EraseDialog } from "@/components/ops/erase-dialog";
 import { ErasureElsewhereOffer } from "@/components/ops/erasure-elsewhere";
 import { TombstoneCard } from "@/components/ops/tombstone-card";
 import { announce } from "@/lib/announce";
+import { environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import type { ErasureReason } from "@/lib/ops/erasure";
 import { knownTargetStep, type KnownTargetLookup } from "@/lib/ops/known-target";
@@ -123,7 +124,10 @@ export function KnownTargetErasure({
       >
         {step === "missing" && (
           <Alert variant="info">
-            {t("ops.erase.known.missing", { sessionId: target, environment })}
+            {t("ops.erase.known.missing", {
+              sessionId: target,
+              environment: environmentLabel(environment),
+            })}
           </Alert>
         )}
         {step === "failed" && found?.status === "error" && (
@@ -134,7 +138,10 @@ export function KnownTargetErasure({
         {step === "alreadyErased" && <Alert variant="info">{t("ops.erase.alreadyErased")}</Alert>}
         {step === "erasable" && (
           <p className="text-sm text-(--color-text)" data-testid="qcms-known-target-found">
-            {t("ops.erase.known.found", { sessionId: target, environment })}
+            {t("ops.erase.known.found", {
+              sessionId: target,
+              environment: environmentLabel(environment),
+            })}
           </p>
         )}
         {step === "erased" && erased !== null && (

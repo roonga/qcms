@@ -13,7 +13,7 @@ import { readState } from "@/lib/read-state";
 import { portalBaseUrl } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
 import { listLinks, MAX_LINK_BATCH } from "@/lib/server/links";
-import { isNonProd, shownEnvironment } from "@/lib/environment";
+import { environmentLabel, isNonProd, shownEnvironment } from "@/lib/environment";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -61,7 +61,9 @@ export default async function FormLinksPage({
         <PublicFormLink url={publicLink} isClosed={form.status === "closed"} />
       )}
       {shown !== undefined && isNonProd(shown) && (
-        <Alert variant="info">{t("forms.links.noPublicAddress", { environment: shown })}</Alert>
+        <Alert variant="info">
+          {t("forms.links.noPublicAddress", { environment: environmentLabel(shown) })}
+        </Alert>
       )}
       {!links.ok && (
         <Alert variant="warning">{t("forms.links.listFailed", { message: links.message })}</Alert>

@@ -17,6 +17,7 @@ import {
   type PlanNames,
   type StepArgumentLine,
 } from "@/lib/agent/card-copy";
+import { environmentLabel } from "@/lib/environment";
 import { isInstant } from "@/lib/i18n/format";
 import { OperatorDateTime } from "@/components/operator-time";
 import { focusPostAction } from "@/lib/ops/post-action-focus";
@@ -134,7 +135,7 @@ function EnvironmentLine({ step }: { readonly step: AgentPlanStep }): React.Reac
     <span>
       {t("agent.card.environmentLabel")}{" "}
       <span className="qcms-envchip" data-kind={production ? "prod" : "nonprod"}>
-        {step.environment}
+        {environmentLabel(step.environment)}
       </span>
       {production ? (
         <>

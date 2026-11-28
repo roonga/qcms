@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { expect } from "../../../portal/e2e/support/gates.js";
 import { ADMIN_BASE_URL } from "./harness-config.js";
-import { ENVIRONMENT_COOKIE } from "../../lib/environment.js";
+import { ENVIRONMENT_COOKIE, environmentLabel } from "../../lib/environment.js";
 import { openMenu } from "./flow.js";
 
 export const TEST_ENVIRONMENT_STORAGE = {
@@ -34,7 +34,9 @@ export async function chooseEnvironment(page: Page, environment: "test" | "prod"
   const chip = environmentChip(page);
   if ((await chip.getAttribute("data-environment")) !== environment) {
     await openMenu(chip.getByRole("button"));
-    await page.getByRole("menuitemradio", { name: environment, exact: true }).click();
+    await page
+      .getByRole("menuitemradio", { name: environmentLabel(environment), exact: true })
+      .click();
     await expect(chip).toHaveAttribute("data-pending", "false");
     await expect(chip).toHaveAttribute("data-environment", environment);
   }

@@ -1,4 +1,5 @@
 import { formatList } from "../i18n/format.ts";
+import { environmentLabel } from "../environment.ts";
 import { t } from "../i18n/en.ts";
 import { pageCount } from "../ops/paging.ts";
 import { ENVIRONMENT_ROLES, GROUP_ROLES, roleName, type GroupRole } from "./access-group-form.ts";
@@ -153,7 +154,10 @@ export function describeChange(change: AccessChange, locale: string): string {
   const role = roleName(change.role);
   return change.environments.length === 0
     ? role
-    : t("access.change.in", { role, environments: formatList(change.environments, locale) });
+    : t("access.change.in", {
+        role,
+        environments: formatList(change.environments.map(environmentLabel), locale),
+      });
 }
 
 export function describeKept(kept: AccessKept, locale: string): string {

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
 import { Alert, Button } from "@/components/kit";
-import { environmentCookie } from "@/lib/environment";
+import { environmentCookie, environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import type { ErasureElsewhere } from "@/lib/ops/types";
 
@@ -43,8 +43,12 @@ export function ErasureElsewhereOffer({
             <li key={other.environment} className="flex flex-wrap items-center gap-3">
               <span data-testid={`qcms-erasure-elsewhere-${other.environment}`}>
                 {other.alreadyErased
-                  ? t("ops.erase.elsewhere.done", { environment: other.environment })
-                  : t("ops.erase.elsewhere.pending", { environment: other.environment })}
+                  ? t("ops.erase.elsewhere.done", {
+                      environment: environmentLabel(other.environment),
+                    })
+                  : t("ops.erase.elsewhere.pending", {
+                      environment: environmentLabel(other.environment),
+                    })}
               </span>
               <Button
                 variant="secondary"
@@ -53,7 +57,7 @@ export function ErasureElsewhereOffer({
                   go(other.environment);
                 }}
               >
-                {t("ops.erase.elsewhere.go", { environment: other.environment })}
+                {t("ops.erase.elsewhere.go", { environment: environmentLabel(other.environment) })}
               </Button>
             </li>
           ))}

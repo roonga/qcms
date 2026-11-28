@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ENVIRONMENT_COOKIE,
   confirmEnvironment,
+  environmentLabel,
   headerEnvironment,
   resolveEnvironment,
   selectionFromCookies,
@@ -80,7 +81,7 @@ describe("confirmEnvironment", () => {
   it("refuses when another tab has switched, naming both environments", () => {
     expect(confirmEnvironment("prod", resolveEnvironment("test", SET))).toEqual({
       ok: false,
-      message: t("environment.switched", { shown: "prod", current: "test" }),
+      message: t("environment.switched", { shown: environmentLabel("prod"), current: "test" }),
     });
   });
 
@@ -99,8 +100,8 @@ describe("confirmEnvironment", () => {
   });
 
   it("says what happened and what to do, in the catalog's words", () => {
-    const message = t("environment.switched", { shown: "prod", current: "test" });
-    expect(message).toContain("prod");
+    const message = t("environment.switched", { shown: environmentLabel("prod"), current: "test" });
+    expect(message).toContain(environmentLabel("prod"));
     expect(message).toContain("test");
     expect(message).toContain("Reload");
   });

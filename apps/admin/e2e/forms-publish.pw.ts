@@ -49,6 +49,7 @@ import {
 } from "./support/questions.js";
 import type { QuestionType } from "../lib/questions/types.js";
 import { waitForHydration } from "./support/hydration.js";
+import { environmentLabel } from "../lib/environment.js";
 import { t } from "../lib/i18n/en.js";
 
 // Keep the reveal rule within one step and after its condition so missing output cannot be mistaken for an unreached step.
@@ -211,9 +212,11 @@ test("releases a published version to an environment and records it (task 065)",
 
   const versions = page.getByRole("table", { name: "Versions" });
   await expect(versions.getByRole("columnheader", { name: "Published to" })).toBeVisible();
-  await expect(versions.locator('tr[data-form-version="1"]')).toContainText("prod");
+  await expect(versions.locator('tr[data-form-version="1"]')).toContainText(
+    environmentLabel("prod"),
+  );
   await expect(versions.locator('tr[data-form-version="1"] td[data-available-in]')).toContainText(
-    "prod",
+    environmentLabel("prod"),
   );
 
   const filter = page.getByTestId("qcms-history-filter");
@@ -420,7 +423,7 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   await count.fill("2");
   await dialog
     .getByRole("button", {
-      name: t("forms.links.confirmMint", { environment: "prod" }),
+      name: t("forms.links.confirmMint", { environment: environmentLabel("prod") }),
       exact: true,
     })
     .click();
@@ -500,18 +503,21 @@ test("closes the form to new sessions and reopens it (deliverable: close/reopen)
   await page.goto(`/operations/forms/${formId}/availability`);
   await chooseEnvironment(page, "prod");
 
-  await page.getByRole("button", { name: "Close to new responses in prod" }).click();
+  await page.getByRole("button", { name: "Close to new responses in Production" }).click();
   const dialog = page.getByRole("alertdialog");
 
   await expect(dialog).toContainText("finish on the version they started on");
 
   await expect(dialog).toContainText("Every other environment is unaffected");
-  await dialog.getByRole("button", { name: "Close it in prod" }).click();
+  await dialog.getByRole("button", { name: "Close it in Production" }).click();
 
   await expect(page.getByTestId("qcms-form-closed")).toBeVisible({ timeout: 30_000 });
 
-  await page.getByRole("button", { name: "Reopen in prod" }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Reopen it in prod" }).click();
+  await page.getByRole("button", { name: "Reopen in Production" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Reopen it in Production" })
+    .click();
   await expect(page.getByTestId("qcms-form-closed")).toHaveCount(0, { timeout: 30_000 });
 });
 

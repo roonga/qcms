@@ -8,6 +8,7 @@ import { UncoveredNotice } from "@/components/access/uncovered-notice";
 import { HeadingMarker } from "@/components/agent/heading-marker";
 import { HelpTip } from "@/components/help-tip";
 import { Alert, Button, Dialog } from "@/components/kit";
+import { environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import { groupScope, roleName } from "@/lib/membership/access-group-form";
 import { uncoveredScope, type AccessCapabilities } from "@/lib/membership/access-patterns";
@@ -440,7 +441,9 @@ function GroupConfirm({
         t("membership.groups.deleteUncoveredRole", { role: roleName(role) }),
       ),
       ...left.environments.map((environment) =>
-        t("membership.groups.deleteUncoveredEnvironment", { environment }),
+        t("membership.groups.deleteUncoveredEnvironment", {
+          environment: environmentLabel(environment),
+        }),
       ),
     ];
     return (

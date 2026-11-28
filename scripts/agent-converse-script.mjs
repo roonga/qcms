@@ -359,7 +359,10 @@ export function runErrors(transcript) {
     if (typeof panel === "string" && panel !== "")
       errors.push({ turn: at, where: "panel", text: panel });
 
-    const replySteps = Array.isArray(turn["replySteps"]) ? turn["replySteps"] : [];
+    const replySteps = [
+      ...(Array.isArray(turn["replySteps"]) ? turn["replySteps"] : []),
+      ...(Array.isArray(turn["followUpSteps"]) ? turn["followUpSteps"] : []),
+    ];
     for (const entry of replySteps) {
       const step = /** @type {Record<string, unknown>} */ (entry);
       if (step["state"] !== "failed" && step["state"] !== "interrupted") continue;

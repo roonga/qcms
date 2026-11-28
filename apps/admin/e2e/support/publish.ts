@@ -1,6 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 
 import { expect } from "../../../portal/e2e/support/gates.js";
+import { environmentLabel } from "../../lib/environment.js";
 
 import { waitForHydration } from "./hydration.js";
 
@@ -19,12 +20,12 @@ export async function chooseSource(page: Page, label: string): Promise<void> {
 
 // The decorative checkbox indicator covers its input; click the label and assert the native checked state.
 export async function chooseDestination(destinations: Locator, environment: string): Promise<void> {
+  // The row is found by the configured name and read by the name a person sees.
   const row = destinations.locator(`div[data-environment="${environment}"]`);
+  const shown = environmentLabel(environment);
   await expect(row).toHaveAttribute("data-eligible", "true");
-  await row.getByText(environment, { exact: true }).click();
-  await expect(
-    destinations.getByRole("checkbox", { name: environment, exact: true }),
-  ).toBeChecked();
+  await row.getByText(shown, { exact: true }).click();
+  await expect(destinations.getByRole("checkbox", { name: shown, exact: true })).toBeChecked();
 }
 
 export async function releaseThroughWizard(

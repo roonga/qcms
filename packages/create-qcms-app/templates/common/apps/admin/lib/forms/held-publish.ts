@@ -1,3 +1,4 @@
+import { environmentLabel } from "../environment.ts";
 import { t, tPlural } from "../i18n/en.ts";
 import { APPROVAL_STATUSES, type ApprovalStatus } from "../membership/types.ts";
 
@@ -142,11 +143,11 @@ export function heldDecisionRefusal(
     case "REQUEST_EXPIRED":
       return t("forms.publish.requests.expired");
     case "OWN_REQUEST":
-      return t("forms.publish.requests.own", { environment });
+      return t("forms.publish.requests.own", { environment: environmentLabel(environment) });
     case "REQUESTER_CANNOT_PUBLISH":
       return t("forms.publish.requests.requesterCannot", {
         person: context.requester ?? t("forms.publish.requests.someone"),
-        environment,
+        environment: environmentLabel(environment),
         workspace: context.workspace ?? t("forms.unavailable.thisWorkspace"),
       });
     case "PUBLISH_FORM_LEFT_WORKSPACE":

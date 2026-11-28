@@ -8,6 +8,7 @@ import { Button, Select } from "@/components/kit";
 import { OperatorDay } from "@/components/operator-time";
 import { diffDefinitions, type DiffRow } from "@/lib/forms/version-diff";
 import type { FormVersionSummary } from "@/lib/forms/types";
+import { environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 
 /* History renders stored compiled documents; recompilation would produce different audit evidence. */
@@ -132,13 +133,15 @@ export function VersionHistory({
                   {(releasedBy[String(version.version)] ?? []).length === 0
                     ? t("forms.history.releasedNowhere")
                     : t("forms.history.releasedIn", {
-                        environments: (releasedBy[String(version.version)] ?? []).join(", "),
+                        environments: (releasedBy[String(version.version)] ?? [])
+                          .map(environmentLabel)
+                          .join(", "),
                       })}
                 </td>
                 <td data-available-in={(availableIn[String(version.version)] ?? []).join(" ")}>
                   {(availableIn[String(version.version)] ?? []).length === 0
                     ? t("forms.versions.availableNowhere")
-                    : (availableIn[String(version.version)] ?? []).join(", ")}
+                    : (availableIn[String(version.version)] ?? []).map(environmentLabel).join(", ")}
                 </td>
                 <td className="qcms-cell--drop">
                   {version.publishedBy ?? t("forms.versions.publisherUnknown")}

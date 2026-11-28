@@ -197,6 +197,21 @@ const screenRef = {
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/u)
     .optional(),
+  /**
+   * The instant on the viewer's own clock, as the browser's own UTC spelling. An expiry the
+   * model works out needs the time of day, which a date alone cannot give it. Fixed here to
+   * that one spelling so nothing but an instant can ride in on it.
+   */
+  viewerNow: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/u)
+    .optional(),
+  /** The zone the viewer reads both of those in, held to the shape of an IANA name. */
+  viewerZone: z
+    .string()
+    .max(64)
+    .regex(/^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+){0,2}$/u)
+    .optional(),
 };
 
 export const AssistBody = z
@@ -214,6 +229,8 @@ export const AssistBody = z
     conversationId: screenRef.conversationId.optional(),
     visitId: screenRef.visitId,
     viewerToday: screenRef.viewerToday,
+    viewerNow: screenRef.viewerNow,
+    viewerZone: screenRef.viewerZone,
   })
   .openapi("AssistRequest");
 

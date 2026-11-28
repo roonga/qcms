@@ -1,7 +1,9 @@
 /* The card's quoted reason is model prose, so it is shown as plain text and never rendered as markup
    (SEC-17 §8d). Flatten the syntax a model writes anyway, and cut on a line or a sentence. */
 
-export const REASON_CHARS = 280;
+/* Room for the whole reason, including the paragraph that says what going live means: at 280
+   the quote cut inside the first paragraph and dropped exactly that. */
+export const REASON_CHARS = 560;
 
 const ELLIPSIS = "…";
 

@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { environmentLabel } from "@/lib/environment";
 import type { AccessGroup, AccessGroupList, MembershipActionState } from "@/lib/membership/types";
 import { WORKSPACE_ADMINISTRATION } from "@/lib/membership/workspace-views";
 
@@ -125,19 +126,20 @@ describe("changing a group", () => {
     await user.click(screen.getByRole("button", { name: "Change" }));
     const form = screen.getByTestId("qcms-group-form");
     expect(within(form).getByTestId("qcms-group-no-environments")).toBeTruthy();
-    expect(within(form).queryByRole("checkbox", { name: "prod" })).toBeNull();
+    expect(within(form).queryByRole("checkbox", { name: environmentLabel("prod") })).toBeNull();
 
     await user.click(within(form).getByRole("checkbox", { name: "View responses" }));
-    expect(within(form).getByRole<HTMLInputElement>("checkbox", { name: "prod" }).checked).toBe(
-      false,
-    );
+    expect(
+      within(form).getByRole<HTMLInputElement>("checkbox", { name: environmentLabel("prod") })
+        .checked,
+    ).toBe(false);
     await user.click(within(form).getByRole("button", { name: "Save group" }));
     expect(within(form).getByRole("alert").textContent).toContain(
       "Choose at least one environment for Publish forms, View responses or Erase responses.",
     );
     expect(acts.update).not.toHaveBeenCalled();
 
-    await user.click(within(form).getByRole("checkbox", { name: "prod" }));
+    await user.click(within(form).getByRole("checkbox", { name: environmentLabel("prod") }));
     await user.click(within(form).getByRole("button", { name: "Save group" }));
     expect(acts.update).toHaveBeenCalledWith("ws_1", "tm_r", {
       name: "Reviewers",
@@ -173,7 +175,7 @@ describe("changing a group", () => {
       acts: actions({ update: vi.fn(() => Promise.resolve(held)) }),
     });
     await user.click(screen.getByRole("button", { name: "Change" }));
-    await user.click(screen.getByRole("checkbox", { name: "prod" }));
+    await user.click(screen.getByRole("checkbox", { name: environmentLabel("prod") }));
     expect(screen.getByTestId("qcms-access-approval").textContent).toContain("Needs an Approver");
     await user.click(screen.getByRole("button", { name: "Request approval" }));
     expect(acts.update).toHaveBeenCalledOnce();

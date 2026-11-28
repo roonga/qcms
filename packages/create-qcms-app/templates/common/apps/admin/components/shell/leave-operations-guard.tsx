@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { Button, Dialog } from "@/components/kit";
+import { environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import { workspaceAreaLabel } from "@/lib/membership/sections";
 import {
@@ -112,7 +113,7 @@ export function LeaveOperationsGuard({
         <p className="text-sm text-(--color-text)">
           {environment === ""
             ? t("shell.leave.environmentUnknown")
-            : t("shell.leave.environment", { environment })}
+            : t("shell.leave.environment", { environment: environmentLabel(environment) })}
         </p>
         <div className="flex flex-wrap gap-2">
           <span ref={stayRef}>

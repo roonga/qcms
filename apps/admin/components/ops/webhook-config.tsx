@@ -11,6 +11,7 @@ import type { ReadState } from "@/lib/read-state";
 import type { EndpointProposal, RevealedWebhook, WebhookSummary } from "@/lib/ops/types";
 import { unexpected } from "@/lib/ops/unexpected";
 import { OperatorDateTime } from "@/components/operator-time";
+import { environmentLabel } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import { MASKED_QUERY } from "@/lib/ops/webhook-mask";
 import { HeadingMarker } from "@/components/agent/heading-marker";
@@ -132,7 +133,9 @@ export function WebhookConfig({
         {state.status === "pending" && (
           <div data-testid="qcms-webhook-pending">
             <Alert variant="info">
-              {t("ops.proposals.stored", { environment: state.pending?.environment ?? "" })}
+              {t("ops.proposals.stored", {
+                environment: environmentLabel(state.pending?.environment ?? ""),
+              })}
             </Alert>
           </div>
         )}

@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 
+import { environmentLabel } from "../environment.ts";
 import type { AgentPlanStep } from "../forms/assist-stream.ts";
 
-import { planNames, planTitleSubject, stepArguments, stepTitle, subjectIds } from "./card-copy.ts";
+import {
+  planNames,
+  planTitleSubject,
+  stepArguments,
+  stepConsequences,
+  stepTitle,
+  subjectIds,
+} from "./card-copy.ts";
 
 function step(overrides: Partial<AgentPlanStep> = {}): AgentPlanStep {
   return {
@@ -252,5 +260,67 @@ describe("what a minted link is called", () => {
       const one = mint(1, environment);
       expect(stepTitle(one, {}, [one], plan([one]).names)).not.toContain(environment);
     }
+  });
+});
+
+describe("the words a card uses for a thing the person reads", () => {
+  it("names an access group by its name and keeps its id behind the disclosure", () => {
+    const grant = step({
+      kind: "access.grant",
+      screen: "/workspaces/[workspaceId]/access-groups",
+      args: { workspaceId: "wsp_clinic", teamId: "tem_authors", email: "sarah@larkmead.test" },
+      card: { titleKey: "agent.card.access.grant.title", consequenceKeys: [] },
+    });
+    const known = new Map([["tem_authors", "Authors"]]);
+    const { steps, names } = plan([grant], known);
+    expect(stepTitle(grant, {}, steps, names)).toBe(
+      "Put sarah@larkmead.test in the access group Authors",
+    );
+    const [line] = stepArguments(grant, {}, names).filter((entry) => entry.name === "teamId");
+    expect(line?.value).toBe("Authors");
+    expect(line?.id).toBe("tem_authors");
+    expect(line?.idOnly).toBe(false);
+  });
+
+  it("falls back to the generic word rather than printing an id the screen cannot name", () => {
+    const remove = step({
+      kind: "access.groupRemove",
+      screen: "/workspaces/[workspaceId]/access-groups",
+      args: { workspaceId: "wsp_clinic", teamId: "tem_authors" },
+      card: { titleKey: "agent.card.access.groupRemove.title", consequenceKeys: [] },
+    });
+    const { steps, names } = plan([remove]);
+    expect(stepTitle(remove, {}, steps, names)).toBe("Remove the access group this access group");
+  });
+
+  it("keeps an identifier behind the disclosure rather than in the step's own body", () => {
+    const [line] = stepArguments(CREATE_FORM).filter((entry) => entry.name === "slug");
+    expect(line?.label).toBe("Identifier");
+    expect(line?.idOnly).toBe(true);
+    expect(line?.id).toBe("patient-onboarding");
+  });
+
+  it("names production as the glossary names it, and every other environment as the site does", () => {
+    expect(environmentLabel("prod")).toBe("Production");
+    expect(environmentLabel("test")).toBe("test");
+    expect(environmentLabel("staging")).toBe("staging");
+  });
+
+  it("writes that name into a title and into a consequence alike", () => {
+    const release = step({
+      kind: "form.release",
+      screen: "/operations/forms/[formId]/releases",
+      args: { formId: "frm_patient_onboarding", version: 3 },
+      environment: "prod",
+      card: {
+        titleKey: "agent.card.form.release.title",
+        consequenceKeys: ["agent.card.form.release.consequence"],
+      },
+    });
+    const { steps, names } = plan([release], BUILDER_KNOWS);
+    expect(stepTitle(release, {}, steps, names)).toBe(
+      "Publish version 3 of Patient onboarding to Production",
+    );
+    expect(stepConsequences(release).join(" ")).toContain("in Production");
   });
 });

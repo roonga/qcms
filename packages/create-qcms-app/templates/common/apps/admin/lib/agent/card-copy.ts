@@ -1,5 +1,5 @@
 import type { AgentPlanStep } from "../forms/assist-stream.ts";
-import { PROD_ENVIRONMENT } from "../environment.ts";
+import { environmentLabel, PROD_ENVIRONMENT } from "../environment.ts";
 import { t, tPlural, type MessageKey } from "../i18n/en.ts";
 
 import type { ReportedResults, StepResultFields } from "./plan-state.ts";
@@ -137,10 +137,22 @@ function vocabularyText(name: string, raw: unknown): string | undefined {
 }
 
 /** The arguments a card names by title; their ids are support detail rather than the subject. */
-const NAMED_ID_ARGUMENTS: ReadonlySet<string> = new Set(["formId", "questionId", "workspaceId"]);
+const NAMED_ID_ARGUMENTS: ReadonlySet<string> = new Set([
+  "formId",
+  "questionId",
+  "workspaceId",
+  "teamId",
+]);
+
+/**
+ * Arguments that ARE an identifier rather than one standing in for a title. The step's own
+ * title names the subject in the person's words, so these belong behind the disclosure with
+ * the branded ids rather than in the open beside them.
+ */
+const IDENTIFIER_ARGUMENTS: ReadonlySet<string> = new Set(["slug"]);
 
 /** The arguments whose title the plan can work out for itself. */
-const TITLED_ID_ARGUMENTS: readonly string[] = ["formId", "questionId"];
+const TITLED_ID_ARGUMENTS: readonly string[] = ["formId", "questionId", "teamId"];
 
 export function stepArguments(
   step: AgentPlanStep,
@@ -162,13 +174,15 @@ export function stepArguments(
     const named = displayName(name, value, names) ?? plannedSubject(name, reference, names);
     const literal = literalId(raw) ?? (reference === undefined ? undefined : literalId(resolved));
     const branded = NAMED_ID_ARGUMENTS.has(name) && literal !== undefined;
+    const identifier = IDENTIFIER_ARGUMENTS.has(name) && value !== "";
+    const behindDisclosure = branded ? literal : undefined;
     return {
       name,
       label: argumentLabel(name),
       value: named ?? value,
       mono: named === undefined && MONO_ARGUMENTS.has(name),
-      id: branded ? literal : undefined,
-      idOnly: branded && named === undefined,
+      id: identifier ? value : behindDisclosure,
+      idOnly: (branded && named === undefined) || identifier,
       ...(reference === undefined ? { fromStep: undefined } : { fromStep: reference.fromStep }),
     };
   });
@@ -242,7 +256,8 @@ function stepSubject(step: AgentPlanStep): string | undefined {
       textField(step.args["definition"], field) ?? textField(step.draft?.definition, field);
     if (found !== undefined) return found;
   }
-  return undefined;
+  // A step that names the thing it makes names it for every later step that waits on this one.
+  return displayText(step.args["name"]);
 }
 
 function literalId(raw: unknown): string | undefined {
@@ -355,6 +370,7 @@ function subjectName(
 const SUBJECTS: readonly (readonly [string, string, MessageKey])[] = [
   ["form", "formId", "agent.card.subject.form"],
   ["question", "questionId", "agent.card.subject.question"],
+  ["group", "teamId", "agent.card.subject.group"],
 ];
 
 const ID_SUFFIX_CHARS = 8;
@@ -392,7 +408,7 @@ function titleParams(
   steps: readonly AgentPlanStep[],
   names: PlanNames,
 ): Record<string, string> {
-  const params: Record<string, string> = { environment: step.environment };
+  const params: Record<string, string> = { environment: environmentLabel(step.environment) };
   for (const line of stepArguments(step, reported)) {
     const reference = asReference(step.args[line.name]);
     const resolved =
@@ -465,7 +481,7 @@ const PRODUCTION_KEY = "agent.card.environment.production";
 export function stepConsequences(step: AgentPlanStep): readonly string[] {
   return step.card.consequenceKeys
     .filter((key) => key !== PRODUCTION_KEY)
-    .map((key) => t(key as MessageKey, { environment: step.environment }));
+    .map((key) => t(key as MessageKey, { environment: environmentLabel(step.environment) }));
 }
 
 /** Derive irreversible gates from registered step templates so callers cannot omit them. Matching is trimmed and case-sensitive, like the screen dialog. */

@@ -88,10 +88,19 @@ describe("the card's quoted reason", () => {
   });
 
   it("quotes at most the documented length", () => {
-    expect(REASON_CHARS).toBe(280);
+    expect(REASON_CHARS).toBe(560);
     // The marker that says the quote was cut is not part of the quoted text.
-    expect((plainQuote("x ".repeat(400), REASON_CHARS) ?? "").length).toBeLessThanOrEqual(
+    expect((plainQuote("x ".repeat(600), REASON_CHARS) ?? "").length).toBeLessThanOrEqual(
       REASON_CHARS + 2,
     );
+  });
+
+  it("keeps a whole reason of several paragraphs, consequence and all", () => {
+    const text = [
+      "Version 1 of the Larkmead new patient sign-up goes to production.",
+      "That is the version already running in test, where the clinic tries the form before anyone outside sees it.",
+      "Everyone who opens the form answers version 1 from then on, for real.",
+    ].join("\n\n");
+    expect(plainQuote(text, REASON_CHARS)).toBe(text.replaceAll("\n\n", "\n"));
   });
 });

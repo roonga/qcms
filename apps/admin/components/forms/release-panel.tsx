@@ -12,7 +12,7 @@ import { Alert, Button, Dialog, Select } from "@/components/kit";
 import { EnvironmentSummary, ReleaseHistory } from "@/components/forms/release-tables";
 import type { ReleaseState } from "@/lib/forms/builder-state";
 import { IDLE_RELEASE } from "@/lib/forms/builder-state";
-import { PROD_ENVIRONMENT } from "@/lib/environment";
+import { environmentLabel, PROD_ENVIRONMENT } from "@/lib/environment";
 import { currentReleaseByEnvironment, type ReleaseRecord } from "@/lib/forms/releases";
 import { t } from "@/lib/i18n/en";
 import { HeadingMarker } from "@/components/agent/heading-marker";
@@ -29,13 +29,13 @@ function twoPersonSentence(input: {
   if (input.blockedByRule) {
     return t("forms.releases.twoPersonSelf", {
       version: input.version,
-      environment: input.environment,
+      environment: environmentLabel(input.environment),
     });
   }
   if (input.author === null) {
     return t("forms.releases.twoPersonUnknown", { version: input.version });
   }
-  return t("forms.releases.twoPersonSecond", { environment: input.environment });
+  return t("forms.releases.twoPersonSecond", { environment: environmentLabel(input.environment) });
 }
 
 function releaseSource(
@@ -55,9 +55,21 @@ function replacementMessage(
   version: number,
   environment: string,
 ): string {
-  if (current === version) return t("forms.workflow.alreadyReleased", { version, environment });
-  if (current === undefined) return t("forms.workflow.firstRelease", { version, environment });
-  return t("forms.workflow.replacesVersion", { version, current, environment });
+  if (current === version)
+    return t("forms.workflow.alreadyReleased", {
+      version,
+      environment: environmentLabel(environment),
+    });
+  if (current === undefined)
+    return t("forms.workflow.firstRelease", {
+      version,
+      environment: environmentLabel(environment),
+    });
+  return t("forms.workflow.replacesVersion", {
+    version,
+    current,
+    environment: environmentLabel(environment),
+  });
 }
 
 function releaseConfirm(
@@ -67,8 +79,9 @@ function releaseConfirm(
   environment: string,
 ): string {
   if (pending) return t("forms.releases.pending");
-  if (enabled) return t("forms.workflow.release", { version, environment });
-  return t("forms.releases.confirm", { environment });
+  if (enabled)
+    return t("forms.workflow.release", { version, environment: environmentLabel(environment) });
+  return t("forms.releases.confirm", { environment: environmentLabel(environment) });
 }
 
 export function ReleasePanel({
@@ -162,11 +175,11 @@ export function ReleasePanel({
             {state.rollback === true
               ? t("forms.releases.rollbackDone", {
                   version: state.version ?? 0,
-                  environment: state.environment ?? "",
+                  environment: environmentLabel(state.environment ?? ""),
                 })
               : t("forms.releases.released", {
                   version: state.version ?? 0,
-                  environment: state.environment ?? "",
+                  environment: environmentLabel(state.environment ?? ""),
                 })}
           </Alert>
         )}
@@ -215,15 +228,22 @@ export function ReleasePanel({
       </div>
 
       {workflow?.canRelease === false && (
-        <p>{t("forms.workflow.noReleasePermission", { environment })}</p>
+        <p>
+          {t("forms.workflow.noReleasePermission", { environment: environmentLabel(environment) })}
+        </p>
       )}
-      {candidates.length === 0 && <p>{t("forms.workflow.noCandidate", { environment })}</p>}
+      {candidates.length === 0 && (
+        <p>{t("forms.workflow.noCandidate", { environment: environmentLabel(environment) })}</p>
+      )}
 
       {isOpen && version !== undefined && (
         <Dialog
           isOpen
           role="alertdialog"
-          title={t("forms.releases.dialogTitle", { version, environment })}
+          title={t("forms.releases.dialogTitle", {
+            version,
+            environment: environmentLabel(environment),
+          })}
           isDismissable={!isPending}
           onOpenChange={(open) => {
             if (!open) setOpen(false);
@@ -268,7 +288,7 @@ export function ReleasePanel({
               </Link>
             )}
             <p className="text-sm text-(--color-text-muted)">
-              {t("forms.releases.dialogBody", { environment })}
+              {t("forms.releases.dialogBody", { environment: environmentLabel(environment) })}
             </p>
             <p data-testid="qcms-release-replacement">
               {replacementMessage(currentVersion, version, environment)}
@@ -282,7 +302,7 @@ export function ReleasePanel({
               />
             )}
             <p className="text-sm font-semibold" data-testid="qcms-release-environment">
-              {t("environment.inThis", { environment })}
+              {t("environment.inThis", { environment: environmentLabel(environment) })}
             </p>
             {gatedByRule && (
               <div data-testid="qcms-release-two-person">
@@ -295,7 +315,7 @@ export function ReleasePanel({
               <div data-testid="qcms-release-rollback-warning">
                 <Alert variant="warning">
                   {t("forms.releases.rollbackWarning", {
-                    environment,
+                    environment: environmentLabel(environment),
                     current: currentVersion ?? 0,
                     version,
                   })}

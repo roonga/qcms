@@ -240,6 +240,13 @@ body schema holds it to `YYYY-MM-DD` so nothing else rides in on it. A caller th
 sends none falls back to the installation's own date, and the line says which of
 the two it is.
 
+Beside it go `viewerNow` and `viewerZone`, the instant that clock is at and the zone
+both are read in, because a link's expiry is counted from a time of day and a date
+alone cannot give one. Each is held to one spelling by the same schema: the browser's
+own UTC instant, and the shape of an IANA name. The admin reads the zone through
+`useOperatorZone`, the one module that reads it (issue #279), and all three sit in the
+same preamble, after the cache breakpoint.
+
 ## One prefix, cached, and the volatile part after it
 
 The tools and the instructions are the same bytes on every step of every turn, at

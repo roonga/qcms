@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { KnownTargetErasure } from "@/components/ops/known-target-erasure";
-import { shownEnvironment } from "@/lib/environment";
+import { environmentLabel, shownEnvironment } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import { eraseUnavailable } from "@/lib/forms/role-states";
 import { mayEraseResponses } from "@/lib/ops/erasure";
@@ -57,7 +57,7 @@ export default async function FormErasePage({
       {erasable ? (
         <>
           <p className="text-sm text-(--color-text-muted)">
-            {t("ops.erase.known.intro", { environment })}
+            {t("ops.erase.known.intro", { environment: environmentLabel(environment) })}
           </p>
           <KnownTargetErasure
             key={shown}

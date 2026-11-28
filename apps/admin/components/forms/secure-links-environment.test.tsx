@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { SecureLinks } from "./secure-links.tsx";
 import { IDLE_REVOKE } from "../../lib/forms/builder-state.ts";
 import type { MintedLink, SecureLink } from "../../lib/forms/types.ts";
+import { environmentLabel } from "../../lib/environment.ts";
 import { t } from "../../lib/i18n/en.ts";
 
 const LINKS: readonly SecureLink[] = [
@@ -58,13 +59,13 @@ describe("the mint dialog restates the environment (Q6, Q19)", () => {
 
     expect(
       within(dialog).getByRole("heading", {
-        name: t("forms.links.mintTitle", { environment: "test" }),
+        name: t("forms.links.mintTitle", { environment: environmentLabel("test") }),
       }),
     ).toBeTruthy();
     expect(within(dialog).getByTestId("qcms-mint-environment").textContent).toContain("test");
     expect(
       within(dialog).getByRole("button", {
-        name: t("forms.links.confirmMint", { environment: "test" }),
+        name: t("forms.links.confirmMint", { environment: environmentLabel("test") }),
       }),
     ).toBeTruthy();
   });
@@ -79,7 +80,7 @@ describe("the mint dialog restates the environment (Q6, Q19)", () => {
     await user.keyboard("01012027");
     await user.click(
       within(dialog).getByRole("button", {
-        name: t("forms.links.confirmMint", { environment: "test" }),
+        name: t("forms.links.confirmMint", { environment: environmentLabel("test") }),
       }),
     );
 
@@ -98,7 +99,7 @@ describe("the mint dialog restates the environment (Q6, Q19)", () => {
     await user.keyboard("01012027");
     await user.click(
       within(dialog).getByRole("button", {
-        name: t("forms.links.confirmMint", { environment: "prod" }),
+        name: t("forms.links.confirmMint", { environment: environmentLabel("prod") }),
       }),
     );
 

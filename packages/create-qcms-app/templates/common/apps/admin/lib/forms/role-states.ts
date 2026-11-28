@@ -1,4 +1,5 @@
 import { formatList } from "../i18n/format.ts";
+import { environmentLabel } from "../environment.ts";
 import { t, type MessageKey } from "../i18n/en.ts";
 import type { MyAccess, MyAccessWorkspace } from "../membership/types.ts";
 
@@ -119,8 +120,8 @@ export function formsListStates(
 export function eraseUnavailable(environment: string): string {
   const group = starterGroupFor(ERASE_RESPONSES_ROLE, environment);
   return group === undefined
-    ? t("ops.erase.known.deniedNoGroup", { environment })
-    : t("ops.erase.known.denied", { environment, group });
+    ? t("ops.erase.known.deniedNoGroup", { environment: environmentLabel(environment) })
+    : t("ops.erase.known.denied", { environment: environmentLabel(environment), group });
 }
 
 /** A workspace where every place the caller holds is suspended: it grants nothing until re-confirmed. */
@@ -144,7 +145,9 @@ export function responsesUnavailable(
   environment: string,
   locale: string,
 ): { readonly heading: string; readonly body: string; readonly suspended: boolean } {
-  const heading = t("ops.unavailable.responsesHeading", { environment });
+  const heading = t("ops.unavailable.responsesHeading", {
+    environment: environmentLabel(environment),
+  });
   const group =
     starterGroupFor(VIEW_RESPONSES_ROLE, environment) ?? t("forms.unavailable.group.authors");
   const workspace = access === undefined ? undefined : workspaceOf(access, workspaceId);
@@ -154,7 +157,7 @@ export function responsesUnavailable(
   if (suspended) {
     return {
       heading,
-      body: t("ops.unavailable.responsesSuspended", { environment }),
+      body: t("ops.unavailable.responsesSuspended", { environment: environmentLabel(environment) }),
       suspended: true,
     };
   }
@@ -164,15 +167,18 @@ export function responsesUnavailable(
   if (elsewhere.length === 0) {
     return {
       heading,
-      body: t("ops.unavailable.responsesNone", { environment, group }),
+      body: t("ops.unavailable.responsesNone", {
+        environment: environmentLabel(environment),
+        group,
+      }),
       suspended: false,
     };
   }
   return {
     heading,
     body: t("ops.unavailable.responsesElsewhere", {
-      environments: formatList(elsewhere, locale),
-      environment,
+      environments: formatList(elsewhere.map(environmentLabel), locale),
+      environment: environmentLabel(environment),
       group,
     }),
     suspended: false,
