@@ -253,7 +253,7 @@ test("an owner erases one response by its session id from the form's Erase scree
   await known.getByRole("textbox", { name: "Session id" }).fill("ses_neverexisted");
   await known.getByRole("button", { name: "Find this session" }).click();
   await expect(page.getByTestId("qcms-known-target-status")).toContainText(
-    "No session ses_neverexisted exists for this form in prod.",
+    `No session ses_neverexisted exists for this form in ${PROD_SHOWN}.`,
   );
   // This screen keeps its own erase control; only a response's own page header holds the menu.
   await expect(page.getByRole("button", { name: ERASE_ITEM })).toHaveCount(0);
@@ -288,6 +288,6 @@ test("a response viewer is offered no Erase screen, and its address offers nothi
   await page.goto(`/operations/forms/${FORM_ID}/erase`);
   await expect(page.getByTestId("qcms-known-target-erasure")).toHaveCount(0);
   await expect(page.locator("main#main-content")).toContainText(
-    "Erasing responses in prod needs Erase responses there.",
+    `Erasing responses in ${PROD_SHOWN} needs Erase responses there.`,
   );
 });

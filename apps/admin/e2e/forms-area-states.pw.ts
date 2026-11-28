@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
+import { environmentLabel } from "../lib/environment.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { presetEnvironment } from "./support/environment.js";
@@ -12,6 +13,8 @@ import {
   type HeldPublishFixture,
 } from "./support/held-publish.js";
 import { suspendHold } from "./support/membership.js";
+
+const PROD_SHOWN = environmentLabel("prod");
 
 test.describe.configure({ mode: "serial" });
 
@@ -68,10 +71,10 @@ for (const width of [375, 320]) {
 
     await open(page, `/operations/forms/${FORM_ID}/responses`, width, "qcms-responses-unavailable");
     await expect(page.getByTestId("qcms-responses-unavailable")).toContainText(
-      "Responses are not available in prod",
+      `Responses are not available in ${PROD_SHOWN}`,
     );
     await expect(page.getByTestId("qcms-responses-unavailable")).toContainText(
-      "View responses in prod comes from Response viewers.",
+      `View responses in ${PROD_SHOWN} comes from Response viewers.`,
     );
 
     await open(page, `/forms/${FORM_ID}/rules`, width, "qcms-form-read-only-notice");
@@ -87,7 +90,7 @@ for (const width of [375, 320]) {
     );
     const door = page.getByTestId("qcms-form-availability-door").getByRole("button");
     await expect(door).toBeDisabled();
-    await expect(door).toHaveAccessibleDescription("Needs Publish forms in prod.");
+    await expect(door).toHaveAccessibleDescription(`Needs Publish forms in ${PROD_SHOWN}.`);
   });
 }
 
