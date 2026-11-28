@@ -504,6 +504,8 @@ export async function validateDraft(
   deps: Deps,
   definition: FormDefinition,
   pending: readonly PendingQuestionVersion[] = [],
+  /** The admin draft preview alone tolerates a pin to an unpublished question version. */
+  options: { readonly allowUnpublishedPins?: boolean } = {},
 ): Promise<{
   issues: PublishIssue[];
   warnings: readonly PublishWarning[];
@@ -541,7 +543,12 @@ export async function validateDraft(
           carried,
         );
 
-  const draft: DraftInput = { definition, resolveQuestion, publishedQuestionVersions };
+  const draft: DraftInput = {
+    definition,
+    resolveQuestion,
+    publishedQuestionVersions,
+    ...(options.allowUnpublishedPins === true ? { allowUnpublishedPins: true } : {}),
+  };
   const result = compileDraft(draft);
   const issues: PublishIssue[] = [
     ...deprecatedIssues,
@@ -1476,7 +1483,11 @@ export function makePreviewDraftHandler(
     const definition = requireDefinition(body.definition);
     if (definition.formId !== formId) throw fail.idMismatch();
 
-    const { issues, snapshot } = await validateDraft(deps, definition);
+    // An unpublished question version is what the author is editing, so the preview renders it;
+    // publish still refuses it, and the preview's output is never stored.
+    const { issues, snapshot } = await validateDraft(deps, definition, [], {
+      allowUnpublishedPins: true,
+    });
     if (issues.length > 0 || snapshot === undefined) {
       // `PREVIEW_REJECTED` always carries at least one issue: the admin's copy promises
       // "the reasons are listed below", so a compile that fails silently takes the other

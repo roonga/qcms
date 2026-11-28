@@ -93,6 +93,10 @@ test("creates through the card, edits with no card, undoes twice and reviews the
   ]);
   await waitForHydration(page);
 
+  // The form the conversation asked for now exists, and the conversation is still the same one.
+  await expect(page.getByTestId("qcms-assistant-turns")).toContainText(word);
+  expect(await page.title(), "the tab names the form, not its id").not.toContain(formId);
+
   await say(page, `#qcms-fake:builder-first-edits start it #qcms-fake-search:${NEEDLE}`);
   await expect(edits(page)).toHaveCount(3, { timeout: 60_000 });
   await expect(card(page)).toHaveCount(0);
@@ -102,6 +106,10 @@ test("creates through the card, edits with no card, undoes twice and reviews the
   await expect(edits(page).nth(0).getByRole("button", { name: /^Undo/u })).toBeDisabled();
   await expect(edits(page).nth(1).getByRole("button", { name: /^Undo/u })).toBeDisabled();
   await axeClean(page, "three applied edits");
+
+  // The pane renders the draft rather than refusing it; anything still blocking is listed in words.
+  await expect(page.getByTestId("qcms-builder-preview-issues")).toHaveCount(0);
+  await expect(page.getByTestId("qcms-builder-preview-step")).toBeVisible();
 
   await edits(page).nth(2).getByRole("button", { name: /^Undo/u }).click();
   await expect(edits(page).nth(2)).toHaveAttribute("data-state", "undone", { timeout: 30_000 });

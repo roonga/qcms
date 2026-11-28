@@ -56,6 +56,12 @@ export interface DraftInput {
    * may be snapshotted (R1). Enforcing the lifecycle itself is storage's job.
    */
   readonly publishedQuestionVersions: ReadonlyMap<QuestionId, ReadonlySet<number>>;
+  /**
+   * Admin draft preview only: compile a pin to an unpublished question version instead of
+   * refusing it, so an author sees the draft being edited. Publish, release and the portal
+   * never set it, so R1 is unchanged for every snapshot that is kept.
+   */
+  readonly allowUnpublishedPins?: boolean;
 }
 
 function deepFreeze<T>(value: T): T {
@@ -263,7 +269,10 @@ function resolvePins(
         });
         continue;
       }
-      if (draft.publishedQuestionVersions.get(item.questionId)?.has(item.version) !== true) {
+      if (
+        draft.allowUnpublishedPins !== true &&
+        draft.publishedQuestionVersions.get(item.questionId)?.has(item.version) !== true
+      ) {
         errors.push({
           code: "UNPUBLISHED_QUESTION_PIN",
           message: `Step "${step.stepId}" pins question "${item.questionId}"@${String(item.version)}, which is not a published question version (R1)`,

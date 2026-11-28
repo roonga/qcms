@@ -113,6 +113,19 @@ function shortText(id: string, labelText = "Field"): Record<string, unknown> {
 }
 
 // Parsed through the kernel first so the schema defaults the A2UI compiler reads are applied.
+/** A question whose only version is still a draft, which is what the agent builder writes. */
+async function seedDraftQuestion(id: string, labelText = "Field"): Promise<void> {
+  const questionId = QuestionId.parse(id);
+  const parsed = parseQuestionDefinition(shortText(id, labelText));
+  if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
+  await createQuestion(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId,
+    slug: id.replace(/_/g, "-"),
+  });
+  await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
+}
+
 async function seedPublishedQuestion(id: string, labelText = "Field"): Promise<void> {
   const questionId = QuestionId.parse(id);
   const parsed = parseQuestionDefinition(shortText(id, labelText));
@@ -983,6 +996,33 @@ describe("draft preview: the dry-run compile the admin renders (034)", () => {
 
     // Publishing consumed the draft; the rest of the block needs one.
     await put(`/forms/${formId}/draft`, { definition });
+  });
+
+  it("renders a pin onto an unpublished question version, which publish still refuses", async () => {
+    const draftFormId = "frm_preview_draft_pin";
+    await seedDraftQuestion("q_preview_unpublished", "Still a draft");
+    const pinned = formDefinition(
+      draftFormId,
+      [["stp_preview_draft", ["q_preview_unpublished"]]],
+      [],
+      "Preview a draft pin",
+    );
+    await post("/forms", { formId: draftFormId, slug: "preview-draft-pin", defaultLocale: "en" });
+    await put(`/forms/${draftFormId}/draft`, { definition: pinned });
+
+    const res = await preview(draftFormId, { definition: pinned });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PreviewBody;
+    expect(body.documents.map((document) => document.stepId)).toEqual(["stp_preview_draft"]);
+
+    const refused = await post(`/forms/${draftFormId}/publish`);
+    expect(refused.status).toBe(422);
+    const failure = (await refused.json()) as {
+      details?: { issues?: { code: string }[] };
+    };
+    expect(failure.details?.issues?.map((issue) => issue.code)).toContain(
+      "UNPUBLISHED_QUESTION_PIN",
+    );
   });
 
   it("walks a branch: the follow-up appears only for the answer that shows it", async () => {

@@ -714,6 +714,13 @@ button {
 :root.hc .qcms-builder-preview__toggle {
   border-width: 2px;
 }
+.qcms-builder-preview__issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-4);
+  list-style: disc;
+}
 .qcms-builder-preview__status {
   font-size: 13px;
   color: var(--color-text-muted);

@@ -69,6 +69,7 @@ import {
   type FrameState,
   type Size,
 } from "@/lib/forms/preview-devices";
+import { messageForIssue } from "@/lib/forms/issues";
 import { previewRail } from "@/lib/forms/preview-rail";
 import {
   previewInstanceLabel,
@@ -597,7 +598,16 @@ export function BuilderPreview({
         {inspecting && <p>{t("builder.preview.inspectHint")}</p>}
         {announcement !== "" && <p className="sr-only">{announcement}</p>}
         {state.status === "loading" && <p>{t("builder.preview.loading")}</p>}
-        {state.status === "rejected" && <p>{t("builder.preview.unavailable")}</p>}
+        {state.status === "rejected" && (
+          <>
+            <p>{t("builder.preview.unavailable")}</p>
+            <ul className="qcms-builder-preview__issues" data-testid="qcms-builder-preview-issues">
+              {(state.issues ?? []).map((issue, at) => (
+                <li key={`${issue.code}:${String(at)}`}>{messageForIssue(issue, draft)}</li>
+              ))}
+            </ul>
+          </>
+        )}
         {state.status === "error" && (
           <Alert variant="error">
             {t("builder.preview.failed", { message: state.message ?? "" })}

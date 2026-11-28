@@ -595,7 +595,7 @@ export const messages = {
   "builder.preview.next": "Next step",
   "builder.preview.reset": "Reset answers",
   "builder.preview.loading": "Loading the preview...",
-  "builder.preview.unavailable": "The preview is unavailable until the draft's issues are fixed.",
+  "builder.preview.unavailable": "The preview is unavailable until these are fixed:",
   "builder.preview.failed": "The preview did not load. {message}",
   "builder.preview.emptyStep": "No question on this step is shown for the answers given.",
   "builder.preview.frame": "Respondent view",
@@ -1613,7 +1613,7 @@ export const messages = {
   "forms.preview.loading": "Compiling the draft...",
   "forms.preview.unavailable": "This draft cannot be previewed yet.",
   "forms.preview.unavailableHint":
-    "A preview of a draft that publish would refuse would be a promise about what a respondent sees that publish will not keep. Fix these first.",
+    "These stop the draft from compiling, so there is nothing to render yet. Fix them and the preview returns.",
 
   "forms.preview.unavailableAnnounce.one": "Preview unavailable: 1 issue to fix, listed below.",
   "forms.preview.unavailableAnnounce.other":

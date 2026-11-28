@@ -291,6 +291,33 @@ describe("compileDraft - each invariant violated alone yields only its error", (
     ]);
   });
 
+  it("allowUnpublishedPins: the admin preview compiles that same pin", () => {
+    const draft = twoStepDraft([showBWhenA]);
+    const result = compileDraft({
+      ...draft,
+      ...makeStore([record(boolQ("q_a")), record(textQ("q_b"))], ["q_b@1"]),
+      allowUnpublishedPins: true,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("allowUnpublishedPins: a pin that does not resolve at all is still refused", () => {
+    const draft = twoStepDraft([showBWhenA]);
+    const errors = errorsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([record(boolQ("q_a"))], []),
+        allowUnpublishedPins: true,
+      }),
+    );
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "DANGLING_QUESTION_REF",
+        path: { question: "q_b", step: "stp_two" },
+      }),
+    ]);
+  });
+
   it("DANGLING_QUESTION_REF: a rule reading a question not pinned in the form", () => {
     const errors = errorsOf(
       compileDraft(

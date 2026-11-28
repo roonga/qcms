@@ -32,6 +32,30 @@ describe("a question definition on a card", () => {
     expect(ids.textContent).toContain("opt_read_privacy_notice");
   });
 
+  it("words the question type and the required flag rather than showing their wire values", () => {
+    render(<DefinitionDetail definition={DEFINITION} />);
+    const body = screen.getByTestId("qcms-acard-definition").querySelector("dl");
+    expect(body?.textContent).toContain(t("questions.type.singleChoice"));
+    expect(body?.textContent).not.toContain("singleChoice");
+    expect(body?.textContent).toContain(t("agent.card.arg.yes"));
+    expect(body?.textContent).not.toContain("true");
+  });
+
+  it("keeps a constraint's regular expression out of the card and names it instead", () => {
+    render(
+      <DefinitionDetail
+        definition={{
+          ...DEFINITION,
+          type: "shortText",
+          constraints: { pattern: "^[0-9]{4}$", required: true },
+        }}
+      />,
+    );
+    const body = screen.getByTestId("qcms-acard-definition").querySelector("dl");
+    expect(body?.textContent).toContain(t("forms.assist.definition.patternSet"));
+    expect(body?.textContent).not.toContain("^[0-9]{4}$");
+  });
+
   it("writes one locale's text on its own, with no tag in front of it", () => {
     render(<DefinitionDetail definition={DEFINITION} />);
     const body = screen.getByTestId("qcms-acard-definition").querySelector("dl");
