@@ -202,8 +202,8 @@ describe("the files a run leaves behind", () => {
 
 describe("the line a thrown message becomes in the status file", () => {
   it("flattens it and drops the address the status file holds none of", () => {
-    expect(statusNote("the assist turn\n  answered 500 at http://127.0.0.1:3001/x")).toBe(
-      "the assist turn answered 500 at http 127.0.0.1:3001/x",
+    expect(statusNote("the assist turn\n  answered 500 at https://assist.test/x")).toBe(
+      "the assist turn answered 500 at https assist.test/x",
     );
   });
 
