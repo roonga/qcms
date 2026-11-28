@@ -721,9 +721,10 @@ button {
   gap: var(--space-1);
   min-inline-size: 0;
 }
-.qcms-builder-preview__toggle {
+.qcms-railtoggle.qcms-builder-preview__toggle {
   display: inline-flex;
   align-items: center;
+  inline-size: auto;
   min-block-size: var(--admin-control-h);
   padding-inline: var(--space-3);
   border: 1px solid var(--color-border-strong);
