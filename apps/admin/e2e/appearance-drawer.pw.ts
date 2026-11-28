@@ -143,7 +143,7 @@ test("a theme and a text size render at once and are kept by Done", async ({ pag
   await drawer(page).getByRole("button", { name: "Spacious", exact: true }).click();
   await expect(surface(page)).toHaveClass(/\bdensity-spacious\b/u);
 
-  await page.getByTestId("qcms-appearance-done").locator("button").click();
+  await page.getByTestId("qcms-appearance-done").click();
   await expect(page.getByText("Appearance saved to the draft.")).toBeVisible();
 
   await page.reload();
@@ -175,12 +175,13 @@ test("a locked workspace disables the drawer and attempts no save", async ({ pag
     drawer(page).getByRole("button", { name: "Spacious", exact: true }),
     drawer(page).getByRole("button", { name: "Rounded", exact: true }),
     drawer(page).getByRole("button", { name: "None", exact: true }),
+    page.getByTestId("qcms-appearance-reset"),
+    page.getByTestId("qcms-appearance-done"),
   ];
   for (const control of locked) {
     await expect(control).toBeDisabled();
     await expect(control).toHaveAttribute("aria-describedby", reasonId);
   }
-  await expect(page.getByTestId("qcms-appearance-done").locator("button")).toBeDisabled();
   expect(drafts, "a locked drawer sent a draft save").toEqual([]);
   await axeClean(page, "the locked appearance drawer");
   await setLock(false);

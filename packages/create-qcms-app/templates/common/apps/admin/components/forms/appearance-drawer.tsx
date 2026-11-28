@@ -3,7 +3,7 @@
 import type { Appearance } from "@roonga/qcms-core";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
-import { Alert, Button } from "@/components/kit";
+import { Alert } from "@/components/kit";
 import {
   DEFAULT_CORNERS,
   DEFAULT_DENSITY,
@@ -574,36 +574,36 @@ export function AppearanceDrawer({
         </div>
 
         <div className="qcms-adrawer__field">
-          <span data-testid="qcms-appearance-reset">
-            <Button
-              variant="secondary"
-              size="md"
-              isDisabled={off || pending}
-              onPress={() => {
-                change(null);
-              }}
-            >
-              {t("appearance.reset")}
-            </Button>
-          </span>
+          <button
+            type="button"
+            className="qcms-adrawer__reset"
+            data-testid="qcms-appearance-reset"
+            disabled={off || pending}
+            {...(reason === undefined ? {} : { "aria-describedby": reason })}
+            onClick={() => {
+              change(null);
+            }}
+          >
+            {t("appearance.reset")}
+          </button>
         </div>
       </div>
 
       <div className="qcms-adrawer__foot">
-        <span data-testid="qcms-appearance-done">
-          <Button
-            variant="primary"
-            size="md"
-            isDisabled={locked || pending || entry.status !== "ok"}
-            onPress={() => {
-              startTransition(async () => {
-                setState(await onSave(appearance));
-              });
-            }}
-          >
-            {pending ? t("appearance.saving") : t("appearance.done")}
-          </Button>
-        </span>
+        <button
+          type="button"
+          className="qcms-adrawer__done"
+          data-testid="qcms-appearance-done"
+          disabled={locked || pending || entry.status !== "ok"}
+          {...(reason === undefined ? {} : { "aria-describedby": reason })}
+          onClick={() => {
+            startTransition(async () => {
+              setState(await onSave(appearance));
+            });
+          }}
+        >
+          {pending ? t("appearance.saving") : t("appearance.done")}
+        </button>
       </div>
     </aside>
   );

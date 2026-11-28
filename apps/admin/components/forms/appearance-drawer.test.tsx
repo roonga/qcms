@@ -1,6 +1,6 @@
 import type { Appearance } from "@roonga/qcms-core";
 import { SHIPPED_THEMES } from "@roonga/qcms-ui/shipped-themes";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -64,10 +64,6 @@ const DERIVED: DerivedTheme = {
 const READ: DeriveThemeState = { status: "derived", derived: DERIVED, host: "www.example.org" };
 
 const KEPT: CreateThemeState = { status: "created", themeId: "thm_read", name: "Example" };
-
-function done(): HTMLElement {
-  return within(screen.getByTestId("qcms-appearance-done")).getByRole("button");
-}
 
 function isOff(element: Element): boolean {
   return (
@@ -245,7 +241,7 @@ describe("text size", () => {
     await userEvent.type(field, "9");
     expect(screen.getByRole("alert").textContent).toContain("16 px is the smallest");
     expect(field.getAttribute("aria-invalid")).toBe("true");
-    expect(isOff(done())).toBe(true);
+    expect(isOff(screen.getByTestId("qcms-appearance-done"))).toBe(true);
     expect(onPreview).not.toHaveBeenCalled();
   });
 
@@ -269,13 +265,14 @@ describe("a locked workspace", () => {
       ...["Medium", "Custom", "Spacious", "Rounded", "None"].map((name) =>
         screen.getByRole("button", { name }),
       ),
+      screen.getByTestId("qcms-appearance-reset"),
+      screen.getByTestId("qcms-appearance-done"),
     ];
     for (const control of controls) {
       expect(isOff(control), control.id).toBe(true);
       expect(control.getAttribute("aria-describedby"), control.id).toBe(reason.id);
     }
-    const save = done();
-    expect(isOff(save)).toBe(true);
+    const save = screen.getByTestId("qcms-appearance-done");
     await userEvent.click(save);
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -300,7 +297,7 @@ describe("saving", () => {
       }),
     );
     render(drawer(APPLIED, { onSave }));
-    await userEvent.click(done());
+    await userEvent.click(screen.getByTestId("qcms-appearance-done"));
     expect(onSave).toHaveBeenCalledWith(APPLIED);
     const refusal = await screen.findByTestId("qcms-appearance-save-error");
     expect(refusal.textContent).toContain(
