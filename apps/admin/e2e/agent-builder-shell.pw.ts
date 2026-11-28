@@ -52,16 +52,16 @@ function buildPath(id: string): string {
 const WORDY = `tell me about this form ${"and the step it starts with ".repeat(24)}`;
 
 interface ComposerPin {
+  /** Below the composer, inside the pane body's own inset. */
   readonly composerGap: number;
+  /** Below the pane body, inside its pane. */
   readonly bodyGap: number;
-  readonly scrolls: boolean;
+  /** Below the composer, to the foot of the viewport. */
+  readonly viewportGap: number;
+  readonly inset: number;
+  readonly transcriptScrolls: boolean;
 }
 
-/**
- * Where the composer sits relative to the bottom of the assistant pane: the gap below the
- * composer inside the pane body, the gap below the pane body inside its pane, and whether
- * the transcript above it is the part that scrolls.
- */
 async function composerPin(page: Page): Promise<ComposerPin> {
   return page.getByTestId("qcms-builder-assistant").evaluate((body) => {
     const pane = body.parentElement;
@@ -71,14 +71,15 @@ async function composerPin(page: Page): Promise<ComposerPin> {
       throw new Error("the assistant pane has no composer or no transcript");
     }
     const inset = Number.parseFloat(window.getComputedStyle(body).paddingBlockEnd);
+    const foot = composer.getBoundingClientRect().bottom;
     return {
-      composerGap: Math.round(
-        body.getBoundingClientRect().bottom - inset - composer.getBoundingClientRect().bottom,
-      ),
+      composerGap: Math.round(body.getBoundingClientRect().bottom - inset - foot),
       bodyGap: Math.round(
         pane.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom,
       ),
-      scrolls: turns.scrollHeight - turns.clientHeight > 1,
+      viewportGap: Math.round(window.innerHeight - foot),
+      inset: Math.round(inset),
+      transcriptScrolls: turns.scrollHeight - turns.clientHeight > 1,
     };
   });
 }
@@ -89,6 +90,11 @@ async function expectPinned(page: Page, where: string): Promise<void> {
     1,
   );
   expect(pin.bodyGap, `the pane body fills its pane with ${where}`).toBeLessThanOrEqual(1);
+  expect(pin.viewportGap, `the composer is on screen with ${where}`).toBeGreaterThanOrEqual(0);
+  expect(
+    pin.viewportGap,
+    `the composer sits at the foot of the viewport with ${where}`,
+  ).toBeLessThanOrEqual(pin.inset + 1);
 }
 
 async function say(page: Page, message: string): Promise<void> {
@@ -210,6 +216,11 @@ test("keeps the assistant composer at the bottom of the pane, empty and full", a
   for (const width of [1280, 800]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`/forms/${formId}/build`);
+    // The builder keeps its conversation per tab, so the second width starts from the first one's.
+    await page.evaluate(() => {
+      window.sessionStorage.clear();
+    });
+    await page.reload();
     await waitForHydration(page);
     const at = `${String(width)}px`;
 
@@ -219,7 +230,7 @@ test("keeps the assistant composer at the bottom of the pane, empty and full", a
     await fillTranscript(page);
     await expectPinned(page, `a long conversation at ${at}`);
     const full = await composerPin(page);
-    expect(full.scrolls, `the transcript is what scrolls at ${at}`).toBe(true);
+    expect(full.transcriptScrolls, `the transcript is what scrolls at ${at}`).toBe(true);
   }
 });
 

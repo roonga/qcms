@@ -91,7 +91,7 @@ function PreviewPane({
   if (formId !== null && source !== undefined && source.draft !== null) {
     return (
       <div
-        className="qcms-builder__pane-body"
+        className="qcms-builder__pane-body qcms-builder__pane-body--preview"
         data-testid="qcms-builder-preview"
       >
         <BuilderPreview formId={formId} draft={source.draft} source={source} />
