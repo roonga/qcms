@@ -52,7 +52,7 @@ async function toReview(props: {
     />,
   );
   await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
-  await user.click(await screen.findByRole("checkbox", { name: "prod" }));
+  await user.click(await screen.findByRole("checkbox", { name: environmentLabel("prod") }));
   await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
   return user;
 }
@@ -248,7 +248,9 @@ describe("the fixed prod floor", () => {
     expect(blocker.textContent).toBe(
       t("forms.publish.blocked.priorRelease", { environments: "test or staging" }),
     );
-    expect(screen.getByRole("checkbox", { name: "prod" }).hasAttribute("disabled")).toBe(true);
+    expect(
+      screen.getByRole("checkbox", { name: environmentLabel("prod") }).hasAttribute("disabled"),
+    ).toBe(true);
   });
 });
 
@@ -366,7 +368,7 @@ describe("moving between steps", () => {
       t("forms.publish.step.announce", { step: t("forms.publish.step.destinations") }),
     );
 
-    await user.click(await screen.findByRole("checkbox", { name: "prod" }));
+    await user.click(await screen.findByRole("checkbox", { name: environmentLabel("prod") }));
     await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
     expect(document.activeElement?.textContent).toBe(t("forms.publish.step.review"));
 

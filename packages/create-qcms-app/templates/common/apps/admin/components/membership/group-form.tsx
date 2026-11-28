@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AccessPreview } from "@/components/access/access-preview";
 import { FieldHelp } from "@/components/help-tip";
 import { Alert, Button, Checkbox, TextField } from "@/components/kit";
+import { environmentLabel } from "@/lib/environment";
 import { t, type MessageKey } from "@/lib/i18n/en";
 import {
   needsEnvironments,
@@ -133,7 +134,7 @@ export function GroupForm({
               {environments.map((environment) => (
                 <Checkbox
                   key={environment}
-                  label={environment}
+                  label={environmentLabel(environment)}
                   isDisabled={pending}
                   isSelected={draft.environments.includes(environment)}
                   onChange={(on: boolean) => {

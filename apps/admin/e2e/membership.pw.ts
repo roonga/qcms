@@ -221,7 +221,7 @@ test("a group is created, granted by address, re-confirmed, renamed, revoked and
   await page.getByTestId("qcms-group-sheet").getByRole("button", { name: "Change" }).click();
   const form = page.getByTestId("qcms-group-form");
   await form.getByRole("textbox", { name: "Name", exact: true }).fill(RENAMED);
-  await expect(form.getByRole("checkbox", { name: "prod", exact: true })).not.toBeChecked();
+  await expect(form.getByRole("checkbox", { name: "Production", exact: true })).not.toBeChecked();
   await form.getByRole("button", { name: "Save group" }).click();
   await expect(page.getByText(`Saved ${RENAMED}.`)).toBeVisible();
   const renamed = page.locator(`[data-group-name="${RENAMED}"]`);

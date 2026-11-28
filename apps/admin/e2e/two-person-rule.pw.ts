@@ -211,9 +211,9 @@ test("the account that proposed it cannot confirm it, and is told why", async ({
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toContainText("You cannot confirm a change you proposed yourself");
 
-  await expect(dialog.getByTestId("qcms-proposal-environment")).toContainText("In prod");
+  await expect(dialog.getByTestId("qcms-proposal-environment")).toContainText("In Production");
 
-  await expect(dialog).toContainText("A new endpoint in prod starts receiving deliveries");
+  await expect(dialog).toContainText("A new endpoint in Production starts receiving deliveries");
 
   await dialog.getByRole("button", { name: "Confirm" }).click();
 
@@ -282,7 +282,9 @@ test("the publish wizard carries the rule's notice with the switch on", async ({
     "was not recorded",
   );
 
-  await expect(destinations.getByRole("checkbox", { name: "prod", exact: true })).toBeDisabled();
+  await expect(
+    destinations.getByRole("checkbox", { name: "Production", exact: true }),
+  ).toBeDisabled();
 
   await expectAxeClean(page, "the publish wizard under the two-person rule");
   await expectNoHorizontalScroll(page, "the publish wizard under the two-person rule");

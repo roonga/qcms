@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { PublishWizard } from "./publish-wizard.tsx";
+import { environmentLabel } from "../../lib/environment.ts";
 import { ENVIRONMENT_COOKIE } from "../../lib/environment.ts";
 import type { ReleaseReview } from "../../lib/forms/release-candidate.ts";
 import type { DraftForm } from "../../lib/forms/types.ts";
@@ -255,7 +256,7 @@ describe("a promotion's recorded source", () => {
     );
 
     await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
-    await user.click(await screen.findByRole("checkbox", { name: "prod" }));
+    await user.click(await screen.findByRole("checkbox", { name: environmentLabel("prod") }));
     await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
     await user.click(await screen.findByRole("button", { name: /^Publish to /u }));
 

@@ -675,7 +675,7 @@ export function PublishWizard({
                 data-eligible={eligible ? "true" : "false"}
               >
                 <Checkbox
-                  label={target.environment}
+                  label={environmentLabel(target.environment)}
                   isSelected={chosen.includes(target.environment)}
                   isDisabled={!eligible}
                   onChange={(next) => {

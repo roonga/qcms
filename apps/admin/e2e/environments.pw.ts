@@ -285,23 +285,27 @@ test("a dialog never acts in an environment another tab switched to", async ({ p
   await page.goto("/forms");
   await chooseEnvironment(page, "prod");
   await page.goto(`/operations/forms/${formId}/availability`);
-  await page.getByRole("button", { name: "Close to new responses in prod" }).click();
+  await page.getByRole("button", { name: "Close to new responses in Production" }).click();
   const dialog = page.getByRole("alertdialog");
-  await expect(dialog.getByRole("button", { name: "Close it in prod" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Close it in Production" })).toBeVisible();
 
   const tabB = await page.context().newPage();
   await tabB.goto(OPERATIONS_PATH);
   await chooseEnvironment(tabB, "test");
 
-  await dialog.getByRole("button", { name: "Close it in prod" }).click();
-  await expect(dialog).toContainText("This tab was showing prod; you have since switched to test");
+  await dialog.getByRole("button", { name: "Close it in Production" }).click();
+  await expect(dialog).toContainText(
+    "This tab was showing Production; you have since switched to test",
+  );
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
   await page.reload();
   await expect(page.getByRole("button", { name: "Close to new responses in test" })).toBeVisible();
   await chooseEnvironment(tabB, "prod");
   await tabB.goto(`/operations/forms/${formId}/availability`);
-  await expect(tabB.getByRole("button", { name: "Close to new responses in prod" })).toBeVisible();
+  await expect(
+    tabB.getByRole("button", { name: "Close to new responses in Production" }),
+  ).toBeVisible();
   await tabB.close();
 });
 

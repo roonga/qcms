@@ -46,7 +46,7 @@ async function toReview(heldForApproval: boolean, confirm = vi.fn()) {
     />,
   );
   await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
-  await user.click(await screen.findByRole("checkbox", { name: "prod" }));
+  await user.click(await screen.findByRole("checkbox", { name: environmentLabel("prod") }));
   await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
   return user;
 }

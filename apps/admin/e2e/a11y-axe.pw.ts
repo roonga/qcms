@@ -46,6 +46,7 @@ import {
 import { HELD_LANDING, prepareHeldPublish } from "./support/held-publish.js";
 import { waitForHydration } from "./support/hydration.js";
 import { draftLabel } from "./support/questions.js";
+import { environmentLabel } from "../lib/environment.js";
 import { t } from "../lib/i18n/en.js";
 import { TestConsumer, openDeliverer, openEraseDialog, submitResponse } from "./support/ops.js";
 import { chooseDestination, chooseSource, publishDraftThroughWizard } from "./support/publish.js";
@@ -707,7 +708,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   await page
     .getByRole("dialog")
     .getByRole("button", {
-      name: t("forms.links.confirmMint", { environment: "prod" }),
+      name: t("forms.links.confirmMint", { environment: environmentLabel("prod") }),
       exact: true,
     })
     .click();
