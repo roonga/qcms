@@ -1,10 +1,13 @@
 import { expect, test } from "../../portal/e2e/support/gates.js";
+import { environmentLabel } from "../lib/environment.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { chooseEnvironment, environmentChip } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 import { ERASE_ITEM, moreActions, submitResponse } from "./support/ops.js";
+
+const PROD_SHOWN = environmentLabel("prod");
 
 /**
  * One form's operational screens in a browser: their rail, their tabs, and the journey a
@@ -137,18 +140,18 @@ test("a form closes and reopens one environment from the screen that owns it", a
 
   // The acts name the environment they land in: the closed state is per (form,
   // environment) and closing the wrong one is not undoable (Q6).
-  await page.getByRole("button", { name: "Close to new responses in prod" }).click();
+  await page.getByRole("button", { name: `Close to new responses in ${PROD_SHOWN}` }).click();
   const closing = page.getByRole("alertdialog");
-  await expect(closing).toContainText("In prod.");
-  await closing.getByRole("button", { name: "Close it in prod" }).click();
+  await expect(closing).toContainText(`In ${PROD_SHOWN}.`);
+  await closing.getByRole("button", { name: `Close it in ${PROD_SHOWN}` }).click();
 
   await expect(page.getByTestId("qcms-form-closed")).toBeVisible();
   await expect(page.getByTestId("qcms-form-availability-reading")).toHaveText("Closed");
 
   // Put it back, so the fixture is where every other spec in the suite expects it.
-  await page.getByRole("button", { name: "Reopen in prod" }).click();
+  await page.getByRole("button", { name: `Reopen in ${PROD_SHOWN}` }).click();
   const reopening = page.getByRole("alertdialog");
-  await reopening.getByRole("button", { name: "Reopen it in prod" }).click();
+  await reopening.getByRole("button", { name: `Reopen it in ${PROD_SHOWN}` }).click();
   await expect(page.getByTestId("qcms-form-availability-reading")).toHaveText("Open");
 });
 
@@ -261,7 +264,7 @@ test("an owner erases one response by its session id from the form's Erase scree
   await page.getByRole("button", { name: ERASE_ITEM }).click();
 
   const dialog = page.getByRole("alertdialog");
-  await expect(dialog.getByTestId("qcms-erase-environment")).toContainText("prod");
+  await expect(dialog.getByTestId("qcms-erase-environment")).toContainText(PROD_SHOWN);
   await dialog.getByRole("textbox", { name: "Type the session id to confirm" }).fill(erasable);
   await dialog.getByRole("button", { name: "Erase permanently" }).click();
 

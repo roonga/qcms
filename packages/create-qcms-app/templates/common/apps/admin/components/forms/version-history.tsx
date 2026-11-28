@@ -141,7 +141,7 @@ export function VersionHistory({
                 <td data-available-in={(availableIn[String(version.version)] ?? []).join(" ")}>
                   {(availableIn[String(version.version)] ?? []).length === 0
                     ? t("forms.versions.availableNowhere")
-                    : (availableIn[String(version.version)] ?? []).join(", ")}
+                    : (availableIn[String(version.version)] ?? []).map(environmentLabel).join(", ")}
                 </td>
                 <td className="qcms-cell--drop">
                   {version.publishedBy ?? t("forms.versions.publisherUnknown")}

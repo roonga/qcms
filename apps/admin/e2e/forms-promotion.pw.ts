@@ -208,7 +208,9 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   const versions = page.getByRole("table", { name: "Versions" });
   await expect(versions.locator("tbody tr")).toHaveCount(1);
   await expect(versions.locator('tr[data-form-version="1"]')).toContainText("test");
-  await expect(versions.locator('tr[data-form-version="1"]')).toContainText("prod");
+  await expect(versions.locator('tr[data-form-version="1"]')).toContainText(
+    environmentLabel("prod"),
+  );
 
   await page.goto(`${PORTAL_ORIGIN}/f/${FORM_SLUG}`);
   await page.getByRole("button", { name: "Start" }).click();

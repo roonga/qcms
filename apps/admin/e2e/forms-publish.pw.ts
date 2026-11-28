@@ -212,9 +212,11 @@ test("releases a published version to an environment and records it (task 065)",
 
   const versions = page.getByRole("table", { name: "Versions" });
   await expect(versions.getByRole("columnheader", { name: "Published to" })).toBeVisible();
-  await expect(versions.locator('tr[data-form-version="1"]')).toContainText("prod");
+  await expect(versions.locator('tr[data-form-version="1"]')).toContainText(
+    environmentLabel("prod"),
+  );
   await expect(versions.locator('tr[data-form-version="1"] td[data-available-in]')).toContainText(
-    "prod",
+    environmentLabel("prod"),
   );
 
   const filter = page.getByTestId("qcms-history-filter");
