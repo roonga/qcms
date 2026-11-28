@@ -15,9 +15,10 @@ export default function adminNextConfig(phase: string): NextConfig {
   return {
     distDir: phase === PHASE_DEVELOPMENT_SERVER ? DEVELOPMENT_DIST_DIR : PRODUCTION_DIST_DIR,
     reactStrictMode: true,
-    /** The dev server's own indicator sits where the agent builder's composer now sits, bottom
-        inline-start, and intercepts clicks on Send under `next dev`. */
-    devIndicators: { position: "top-right" },
+    /** Every corner the dev server's own indicator can take is already a control here: the agent
+        builder's composer at the bottom inline start, the account menu at the top inline end. It
+        intercepts their clicks under `next dev`, so the admin does without it. */
+    devIndicators: false,
     turbopack: {
       root: WORKTREE_ROOT,
     },
