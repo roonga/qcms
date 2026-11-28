@@ -12,7 +12,12 @@ one clean run of two gates, after the last commit.
   210s), both with the issue #812 contention report attached and the host at load 10 over
   24 cpus with two other seats' stacks up. Re-run on a quiet host.
 - `QCMS_PORT_SEAT=<free seat> pnpm verify:browser`, detached. The run that was in flight
-  started before the last commit, so its verdict does not cover it.
+  started before the last commit, so its verdict would not have covered it, and it produced no
+  verdict at all: the runner took a SIGTERM 2423s in (`browser-run.rc` reads `EXIT=143`,
+  `signal_target=runner`, `signalled_ppid=1587876` whose parent is `/init`, so nothing in its own
+  tree sent it). Seat 4 was released cleanly. Do not read `browser-run.log` as a result: it ends
+  mid-suite with no Playwright summary, which is the shape issue #846 exists for. It had reported
+  no failing spec up to the kill, which is not the same as green.
 - CI on #1417 showed `browser-e2e` shards 2, 3 and 5 red for one cause: under `next dev` the
   dev server's own indicator sits bottom inline-start, which is where this branch moves the
   assistant composer, and it intercepted the click on Send. `apps/admin/next.config.ts` now
