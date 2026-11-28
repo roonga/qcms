@@ -110,7 +110,8 @@ function AssistantPaneHead({
   readonly subject: AssistantSubject;
   readonly chipRef: RefObject<HTMLSpanElement | null>;
   readonly helpOpen: boolean;
-  readonly onHelpToggle: () => void;
+  /** Absent in the tabbed layout, where the pane has no width of its own to choose. */
+  readonly onHelpToggle: (() => void) | undefined;
   readonly onRestart: () => void;
 }) {
   return (
@@ -136,17 +137,19 @@ function AssistantPaneHead({
             <path d="M12 5v14M5 12h14" strokeLinecap="round" />
           </svg>
         </AssistIconButton>
-        <AssistIconButton
-          label={t("agent.help")}
-          testId="qcms-builder-assistant-help"
-          expanded={helpOpen}
-          onPress={onHelpToggle}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3V13" strokeLinecap="round" />
-            <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none" />
-          </svg>
-        </AssistIconButton>
+        {onHelpToggle !== undefined && (
+          <AssistIconButton
+            label={t("agent.help")}
+            testId="qcms-builder-assistant-help"
+            expanded={helpOpen}
+            onPress={onHelpToggle}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3V13" strokeLinecap="round" />
+              <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none" />
+            </svg>
+          </AssistIconButton>
+        )}
       </div>
     </div>
   );
@@ -250,14 +253,18 @@ function Panes({
     resize(asked);
   };
 
-  const head = (
+  const head = (withHelp: boolean) => (
     <AssistantPaneHead
       subject={subject}
       chipRef={chip}
       helpOpen={helpOpen}
-      onHelpToggle={() => {
-        setHelpOpen((was) => !was);
-      }}
+      onHelpToggle={
+        withHelp
+          ? () => {
+              setHelpOpen((was) => !was);
+            }
+          : undefined
+      }
       onRestart={restart}
     />
   );
@@ -285,11 +292,11 @@ function Panes({
           </Tab>
         </TabList>
         <TabPanel id="assistant" className="qcms-builder__tabpanel">
-          {head}
+          {head(false)}
           <AssistantPane subject={subject} returnFocusTo={chip} />
           {live}
         </TabPanel>
-        <TabPanel id="preview" className="qcms-builder__tabpanel">
+        <TabPanel id="preview" className="qcms-builder__tabpanel qcms-builder__tabpanel--preview">
           <PreviewPane formId={formId} source={source} />
         </TabPanel>
       </Tabs>
@@ -302,7 +309,7 @@ function Panes({
         className="qcms-builder__pane qcms-builder__pane--assistant"
         aria-labelledby="qcms-builder-assistant-heading"
       >
-        {head}
+        {head(true)}
         {helpOpen && <PaneWidths width={width} onResize={resize} />}
         <AssistantPane subject={subject} returnFocusTo={chip} />
         {live}

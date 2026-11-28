@@ -646,8 +646,11 @@ button {
 }
 .qcms-builder__tabpanel {
   display: grid;
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   min-block-size: 0;
+}
+.qcms-builder__tabpanel--preview {
+  grid-template-rows: minmax(0, 1fr);
 }
 /* The preview is taller than a short pane allows, so it scrolls in its own box. */
 .qcms-builder__pane-body--preview {
