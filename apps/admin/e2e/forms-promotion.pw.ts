@@ -7,6 +7,8 @@ import { PORTAL_PORT } from "../../portal/e2e/support/harness-config.js";
 import { waitForHydration as waitForPortalHydration } from "../../portal/e2e/support/hydration.js";
 import { answerPosted, fillText } from "../../portal/e2e/support/kitchen-sink.js";
 
+import { environmentLabel } from "../lib/environment.js";
+
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { chooseEnvironment } from "./support/environment.js";
 import { enrollNewAdmin } from "./support/flow.js";
@@ -151,7 +153,9 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
       'div[data-environment="prod"] span[data-code="DRAFT_PUBLISH_NOT_ALLOWED"]',
     ),
   ).toBeVisible();
-  await expect(destinations.getByRole("checkbox", { name: "prod", exact: true })).toBeDisabled();
+  await expect(
+    destinations.getByRole("checkbox", { name: environmentLabel("prod"), exact: true }),
+  ).toBeDisabled();
 
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByRole("link", { name: "Cancel", exact: true }).click();
