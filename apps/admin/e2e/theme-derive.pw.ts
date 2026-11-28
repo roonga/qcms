@@ -183,7 +183,7 @@ test("reads a site, previews it unsaved, keeps it as a theme and applies it", as
   await expect(page.getByTestId("qcms-appearance-unsaved")).toHaveCount(0);
   await axeClean(page, "the drawer after the theme was kept");
 
-  await page.getByTestId("qcms-appearance-done").locator("button").click();
+  await page.getByTestId("qcms-appearance-done").click();
   await expect(page.getByText("Appearance saved to the draft.")).toBeVisible();
 
   await page.reload();

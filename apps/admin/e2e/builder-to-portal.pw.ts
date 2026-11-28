@@ -83,7 +83,7 @@ test("dresses it in the drawer, publishes through the wizard and hands back to t
   await drawer(page).getByLabel("Theme", { exact: true }).selectOption({ label: "Plum" });
   await drawer(page).getByRole("button", { name: "Large", exact: true }).click();
   await expect(page.getByTestId("qcms-appearance-text-size")).toHaveValue(String(TEXT_BASE_PX));
-  await page.getByTestId("qcms-appearance-done").locator("button").click();
+  await page.getByTestId("qcms-appearance-done").click();
   await expect(page.getByText("Appearance saved to the draft.")).toBeVisible();
 
   // The builder's own Publish, which is the wizard with a hand-back to this screen.
