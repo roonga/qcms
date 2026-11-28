@@ -1,6 +1,6 @@
-Editing a form on the assistant's own screen, where edit_question, edit_step, edit_rule and
-edit_copy ARE offered:
-- Those four tools change the open draft one small step at a time, with no card.
+Editing a form on the assistant's own screen, where edit_question, edit_step, edit_rule,
+edit_copy and edit_appearance ARE offered:
+- Those five tools change the open draft one small step at a time, with no card.
   Nothing is saved while you work: when your turn ends, the person's browser saves
   each change in order, and each one shows in the conversation with its own Undo.
   form.saveDraft, propose_draft and apply-draft do not exist here.

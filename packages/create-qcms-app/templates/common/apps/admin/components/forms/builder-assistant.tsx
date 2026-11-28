@@ -34,6 +34,7 @@ const OP_LABELS: Readonly<Record<BuilderEditOp, MessageKey>> = {
   step: "builder.edit.op.step",
   rule: "builder.edit.op.rule",
   copy: "builder.edit.op.copy",
+  appearance: "builder.edit.op.appearance",
 };
 
 const STATE_LABELS: Readonly<Record<EditRecordState, MessageKey>> = {
@@ -99,7 +100,11 @@ function EditRow({
 
 /** The server actions an existing form's builder saves its edits through, bound to that form. */
 export interface BuilderEditActions {
-  readonly apply: (definition: unknown, token: string) => Promise<AgentEditState>;
+  readonly apply: (
+    definition: unknown,
+    token: string,
+    appearance?: unknown,
+  ) => Promise<AgentEditState>;
   readonly readStored: () => Promise<StoredDraftState>;
 }
 
@@ -157,9 +162,11 @@ export function BuilderAssistant({
         : {
             readStored: async () => {
               const stored = await actions.readStored();
-              return stored.status === "read" ? stored.definition : undefined;
+              return stored.status === "read"
+                ? { definition: stored.definition, appearance: stored.appearance }
+                : undefined;
             },
-            save: (definition, token) => actions.apply(definition, token),
+            save: (definition, token, appearance) => actions.apply(definition, token, appearance),
           },
     [actions],
   );

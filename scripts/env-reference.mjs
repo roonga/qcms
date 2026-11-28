@@ -526,7 +526,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "off",
     description:
-      "`on` mounts `POST /admin/workspaces/{id}/themes/derive`, the one outbound fetch to an address a user types (SEC-18): the page, up to two of its own stylesheets and one PNG or JPEG logo. Separate from `QCMS_FLAG_AGENT_AUTHORING`; `off` leaves the route 404 whatever that says.",
+      "`on` mounts `POST /admin/workspaces/{id}/themes/derive`, the one outbound fetch to an address a user types (SEC-18): the page, up to two of its own stylesheets and one PNG or JPEG logo. Separate from `QCMS_FLAG_AGENT_AUTHORING`; `off` leaves the route 404 whatever that says, and withholds the `theme.derive` kind from the agent builder, so no card is offered for an act that has no route.",
   },
   {
     name: "QCMS_THEME_DERIVE_ALLOWED_HOSTS",
@@ -852,6 +852,14 @@ export const ENV_REFERENCE = [
     fallback: "none",
     description:
       "Match the API provider setting to mount the panel and streaming proxy. Browser code receives enabled behavior; provider keys stay in the API.",
+  },
+  {
+    name: "QCMS_FLAG_THEME_DERIVE",
+    process: "admin",
+    requirement: "optional",
+    fallback: "off",
+    description:
+      "Match the API's `QCMS_FLAG_THEME_DERIVE`. Only `on` offers the appearance drawer's \"From your website\" row; anything else leaves it out, because the derive route that row calls is unmounted. The allowlist, proxy and rate limits stay API-only.",
   },
   {
     name: "QCMS_API_BASE_URL",

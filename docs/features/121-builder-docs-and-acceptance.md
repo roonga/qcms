@@ -10,6 +10,8 @@ Closes the builder programme: the docs say what shipped, the flows that cross ta
 ## Deliverables
 
 - S2 docs: `docs/theming.md` (per-form appearance, per-theme high contrast, text-size compounding), `docs/operations.md` and `docs/deploy-enterprise.md` (the SEC-18 flag, egress allowlist or proxy), `apps/portal/README.md`, `docs/agent-authoring.md` (the builder, card-less edits, what the agent cannot do), create-qcms-app templates.
+- `QCMS_FLAG_THEME_DERIVE` wired to the admin: compose, the scaffold template and the operator table, so the drawer's "From your website" row hides when the flag is off (Code Owner, 2026-11-22). Task 117 shipped the flow without it.
+- The API withholds the `theme.derive` kind while that flag is off, so the builder is never offered a card the drawer has no row to finish (Code Owner, 2026-11-27).
 - Cross-flow e2e: builder create, card-less edits, drawer, publish through the wizard with the diff, return to `/build`, the respondent sees the appearance in the portal; a derived theme saved and applied end to end.
 - Sentinel sweep: the SEC-17 sentinel and vocabulary tests over every fact, tool and kind added by 111, 112 and 117, the derive output included.
 - Each builder required test of `plan/agent-builder-decisions.md` traced to its test, in `plan/work-order-sequence.md`.
@@ -26,11 +28,13 @@ Spec criteria owned: **117, 123**. This task owns those and no others.
 - Criterion 117: on a prod-only site with second approval on, a draft publish requested, then an appearance-only change: the approval is refused with the "draft has changed" message.
 - Criterion 123: Move form carries appearance by value; after the move the draft and versions keep it; a destination lock refuses a later appearance edit, not the move; the Move form confirmation says so.
 - Playwright (X3): drawer to publish to portal across the admin and portal stacks.
+- The drawer offers no derive row with `QCMS_FLAG_THEME_DERIVE` off, and the row with it on.
+- The API offers no `theme.derive` kind with that flag off, and offers it with the flag on.
 - Sentinel (X4): the full sweep above.
 
 ## Files and areas
 
-`docs/{theming,operations,deploy-enterprise,agent-authoring}.md`, `apps/portal/README.md`, `apps/api/e2e/`, `apps/admin/e2e/`, `apps/portal/e2e/`, `apps/api/src/features/agent/` (sentinel tests), `packages/create-qcms-app/templates/`, `plan/work-order-sequence.md`, `docs/features/README.md`.
+`docs/{theming,operations,deploy-enterprise,agent-authoring}.md`, `apps/portal/README.md`, `apps/api/e2e/`, `apps/admin/e2e/`, `apps/portal/e2e/`, `apps/api/src/features/agent/` (sentinel tests), `apps/admin/lib/server/config.ts`, `apps/admin/components/forms/` (the derive row behind the flag), `packages/create-qcms-app/templates/`, `plan/work-order-sequence.md`, `docs/features/README.md`.
 
 ## Migration
 

@@ -1,16 +1,24 @@
 import type { Appearance } from "@roonga/qcms-core";
-import { render, screen } from "@testing-library/react";
+import { SHIPPED_THEMES } from "@roonga/qcms-ui/shipped-themes";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useEffect, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import {
   appearanceFromTheme,
   shippedThemeKey,
+  type DerivedTheme,
   type ThemeOption,
 } from "@/lib/forms/appearance-edit";
-import type { SaveAppearanceState } from "@/lib/forms/builder-state";
+import type {
+  CreateThemeState,
+  DeriveThemeState,
+  SaveAppearanceState,
+} from "@/lib/forms/builder-state";
 import { t } from "@/lib/i18n/en";
 import { shippedThemeOptions } from "@/lib/server/appearance-options";
+import { ProposalSeamProvider, useHeldHandOff, useProposalSeam } from "@/lib/agent/waiting";
 
 import { AppearanceDrawer } from "./appearance-drawer";
 
@@ -28,6 +36,34 @@ const FACES = [
 ];
 
 const APPLIED = appearanceFromTheme(PLUM, null);
+
+/* Shipped accents stand in for a derive's colours, so this test writes no literal #rrggbb:
+   `check:admin-theme` reads one anywhere in this tree as a token that belongs in the sheet. */
+function accent(key: string): string {
+  const found = SHIPPED_THEMES.find((theme) => theme.key === key);
+  if (found === undefined) throw new Error(`${key} is not a shipped theme`);
+  return found.accents.primary;
+}
+
+const SITE_COLOUR = accent("slate");
+const DARKER = accent("plum");
+const LIGHTER = accent("sand");
+
+const DERIVED: DerivedTheme = {
+  palettes: PLUM.palettes,
+  face: "lexend",
+  pageTint: true,
+  logoKey: "a".repeat(64),
+  corrections: [
+    { palette: "light", token: "primary", from: SITE_COLOUR, to: DARKER },
+    { palette: "dark", token: "primary", from: SITE_COLOUR, to: LIGHTER },
+  ],
+  tintDropped: ["darkHighContrast"],
+};
+
+const READ: DeriveThemeState = { status: "derived", derived: DERIVED, host: "www.example.org" };
+
+const KEPT: CreateThemeState = { status: "created", themeId: "thm_read", name: "Example" };
 
 function isOff(element: Element): boolean {
   return (
@@ -48,9 +84,19 @@ function drawer(
   appearance: Appearance | null,
   overrides: {
     readonly locked?: boolean;
+    readonly deriveEnabled?: boolean;
+    readonly handedOffAddress?: { readonly url: string; readonly nonce: number };
+    readonly handedOffThemeName?: { readonly name: string; readonly nonce: number };
+    readonly onDerive?: (url: string) => Promise<DeriveThemeState>;
+    readonly onCreateTheme?: (
+      name: string,
+      look: Appearance,
+      sourceHost: string | null,
+    ) => Promise<CreateThemeState>;
     readonly onPreview?: (next: Appearance | null) => void;
     readonly onSave?: (next: Appearance | null) => Promise<SaveAppearanceState>;
     readonly onClose?: () => void;
+    readonly onDeriveDropped?: () => void;
   } = {},
 ) {
   return (
@@ -59,11 +105,96 @@ function drawer(
       themes={[PLUM]}
       faces={FACES}
       locked={overrides.locked ?? false}
+      deriveEnabled={overrides.deriveEnabled ?? true}
+      handedOffAddress={overrides.handedOffAddress}
+      handedOffThemeName={overrides.handedOffThemeName}
+      onAddressTaken={() => undefined}
+      onThemeNameTaken={() => undefined}
+      onDeriveDropped={overrides.onDeriveDropped ?? (() => undefined)}
+      onDerive={overrides.onDerive ?? (() => Promise.resolve(READ))}
+      onCreateTheme={overrides.onCreateTheme ?? (() => Promise.resolve(KEPT))}
       onPreview={overrides.onPreview ?? (() => undefined)}
       onSave={overrides.onSave ?? (() => Promise.resolve(SAVED))}
       onClose={overrides.onClose ?? (() => undefined)}
     />
   );
+}
+
+/*
+ * The builder's own wiring around the drawer: it holds a confirmed hand-off while the drawer
+ * closes and opens again, which is where a second, unconfirmed fetch would come from.
+ */
+function HandOffHost({
+  onDerive,
+}: {
+  readonly onDerive: (url: string) => Promise<DeriveThemeState>;
+}) {
+  const seam = useProposalSeam();
+  const [held, taken] = useHeldHandOff("appearance.derive");
+  const [open, setOpen] = useState(false);
+  const url = held?.fields["url"];
+
+  useEffect(() => {
+    if (held !== undefined) setOpen(true);
+  }, [held]);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          seam?.requestHandOff("appearance.derive", { url: "https://brand.example/" });
+        }}
+      >
+        hand off
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(false);
+        }}
+      >
+        close the drawer
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
+        open the drawer
+      </button>
+      {open && (
+        <AppearanceDrawer
+          appearance={APPLIED}
+          themes={[PLUM]}
+          faces={FACES}
+          locked={false}
+          deriveEnabled
+          handedOffAddress={
+            held === undefined || url === undefined ? undefined : { url, nonce: held.nonce }
+          }
+          handedOffThemeName={undefined}
+          onAddressTaken={taken}
+          onThemeNameTaken={() => undefined}
+          onDeriveDropped={() => undefined}
+          onDerive={onDerive}
+          onCreateTheme={() => Promise.resolve(KEPT)}
+          onPreview={() => undefined}
+          onSave={() => Promise.resolve(SAVED)}
+          onClose={() => undefined}
+        />
+      )}
+    </>
+  );
+}
+
+function address(): HTMLInputElement {
+  return screen.getByRole<HTMLInputElement>("textbox", { name: "Website address" });
+}
+
+function getTheme(): HTMLButtonElement {
+  return screen.getByRole<HTMLButtonElement>("button", { name: "Get theme" });
 }
 
 describe("choosing a theme", () => {
@@ -172,7 +303,7 @@ describe("saving", () => {
       t("appearance.contrastFailure", {
         foreground: "text-muted",
         background: "surface",
-        palette: t("appearance.palette.lightHighContrast"),
+        mode: t("appearance.mode.lightHighContrast"),
         ratio: "4.2",
         required: "7.0",
       }),
@@ -184,5 +315,251 @@ describe("saving", () => {
     render(drawer(APPLIED, { onClose }));
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("reading a theme from a website", () => {
+  it("offers Get theme only for a full https address", async () => {
+    render(drawer(APPLIED));
+    expect(isOff(getTheme())).toBe(true);
+    await userEvent.type(address(), "example.org");
+    expect(isOff(getTheme())).toBe(true);
+    await userEvent.clear(address());
+    await userEvent.type(address(), "http://www.example.org/");
+    expect(isOff(getTheme())).toBe(true);
+    await userEvent.clear(address());
+    await userEvent.type(address(), "https://www.example.org/");
+    expect(isOff(getTheme())).toBe(false);
+  });
+
+  it("derives the address typed here, and nothing else", async () => {
+    const onDerive = vi.fn<(url: string) => Promise<DeriveThemeState>>(() => Promise.resolve(READ));
+    render(drawer(APPLIED, { onDerive }));
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    expect(onDerive.mock.calls).toStrictEqual([["https://www.example.org/"]]);
+  });
+
+  it("previews the look it answered and reports what it kept", async () => {
+    const onPreview = vi.fn();
+    render(drawer(APPLIED, { onPreview }));
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    expect(await screen.findByTestId("qcms-appearance-derive-values")).toBeTruthy();
+    expect(onPreview.mock.calls.at(-1)?.[0]).toMatchObject({
+      palettes: DERIVED.palettes,
+      face: "lexend",
+      pageTint: true,
+      logo: DERIVED.logoKey,
+    });
+    expect(screen.getByText(/Nothing from the site is stored/u)).toBeTruthy();
+  });
+
+  it("names every colour it moved to keep the look readable", async () => {
+    render(drawer(APPLIED));
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    const report = await screen.findByTestId("qcms-appearance-derive-corrections");
+    expect(report.textContent).toContain("2 colours were moved");
+    expect(report.textContent).toContain(`${SITE_COLOUR} became ${DARKER} in Light mode`);
+    expect(report.textContent).toContain("The page tint was left off");
+  });
+
+  it("marks the derived look Not saved until it is kept as a workspace theme", async () => {
+    render(drawer(APPLIED));
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    expect((await screen.findByRole("combobox", { name: "Theme" })).textContent).toContain(
+      "Not saved",
+    );
+    expect(screen.getByTestId("qcms-appearance-unsaved")).toBeTruthy();
+  });
+
+  it("keeps the look under the name typed here, with the host it was read from", async () => {
+    const onCreateTheme = vi.fn<
+      (name: string, look: Appearance, host: string | null) => Promise<CreateThemeState>
+    >(() => Promise.resolve(KEPT));
+    render(drawer(APPLIED, { onCreateTheme }));
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    await userEvent.click(await screen.findByTestId("qcms-appearance-theme-save"));
+    await userEvent.type(screen.getByTestId("qcms-appearance-theme-name"), "Example");
+    await userEvent.click(screen.getByTestId("qcms-appearance-theme-save"));
+    expect(onCreateTheme.mock.calls[0]?.[0]).toBe("Example");
+    expect(onCreateTheme.mock.calls[0]?.[2]).toBe("www.example.org");
+    expect(await screen.findByText("Example is a workspace theme now.")).toBeTruthy();
+    expect(screen.queryByTestId("qcms-appearance-unsaved")).toBeNull();
+  });
+
+  it("restores the look that was there when the derive is cancelled", async () => {
+    const onPreview = vi.fn();
+    const onDeriveDropped = vi.fn();
+    render(drawer(APPLIED, { onPreview, onDeriveDropped }));
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    await userEvent.click(await screen.findByTestId("qcms-appearance-derive-cancel"));
+    expect(onPreview.mock.calls.at(-1)?.[0]).toStrictEqual(APPLIED);
+    expect(screen.queryByTestId("qcms-appearance-derive-values")).toBeNull();
+    expect(onDeriveDropped).toHaveBeenCalledTimes(1);
+  });
+
+  it("says why an address was refused and changes nothing", async () => {
+    const onPreview = vi.fn();
+    render(
+      drawer(APPLIED, {
+        onPreview,
+        onDerive: () =>
+          Promise.resolve<DeriveThemeState>({
+            status: "error",
+            code: "THEME_DERIVE_REFUSED",
+            message: "That address could not be read for a theme.",
+          }),
+      }),
+    );
+    await userEvent.type(address(), "https://www.example.org/");
+    await userEvent.click(getTheme());
+    expect((await screen.findByTestId("qcms-appearance-derive-error")).textContent).toContain(
+      "That address could not be read for a theme.",
+    );
+    expect(onPreview).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("qcms-appearance-derive-values")).toBeNull();
+  });
+
+  it("derives the address a confirmed card handed over, already typed", async () => {
+    const onDerive = vi.fn<(url: string) => Promise<DeriveThemeState>>(() => Promise.resolve(READ));
+    render(
+      drawer(APPLIED, { onDerive, handedOffAddress: { url: "https://brand.example/", nonce: 1 } }),
+    );
+    expect(await screen.findByTestId("qcms-appearance-derive-values")).toBeTruthy();
+    expect(address().value).toBe("https://brand.example/");
+    expect(onDerive.mock.calls).toStrictEqual([["https://brand.example/"]]);
+  });
+
+  it("derives a held hand-off once, however often the drawer is opened again", async () => {
+    const onDerive = vi.fn<(url: string) => Promise<DeriveThemeState>>(() => Promise.resolve(READ));
+    render(
+      <ProposalSeamProvider onReview={vi.fn()}>
+        <HandOffHost onDerive={onDerive} />
+      </ProposalSeamProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "hand off" }));
+    expect(await screen.findByTestId("qcms-appearance-derive-values")).toBeTruthy();
+    expect(onDerive.mock.calls).toStrictEqual([["https://brand.example/"]]);
+
+    await userEvent.click(screen.getByRole("button", { name: "close the drawer" }));
+    expect(screen.queryByTestId("qcms-appearance-drawer")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "open the drawer" }));
+    expect(screen.getByTestId("qcms-appearance-drawer")).toBeTruthy();
+    expect(onDerive.mock.calls).toStrictEqual([["https://brand.example/"]]);
+    expect(address().value).toBe("");
+  });
+
+  it("disables the address, Get theme and the save on a locked workspace", () => {
+    render(drawer(APPLIED, { locked: true }));
+    expect(isOff(address())).toBe(true);
+    expect(isOff(getTheme())).toBe(true);
+    expect(address().getAttribute("aria-describedby")).toContain("qcms-appearance-lock-reason");
+  });
+});
+
+describe("keeping the drawer's look as a workspace theme", () => {
+  it("offers the save on any look, not only one a derive answered", async () => {
+    const onCreateTheme = vi.fn<
+      (name: string, look: Appearance, host: string | null) => Promise<CreateThemeState>
+    >(() => Promise.resolve(KEPT));
+    render(drawer(APPLIED, { onCreateTheme }));
+    await userEvent.click(screen.getByTestId("qcms-appearance-theme-save"));
+    await userEvent.type(screen.getByTestId("qcms-appearance-theme-name"), "Example");
+    await userEvent.click(screen.getByTestId("qcms-appearance-theme-save"));
+    expect(onCreateTheme.mock.calls[0]?.[0]).toBe("Example");
+    expect(onCreateTheme.mock.calls[0]?.[2]).toBeNull();
+  });
+
+  it("offers nothing to keep while the form is on the deployment default", () => {
+    render(drawer(null));
+    expect(screen.queryByTestId("qcms-appearance-theme-save")).toBeNull();
+  });
+
+  it("opens the save with the name a confirmed card gave", async () => {
+    render(drawer(APPLIED, { handedOffThemeName: { name: "Bright Start", nonce: 1 } }));
+    const field = await screen.findByTestId<HTMLInputElement>("qcms-appearance-theme-name");
+    expect(field.value).toBe("Bright Start");
+  });
+
+  it("says why a name was refused and keeps the look on screen", async () => {
+    render(
+      drawer(APPLIED, {
+        onCreateTheme: () =>
+          Promise.resolve<CreateThemeState>({
+            status: "error",
+            code: "THEME_NAME_TAKEN",
+            message: "This workspace already has a theme with that name.",
+          }),
+      }),
+    );
+    await userEvent.click(screen.getByTestId("qcms-appearance-theme-save"));
+    await userEvent.type(screen.getByTestId("qcms-appearance-theme-name"), "Taken");
+    await userEvent.click(screen.getByTestId("qcms-appearance-theme-save"));
+    expect((await screen.findByTestId("qcms-appearance-theme-save-error")).textContent).toContain(
+      "already has a theme with that name",
+    );
+  });
+});
+
+describe("the derive flag decides whether a website row is offered at all", () => {
+  it("offers the row, and a fetch, with QCMS_FLAG_THEME_DERIVE on", () => {
+    render(drawer(APPLIED, { deriveEnabled: true }));
+    expect(screen.getByText("From your website")).toBeTruthy();
+    expect(screen.getByTestId("qcms-appearance-derive-url")).toBeTruthy();
+    expect(getTheme()).toBeTruthy();
+  });
+
+  it("offers no row with the flag off, because the route it calls is not mounted", () => {
+    render(drawer(APPLIED, { deriveEnabled: false }));
+    expect(screen.queryByText("From your website")).toBeNull();
+    expect(screen.queryByTestId("qcms-appearance-derive-url")).toBeNull();
+    expect(screen.queryByTestId("qcms-appearance-derive-get")).toBeNull();
+  });
+
+  it("keeps the workspace theme save, which is not behind that flag", () => {
+    render(drawer(APPLIED, { deriveEnabled: false }));
+    expect(screen.getByTestId("qcms-appearance-theme-save")).toBeTruthy();
+  });
+
+  it("leaves every other axis of the drawer in place", () => {
+    render(drawer(APPLIED, { deriveEnabled: false }));
+    expect(picker("Theme")).toBeTruthy();
+    expect(picker("Face")).toBeTruthy();
+    expect(screen.getByTestId("qcms-appearance-text-size")).toBeTruthy();
+  });
+
+  it("fetches nothing for an address a card handed over while the flag is off", async () => {
+    const onDerive = vi.fn<(url: string) => Promise<DeriveThemeState>>(() => Promise.resolve(READ));
+    const onAddressTaken = vi.fn();
+    render(
+      <AppearanceDrawer
+        appearance={APPLIED}
+        themes={[PLUM]}
+        faces={FACES}
+        locked={false}
+        deriveEnabled={false}
+        handedOffAddress={{ url: "https://brand.example/", nonce: 1 }}
+        handedOffThemeName={undefined}
+        onAddressTaken={onAddressTaken}
+        onThemeNameTaken={() => undefined}
+        onDeriveDropped={() => undefined}
+        onDerive={onDerive}
+        onCreateTheme={() => Promise.resolve(KEPT)}
+        onPreview={() => undefined}
+        onSave={() => Promise.resolve(SAVED)}
+        onClose={() => undefined}
+      />,
+    );
+    // Taken, so the builder stops holding it, and not acted on.
+    await waitFor(() => {
+      expect(onAddressTaken).toHaveBeenCalled();
+    });
+    expect(onDerive).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("qcms-appearance-derive-values")).toBeNull();
   });
 });

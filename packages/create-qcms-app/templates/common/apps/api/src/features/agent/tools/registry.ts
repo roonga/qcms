@@ -10,6 +10,7 @@ import { z } from "zod";
 import {
   FormDefinition as FormDefinitionSchema,
   QuestionDefinition as QuestionDefinitionSchema,
+  type Appearance,
   type FormDefinition,
   type QuestionDefinition,
   type QuestionId,
@@ -17,13 +18,16 @@ import {
 
 import { ResponseFilterQuery } from "../../responses/admin/schema.js";
 import {
+  applyAppearanceEdit,
   applyBuilderEdit,
+  EditAppearanceInput,
   EditCopyInput,
   EditQuestionInput,
   EditRuleInput,
   EditStepInput,
   EditToolOutput,
   type BuilderEditOp,
+  type DefinitionEditOp,
   type DraftEdit,
 } from "./edit.js";
 import { proposePlanSchema } from "./propose-schema.js";
@@ -68,6 +72,7 @@ export const AGENT_TOOL_NAMES = [
   "edit_step",
   "edit_rule",
   "edit_copy",
+  "edit_appearance",
   "open_publish_wizard",
 ] as const;
 
@@ -90,6 +95,7 @@ export const AGENT_BUILDER_TOOL_NAMES = [
   "edit_step",
   "edit_rule",
   "edit_copy",
+  "edit_appearance",
   "open_publish_wizard",
 ] as const;
 
@@ -99,6 +105,7 @@ export const BUILDER_EDIT_TOOLS: Readonly<Record<string, BuilderEditOp>> = Objec
   edit_step: "step",
   edit_rule: "rule",
   edit_copy: "copy",
+  edit_appearance: "appearance",
 });
 
 export const OPEN_WIZARD_TOOL: AgentToolName = "open_publish_wizard";
@@ -153,6 +160,8 @@ export interface ProposalState {
   readonly unsentProposals: Proposal[];
   /** The builder's copy of the open draft as this turn's edits have left it. */
   workingDraft: FormDefinition | undefined;
+  /** The appearance this turn's edits have left, once one of them changed it. */
+  workingAppearance: Appearance | undefined;
   /** The builder's edits in order, minted and emitted together when the turn ends. */
   readonly edits: DraftEdit[];
   wizardRequested: boolean;
@@ -165,6 +174,7 @@ export function createProposalState(): ProposalState {
     actionProposals: [],
     unsentProposals: [],
     workingDraft: undefined,
+    workingAppearance: undefined,
     edits: [],
     wizardRequested: false,
   };
@@ -697,6 +707,7 @@ const Outputs = {
   edit_step: EditToolOutput,
   edit_rule: EditToolOutput,
   edit_copy: EditToolOutput,
+  edit_appearance: EditToolOutput,
   // Nothing is published, released or saved: the browser opens a screen the person acts on.
   open_publish_wizard: z.strictObject({ opened: z.literal(true) }),
 } as const satisfies Record<AgentToolName, z.ZodType>;
@@ -938,7 +949,7 @@ function questionRecipes(input: unknown): {
  * an applied edit reports the draft's advisory verdict as it will stand after it.
  */
 async function builderEdit(
-  op: BuilderEditOp,
+  op: DefinitionEditOp,
   input: unknown,
   ctx: AgentContext,
   state: ProposalState,
@@ -953,7 +964,7 @@ async function builderEdit(
   );
   if (!outcome.ok) return { accepted: false, reason: outcome.reason };
   state.workingDraft = outcome.definition;
-  state.edits.push({ op, definition: outcome.definition });
+  state.edits.push(recordEdit(state, op, outcome.definition));
   const { issues, warnings } = await port(ctx.validate, `edit ${op}`)(outcome.definition);
   return {
     accepted: true,
@@ -962,6 +973,44 @@ async function builderEdit(
     issues,
     warnings,
   };
+}
+
+/**
+ * One edit for the mint. Once a turn has changed the appearance, every edit after it carries
+ * that appearance too: the save's token binds the whole draft state, not the definition alone.
+ */
+function recordEdit(
+  state: ProposalState,
+  op: BuilderEditOp,
+  definition: FormDefinition,
+): DraftEdit {
+  return {
+    op,
+    definition,
+    ...(state.workingAppearance === undefined ? {} : { appearance: state.workingAppearance }),
+  };
+}
+
+/**
+ * One edit over the draft's appearance, which changes no question and no rule. The drawer
+ * shows the result and offers the Undo; nothing is saved here.
+ */
+function appearanceEdit(
+  input: unknown,
+  ctx: AgentContext,
+  state: ProposalState,
+): Record<string, unknown> {
+  const builder = port(ctx.builder, "edit appearance");
+  port(builder.mintEdits, "edit appearance");
+  const outcome = applyAppearanceEdit(
+    state.workingAppearance ?? builder.appearance,
+    input,
+    state.edits.length,
+  );
+  if (!outcome.ok) return { accepted: false, reason: outcome.reason };
+  state.workingAppearance = outcome.appearance;
+  state.edits.push(recordEdit(state, "appearance", state.workingDraft ?? builder.draft));
+  return { accepted: true, edit: state.edits.length };
 }
 
 /** Records the request and executes nothing: the browser opens the wizard once the turn ends. */
@@ -973,7 +1022,7 @@ function openWizard(ctx: AgentContext, state: ProposalState): { opened: true } {
 
 function editTool(
   name: keyof typeof Outputs,
-  op: BuilderEditOp,
+  op: DefinitionEditOp,
   inputSchema: z.ZodType,
 ): AgentToolDef {
   return {
@@ -1187,6 +1236,13 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
   edit_step: editTool("edit_step", "step", EditStepInput),
   edit_rule: editTool("edit_rule", "rule", EditRuleInput),
   edit_copy: editTool("edit_copy", "copy", EditCopyInput),
+  edit_appearance: {
+    description: TOOL_DESCRIPTIONS.edit_appearance,
+    inputSchema: EditAppearanceInput,
+    outputSchema: Outputs.edit_appearance,
+    cell: DRAFT_WRITE,
+    execute: (input, ctx, state) => Promise.resolve(appearanceEdit(input, ctx, state)),
+  },
   // No cell: the offer is decided per form, by the publish cell in the form's own workspace,
   // and the port is present only where it was.
   open_publish_wizard: {

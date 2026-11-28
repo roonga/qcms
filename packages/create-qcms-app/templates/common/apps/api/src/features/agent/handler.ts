@@ -11,6 +11,7 @@ import {
 import { getForm, getWorkspace } from "@roonga/qcms-db";
 import type { QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
 import {
+  Appearance,
   parseFormId,
   parseQuestionId,
   type FormDefinition,
@@ -34,7 +35,12 @@ import { holdsInstallationClaim, type ResolvedMembership } from "../membership/r
 import { ACCEPT_HEADER, ACCEPT_KIND, ADOPT_KIND, type AcceptRefusalCode } from "./accept-token.js";
 import { admitAgentAccept, recordAgentAccept, verifyAgentAccept } from "./audit.js";
 import { savedDraftPins } from "./draft-pins.js";
-import { mergeOffers, offeredActionKinds, offersNoAction } from "./grant-filter.js";
+import {
+  enabledActionKindFlags,
+  mergeOffers,
+  offeredActionKinds,
+  offersNoAction,
+} from "./grant-filter.js";
 import { buildProposal, type StepSubject } from "./tools/propose.js";
 import {
   AGENT_PROPOSE_TOOL_NAMES,
@@ -296,6 +302,7 @@ function actionPorts(args: {
   readonly tools: readonly AgentToolName[];
   readonly ports: Partial<Pick<AgentContext, "propose" | "offeredActionKinds">>;
 } {
+  const enabledFlags = enabledActionKindFlags(args.deps.config.flags);
   const offered = mergeOffers(
     args.held.map((membership) =>
       offeredActionKinds({
@@ -304,6 +311,7 @@ function actionPorts(args: {
         environments: args.deps.databases.names,
         current: args.build.environment,
         screen: args.screen,
+        enabledFlags,
       }),
     ),
   );
@@ -327,6 +335,7 @@ function actionPorts(args: {
           current: args.build.environment,
           screen: args.screen,
           offered,
+          enabledFlags,
           savedDraft: (formId) => savedDraftsFor(args.deps, formId),
           subjectAllows: (request) => subjectAllows(args.build, request),
           questionIdTaken: (questionId) => questionIdTaken(args.deps, questionId),
@@ -660,6 +669,12 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
  * form's own workspace: the edits for an Edit forms holder, and the wizard for a Publish forms
  * holder in any environment this deployment runs, since the wizard chooses where it lands.
  */
+/** The stored appearance as the tools read it, or none where the draft carries nothing valid. */
+function appearanceOf(raw: unknown): Appearance | null {
+  const parsed = Appearance.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
 async function builderPort(args: {
   readonly deps: Deps;
   readonly build: ScreenBuildInput;
@@ -683,7 +698,11 @@ async function builderPort(args: {
       },
     }).allowed;
   const subject = args.build.principal.userId;
-  const port: BuilderPort = { formId: args.formId, draft: args.draft };
+  const port: BuilderPort = {
+    formId: args.formId,
+    draft: args.draft,
+    appearance: appearanceOf(args.appearance),
+  };
   return {
     ...port,
     ...(allows("write")
@@ -695,9 +714,12 @@ async function builderPort(args: {
               baseVersion: args.baseVersion,
               startRevision: args.startRevision,
               edits: await Promise.all(
-                edits.map(async ({ op, definition }) => ({
+                edits.map(async ({ op, definition, appearance }) => ({
                   op,
-                  post: await draftStateDigest({ definition, appearance: args.appearance }),
+                  post: await draftStateDigest({
+                    definition,
+                    appearance: appearance ?? args.appearance,
+                  }),
                 })),
               ),
               issuedAt: args.deps.clock.now(),

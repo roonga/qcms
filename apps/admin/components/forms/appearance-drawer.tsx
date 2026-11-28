@@ -8,13 +8,19 @@ import {
   DEFAULT_CORNERS,
   DEFAULT_DENSITY,
   DEFAULT_PROGRESS,
+  appearanceFromDerived,
   appearanceFromTheme,
   currentThemeKey,
   themeSwatch,
+  type DerivedTheme,
   type ThemeOption,
 } from "@/lib/forms/appearance-edit";
 import { contrastFailureSentence } from "@/lib/forms/appearance-report";
-import type { SaveAppearanceState } from "@/lib/forms/builder-state";
+import type {
+  CreateThemeState,
+  DeriveThemeState,
+  SaveAppearanceState,
+} from "@/lib/forms/builder-state";
 import {
   PREVIEW_CORNERS,
   PREVIEW_DENSITIES,
@@ -36,12 +42,15 @@ import {
 } from "@/lib/forms/text-size";
 import { t, type MessageKey } from "@/lib/i18n/en";
 
+import { AppearanceDerive } from "./appearance-derive";
+
 export interface FaceChoice {
   readonly key: string;
   readonly label: string;
 }
 
 const LOCK_REASON_ID = "qcms-appearance-lock-reason";
+const UNSAVED_ID = "qcms-appearance-unsaved";
 const SIZE_ERROR_ID = "qcms-appearance-size-error";
 const SIZE_LABEL_ID = "qcms-appearance-size-label";
 const THEME_FIELD_ID = "qcms-appearance-theme";
@@ -168,18 +177,13 @@ function themeChoices(
   themes: readonly ThemeOption[],
   themeKey: string | undefined,
   noAppearance: boolean,
+  unsaved: boolean,
 ): readonly { readonly label: string; readonly value: string }[] {
-  const current =
-    themeKey === undefined
-      ? [
-          {
-            label: noAppearance
-              ? t("appearance.theme.deployment")
-              : t("appearance.theme.ownColours"),
-            value: "",
-          },
-        ]
-      : [];
+  const label = (): string => {
+    if (unsaved) return t("appearance.derive.notSaved");
+    return noAppearance ? t("appearance.theme.deployment") : t("appearance.theme.ownColours");
+  };
+  const current = themeKey === undefined || unsaved ? [{ label: label(), value: "" }] : [];
   return [...current, ...themes.map((theme) => ({ label: theme.name, value: theme.key }))];
 }
 
@@ -203,6 +207,14 @@ export function AppearanceDrawer({
   themes,
   faces,
   locked,
+  deriveEnabled,
+  handedOffAddress,
+  handedOffThemeName,
+  onAddressTaken,
+  onThemeNameTaken,
+  onDeriveDropped,
+  onDerive,
+  onCreateTheme,
   onPreview,
   onSave,
   onClose,
@@ -211,6 +223,23 @@ export function AppearanceDrawer({
   readonly themes: readonly ThemeOption[];
   readonly faces: readonly FaceChoice[];
   readonly locked: boolean;
+  /** `QCMS_FLAG_THEME_DERIVE`. With it off the derive route is a 404, so no row offers a fetch. */
+  readonly deriveEnabled: boolean;
+  /** The address a confirmed `theme.derive` card collected, which only the person typed. */
+  readonly handedOffAddress: { readonly url: string; readonly nonce: number } | undefined;
+  /** The theme name a confirmed `theme.save` card named. */
+  readonly handedOffThemeName: { readonly name: string; readonly nonce: number } | undefined;
+  /** Each hand-off is acted on once: the holder drops it when the drawer has taken it. */
+  readonly onAddressTaken: () => void;
+  readonly onThemeNameTaken: () => void;
+  /** Dropping a derived look unpublishes it, so no stale colours stay on offer. */
+  readonly onDeriveDropped: () => void;
+  readonly onDerive: (url: string) => Promise<DeriveThemeState>;
+  readonly onCreateTheme: (
+    name: string,
+    look: Appearance,
+    sourceHost: string | null,
+  ) => Promise<CreateThemeState>;
   readonly onPreview: (next: Appearance | null) => void;
   readonly onSave: (next: Appearance | null) => Promise<SaveAppearanceState>;
   readonly onClose: () => void;
@@ -219,6 +248,8 @@ export function AppearanceDrawer({
   const sizeField = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<SaveAppearanceState | undefined>(undefined);
   const [typed, setTyped] = useState<string | undefined>(undefined);
+  const [unsaved, setUnsaved] = useState<{ readonly host: string } | undefined>(undefined);
+  const [beforeDerive, setBeforeDerive] = useState<Appearance | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -315,15 +346,22 @@ export function AppearanceDrawer({
           <Picker
             id={THEME_FIELD_ID}
             label={t("appearance.theme")}
-            value={themeKey ?? ""}
+            value={unsaved === undefined ? (themeKey ?? "") : ""}
             isDisabled={locked}
-            describedBy={reason}
-            options={themeChoices(themes, themeKey, noAppearance)}
+            describedBy={describedBy(unsaved === undefined ? undefined : UNSAVED_ID, reason)}
+            options={themeChoices(themes, themeKey, noAppearance, unsaved !== undefined)}
             onPick={(next) => {
               const theme = themes.find((candidate) => candidate.key === next);
-              if (theme !== undefined) change(appearanceFromTheme(theme, appearance));
+              if (theme === undefined) return;
+              setUnsaved(undefined);
+              change(appearanceFromTheme(theme, appearance));
             }}
           />
+          {unsaved !== undefined && (
+            <p className="qcms-adrawer__hint" id={UNSAVED_ID} data-testid="qcms-appearance-unsaved">
+              {t("appearance.derive.notSaved.hint")}
+            </p>
+          )}
           {appearance !== null && <Swatch palettes={appearance.palettes} />}
           <div className="qcms-adrawer__check">
             <input
@@ -488,6 +526,40 @@ export function AppearanceDrawer({
           describedBy={reason}
           onPick={(value) => {
             edit({ progress: value as Appearance["progress"] });
+          }}
+        />
+
+        <AppearanceDerive
+          locked={locked}
+          enabled={deriveEnabled}
+          describedBy={reason}
+          handedOff={handedOffAddress}
+          handedOffName={handedOffThemeName}
+          onTaken={onAddressTaken}
+          onNameTaken={onThemeNameTaken}
+          canSave={appearance !== null}
+          onDerive={onDerive}
+          onCreateTheme={(name) =>
+            appearance === null
+              ? Promise.resolve<CreateThemeState>({
+                  status: "error",
+                  code: "INVALID_THEME",
+                  message: t("themes.error.invalid"),
+                })
+              : onCreateTheme(name, appearance, unsaved?.host ?? null)
+          }
+          onApply={(derived: DerivedTheme, host) => {
+            setBeforeDerive(appearance);
+            setUnsaved({ host });
+            change(appearanceFromDerived(derived, appearance));
+          }}
+          onDiscard={() => {
+            setUnsaved(undefined);
+            change(beforeDerive);
+            onDeriveDropped();
+          }}
+          onSaved={() => {
+            setUnsaved(undefined);
           }}
         />
 

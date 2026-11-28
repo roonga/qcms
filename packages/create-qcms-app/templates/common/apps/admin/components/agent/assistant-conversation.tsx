@@ -403,7 +403,11 @@ function ScreenConversation({
     record(plan, settled);
   };
 
-  const confirmCard = async (plan: AgentProposal, from: AgentCardView): Promise<void> => {
+  const confirmCard = async (
+    plan: AgentProposal,
+    from: AgentCardView,
+    typedInput?: string,
+  ): Promise<void> => {
     // Subscribe before running: the accept's own save is the event being awaited.
     const saved = continuesAfterAccept(plan) ? nextDraftSaved() : undefined;
     const started = startRun(from);
@@ -419,6 +423,7 @@ function ScreenConversation({
         requestHandOff(control, handOffFields(args));
       },
       now: () => new Date(),
+      ...(typedInput === undefined ? {} : { typedInput }),
       windowLeftMs: () => remainingWindowMs(windowRef.current, monotonicNow()),
     });
     settle(plan, settled);
@@ -685,7 +690,7 @@ function ScreenConversation({
               names={names}
               reason={reason}
               remainingMs={remainingWindowMs(windowRef.current, monotonicNow())}
-              onConfirm={() => void confirmCard(proposal, card)}
+              onConfirm={(typedInput) => void confirmCard(proposal, card, typedInput)}
               onCancel={() => settle(proposal, cancelCard(card, new Date().toISOString()))}
               onStop={() => showCard(requestStop(card))}
               onDismissReveal={dismissOpenReveal}

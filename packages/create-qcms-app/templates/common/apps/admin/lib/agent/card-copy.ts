@@ -498,6 +498,29 @@ export function isTypedConfirmed(typed: string, required: string | undefined): b
   return required === undefined || typed.trim() === required;
 }
 
+/**
+ * The argument this plan asks the person to type, which the card collects and shows in full.
+ * No step carries a value for it, because no proposal may name one (SEC-18 W2).
+ */
+export function typedInputField(steps: readonly AgentPlanStep[]): string | undefined {
+  for (const step of steps) {
+    if (step.card.typedInput !== undefined) return step.card.typedInput;
+  }
+  return undefined;
+}
+
+/** A typed address is offered to the screen only as a whole https address. */
+export function isTypedInputReady(field: string | undefined, typed: string): boolean {
+  if (field === undefined) return true;
+  const value = typed.trim();
+  if (!value.toLowerCase().startsWith("https://")) return false;
+  try {
+    return new URL(value).hostname !== "";
+  } catch {
+    return false;
+  }
+}
+
 export function hasIrreversibleStep(steps: readonly AgentPlanStep[]): boolean {
   return steps.some((step) => step.card.typedConfirmation !== undefined);
 }

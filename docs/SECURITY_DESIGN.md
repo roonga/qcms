@@ -1046,7 +1046,7 @@ Every definition a plan carries is also run through the route's own `checkQuesti
 
 ## 8e. Theme derive fetch - SEC-18
 
-**Status: built (task 110).** Code Owner rulings of 2026-11-08 and 2026-11-13 (agent-builder Q7, amended by Q19 to Q21, and "Security review requirements" in `plan/agent-builder-decisions.md`). Every line below has a named test in task 110 except the Confirm-card half of W2 and all of M3, which tasks 117 and 121 verify (the `theme.derive` card, and the X4 sentinel and vocabulary walks over the derive output). Phase 4; it does not gate launch.
+**Status: built (task 110).** Code Owner rulings of 2026-11-08 and 2026-11-13 (agent-builder Q7, amended by Q19 to Q21, and "Security review requirements" in `plan/agent-builder-decisions.md`). Every line below has a named test in task 110 except the Confirm-card half of W2 and all of M3, which task 117 verifies and task 121 sweeps. Phase 4; it does not gate launch.
 
 **What changes about the threat model.** Deriving a workspace theme from a website is the only outbound fetch QCMS makes to an address a user chose, so it is a server-side request forgery surface: a URL that resolves to, or redirects to, an internal address would make the API a proxy into the operator's network. Webhook egress (SEC-6) is a different shape, an operator-configured endpoint the API posts to, and `apps/api/src/features/webhooks/ssrf.ts` checks address literals only and pins no DNS answer, so nothing there is reused. The fetch goes through a new `BrandFetcher` port held to this section line by line.
 
@@ -1059,7 +1059,7 @@ Every definition a plan carries is also run through the route's own `checkQuesti
 **Who and what (Q7, Q21).**
 
 - **W1.** Only an Edit forms holder in that workspace may derive (`docs/WORKSPACE_ACCESS.md` section 3); route policy decides it, as for every admin route.
-- **W2.** The user types the URL. The model never supplies it, and the confirmation card shows it in full before anything is fetched.
+- **W2.** The user types the URL and the model never supplies it. A derive the assistant proposes takes a Confirm card, which echoes the whole typed address as wrapping text above Confirm, so a long address cannot hide its host, and nothing is fetched until that Confirm. In the appearance drawer's own **Get theme** the person's typed address and their click is the confirm, and no card stands between the two (Code Owner, 2026-11-23).
 - **W3.** Derives are rate limited per user and per workspace.
 - **W4.** Each fetch writes one workspace audit row carrying the source host, and no page content (SEC-15, `docs/WORKSPACE_ACCESS.md` section 11).
 
@@ -1102,7 +1102,8 @@ Every definition a plan carries is also run through the route's own `checkQuesti
 - `brand-fetcher/derive.test.ts`: F8 (each subresource its own fetch, same-site only, a refused page or stylesheet fatal and a refused logo dropped), F6 (a 1 MiB hostile page and a 2 MiB hostile stylesheet each scanned in well under a second) and M1 and M2 (no page text in the output; a free string fails the schema).
 - `theme-derive.integration.test.ts`: S1 (404 with the agent flag on and this flag off), W1 and criterion 119 (Edit forms only), W2 (exactly the typed URL fetched first, and a body with any other field refused), W4 (one row per host contacted, through a redirect, a stylesheet and a logo), F8 at the route (a refused logo derives without one, a refused stylesheet refuses), F10 at the route (byte-identical bodies), W3 (per user and per workspace).
 - `appearance.integration.test.ts`: the hand upload, with the derive flag off, decoded, capped and re-encoded (F7), a second IHDR refused, an interlaced PNG and a WebP answered `LOGO_UNSUPPORTED`.
-- M3 and the Confirm card of W2: tasks 117 (X4 derive sentinel, the `theme.derive` card) and 121 (the sentinel sweep).
+- W2's Confirm card (task 117): `agent/actions/themes.test.ts` and `agent/parity.test.ts`, that `theme.derive` carries no `url` argument at all, so no proposal can name an address, and that its card template asks the user to type one; `components/agent/action-card.test.tsx`, that the card echoes the exact typed address in full and holds Confirm closed until it is an `https://` address; `apps/admin/e2e/theme-derive.pw.ts`, the proposed card through the browser: a long address echoed whole and wrapping, Confirm held until the address is a whole `https://` one, and Confirm handing the drawer an address it derives once.
+- M3 (task 117): `brand-fetcher/derive-sentinel.test.ts`, the X4 walk over the derive output and the `derived-theme` fact built from it, and `agent/screens.test.ts`, which holds that fact to the field-vocabulary and sentinel walks with every other builder fact. Task 121 sweeps them.
 - `config.test.ts`: S1, S2 and S3 parsing.
 - `01-authorization-matrix.e2e.ts` and `matrix-coverage.e2e.ts`: the route's matrix row.
 

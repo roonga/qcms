@@ -1,6 +1,7 @@
 /**
- * The builder's two facts, built in the browser from ids, enums and bounded numbers only,
- * in the shape the API's strict `PreviewSelectionFact` and `LayoutReportFact` accept.
+ * The builder's three facts, built in the browser from ids, enums, hex colours and bounded
+ * numbers only, in the shape the API's strict `PreviewSelectionFact`, `LayoutReportFact` and
+ * `DerivedThemeFact` accept.
  */
 
 export type FactDevice = "phone" | "tablet" | "desktop" | "custom";
@@ -124,6 +125,111 @@ export function layoutReportFact(input: {
     findings: input.findings
       .filter((finding) => idOk(QuestionId, finding.questionId))
       .slice(0, FINDINGS_MAX),
+  };
+}
+
+export const PALETTE_KINDS = ["light", "dark", "lightHighContrast", "darkHighContrast"] as const;
+export type FactPaletteKind = (typeof PALETTE_KINDS)[number];
+
+export type FactPalette = Readonly<Record<string, string>>;
+
+export interface FactCorrection {
+  readonly palette: FactPaletteKind;
+  /** The colour's part in the palette. `token` is in the vocabulary the fact walk refuses. */
+  readonly role: string;
+  readonly from: string;
+  readonly to: string;
+}
+
+export interface DerivedThemeFact {
+  readonly fact: "derived-theme";
+  readonly formId: string;
+  readonly palettes: Readonly<Record<FactPaletteKind, FactPalette>>;
+  readonly face: string;
+  readonly pageTint: boolean;
+  /** Whether a logo came with it. The key itself stays in the browser, never in a fact (M2). */
+  readonly hasLogo: boolean;
+  readonly corrections: readonly FactCorrection[];
+  readonly tintDropped: readonly FactPaletteKind[];
+}
+
+/** The grammars the API's strict fact schema holds each value to, restated as above. */
+const Hex = /^#[0-9a-f]{6}$/u;
+const Face = /^[a-z0-9]+$/u;
+const Role = /^[a-z]+(-[a-z]+)*$/u;
+const CORRECTIONS_MAX = 200;
+
+function hex(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const lower = value.toLowerCase();
+  return Hex.test(lower) ? lower : undefined;
+}
+
+/** `undefined` when any colour is not a hex colour, so no free string can ride in one. */
+function palette(raw: unknown): FactPalette | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const colours: Record<string, string> = {};
+  for (const [token, value] of Object.entries(raw)) {
+    const colour = hex(value);
+    if (!Role.test(token) || colour === undefined) return undefined;
+    colours[token] = colour;
+  }
+  return Object.keys(colours).length === 0 ? undefined : colours;
+}
+
+function correction(raw: unknown): FactCorrection | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const row = raw as Record<string, unknown>;
+  const kind = row["palette"];
+  const role = row["token"];
+  const from = hex(row["from"]);
+  const to = hex(row["to"]);
+  if (typeof kind !== "string" || !isPaletteKind(kind)) return undefined;
+  if (typeof role !== "string" || !Role.test(role)) return undefined;
+  if (from === undefined || to === undefined) return undefined;
+  return { palette: kind, role, from, to };
+}
+
+function isPaletteKind(value: string): value is FactPaletteKind {
+  return (PALETTE_KINDS as readonly string[]).includes(value);
+}
+
+/**
+ * What a derive lets the next turn see: the colours, the face and the tint, whether a logo came
+ * with it, and what was moved to keep it readable. No host, no logo key and no page text, and
+ * `undefined` rather than a fact whose every value is not one of those shapes (SEC-18 M1, M2).
+ */
+export function derivedThemeFact(input: {
+  readonly formId: string;
+  readonly palettes: unknown;
+  readonly face: string;
+  readonly pageTint: boolean;
+  readonly logoKey: string | null;
+  readonly corrections: readonly unknown[];
+  readonly tintDropped: readonly string[];
+}): DerivedThemeFact | undefined {
+  if (!idOk(FormId, input.formId) || !Face.test(input.face)) return undefined;
+  const palettes = {} as Record<FactPaletteKind, FactPalette>;
+  for (const kind of PALETTE_KINDS) {
+    const read = palette((input.palettes as Record<string, unknown> | null)?.[kind]);
+    if (read === undefined) return undefined;
+    palettes[kind] = read;
+  }
+  const corrections: FactCorrection[] = [];
+  for (const entry of input.corrections.slice(0, CORRECTIONS_MAX)) {
+    const read = correction(entry);
+    if (read === undefined) return undefined;
+    corrections.push(read);
+  }
+  return {
+    fact: "derived-theme",
+    formId: input.formId,
+    palettes,
+    face: input.face,
+    pageTint: input.pageTint,
+    hasLogo: input.logoKey !== null,
+    corrections,
+    tintDropped: input.tintDropped.filter(isPaletteKind),
   };
 }
 

@@ -638,7 +638,11 @@ async function* builderEvents(
   if (builder === undefined) return;
   if (state.edits.length > 0 && builder.mintEdits !== undefined) {
     const { turnId, tokens } = await builder.mintEdits(
-      state.edits.map(({ op, definition }) => ({ op, definition })),
+      state.edits.map(({ op, definition, appearance }) => ({
+        op,
+        definition,
+        ...(appearance === undefined ? {} : { appearance }),
+      })),
     );
     yield {
       type: "edits",
@@ -647,7 +651,13 @@ async function* builderEvents(
       edits: state.edits.map((edit, index) => {
         const token = tokens[index];
         if (token === undefined) throw new Error("A builder edit was minted no token");
-        return { index, op: edit.op, token, definition: edit.definition };
+        return {
+          index,
+          op: edit.op,
+          token,
+          definition: edit.definition,
+          ...(edit.appearance === undefined ? {} : { appearance: edit.appearance }),
+        };
       }),
     };
   }

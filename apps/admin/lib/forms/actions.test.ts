@@ -16,6 +16,7 @@ const calls = vi.hoisted(() => ({
   previewDraft: 0,
   publishBatch: 0,
   mintLinks: 0,
+  applyAgentEdit: 0,
 }));
 
 const answers = vi.hoisted(
@@ -73,6 +74,10 @@ vi.mock("@/lib/server/forms", () => ({
     );
   },
   setFormStatus: () => Promise.resolve({ ok: true, data: { status: "closed" } }),
+  applyAgentEdit: () => {
+    calls.applyAgentEdit += 1;
+    return Promise.resolve({ ok: true, data: { undoToken: "undo-token-for-this-test-only" } });
+  },
 }));
 
 vi.mock("@/lib/server/releases", () => ({
@@ -106,6 +111,7 @@ vi.mock("@/lib/server/links", () => ({
 }));
 
 const {
+  applyAgentEditAction,
   createFormAction,
   mintLinksAction,
   previewConditionAction,
@@ -151,6 +157,42 @@ describe("the definition cap counts UTF-8 bytes, not UTF-16 code units", () => {
     expect(state).toMatchObject({ status: "error", code: "INVALID_FORM_DEFINITION" });
     expect(state.message).toBe(t("forms.error.invalidDefinition"));
     expect(calls.saveDraft).toBe(before);
+  });
+
+  it("counts the appearance a turn changed, and refuses one byte over the cap", async () => {
+    const overhead = Buffer.byteLength(JSON.stringify({ face: "" }), "utf8");
+    const look = (bytes: number): Record<string, unknown> => ({
+      face: "a".repeat(bytes - overhead),
+    });
+    expect(byteSize(look(MAX_DEFINITION_BYTES))).toBe(MAX_DEFINITION_BYTES);
+    const draft = blankDraft("frm_cap", "en");
+
+    let before = calls.applyAgentEdit;
+    const onTheCap = await applyAgentEditAction(
+      "frm_cap",
+      draft,
+      "edit-token",
+      look(MAX_DEFINITION_BYTES),
+    );
+    expect(onTheCap.status).toBe("saved");
+    expect(calls.applyAgentEdit).toBe(before + 1);
+
+    before = calls.applyAgentEdit;
+    const over = await applyAgentEditAction(
+      "frm_cap",
+      draft,
+      "edit-token",
+      look(MAX_DEFINITION_BYTES + 1),
+    );
+    expect(over).toMatchObject({ status: "error", code: "INVALID_FORM_DEFINITION" });
+    expect(calls.applyAgentEdit).toBe(before);
+  });
+
+  it("forwards an edit that changes no appearance at all", async () => {
+    const before = calls.applyAgentEdit;
+    const state = await applyAgentEditAction("frm_cap", blankDraft("frm_cap", "en"), "edit-token");
+    expect(state.status).toBe("saved");
+    expect(calls.applyAgentEdit).toBe(before + 1);
   });
 
   it("still refuses a document it cannot serialize rather than throwing", async () => {

@@ -9,11 +9,11 @@ export interface ContrastFailureView {
   readonly required: number;
 }
 
-const PALETTE_LABELS: Readonly<Record<string, MessageKey>> = {
-  light: "appearance.palette.light",
-  dark: "appearance.palette.dark",
-  lightHighContrast: "appearance.palette.lightHighContrast",
-  darkHighContrast: "appearance.palette.darkHighContrast",
+const MODE_LABELS: Readonly<Record<string, MessageKey>> = {
+  light: "appearance.mode.light",
+  dark: "appearance.mode.dark",
+  lightHighContrast: "appearance.mode.lightHighContrast",
+  darkHighContrast: "appearance.mode.darkHighContrast",
 };
 
 function str(value: unknown): string | undefined {
@@ -52,13 +52,13 @@ function ratioText(value: number): string {
   return value.toFixed(1);
 }
 
-/** One line of the correction report: which pair, in which palette, and how far short it fell. */
+/** One line of the correction report: which pair, in which mode, and how far short it fell. */
 export function contrastFailureSentence(failure: ContrastFailureView): string {
-  const key = PALETTE_LABELS[failure.palette];
+  const key = MODE_LABELS[failure.palette];
   return t("appearance.contrastFailure", {
     foreground: failure.foreground,
     background: failure.background,
-    palette: key === undefined ? failure.palette : t(key),
+    mode: key === undefined ? failure.palette : t(key),
     ratio: ratioText(failure.ratio),
     required: ratioText(failure.required),
   });

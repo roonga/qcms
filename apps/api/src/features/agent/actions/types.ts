@@ -64,12 +64,26 @@ export interface ActionCardTemplate {
    * step whose own dialog asks for one. The card is never weaker than that dialog.
    */
   readonly typedConfirmation?: string;
+  /**
+   * The argument the user types on the card itself, which no proposal carries: the card shows
+   * the value in full and Confirm stays off until it is given. For an address the deployment
+   * would then contact, which a model may never choose (SEC-18 W2).
+   */
+  readonly typedInput?: string;
 }
+
+/** A deployment flag that withholds a kind from everyone while it is off. */
+export type ActionKindFlag = "themeDerive";
 
 export interface ActionKindDef {
   readonly kind: string;
 
   readonly screen: ScreenId;
+  /**
+   * The deployment flag this kind needs on. With it off the kind is offered to nobody, so no
+   * card is ever put up for an act the deployment has no route and no screen control for.
+   */
+  readonly flag?: ActionKindFlag;
   /**
    * Absent for a hand-off and for a local step: both carry no token, so no request is ever
    * routed to them.

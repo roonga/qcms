@@ -28,10 +28,26 @@ import {
   type PreviewProgressMode,
   type PreviewRailQuestion,
 } from "@/components/forms/preview-portal-chrome";
-import type { ThemeOption } from "@/lib/forms/appearance-edit";
-import type { SaveAppearanceState } from "@/lib/forms/builder-state";
-import { layoutFindings, layoutReportFact, selectionFact } from "@/lib/agent/builder-facts";
-import { publishLayout, publishSelection, useBuilderFacts } from "@/lib/agent/builder-facts-store";
+import type { NewWorkspaceTheme, ThemeOption } from "@/lib/forms/appearance-edit";
+import { useSeededAppearance } from "@/lib/forms/appearance-seed";
+import type {
+  CreateThemeState,
+  DeriveThemeState,
+  SaveAppearanceState,
+} from "@/lib/forms/builder-state";
+import { useHeldHandOff } from "@/lib/agent/waiting";
+import {
+  derivedThemeFact,
+  layoutFindings,
+  layoutReportFact,
+  selectionFact,
+} from "@/lib/agent/builder-facts";
+import {
+  publishDerivedTheme,
+  publishLayout,
+  publishSelection,
+  useBuilderFacts,
+} from "@/lib/agent/builder-facts-store";
 import { QUESTION_ATTRIBUTE, measureStep } from "@/lib/forms/layout-collector";
 import {
   INITIAL_LOOK,
@@ -203,7 +219,12 @@ export interface BuilderPreviewSource {
   readonly faces: readonly FaceChoice[];
   /** Set by the workspace: the drawer shows the reason and attempts no save. */
   readonly appearanceLocked: boolean;
+  /** `QCMS_FLAG_THEME_DERIVE`, read on the server: with it off the drawer offers no derive row. */
+  readonly deriveEnabled: boolean;
   readonly saveAppearance: (appearance: unknown) => Promise<SaveAppearanceState>;
+  /** The API makes the one outbound fetch, under SEC-18; nothing in the browser reaches the site. */
+  readonly deriveTheme: (url: string) => Promise<DeriveThemeState>;
+  readonly createTheme: (theme: NewWorkspaceTheme) => Promise<CreateThemeState>;
 }
 
 /** The builder's preview: the draft as a respondent sees it, in a device frame the toolbar drives. */
@@ -217,10 +238,13 @@ export function BuilderPreview({
   readonly source: BuilderPreviewSource;
 }) {
   const { preview, defaultTheme, brand, themes, faces, appearanceLocked, saveAppearance } = source;
+  const { createTheme } = source;
   const previewLocale = usePreviewLocale();
   const { answers, state, handleChange, clearAnswers } = useDraftPreview(draft, preview);
-  /* The drawer's changes render here before they are saved, which is what makes the preview live. */
-  const [appearance, setAppearance] = useState<Appearance | null>(source.appearance);
+  /* The drawer's changes render here before they are saved, which is what makes the preview
+     live, and the stored draft re-seeds it when a turn's own edit or its Undo changes it. */
+  const stored = useSeededAppearance(source.appearance);
+  const appearance = stored.appearance;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const appearanceToggle = useRef<HTMLButtonElement>(null);
   const [frame, setFrame] = useState<FrameState>(INITIAL_FRAME);
@@ -234,6 +258,54 @@ export function BuilderPreview({
   const frameRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const facts = useBuilderFacts();
+  /* A confirmed `theme.derive` card hands its address to this drawer and nowhere else: the
+     model never saw it, and the drawer opens so the person watches the fetch it asked for. The
+     colours it answers are held as the builder's own fact, never read off the website. */
+  const deriveTheme = useCallback(
+    async (url: string) => {
+      const state = await source.deriveTheme(url);
+      if (state.status !== "derived") return state;
+      publishDerivedTheme(
+        derivedThemeFact({
+          formId,
+          palettes: state.derived.palettes,
+          face: state.derived.face,
+          pageTint: state.derived.pageTint,
+          logoKey: state.derived.logoKey,
+          corrections: state.derived.corrections,
+          tintDropped: state.derived.tintDropped,
+        }),
+      );
+      return state;
+    },
+    [formId, source],
+  );
+
+  const [deriveHandOff, deriveTaken] = useHeldHandOff("appearance.derive");
+  const [saveHandOff, saveTaken] = useHeldHandOff("appearance.themeSave");
+
+  const handedOffAddress = useMemo(() => {
+    const url = deriveHandOff?.fields["url"];
+    if (deriveHandOff === undefined || url === undefined) return undefined;
+    return { url, nonce: deriveHandOff.nonce };
+  }, [deriveHandOff]);
+
+  const handedOffThemeName = useMemo(() => {
+    const name = saveHandOff?.fields["name"];
+    if (saveHandOff === undefined || name === undefined) return undefined;
+    return { name, nonce: saveHandOff.nonce };
+  }, [saveHandOff]);
+
+  /* The API withholds the derive kind while its flag is off, so no hand-off can arrive without
+     a website row. If one does, the drawer still opens and the row takes the address without
+     fetching, rather than the step starting and the screen saying nothing. */
+  useEffect(() => {
+    if (deriveHandOff !== undefined) setDrawerOpen(true);
+  }, [deriveHandOff]);
+
+  useEffect(() => {
+    if (saveHandOff !== undefined) setDrawerOpen(true);
+  }, [saveHandOff]);
 
   const size = frameSize(frame, stage.size);
   const percent = zoomPercent(frame, size, stage.size);
@@ -634,8 +706,32 @@ export function BuilderPreview({
             themes={themes}
             faces={faces}
             locked={appearanceLocked}
-            onPreview={setAppearance}
-            onSave={saveAppearance}
+            deriveEnabled={source.deriveEnabled}
+            handedOffAddress={handedOffAddress}
+            handedOffThemeName={handedOffThemeName}
+            onAddressTaken={deriveTaken}
+            onThemeNameTaken={saveTaken}
+            onDeriveDropped={() => {
+              publishDerivedTheme(undefined);
+            }}
+            onDerive={deriveTheme}
+            onCreateTheme={(name, look, sourceHost) =>
+              createTheme({
+                name,
+                palettes: look.palettes,
+                face: look.face,
+                corners: look.corners,
+                pageTint: look.pageTint,
+                logoKey: look.logo,
+                sourceHost,
+              })
+            }
+            onPreview={stored.preview}
+            onSave={async (next) => {
+              const saved = await saveAppearance(next);
+              if (saved.status === "saved") stored.settle();
+              return saved;
+            }}
             onClose={() => {
               setDrawerOpen(false);
               appearanceToggle.current?.focus();

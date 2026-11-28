@@ -734,6 +734,36 @@ Before this, the header was `<span>QCMS</span>` and the title was the same liter
 opening a secure link was shown the engine's name rather than the name of
 whoever sent them the link.
 
+## Setting a form's appearance in the admin
+
+The portal half above is what a respondent gets; this is where it is authored. A form's
+appearance is set in the agent builder's **Appearance** drawer, beside the live preview
+(`apps/admin/components/forms/appearance-drawer.tsx`). Every control renders into the preview at
+once, and Done is the draft save, so nothing can be kept that the token contract cannot render.
+
+- **Theme.** The shipped themes and the workspace's own. A form with no appearance of its own
+  reads "The deployment's look" and offers this row alone, because every other axis needs
+  palettes to sit on. Applying a theme copies its palettes, face, corners, page tint and logo
+  into the draft **by value**: the draft names no theme afterwards, so changing or deleting the
+  theme later changes no form, locked or not, and no published version.
+- **The other axes.** Face, page tint, density, corners, progress mode, and the base text size
+  from 16 to 24 px, all written into the one `appearance` object the draft carries.
+- **From your website.** An address the person types, read once by the API under SEC-18. Nothing
+  in the browser reaches the site and no page text, title or alt text reaches a model. The row is
+  offered only where `QCMS_FLAG_THEME_DERIVE=on`; with the flag off the derive route is a 404,
+  the drawer leaves the row out while the theme save stays, and the agent builder is offered no
+  card for it either. What the fetch found is shown in full,
+  with every colour it had to move to stay readable and every palette a page tint was dropped for,
+  and the Theme row reads "Not saved" until the look is kept as a workspace theme.
+- **Workspace themes and the appearance lock** are on the workspace's Settings screen. Saving a
+  theme needs Edit forms; setting or clearing the lock is a Workspace administrator's or a Site
+  administrator's. The lock is enforced by the draft save rather than by the screen, so a locked
+  workspace disables the whole drawer, names the reason and attempts no save.
+
+Who may do each of these is `docs/WORKSPACE_ACCESS.md` section 3 and its criteria 118 to 124; the
+derive fetch's own hardening is SEC-18 in `docs/SECURITY_DESIGN.md`, and its operator switches are
+in `docs/operations.md`.
+
 ## Per-form appearance (task 118)
 
 A form version can carry its own appearance (ADR-30 as amended, Q4), and a session

@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { parseFormDefinition, type FormDefinition } from "@roonga/qcms-core";
+import {
+  PALETTE_KINDS,
+  deriveAppearance,
+  parseFormDefinition,
+  type Appearance,
+  type FormDefinition,
+} from "@roonga/qcms-core";
 
 import { EDITS_PER_TURN } from "../edit-token.js";
-import { applyBuilderEdit, type EditOutcome } from "./edit.js";
+import {
+  applyAppearanceEdit,
+  applyBuilderEdit,
+  type AppearanceOutcome,
+  type EditOutcome,
+} from "./edit.js";
 
 function draft(): FormDefinition {
   const parsed = parseFormDefinition({
@@ -203,6 +214,84 @@ describe("the per-turn cap", () => {
     const input = { target: "form-title", text: { en: "Again" } };
     expect(applyBuilderEdit(draft(), "copy", input, EDITS_PER_TURN - 1).ok).toBe(true);
     expect(refusal(applyBuilderEdit(draft(), "copy", input, EDITS_PER_TURN))).toContain(
+      String(EDITS_PER_TURN),
+    );
+  });
+});
+
+function look(primary: string): Appearance {
+  const derived = deriveAppearance({ primary });
+  return {
+    palettes: derived.palettes,
+    logo: null,
+    face: derived.face,
+    corners: "subtle",
+    density: "comfortable",
+    textSize: 18,
+    progress: "top-indicator",
+    pageTint: derived.pageTint,
+  };
+}
+
+function appearanceRefusal(outcome: AppearanceOutcome): string {
+  if (outcome.ok) throw new Error("expected a refusal");
+  return outcome.reason;
+}
+
+function appearanceOf(outcome: AppearanceOutcome): Appearance {
+  if (!outcome.ok) throw new Error(`expected an appearance: ${outcome.reason}`);
+  return outcome.appearance;
+}
+
+describe("an appearance edit", () => {
+  it("derives all four palettes from one brand colour", () => {
+    const next = appearanceOf(applyAppearanceEdit(null, { primary: "#2e7d32" }, 0));
+    expect(Object.keys(next.palettes)).toStrictEqual([...PALETTE_KINDS]);
+    expect(next.logo).toBeNull();
+  });
+
+  it("changes one axis and leaves the rest of the look where it was", () => {
+    const current = look("#1d4ed8");
+    const next = appearanceOf(applyAppearanceEdit(current, { corners: "pill" }, 0));
+    expect(next.corners).toBe("pill");
+    expect(next.palettes).toStrictEqual(current.palettes);
+    expect(next.textSize).toBe(current.textSize);
+  });
+
+  it("keeps the logo the person uploaded, which no turn may name", () => {
+    const current = { ...look("#1d4ed8"), logo: "b".repeat(64) };
+    expect(appearanceOf(applyAppearanceEdit(current, { primary: "#2e7d32" }, 0)).logo).toBe(
+      current.logo,
+    );
+    expect(appearanceRefusal(applyAppearanceEdit(current, { logo: null }, 0))).toMatch(
+      /unrecognized|not parse/iu,
+    );
+  });
+
+  it("needs a brand colour before anything else on a form with no appearance", () => {
+    expect(appearanceRefusal(applyAppearanceEdit(null, { corners: "pill" }, 0))).toContain(
+      "brand colour",
+    );
+  });
+
+  it("refuses an empty change and one that changes nothing", () => {
+    const current = look("#1d4ed8");
+    expect(appearanceRefusal(applyAppearanceEdit(current, {}, 0))).toContain("at least one");
+    expect(
+      appearanceRefusal(applyAppearanceEdit(current, { corners: current.corners }, 0)),
+    ).toContain("changes nothing");
+  });
+
+  it("refuses a colour that is not a hex colour", () => {
+    expect(appearanceRefusal(applyAppearanceEdit(null, { primary: "forest green" }, 0))).not.toBe(
+      "",
+    );
+  });
+
+  it("is held to the same per-turn cap as every other edit", () => {
+    const input = { primary: "#2e7d32" };
+    expect(applyAppearanceEdit(null, input, EDITS_PER_TURN - 1).ok).toBe(true);
+    expect(appearanceRefusal(applyAppearanceEdit(null, input, EDITS_PER_TURN))).toContain(
       String(EDITS_PER_TURN),
     );
   });

@@ -4568,6 +4568,94 @@
                 ],
                 "additionalProperties": false,
                 "description": "Open a new draft version, seeded from the latest one. Nothing published changes, and no form moves to it until a draft pins the new version."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "theme.derive"
+                  },
+                  "args": {
+                    "type": "object",
+                    "properties": {
+                      "workspaceId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "description": "The workspace whose themes this acts on."
+                          },
+                          {
+                            "$ref": "#/$defs/StepReference_d3"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "workspaceId"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "kind",
+                  "args"
+                ],
+                "additionalProperties": false,
+                "description": "Reads one website once and answers the colours, the heading face and the logo a theme could start from, saving nothing. You never supply the address: the person types it on the card, where it is shown in full, and nothing is fetched until they confirm. Propose this when they ask for the form to look like their own site. What it finds is shown to them in the appearance panel, and no part of that page is sent to you."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "theme.save"
+                  },
+                  "args": {
+                    "type": "object",
+                    "properties": {
+                      "workspaceId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "description": "The workspace whose themes this acts on."
+                          },
+                          {
+                            "$ref": "#/$defs/StepReference_d3"
+                          }
+                        ]
+                      },
+                      "name": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120,
+                            "description": "What to call the theme. A workspace cannot hold two themes of the same name."
+                          },
+                          {
+                            "$ref": "#/$defs/StepReference_d3"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "workspaceId",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "kind",
+                  "args"
+                ],
+                "additionalProperties": false,
+                "description": "Keeps the look the appearance panel is showing as a workspace theme, under the name you give, so every form in that workspace can pick it. You name only the theme; the colours, face, corners and logo are the ones in front of the person. Propose it once they are happy with a look, and never as a way to change the form itself."
               }
             ]
           },
@@ -6263,6 +6351,91 @@
         "target",
         "text"
       ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "edit_appearance",
+    "description": "Change how the open draft looks: a brand colour every mode's colours are derived from, the type face, the corners, the density, the progress style, the base text size, or the page tint. Name only what changes. A brand colour is required for a form that has no appearance yet. The colours are never written one by one: the engine derives them and moves any pair too faint to read. The logo is the person's own upload and is not yours to set. It applies to the draft as this turn's earlier edits left it, and nothing is saved until the turn ends, when the person's browser applies it with an Undo.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "primary": {
+          "description": "The brand colour every mode's colours are derived from, as #rrggbb. Required for a form that has no appearance yet.",
+          "type": "string",
+          "pattern": "^#[0-9a-f]{6}$"
+        },
+        "secondary": {
+          "description": "A second brand colour, as #rrggbb. Derived when absent.",
+          "type": "string",
+          "pattern": "^#[0-9a-f]{6}$"
+        },
+        "face": {
+          "description": "The type face, from the registry.",
+          "type": "string",
+          "enum": [
+            "system",
+            "atkinson",
+            "lexend",
+            "opendyslexic",
+            "inter",
+            "roboto",
+            "opensans",
+            "lato",
+            "poppins",
+            "montserrat",
+            "andika",
+            "fredoka",
+            "baloo2",
+            "comicneue",
+            "patrickhand",
+            "merriweather",
+            "lora",
+            "ptserif",
+            "librebaskerville",
+            "ibmplexserif",
+            "publicsans",
+            "jetbrainsmono",
+            "geistmono"
+          ]
+        },
+        "corners": {
+          "type": "string",
+          "enum": [
+            "sharp",
+            "subtle",
+            "rounded",
+            "pill"
+          ]
+        },
+        "density": {
+          "type": "string",
+          "enum": [
+            "compact",
+            "comfortable",
+            "spacious"
+          ]
+        },
+        "progress": {
+          "type": "string",
+          "enum": [
+            "side-rail",
+            "top-indicator",
+            "none"
+          ]
+        },
+        "textSize": {
+          "description": "The author's base text size in px, before the respondent's own scale.",
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 24
+        },
+        "pageTint": {
+          "description": "Tint the page background with the brand colour.",
+          "type": "boolean"
+        }
+      },
       "additionalProperties": false
     }
   },

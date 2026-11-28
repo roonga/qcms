@@ -37,6 +37,9 @@ export interface AgentCardTemplate {
 
   readonly typedConfirmation?: string;
 
+  /** The argument the person types on the card itself, which no proposal may name (SEC-18 W2). */
+  readonly typedInput?: string;
+
   readonly createdLink?: AgentCreatedLink;
 }
 
@@ -90,7 +93,7 @@ export interface AgentProposal {
   readonly thenAnother?: boolean;
 }
 
-export const BUILDER_EDIT_OPS = ["question", "step", "rule", "copy"] as const;
+export const BUILDER_EDIT_OPS = ["question", "step", "rule", "copy", "appearance"] as const;
 
 export type BuilderEditOp = (typeof BUILDER_EDIT_OPS)[number];
 
@@ -100,6 +103,8 @@ export interface BuilderEdit {
   readonly op: BuilderEditOp;
   readonly token: string;
   readonly definition: Readonly<Record<string, unknown>>;
+  /** Present once a turn has changed the appearance: the save sends it with the definition. */
+  readonly appearance?: Readonly<Record<string, unknown>>;
 }
 
 export interface BuilderEdits {
@@ -290,12 +295,20 @@ function toErrorEvent(raw: Record<string, unknown>): AssistEvent | undefined {
 
 function toBuilderEdit(raw: unknown): BuilderEdit | undefined {
   if (!isKeyedObject(raw)) return undefined;
-  const { index, op, token, definition } = raw;
+  const { index, op, token, definition, appearance } = raw;
   if (typeof index !== "number" || !Number.isInteger(index) || index < 0) return undefined;
   const known = BUILDER_EDIT_OPS.find((candidate) => candidate === op);
   if (known === undefined || typeof token !== "string" || token === "") return undefined;
   if (!isKeyedObject(definition) || Array.isArray(definition)) return undefined;
-  return { index, op: known, token, definition };
+  const look = isKeyedObject(appearance) && !Array.isArray(appearance) ? appearance : undefined;
+  if (known === "appearance" && look === undefined) return undefined;
+  return {
+    index,
+    op: known,
+    token,
+    definition,
+    ...(look === undefined ? {} : { appearance: look }),
+  };
 }
 
 // An unreadable edit drops the whole set: a later edit's token binds the state an earlier one left.
@@ -333,12 +346,14 @@ function toCardTemplate(raw: unknown): AgentCardTemplate | undefined {
   if (typeof titleKey !== "string" || titleKey === "") return undefined;
   const headingControl = raw["headingControl"];
   const typedConfirmation = raw["typedConfirmation"];
+  const typedInput = raw["typedInput"];
   const createdLink = toCreatedLink(raw["createdLink"]);
   return {
     titleKey,
     consequenceKeys: textList(raw["consequenceKeys"]),
     ...(typeof headingControl === "string" ? { headingControl } : {}),
     ...(typeof typedConfirmation === "string" ? { typedConfirmation } : {}),
+    ...(typeof typedInput === "string" && typedInput !== "" ? { typedInput } : {}),
     ...(createdLink === undefined ? {} : { createdLink }),
     ...(raw["hideEnvironment"] === true ? { hideEnvironment: true } : {}),
   };

@@ -1,5 +1,13 @@
 import { z } from "@hono/zod-openapi";
-import { FormId, InstanceId, QuestionId, StepId } from "@roonga/qcms-core";
+import {
+  APPEARANCE_COLOR_TOKENS,
+  APPEARANCE_FACES,
+  FormId,
+  InstanceId,
+  PALETTE_KINDS,
+  QuestionId,
+  StepId,
+} from "@roonga/qcms-core";
 
 import { SavedDraftResponse } from "../forms/schema.js";
 import { ACTION_KIND_NAMES, actionKind } from "./actions/registry.js";
@@ -361,8 +369,58 @@ export const LayoutReportFact = z.strictObject({
 
 export type LayoutReportFact = z.infer<typeof LayoutReportFact>;
 
-/** Both builder facts, which the field-vocabulary and sentinel walks cover. */
+const FactHex = z.string().regex(/^#[0-9a-f]{6}$/u);
+
+const FactPalette = z.strictObject(
+  Object.fromEntries(APPEARANCE_COLOR_TOKENS.map((token) => [token, FactHex])) as Record<
+    (typeof APPEARANCE_COLOR_TOKENS)[number],
+    typeof FactHex
+  >,
+);
+
+const FactFace = z.enum(
+  APPEARANCE_FACES.map((face) => face.key) as [
+    (typeof APPEARANCE_FACES)[number]["key"],
+    ...(typeof APPEARANCE_FACES)[number]["key"][],
+  ],
+);
+
+/**
+ * What a derive left in the builder, as the browser holds it (SEC-18 M1). Hex colours,
+ * registry enums and booleans only: no page text, no title, no alt text and no logo key, so
+ * nothing the website wrote can reach a model and a free string fails the schema.
+ */
+export const DerivedThemeFact = z.strictObject({
+  fact: z.literal("derived-theme"),
+  formId: FactFormId,
+  palettes: z.strictObject({
+    light: FactPalette,
+    dark: FactPalette,
+    lightHighContrast: FactPalette,
+    darkHighContrast: FactPalette,
+  }),
+  face: FactFace,
+  pageTint: z.boolean(),
+  /** Whether a logo came with it. The key itself is the browser's, never the model's (M2). */
+  hasLogo: z.boolean(),
+  corrections: z
+    .array(
+      z.strictObject({
+        palette: z.enum(PALETTE_KINDS),
+        role: z.enum(APPEARANCE_COLOR_TOKENS),
+        from: FactHex,
+        to: FactHex,
+      }),
+    )
+    .max(200),
+  tintDropped: z.array(z.enum(PALETTE_KINDS)).max(PALETTE_KINDS.length),
+});
+
+export type DerivedThemeFact = z.infer<typeof DerivedThemeFact>;
+
+/** Every builder fact, which the field-vocabulary and sentinel walks cover. */
 export const BUILDER_FACTS: readonly { readonly name: string; readonly schema: z.ZodType }[] = [
   { name: "fact preview-selection", schema: PreviewSelectionFact },
   { name: "fact layout-report", schema: LayoutReportFact },
+  { name: "fact derived-theme", schema: DerivedThemeFact },
 ];

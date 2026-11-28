@@ -7,7 +7,7 @@
 import { decideAccess, isEnvironmentScoped, type HeldGrant } from "../membership/policy.js";
 import { ACTION_KIND_NAMES, BUILDER_ACTION_KINDS, actionKind } from "./actions/registry.js";
 import { BUILDER_SCREEN } from "./edit-token.js";
-import type { ActionKindDef } from "./actions/types.js";
+import type { ActionKindDef, ActionKindFlag } from "./actions/types.js";
 
 export interface OfferedActionKind {
   readonly kind: string;
@@ -31,6 +31,19 @@ export interface GrantFilterInput {
    * builder's narrower set. Every other kind is decided by the caller's grants alone.
    */
   readonly screen?: string | undefined;
+  /**
+   * The deployment flags that are on. A kind naming a flag absent here is offered to nobody,
+   * so a deployment with the act turned off never has a card proposed for it. Nothing is on by
+   * default: a caller that states no flags withholds every flagged kind.
+   */
+  readonly enabledFlags?: readonly ActionKindFlag[] | undefined;
+}
+
+/** The kind flags a deployment configuration turns on. */
+export function enabledActionKindFlags(flags: {
+  readonly themeDerive: "off" | "on";
+}): readonly ActionKindFlag[] {
+  return flags.themeDerive === "on" ? ["themeDerive"] : [];
 }
 
 function holds(input: GrantFilterInput, def: ActionKindDef, environment: string): boolean {
@@ -49,6 +62,10 @@ function holds(input: GrantFilterInput, def: ActionKindDef, environment: string)
   return true;
 }
 
+function flagOffers(def: ActionKindDef, enabled: readonly ActionKindFlag[] | undefined): boolean {
+  return def.flag === undefined || (enabled ?? []).includes(def.flag);
+}
+
 /**
  * A local kind reaches no route, so only its own screen may offer it. The agent builder edits
  * its draft without a card and publishes through the wizard, so it offers the library writes
@@ -56,6 +73,9 @@ function holds(input: GrantFilterInput, def: ActionKindDef, environment: string)
  */
 function screenOffers(def: ActionKindDef, screen: string | undefined): boolean {
   if (def.local === true && def.screen !== screen) return false;
+  // A kind whose own screen is the builder exists only there: its card finishes in the
+  // appearance drawer, which no other screen mounts.
+  if (def.screen === BUILDER_SCREEN && screen !== BUILDER_SCREEN) return false;
   return screen !== BUILDER_SCREEN || BUILDER_ACTION_KINDS.includes(def.kind);
 }
 
@@ -69,6 +89,7 @@ export function offeredActionKinds(input: GrantFilterInput): readonly OfferedAct
   for (const name of ACTION_KIND_NAMES) {
     const def = actionKind(name);
     if (def === undefined || !screenOffers(def, input.screen)) continue;
+    if (!flagOffers(def, input.enabledFlags)) continue;
     if (def.environmentFrom === "switcher") {
       if (holds(input, def, input.current)) {
         offered.push({ kind: name, environments: [input.current] });

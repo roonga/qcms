@@ -118,5 +118,13 @@
   {
     "kind": "question.newVersion",
     "description": "Open a new draft version, seeded from the latest one. Nothing published changes, and no form moves to it until a draft pins the new version."
+  },
+  {
+    "kind": "theme.derive",
+    "description": "Reads one website once and answers the colours, the heading face and the logo a theme could start from, saving nothing. You never supply the address: the person types it on the card, where it is shown in full, and nothing is fetched until they confirm. Propose this when they ask for the form to look like their own site. What it finds is shown to them in the appearance panel, and no part of that page is sent to you."
+  },
+  {
+    "kind": "theme.save",
+    "description": "Keeps the look the appearance panel is showing as a workspace theme, under the name you give, so every form in that workspace can pick it. You name only the theme; the colours, face, corners and logo are the ones in front of the person. Propose it once they are happy with a look, and never as a way to change the form itself."
   }
 ]

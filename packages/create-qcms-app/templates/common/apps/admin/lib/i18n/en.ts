@@ -548,6 +548,7 @@ export const messages = {
   "builder.edit.op.step": "Changed a step",
   "builder.edit.op.rule": "Changed a rule",
   "builder.edit.op.copy": "Changed the wording",
+  "builder.edit.op.appearance": "Changed how it looks",
   "builder.edit.state.applying": "Applying",
   "builder.edit.state.applied": "Applied",
   "builder.edit.state.failed": "Not applied",
@@ -1267,6 +1268,8 @@ export const messages = {
     "There is no other workspace you hold Edit forms in, so there is nowhere to move this form.",
   "forms.move.summary":
     "This form moves from {source} to {destination} with its versions and its responses. {destination}'s access groups will apply.",
+  "forms.move.appearance":
+    "The form keeps the appearance it has now, on its draft and on every version. If {destination} has set an appearance lock, later changes to that appearance are refused there.",
   "forms.move.gainsOne": "Gains access: 1 person",
   "forms.move.gains": "Gains access: {count} people",
   "forms.move.losesOne": "Loses access: 1 person",
@@ -1867,6 +1870,7 @@ export const messages = {
   "forms.assist.step.edit_step": "Changing a step of the draft",
   "forms.assist.step.edit_rule": "Changing a rule of the draft",
   "forms.assist.step.edit_copy": "Rewording the draft",
+  "forms.assist.step.edit_appearance": "Changing how the draft looks",
   "forms.assist.step.open_publish_wizard": "Opening the publish screen",
 
   "forms.assist.diffCount.one": "1 change proposed.",
@@ -2007,6 +2011,22 @@ export const messages = {
     "The file is built from the responses these filters match and downloads in your browser.",
   "agent.card.response.export.handOff":
     "Confirm opens the export dialog with these filters. You press Export, and no part of the file is returned to the assistant.",
+  "agent.card.theme.derive.title": "Read a website for a theme",
+  "agent.card.theme.derive.consequence":
+    "QCMS reads that one page once, over https, and takes the colours, the heading face and the logo from it. No theme is saved and the form does not change.",
+  "agent.card.theme.derive.stored":
+    "Nothing from the page is kept except those values and the logo image. Colours that would be too faint to read are moved, and you are told which.",
+  "agent.card.theme.derive.handOff":
+    "Confirm reads the address above. The assistant is given the colours and the face, and no other part of the page.",
+  "agent.card.theme.save.title": "Save this look as the workspace theme {name}",
+  "agent.card.theme.save.consequence":
+    "The look in the appearance panel is kept under this name. The form itself does not change.",
+  "agent.card.theme.save.reuse":
+    "Every form in this workspace can then pick it. Forms already using a copy of it keep what they have.",
+  "agent.card.typedInput.url": "Website address",
+  "agent.card.typedInput.url.hint":
+    "The address QCMS will read, in full. It must start with https://",
+  "agent.card.typedInput.echo": "Confirm reads this address:",
   "agent.card.access.groupCreate.title": "Create the access group {name} with the roles {roles}",
   "agent.card.access.groupCreate.consequence":
     "The group exists but grants nobody anything yet. Being in the group is the grant, so nobody's access changes until somebody is added to it.",
@@ -3431,13 +3451,50 @@ export const messages = {
   "appearance.respondent.contrast": "High contrast",
   "appearance.respondent.textSize": "Text size, up to 200%",
   "appearance.respondent.note": "Respondents always keep these, because they are access needs.",
-  /** Palette means the preview set; these are modes. */
-  "appearance.palette.light": "Light mode",
-  "appearance.palette.dark": "Dark mode",
-  "appearance.palette.lightHighContrast": "Light, high contrast",
-  "appearance.palette.darkHighContrast": "Dark, high contrast",
+  "appearance.mode.light": "Light mode",
+  "appearance.mode.dark": "Dark mode",
+  "appearance.mode.lightHighContrast": "Light, high contrast",
+  "appearance.mode.darkHighContrast": "Dark, high contrast",
   "appearance.contrastFailure":
-    "{foreground} on {background} in {palette} reaches {ratio}:1, short of {required}:1.",
+    "{foreground} on {background} in {mode} reaches {ratio}:1, short of {required}:1.",
+
+  "appearance.derive.heading": "From your website",
+  "appearance.derive.label": "Website address",
+  "appearance.derive.placeholder": "https://www.example.org",
+  "appearance.derive.hint":
+    "QCMS reads that one page over https and takes the colours, the heading face and the logo from it.",
+  "appearance.derive.get": "Get theme",
+  "appearance.derive.working": "Reading the site",
+  "appearance.derive.found": "What the site gave",
+  "appearance.derive.row.accent": "Accent",
+  "appearance.derive.row.page": "Page",
+  "appearance.derive.row.ink": "Text",
+  "appearance.derive.row.face": "Heading face",
+  "appearance.derive.row.tint": "Page tint",
+  "appearance.derive.row.logo": "Logo",
+  "appearance.derive.logo.found": "Taken from the site",
+  "appearance.derive.logo.none": "None found",
+  "appearance.derive.on": "On",
+  "appearance.derive.off": "Off",
+  "appearance.derive.stored": "Nothing from the site is stored except these values and the logo.",
+  "appearance.derive.corrections.one": "One colour was moved so it stays readable.",
+  "appearance.derive.corrections.other": "{count} colours were moved so they stay readable.",
+  "appearance.derive.correction": "{from} became {to} in {mode}.",
+  "appearance.derive.tintDropped":
+    "The page tint was left off where it would have made text harder to read.",
+  "appearance.derive.adjust": "Adjust",
+  "appearance.derive.cancel": "Cancel",
+  "appearance.derive.failed": "That did not work: {message}",
+  "appearance.derive.notSaved": "Not saved",
+  "appearance.derive.notSaved.hint":
+    "This look is in the draft only. Save it as a workspace theme to offer it to every form here.",
+  "appearance.themeSave": "Save as workspace theme",
+  "appearance.themeSave.label": "Theme name",
+  "appearance.themeSave.save": "Save theme",
+  "appearance.themeSave.saving": "Saving",
+  "appearance.themeSave.saved": "{name} is a workspace theme now.",
+  "appearance.themeSave.cancel": "Cancel",
+  "appearance.themeSave.failed": "That did not work: {message}",
 
   "themes.heading": "Appearance",
   "themes.lock": "Lock appearance",
@@ -3481,6 +3538,12 @@ export const messages = {
   "themes.delete.no": "Keep it",
   "themes.deleted": "Theme deleted.",
   "themes.gone": "That theme is no longer in this workspace.",
+  "themes.error.nameTaken": "This workspace already has a theme with that name. Pick another one.",
+  "themes.error.invalid": "That theme could not be read. Check the values and try again.",
+  "themes.derive.error.refused":
+    "That address could not be read for a theme. Check it is a public https page and try again.",
+  "themes.derive.error.nothingFound":
+    "That page was read, but it declares no colour a theme could start from.",
   "themes.failed": "That did not work: {message}",
 } as const;
 
