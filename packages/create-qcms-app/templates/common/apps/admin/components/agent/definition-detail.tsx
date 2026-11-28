@@ -2,6 +2,7 @@
 
 import { localeName } from "@/lib/agent/card-copy";
 import { t, type MessageKey } from "@/lib/i18n/en";
+import { QUESTION_TYPES } from "@/lib/questions/types";
 
 /* A question definition is authoring content, so the card shows every field of it: the digest binds the whole
    object, and a field the card did not show is a field nobody confirmed. */
@@ -30,8 +31,15 @@ function localized(value: unknown): string | undefined {
 
 function scalar(value: unknown): string {
   if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "boolean") return t(value ? "agent.card.arg.yes" : "agent.card.arg.no");
+  if (typeof value === "number") return String(value);
   return JSON.stringify(value) ?? "";
+}
+
+/** A question type is a wire value; the card shows the word the question library shows. */
+function typeLabel(raw: unknown): string {
+  const known = QUESTION_TYPES.find((type) => type === raw);
+  return known === undefined ? scalar(raw) : t(`questions.type.${known}` as MessageKey);
 }
 
 const FIELD_LABELS: Readonly<Record<string, MessageKey>> = {
@@ -46,7 +54,12 @@ function headLines(definition: Readonly<Record<string, unknown>>): readonly Line
   for (const [name, key] of Object.entries(FIELD_LABELS)) {
     const raw = definition[name];
     if (raw === undefined) continue;
-    const value = name === "label" || name === "help" ? localized(raw) : scalar(raw);
+    const value =
+      name === "label" || name === "help"
+        ? localized(raw)
+        : name === "type"
+          ? typeLabel(raw)
+          : scalar(raw);
     if (value === undefined || value === "") continue;
     lines.push({ label: t(key), value, mono: false });
   }
@@ -80,8 +93,11 @@ function mapLines(raw: unknown, type: unknown): readonly Line[] {
   if (typeof raw !== "object" || raw === null) return [];
   return Object.entries(raw as Record<string, unknown>).map(([name, value]) => ({
     label: fieldLabel(name, type),
-    value: localized(value) ?? scalar(value),
-    mono: name === "pattern",
+    value:
+      name === "pattern"
+        ? t("forms.assist.definition.patternSet")
+        : (localized(value) ?? scalar(value)),
+    mono: false,
   }));
 }
 

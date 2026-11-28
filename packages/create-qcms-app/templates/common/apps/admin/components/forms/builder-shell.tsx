@@ -51,6 +51,7 @@ function notNarrowOnServer(): boolean {
 interface AssistantSubject {
   readonly formId: string | null;
   readonly name: string;
+  readonly userId: string;
   readonly workspaceId: string;
   readonly draft: DraftForm | null;
   readonly edits: BuilderEditActions | undefined;
@@ -73,6 +74,7 @@ function AssistantPane({ subject }: { readonly subject: AssistantSubject }) {
       <SelectedQuestion returnFocusTo={heading} />
       <BuilderAssistant
         formId={subject.formId}
+        userId={subject.userId}
         workspaceId={subject.workspaceId}
         draft={subject.draft}
         actions={subject.edits}
@@ -320,7 +322,7 @@ export function BuilderShell({
           userId={userId}
           storageKey={builderConversationKey(userId, workspaceId, formId)}
         >
-          <Panes subject={{ formId, name, workspaceId, draft, edits }} source={preview} />
+          <Panes subject={{ formId, name, userId, workspaceId, draft, edits }} source={preview} />
         </ConversationProvider>
       ) : (
         <StartDraft start={startDraft} />

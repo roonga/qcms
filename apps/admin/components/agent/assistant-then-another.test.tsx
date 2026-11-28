@@ -72,6 +72,7 @@ function conversationHandle(): ConversationHandle {
       turns = [...turns, ...next];
     },
     restart: () => undefined,
+    carryTo: () => undefined,
   };
 }
 

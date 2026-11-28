@@ -165,6 +165,7 @@ export function AssistantConversation({
   onWorkingChange,
   onAnnounce,
   turnHooks,
+  emptyText,
 }: {
   readonly screen: ConversationScreen | undefined;
   readonly environment: string;
@@ -174,6 +175,8 @@ export function AssistantConversation({
   readonly onWorkingChange: (working: boolean) => void;
   readonly onAnnounce: (message: string) => void;
   readonly turnHooks?: BuilderTurnHooks;
+  /** What an empty conversation invites on this surface; the dock's own line is the default. */
+  readonly emptyText?: string;
 }) {
   const writable = builder !== undefined && builder.canPropose ? builder : undefined;
   return (
@@ -187,6 +190,7 @@ export function AssistantConversation({
       onWorkingChange={onWorkingChange}
       onAnnounce={onAnnounce}
       turnHooks={turnHooks}
+      emptyText={emptyText}
     />
   );
 }
@@ -200,6 +204,7 @@ function ScreenConversation({
   onWorkingChange,
   onAnnounce,
   turnHooks,
+  emptyText,
 }: {
   readonly screen: ConversationScreen | undefined;
   readonly environment: string;
@@ -209,6 +214,7 @@ function ScreenConversation({
   readonly onWorkingChange: (working: boolean) => void;
   readonly onAnnounce: (message: string) => void;
   readonly turnHooks: BuilderTurnHooks | undefined;
+  readonly emptyText: string | undefined;
 }) {
   const [value, setValue] = useState("");
   const [shown, setShown] = useState<readonly ShownTurn[]>(() => restored(conversation.turns));
@@ -681,7 +687,7 @@ function ScreenConversation({
       </ol>
       {shown.length === 0 && live === undefined && (
         <p className="qcms-assistant__empty" data-testid="qcms-assistant-empty">
-          {t("agent.empty")}
+          {emptyText ?? t("agent.empty")}
         </p>
       )}
       {failure !== undefined && (

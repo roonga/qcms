@@ -21,6 +21,7 @@ import {
   type EditRecordState,
 } from "@/lib/agent/builder-edits";
 import { useConversation } from "@/lib/agent/conversation";
+import { builderConversationKey } from "@/lib/agent/conversation-state";
 import type { ConversationScreen } from "@/lib/agent/screens";
 import { builderPublishHref } from "@/lib/forms/build-return";
 import type { BuilderEditOp } from "@/lib/forms/assist-stream";
@@ -111,11 +112,13 @@ export interface BuilderEditActions {
 /** The agent builder's assistant: the dock's conversation, with its edits applied card-less. */
 export function BuilderAssistant({
   formId,
+  userId,
   workspaceId,
   draft,
   actions,
 }: {
   readonly formId: string | null;
+  readonly userId: string;
   readonly workspaceId: string;
   readonly draft: DraftForm | null;
   readonly actions: BuilderEditActions | undefined;
@@ -234,13 +237,26 @@ export function BuilderAssistant({
         if (formId === null || returnTo !== builderPath(formId)) return;
         router.push(builderPublishHref(formId));
       },
+      /* The new form's route reads its own tab-storage entry, so the conversation that asked for
+         the form is copied there rather than restarted under it. */
       onFormCreated: (created) => {
         if (formId !== null) return;
-        conversation.restart();
+        conversation.carryTo(builderConversationKey(userId, workspaceId, created));
         router.push(builderPath(created));
       },
     }),
-    [changeRecords, conversation, formId, ports, records, router, undo, undoing],
+    [
+      changeRecords,
+      conversation,
+      formId,
+      ports,
+      records,
+      router,
+      undo,
+      undoing,
+      userId,
+      workspaceId,
+    ],
   );
 
   return (
@@ -254,6 +270,7 @@ export function BuilderAssistant({
         onWorkingChange={noop}
         onAnnounce={setAnnouncement}
         turnHooks={hooks}
+        emptyText={t("builder.assistant.empty")}
       />
       <p className="sr-only" aria-live="polite" data-testid="qcms-builder-announce">
         {announcement}

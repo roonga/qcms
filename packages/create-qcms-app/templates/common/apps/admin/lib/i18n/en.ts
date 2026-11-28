@@ -30,7 +30,7 @@ export const messages = {
   /** Use route identity for tab titles to avoid a second upstream read solely for metadata. */
   "title.formSection": "{section}: {formId}",
   "title.workspaceSection": "{section}: {workspace}",
-  "title.builder": "Assistant: {subject}",
+  "title.builder": "Agent builder: {subject}",
 
   /** The admin requires JavaScript; name enabling it and reloading as the actionable remedy. */
   "requiresJs.title": "JavaScript is required",
@@ -117,11 +117,11 @@ export const messages = {
   "shell.mode.operations.exit": "Exit Operations",
   "shell.mode.operations.exitText": "Exit",
   "shell.mode.operations.announce": "Operations. Links out of it ask before leaving.",
-  "shell.mode.builder.name": "Assistant",
+  "shell.mode.builder.name": "Agent builder",
   /** Starts with the visible "Exit" so speech input reaches it by what it shows (WCAG 2.5.3). */
-  "shell.mode.builder.exit": "Exit the assistant",
+  "shell.mode.builder.exit": "Exit the agent builder",
   "shell.mode.builder.exitText": "Exit",
-  "shell.mode.builder.announce": "Assistant.",
+  "shell.mode.builder.announce": "Agent builder.",
   "shell.leave.title": "Leave Operations?",
   "shell.leave.goes": "This link opens {area}, outside Operations.",
   "shell.leave.environment":
@@ -530,7 +530,7 @@ export const messages = {
   "forms.new": "New form",
 
   "builder.newForm": "New form",
-  "builder.heading": "Assistant: {name}",
+  "builder.heading": "Agent builder: {name}",
   "builder.editByHand": "Edit by hand",
   "builder.sharePreview": "Share preview",
   "builder.publish": "Publish",
@@ -540,6 +540,8 @@ export const messages = {
   "builder.pane.preview": "Preview",
   "builder.assistant.subject": "Editing {name}",
   "builder.assistant.subjectNew": "Creating a new form",
+  "builder.assistant.empty":
+    "Say what this form should ask. The assistant edits the draft, and a card asks you to confirm anything it cannot undo.",
   "builder.preview.empty": "The draft's preview appears here.",
   "builder.preview.newForm": "There is nothing to preview until the form is created.",
   "builder.edit.op.question": "Changed a question",
@@ -1164,6 +1166,7 @@ export const messages = {
   /** Existing pins keep working; only new pins are subject to the workspace rule. */
   "forms.issue.foreignWorkspacePin":
     "This pin points at a question another workspace owns. Pins that were already published keep working; a new one needs a question in this form's own workspace or in the shared library.",
+  "forms.issue.onStep": "On {step}",
   "forms.issue.unknown": "The engine reported an issue this screen has no wording for ({code}).",
 
   "forms.issue.blankText":
@@ -1897,6 +1900,8 @@ export const messages = {
   "forms.assist.definition.field.minLength": "Fewest characters",
   "forms.assist.definition.field.maxLength": "Most characters",
   "forms.assist.definition.field.pattern": "Shape it has to match",
+  /** The shape itself is a regular expression, so the card words it and the whole definition carries it. */
+  "forms.assist.definition.patternSet": "A checked format, in the whole definition below",
   "forms.assist.definition.field.integer": "Whole numbers only",
   "forms.assist.definition.field.min": "Lowest number",
   "forms.assist.definition.field.max": "Highest number",
