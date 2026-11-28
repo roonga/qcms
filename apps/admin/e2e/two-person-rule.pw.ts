@@ -177,7 +177,7 @@ test("a prod endpoint change is stored waiting, and nothing is live", async ({ p
   await dialog.getByRole("button", { name: "Create endpoint" }).click();
 
   await expect(page.getByTestId("qcms-webhook-pending")).toContainText(
-    "Nothing has changed in prod yet",
+    "Nothing has changed in Production yet",
   );
 
   await expect(page.getByTestId("qcms-webhook-secret")).toBeVisible();
