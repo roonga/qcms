@@ -4952,6 +4952,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   border-block-start: 1px solid var(--color-border);
 }
 .qcms-adrawer__reset,
+.qcms-adrawer__done,
 .qcms-themes__action {
   min-block-size: var(--admin-control-h);
   padding-inline: var(--space-3);
@@ -4963,10 +4964,16 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   font-weight: 600;
   cursor: pointer;
 }
+.qcms-adrawer__done {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
 .qcms-themes__action--danger {
   color: var(--color-danger-fg);
 }
 .qcms-adrawer__reset:disabled,
+.qcms-adrawer__done:disabled,
 .qcms-themes__action:disabled {
   cursor: not-allowed;
   opacity: 0.5;
