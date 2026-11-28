@@ -49,17 +49,18 @@ const FIELD_LABELS: Readonly<Record<string, MessageKey>> = {
   required: "forms.assist.definition.required",
 };
 
+function headValue(name: string, raw: unknown): string | undefined {
+  if (name === "label" || name === "help") return localized(raw);
+  if (name === "type") return typeLabel(raw);
+  return scalar(raw);
+}
+
 function headLines(definition: Readonly<Record<string, unknown>>): readonly Line[] {
   const lines: Line[] = [];
   for (const [name, key] of Object.entries(FIELD_LABELS)) {
     const raw = definition[name];
     if (raw === undefined) continue;
-    const value =
-      name === "label" || name === "help"
-        ? localized(raw)
-        : name === "type"
-          ? typeLabel(raw)
-          : scalar(raw);
+    const value = headValue(name, raw);
     if (value === undefined || value === "") continue;
     lines.push({ label: t(key), value, mono: false });
   }
