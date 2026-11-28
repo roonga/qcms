@@ -174,7 +174,10 @@ test("confirms a group's whole life inside one plan, each step naming what the f
   await propose(page, "plan-workspace", `set a group up and take it down ${naming(PLANNED)}`);
   await expectWaitingStepStates(page, "Proposed");
 
-  await expect(page.locator(".qcms-acard")).toContainText("step 1's teamId");
+  // The group does not exist yet, so the later steps read it by the name step 1 gives it.
+  const planned = page.locator(".qcms-acard");
+  await expect(planned).toContainText(`Remove the access group Response viewers ${PLANNED}`);
+  await expect(planned).not.toContainText("the access group this access group");
 
   await confirm(page, /^Done\. All 4 steps ran/u);
   await expectStepChips(page, ["Done", "Done", "Done", "Done"]);

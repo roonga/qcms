@@ -256,7 +256,8 @@ function stepSubject(step: AgentPlanStep): string | undefined {
       textField(step.args["definition"], field) ?? textField(step.draft?.definition, field);
     if (found !== undefined) return found;
   }
-  return undefined;
+  // A step that names the thing it makes names it for every later step that waits on this one.
+  return displayText(step.args["name"]);
 }
 
 function literalId(raw: unknown): string | undefined {
