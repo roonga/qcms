@@ -9,6 +9,7 @@ import {
 } from "@/lib/membership/access-patterns";
 
 import { AccessExplanation } from "./access-explanation";
+import { environmentLabel } from "@/lib/environment";
 
 const AUTHORS: GroupGrant = {
   id: "tm_authors",
@@ -48,7 +49,7 @@ describe("the access explanation", () => {
       within(table)
         .getAllByRole("columnheader")
         .map((cell) => cell.textContent),
-    ).toEqual(["Action", "test", "prod"]);
+    ).toEqual(["Action", "test", environmentLabel("prod")]);
     expect(row(table, "View forms")).toEqual(["Authors"]);
     expect(row(table, "Edit forms")).toEqual(["Authors"]);
     expect(row(table, "Publish forms")).toEqual(["Authors", none]);

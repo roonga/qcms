@@ -2,6 +2,7 @@ import { OperatorDay } from "@/components/operator-time";
 import { EmptyState } from "@/components/empty-state";
 import { currentReleaseByEnvironment, type ReleaseRecord } from "@/lib/forms/releases";
 import { t } from "@/lib/i18n/en";
+import { environmentLabel } from "@/lib/environment";
 
 /* The newest release per form/environment is current serving state; derive it from this same history to
    avoid conflicting reads. */
@@ -108,7 +109,7 @@ export function ReleaseHistory({ releases }: { readonly releases: readonly Relea
               data-version={row.version}
               data-rollback={row.rollback ? "true" : "false"}
             >
-              <th scope="row">{row.environment}</th>
+              <th scope="row">{environmentLabel(row.environment)}</th>
               <td className="qcms-cell--num">
                 {t("forms.version.value", { version: row.version })}
                 {row.rollback && (

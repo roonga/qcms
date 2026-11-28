@@ -105,7 +105,7 @@ test("a suspended View responses says it waits for a re-confirmation", async ({ 
   await open(page, `/operations/forms/${FORM_ID}/responses`, 375, "qcms-responses-unavailable");
   const state = page.getByTestId("qcms-responses-unavailable");
   await expect(state).toContainText(
-    "Your View responses in prod is suspended until a Workspace administrator re-confirms it.",
+    `Your View responses in ${PROD_SHOWN} is suspended until a Workspace administrator re-confirms it.`,
   );
   await expect(state.getByRole("link", { name: "My access" })).toHaveAttribute(
     "href",
