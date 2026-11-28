@@ -160,7 +160,7 @@ the routes answer 404.
   form with no open draft offers "Start a new draft" first, as the publish wizard does.
 - The mode's top bar carries the title, the form's name and an Exit that returns where you came
   from. The heading row holds **Edit by hand**, which is the ordinary builder at `/forms/<id>`,
-  Share preview, and Publish. Below 64rem the assistant pane and the preview become two tabs.
+  Open preview, and Publish. Below 64rem the assistant pane and the preview become two tabs.
 - The assistant pane sits beside a **live preview** of the draft as a respondent would see it: a
   device frame with widths, rotation, zoom, polarity and high contrast, Reset answers, and an
   Inspect mode that tells the assistant which question you picked. Authoring ignores the

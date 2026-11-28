@@ -47,6 +47,15 @@ const STATE_LABELS: Readonly<Record<EditRecordState, MessageKey>> = {
   undone: "builder.edit.state.undone",
 };
 
+const STATE_TAGS: Readonly<Record<EditRecordState, string>> = {
+  applying: "qcms-tag--info",
+  applied: "qcms-tag--info",
+  failed: "qcms-tag--danger",
+  "not-run": "qcms-tag--muted",
+  undoing: "qcms-tag--muted",
+  undone: "qcms-tag--muted",
+};
+
 /* The agent builder carries no apply-draft step: its edits are card-less. */
 function noAccept(): Promise<AcceptOutcome> {
   return Promise.resolve({ saved: false, message: t("agent.card.note.noBuilder") });
@@ -82,7 +91,10 @@ function EditRow({
     <li className="qcms-builder-edit" data-state={record.state} data-testid="qcms-builder-edit">
       <div className="qcms-builder-edit__row">
         <span className="qcms-builder-edit__what">{what}</span>
-        <span className="qcms-tag qcms-tag--draft" data-testid="qcms-builder-edit-state">
+        <span
+          className={`qcms-tag ${STATE_TAGS[record.state]}`}
+          data-testid="qcms-builder-edit-state"
+        >
           {t(STATE_LABELS[record.state])}
         </span>
         {record.state === "applied" && record.undoToken !== undefined && (
@@ -262,6 +274,7 @@ export function BuilderAssistant({
   return (
     <>
       <AssistantConversation
+        key={conversation.id}
         screen={screen}
         environment=""
         conversation={conversation}

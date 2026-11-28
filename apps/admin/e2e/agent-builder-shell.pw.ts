@@ -135,7 +135,7 @@ test("enters from the New form screen, and Exit returns to it", async ({ page })
   await waitForHydration(page);
   await expectBuilderMode(page, "New form");
   await expect(page.getByRole("button", { name: "Publish" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Share preview" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Open preview" })).toBeDisabled();
   await axeClean(page, "/forms/new/build");
 
   await Promise.all([page.waitForURL(/\/forms\/new$/u), exit(page).click()]);
@@ -166,16 +166,39 @@ test("enters from a form's menu, Exit returns to the list, and Edit by hand open
     "href",
     `/forms/${formId}/publish?returnTo=${encodeURIComponent(buildPath(formId))}`,
   );
-  await expect(page.getByRole("link", { name: "Share preview" })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: "Open preview" })).toHaveAttribute(
     "href",
     `/forms/${formId}/preview`,
   );
   await axeClean(page, `/forms/${formId}/build`);
 
-  const pane = await page
-    .getByRole("region", { name: "Assistant" })
-    .evaluate((node) => Math.round(node.getBoundingClientRect().width));
-  expect(pane, "the assistant pane takes its own ruled width").toBe(420);
+  const mark = page.locator("#qcms-builder-assistant-heading > svg");
+  await expect(mark).toHaveAttribute("aria-label", "Assistant");
+  const markSize = await mark.evaluate((node) => Math.round(node.getBoundingClientRect().width));
+  expect(markSize, "the mark names the pane in place of a title word, at 24px").toBe(24);
+
+  const paneWidth = () =>
+    page
+      .getByRole("region", { name: "Assistant" })
+      .evaluate((node) => Math.round(node.getBoundingClientRect().width));
+  expect(await paneWidth(), "the assistant pane opens at the panel's default width").toBe(400);
+
+  const edge = page.getByRole("separator", { name: "Assistant pane width" });
+  await edge.focus();
+  await edge.press("ArrowRight");
+  expect(await paneWidth(), "an arrow key moves the pane one step wider").toBe(440);
+  await edge.press("End");
+  expect(await paneWidth(), "End reaches the clamp's maximum").toBe(560);
+  await edge.press("ArrowRight");
+  expect(await paneWidth(), "the clamp holds at the maximum").toBe(560);
+  await edge.press("Home");
+  expect(await paneWidth(), "Home reaches the clamp's minimum").toBe(320);
+  await edge.press("ArrowLeft");
+  expect(await paneWidth(), "the clamp holds at the minimum").toBe(320);
+
+  await page.getByRole("button", { name: t("agent.help") }).click();
+  await page.getByRole("button", { name: "Default" }).click();
+  expect(await paneWidth(), "the Help menu reaches the same widths without dragging").toBe(400);
 
   await Promise.all([page.waitForURL(/\/forms\?q=/u), exit(page).click()]);
 

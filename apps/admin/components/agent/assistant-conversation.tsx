@@ -692,7 +692,19 @@ function ScreenConversation({
       )}
       {failure !== undefined && (
         <p className="qcms-assistant__error" data-testid="qcms-assistant-error">
-          {messageForError(failure)}
+          <svg
+            className="qcms-assistant__error-mark"
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v6" strokeLinecap="round" />
+            <circle cx="12" cy="16.5" r="0.9" fill="currentColor" stroke="none" />
+          </svg>
+          <span>{messageForError(failure)}</span>
         </p>
       )}
       <div className="qcms-assistant__composer">

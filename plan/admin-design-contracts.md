@@ -1416,7 +1416,7 @@ is drawn tightly rather than loosely.
 
 - It covers **the two build routes only**, `/forms/[formId]/build` and `/forms/new/build`. Every other form screen, New form included, keeps its rail.
 - The builder is **a mode, like Operations**. The top bar shows one group: the title "Agent builder", the form name (or "New form") and Exit. There is no rail, no breadcrumb row and no environment selector, because authoring ignores the environment.
-- **The heading row** holds Edit by hand, Share preview and Publish, which is where §7.0 ruling 5 puts lifecycle actions anyway.
+- **The heading row** holds Edit by hand, Open preview and Publish, which is where §7.0 ruling 5 puts lifecycle actions anyway.
 - **Exit returns to where the user entered**, the form or the New form screen. Edit by hand goes to `/forms/<id>`.
 - **Below 64rem** the assistant pane and the preview are two tabs.
 - **The exception does not generalise.** No other screen goes without a rail by pointing at this one; it needs its own row in §7.0's table.

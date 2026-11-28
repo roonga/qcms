@@ -12,8 +12,8 @@ Design the two entry points and the mode chrome, reusing existing admin patterns
 
 - New form screen: how "Start blank" and "Build with the assistant" are offered (two cards, a segmented choice or two buttons), which is the default, and the copy.
 - Form menu: where "Edit with the agent builder" sits among the existing entries, its icon (if any) and its behaviour when the form has no open draft ("Start a new draft" first).
-- Mode chrome: the top bar group with the title "Agent builder", the form name (or "New form") and Exit, and the heading row with Edit by hand, Share preview and Publish.
-- Empty new-form state: the assistant pane's first prompt and suggestions, and the preview before any step is confirmed (Share preview and Publish disabled, with the reason).
+- Mode chrome: the top bar group with the title "Agent builder", the form name (or "New form") and Exit, and the heading row with Edit by hand, Open preview and Publish.
+- Empty new-form state: the assistant pane's first prompt and suggestions, and the preview before any step is confirmed (Open preview and Publish disabled, with the reason).
 - Phone: the assistant pane and the preview as two tabs below 64rem, and where the heading row actions go.
 
 ## Constraints

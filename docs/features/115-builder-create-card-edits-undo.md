@@ -9,7 +9,7 @@ The builder's write experience. Creating a form is the one Confirm card (the slu
 
 ## Deliverables
 
-- Form creation from `/forms/new/build`: a Confirm card showing the workspace and the slug; needs Edit forms in that workspace; the form and its first draft are created at Confirm, never when the builder opens; until then Share preview and Publish are off. After Confirm the route becomes `/forms/<id>/build`.
+- Form creation from `/forms/new/build`: a Confirm card showing the workspace and the slug; needs Edit forms in that workspace; the form and its first draft are created at Confirm, never when the builder opens; until then Open preview and Publish are off. After Confirm the route becomes `/forms/<id>/build`.
 - Draft edits applied as 111's token-bound edits, browser-executed, with no per-edit card; each edit shows in the conversation with an Undo control. A new or edited library question is a Confirm card with no Undo control (Q22). Each save sends the definition the edit carries unchanged, since its token binds that post-state. A turn that yields both edits and an `open-wizard` event finishes every save before it navigates to the wizard.
 - Undo for the latest edit and earlier ones in reverse order, through 111's Undo route.
 - The publish wizard shows 111's read when entered from the builder or when the draft carries agent edits: the comparison is labelled "every change since the last publish", with the steps the assistant made marked. No agent-only diff is built.
