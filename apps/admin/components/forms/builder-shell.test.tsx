@@ -63,12 +63,12 @@ function shell(props: Partial<Parameters<typeof BuilderShell>[0]> = {}) {
 }
 
 describe("the builder's heading row", () => {
-  it("holds Edit by hand, Share preview and Publish, each named by what it shows", () => {
+  it("holds Edit by hand, Open preview and Publish, each named by what it shows", () => {
     render(shell());
     expect(screen.getByRole("link", { name: "Edit by hand" }).getAttribute("href")).toBe(
       "/forms/frm_a",
     );
-    expect(screen.getByRole("link", { name: "Share preview" }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: "Open preview" }).getAttribute("href")).toBe(
       "/forms/frm_a/preview",
     );
     expect(screen.getByRole("link", { name: "Publish" }).getAttribute("href")).toBe(
@@ -85,7 +85,7 @@ describe("the builder's heading row", () => {
   it("keeps every action off until a new form exists", () => {
     render(shell({ formId: null, name: "New form", canPublish: false }));
     expect(screen.queryAllByRole("link")).toHaveLength(0);
-    for (const name of ["Edit by hand", "Share preview", "Publish"]) {
+    for (const name of ["Edit by hand", "Open preview", "Publish"]) {
       expect(screen.getByRole("button", { name }).hasAttribute("disabled")).toBe(true);
     }
   });

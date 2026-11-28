@@ -6,6 +6,7 @@ import type { BuilderStatus } from "@/lib/forms/autosave";
 import { useBuilderRail } from "@/lib/forms/builder-bridge";
 import {
   anchorFor,
+  locationLabel,
   locationOf,
   messageForIssue,
   ruleForIssue,
@@ -105,14 +106,16 @@ export function IssueEntry({
 }) {
   const anchor = anchorFor(issue, draft);
   const builder = useBuilderRail();
-  const where = locationOf(issue);
+  /* The kernel's own sentence names step, question and version ids and cites a rule number, which
+     is not what the author is looking at; the link below already points at the control. */
+  const where = locationLabel(issue, draft);
   const rule = ruleForIssue(issue, draft);
   const body = (
     <>
-      <span className="block text-sm text-(--color-text)">{messageForIssue(issue)}</span>
-      <span className="block text-xs text-(--color-text-muted)">
-        {where === "" ? issue.message : `${where} - ${issue.message}`}
-      </span>
+      <span className="block text-sm text-(--color-text)">{messageForIssue(issue, draft)}</span>
+      {where === "" ? null : (
+        <span className="block text-xs text-(--color-text-muted)">{where}</span>
+      )}
     </>
   );
 

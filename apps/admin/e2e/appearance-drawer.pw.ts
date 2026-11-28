@@ -175,12 +175,13 @@ test("a locked workspace disables the drawer and attempts no save", async ({ pag
     drawer(page).getByRole("button", { name: "Spacious", exact: true }),
     drawer(page).getByRole("button", { name: "Rounded", exact: true }),
     drawer(page).getByRole("button", { name: "None", exact: true }),
+    page.getByTestId("qcms-appearance-reset"),
+    page.getByTestId("qcms-appearance-done"),
   ];
   for (const control of locked) {
     await expect(control).toBeDisabled();
     await expect(control).toHaveAttribute("aria-describedby", reasonId);
   }
-  await expect(page.getByTestId("qcms-appearance-done")).toBeDisabled();
   expect(drafts, "a locked drawer sent a draft save").toEqual([]);
   await axeClean(page, "the locked appearance drawer");
   await setLock(false);

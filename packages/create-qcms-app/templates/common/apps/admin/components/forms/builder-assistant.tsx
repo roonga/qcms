@@ -21,6 +21,7 @@ import {
   type EditRecordState,
 } from "@/lib/agent/builder-edits";
 import { useConversation } from "@/lib/agent/conversation";
+import { builderConversationKey } from "@/lib/agent/conversation-state";
 import type { ConversationScreen } from "@/lib/agent/screens";
 import { builderPublishHref } from "@/lib/forms/build-return";
 import type { BuilderEditOp } from "@/lib/forms/assist-stream";
@@ -44,6 +45,15 @@ const STATE_LABELS: Readonly<Record<EditRecordState, MessageKey>> = {
   "not-run": "builder.edit.state.notRun",
   undoing: "builder.edit.state.undoing",
   undone: "builder.edit.state.undone",
+};
+
+const STATE_TAGS: Readonly<Record<EditRecordState, string>> = {
+  applying: "qcms-tag--info",
+  applied: "qcms-tag--info",
+  failed: "qcms-tag--danger",
+  "not-run": "qcms-tag--muted",
+  undoing: "qcms-tag--muted",
+  undone: "qcms-tag--muted",
 };
 
 /* The agent builder carries no apply-draft step: its edits are card-less. */
@@ -81,7 +91,10 @@ function EditRow({
     <li className="qcms-builder-edit" data-state={record.state} data-testid="qcms-builder-edit">
       <div className="qcms-builder-edit__row">
         <span className="qcms-builder-edit__what">{what}</span>
-        <span className="qcms-tag qcms-tag--draft" data-testid="qcms-builder-edit-state">
+        <span
+          className={`qcms-tag ${STATE_TAGS[record.state]}`}
+          data-testid="qcms-builder-edit-state"
+        >
           {t(STATE_LABELS[record.state])}
         </span>
         {record.state === "applied" && record.undoToken !== undefined && (
@@ -111,11 +124,13 @@ export interface BuilderEditActions {
 /** The agent builder's assistant: the dock's conversation, with its edits applied card-less. */
 export function BuilderAssistant({
   formId,
+  userId,
   workspaceId,
   draft,
   actions,
 }: {
   readonly formId: string | null;
+  readonly userId: string;
   readonly workspaceId: string;
   readonly draft: DraftForm | null;
   readonly actions: BuilderEditActions | undefined;
@@ -234,18 +249,32 @@ export function BuilderAssistant({
         if (formId === null || returnTo !== builderPath(formId)) return;
         router.push(builderPublishHref(formId));
       },
+      /* The new form's route reads its own tab-storage entry, so the conversation that asked for
+         the form is copied there rather than restarted under it. */
       onFormCreated: (created) => {
         if (formId !== null) return;
-        conversation.restart();
+        conversation.carryTo(builderConversationKey(userId, workspaceId, created));
         router.push(builderPath(created));
       },
     }),
-    [changeRecords, conversation, formId, ports, records, router, undo, undoing],
+    [
+      changeRecords,
+      conversation,
+      formId,
+      ports,
+      records,
+      router,
+      undo,
+      undoing,
+      userId,
+      workspaceId,
+    ],
   );
 
   return (
     <>
       <AssistantConversation
+        key={conversation.id}
         screen={screen}
         environment=""
         conversation={conversation}
@@ -254,6 +283,7 @@ export function BuilderAssistant({
         onWorkingChange={noop}
         onAnnounce={setAnnouncement}
         turnHooks={hooks}
+        emptyText={t("builder.assistant.empty")}
       />
       <p className="sr-only" aria-live="polite" data-testid="qcms-builder-announce">
         {announcement}

@@ -24,6 +24,8 @@
 
 **Note.** The earlier text read "versions are immutable content" without qualification. Draft versions are edited in place by design, and a `deprecated` state exists: existing pins keep serving, new pins are gated.
 
+**Note - the admin draft preview renders an unpublished pin (Code Owner, 2026-11-28).** "Preview drafts": the builder's preview pane and Open preview compile a draft whose pins name question versions that are still drafts, so an author sees the form being written rather than a refusal. `DraftInput.allowUnpublishedPins` is set by `makePreviewDraftHandler` alone; publish, release and the portal are unchanged, so `UNPUBLISHED_QUESTION_PIN` still refuses a publish and the agent's unpublished-pin set (SEC, D3) is still computed by the strict call. Nothing the preview compiles is stored: ADR-01's Note already places that compile outside publish and outside the ADR-18 audit copy, and R1's sentence in `PROJECT_INSTRUCTIONS.md` is unchanged.
+
 ### ADR-03 - Closed rules DSL
 
 **Status:** implemented.

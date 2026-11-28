@@ -265,14 +265,15 @@ describe("a locked workspace", () => {
       ...["Medium", "Custom", "Spacious", "Rounded", "None"].map((name) =>
         screen.getByRole("button", { name }),
       ),
+      screen.getByTestId("qcms-appearance-reset"),
+      screen.getByTestId("qcms-appearance-done"),
     ];
     for (const control of controls) {
       expect(isOff(control), control.id).toBe(true);
       expect(control.getAttribute("aria-describedby"), control.id).toBe(reason.id);
     }
-    const done = screen.getByTestId("qcms-appearance-done");
-    expect(isOff(done)).toBe(true);
-    await userEvent.click(done);
+    const save = screen.getByTestId("qcms-appearance-done");
+    await userEvent.click(save);
     expect(onSave).not.toHaveBeenCalled();
   });
 });

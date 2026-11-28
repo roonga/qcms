@@ -131,6 +131,16 @@ function maxLabel(max: number | undefined): string {
   return max === undefined ? "?" : String(max);
 }
 
+/** Where an issue is in the author's own words; nothing a reader cannot place on the screen. */
+export function locationLabel(issue: FormIssue, draft: DraftForm | undefined): string {
+  const stepId = issue.path?.step;
+  if (stepId === undefined || draft === undefined) return "";
+  const step = draft.steps.find((candidate) => candidate.stepId === stepId);
+  const title = step === undefined ? "" : textOf(step.title, draft.defaultLocale).trim();
+  return title === "" ? "" : t("forms.issue.onStep", { step: title });
+}
+
+/** Identifier path, for a stable list key rather than for a reader. */
 export function locationOf(issue: FormIssue): string {
   const path = issue.path;
   if (path === undefined) return "";

@@ -61,7 +61,7 @@ export function editByHandHref(formId: string): string {
   return formPage(formId);
 }
 
-export function sharePreviewHref(formId: string): string {
+export function openPreviewHref(formId: string): string {
   return `${formPage(formId)}/preview`;
 }
 

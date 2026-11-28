@@ -15,9 +15,6 @@ export const PANEL_WIDTH_CHOICES = [PANEL_MIN_WIDTH, PANEL_DEFAULT_WIDTH, PANEL_
 
 export const PANEL_WIDTH_STEP = 40;
 
-/** The agent builder's assistant pane, a column of its own mode: the dock's widths above bind the dock only. */
-export const BUILDER_PANE_WIDTH = 420;
-
 /** Below this the builder's assistant pane and preview become two tabs. */
 export const BUILDER_TABS_QUERY = "(max-width: 63.999rem)";
 

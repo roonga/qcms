@@ -232,7 +232,9 @@ test("1011 following a validation issue lands the pin row clear of the top bar a
   await fillStable(field(page, "Form title"), "Obscured focus, checked");
   await expect(issueSummary(page)).toContainText("would block a publish", { timeout: 30_000 });
 
-  const link = issue(page, "DEPRECATED_PIN").filter({ hasText: questionId }).first();
+  const link = issue(page, "DEPRECATED_PIN")
+    .and(page.locator(`[href="#pin-${questionId}"]`))
+    .first();
   await expect(link).toBeVisible();
 
   await link.evaluate((element, selector) => {

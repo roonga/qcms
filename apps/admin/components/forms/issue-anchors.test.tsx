@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { ruleHref } from "../../lib/forms/issues.ts";
+import { t } from "../../lib/i18n/en.ts";
 import type { DraftForm, FormIssue } from "../../lib/forms/types.ts";
 
 const FORM_ID = "frm_anchors";
@@ -65,7 +66,7 @@ describe("an issue that names a rule", () => {
     });
 
     expect(href(markup)).toBe("");
-    expect(markup).toContain("these rules depend on each other");
+    expect(markup).toContain(t("forms.issue.cycle"));
   });
 });
 

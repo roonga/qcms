@@ -20,6 +20,7 @@ const CONVERSATION: ConversationHandle = {
   current: () => [],
   append: () => undefined,
   restart: () => undefined,
+  carryTo: () => undefined,
 };
 
 const DRAFT: DraftForm = {

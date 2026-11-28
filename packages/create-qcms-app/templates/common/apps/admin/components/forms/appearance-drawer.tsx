@@ -315,7 +315,7 @@ export function AppearanceDrawer({
         </button>
       </div>
 
-      <div className="qcms-adrawer__body">
+      <div className="qcms-adrawer__body" tabIndex={0}>
         {locked && (
           <p
             id={LOCK_REASON_ID}
@@ -572,20 +572,24 @@ export function AppearanceDrawer({
           </ul>
           <p className="qcms-adrawer__hint">{t("appearance.respondent.note")}</p>
         </div>
+
+        <div className="qcms-adrawer__field">
+          <button
+            type="button"
+            className="qcms-adrawer__reset"
+            data-testid="qcms-appearance-reset"
+            disabled={off || pending}
+            {...(reason === undefined ? {} : { "aria-describedby": reason })}
+            onClick={() => {
+              change(null);
+            }}
+          >
+            {t("appearance.reset")}
+          </button>
+        </div>
       </div>
 
       <div className="qcms-adrawer__foot">
-        <button
-          type="button"
-          className="qcms-adrawer__reset"
-          disabled={off || pending}
-          {...(reason === undefined ? {} : { "aria-describedby": reason })}
-          onClick={() => {
-            change(null);
-          }}
-        >
-          {t("appearance.reset")}
-        </button>
         <button
           type="button"
           className="qcms-adrawer__done"

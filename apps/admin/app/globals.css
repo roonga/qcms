@@ -513,11 +513,13 @@ button {
   border-width: 2px;
 }
 
+/* The builder is a mode screen under the top bar alone, and it takes that height so its panes
+   scroll inside themselves and the assistant composer stays on screen. Grid rows, rather than flex
+   items sized from their content, are what make that height definite for the panes inside it. */
 .qcms-builder {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-block-size: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  block-size: calc(100dvh - var(--admin-topbar-layout-h, var(--admin-topbar-h)));
 }
 .qcms-builder__heading {
   display: flex;
@@ -536,8 +538,8 @@ button {
 /* Narrow first: before hydration picks the tabs, a narrow screen shows the assistant pane alone. */
 .qcms-builder__panes {
   display: grid;
-  flex: 1 1 auto;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-block-size: 0;
 }
 .qcms-builder__panes > .qcms-builder__pane--preview {
@@ -554,37 +556,76 @@ button {
 .qcms-builder__pane {
   display: flex;
   flex-direction: column;
+  min-block-size: 0;
   min-inline-size: 0;
 }
 .qcms-builder__pane--assistant {
-  border-inline-end: 1px solid var(--color-border);
+  position: relative;
+  border-inline-end: 1px solid var(--color-border-strong);
   background-color: var(--color-surface);
 }
 .qcms-builder__pane-heading {
-  padding: var(--space-3) var(--admin-section-pad) 0;
-  font-size: 1rem;
+  margin: 0;
+  padding: var(--space-3) var(--space-4) 0;
+  font-size: 16px;
+  line-height: 24px;
   font-weight: 600;
 }
+.qcms-builder__pane-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 48px;
+  padding-inline: var(--space-4);
+  border-block-end: 1px solid var(--color-border);
+}
+.qcms-builder__pane-head > .qcms-builder__pane-heading {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+}
+.qcms-builder__pane-tools {
+  display: flex;
+  margin-inline-start: auto;
+  gap: var(--space-1);
+}
+/* Inside the pane, not across its border: the first paint is one pane wide, and anything
+   outside it widens the document past the viewport. */
+.qcms-builder__pane-edge {
+  position: absolute;
+  z-index: 1;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: 6px;
+  cursor: col-resize;
+  background-color: transparent;
+}
+.qcms-builder__pane-edge:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+/* The pane body fills its pane so the assistant composer stays at the bottom of a short conversation. */
 .qcms-builder__pane-body {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-3) var(--admin-section-pad);
+  min-block-size: 0;
+  padding: var(--space-4);
 }
 .qcms-builder-edits {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   inline-size: 100%;
 }
 .qcms-builder-edit {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  padding: var(--space-2) var(--space-3);
-  background-color: var(--color-surface);
+  padding: var(--space-3);
+}
+.qcms-builder-edit + .qcms-builder-edit {
+  border-block-start: 1px solid var(--color-border);
 }
 .qcms-builder-edit__row {
   display: flex;
@@ -599,20 +640,34 @@ button {
   font-size: 0.875rem;
   color: var(--color-text-muted);
 }
+.qcms-builder__tabs {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-block-size: 0;
+}
+.qcms-builder__tabpanel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-block-size: 0;
+}
+.qcms-builder__tabpanel--preview {
+  grid-template-rows: minmax(0, 1fr);
+}
+/* The preview is taller than a short pane allows, so it scrolls in its own box. */
+.qcms-builder__pane-body--preview {
+  overflow: auto;
+}
 .qcms-builder__tablist {
   padding-inline: var(--admin-section-pad);
   background-color: var(--color-surface);
 }
 .qcms-builder__start {
   display: flex;
+  align-self: start;
   flex-direction: column;
   gap: var(--space-3);
   max-inline-size: 40rem;
   padding: var(--admin-section-pad);
-}
-.qcms-builder__pane-body--preview {
-  flex: 1 1 auto;
-  min-block-size: 0;
 }
 .qcms-builder-selection {
   display: flex;
@@ -641,17 +696,19 @@ button {
   gap: var(--space-2);
   min-block-size: 0;
 }
+/* Centred rather than end-aligned: wrapped rows mix 40px toggles with 44px selects, and an end
+   alignment reads as controls colliding. */
 .qcms-builder-preview__toolbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--space-2) var(--space-3);
 }
 .qcms-builder-preview__select {
+  flex: 0 1 auto;
   min-inline-size: 9rem;
 }
 .qcms-builder-preview__size {
-  align-self: center;
   font-family: var(--font-mono);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
@@ -663,10 +720,12 @@ button {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
+  min-inline-size: 0;
 }
-.qcms-builder-preview__toggle {
+.qcms-railtoggle.qcms-builder-preview__toggle {
   display: inline-flex;
   align-items: center;
+  inline-size: auto;
   min-block-size: var(--admin-control-h);
   padding-inline: var(--space-3);
   border: 1px solid var(--color-border-strong);
@@ -674,7 +733,7 @@ button {
   background-color: var(--color-surface);
   color: var(--color-text);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
 }
 .qcms-builder-preview__toggle:hover:not(:disabled) {
@@ -682,9 +741,10 @@ button {
 }
 .qcms-builder-preview__toggle[aria-pressed="true"] {
   border-color: var(--color-primary);
-  background-color: var(--color-primary);
-  color: var(--color-primary-foreground);
-  font-weight: 600;
+  border-radius: 0;
+  box-shadow: inset 0 -3px 0 0 var(--color-primary);
+  background-color: var(--color-info-subtle);
+  color: var(--color-primary);
 }
 .qcms-builder-preview__toggle:disabled {
   cursor: not-allowed;
@@ -692,6 +752,13 @@ button {
 }
 :root.hc .qcms-builder-preview__toggle {
   border-width: 2px;
+}
+.qcms-builder-preview__issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-4);
+  list-style: disc;
 }
 .qcms-builder-preview__status {
   font-size: 13px;
@@ -1194,10 +1261,21 @@ button {
   color: var(--color-warning-fg);
   border-color: var(--color-warning-subtle);
 }
-.qcms-tag--agent-assisted {
+.qcms-tag--agent-assisted,
+.qcms-tag--info {
   background-color: var(--color-info-subtle);
   color: var(--color-info-fg);
   border-color: var(--color-info-subtle);
+}
+.qcms-tag--danger {
+  background-color: var(--color-danger-subtle);
+  color: var(--color-danger-fg);
+  border-color: var(--color-danger-subtle);
+}
+.qcms-tag--muted {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  border-color: var(--color-border-strong);
 }
 :root.hc .qcms-tag {
   border-width: 2px;
@@ -1847,34 +1925,35 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 .qcms-phasetabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: var(--space-1);
   border-block-end: 1px solid var(--color-border);
 }
 .qcms-phasetab {
   display: inline-flex;
   align-items: center;
   min-block-size: var(--admin-control-h);
-  padding-inline: 0.75rem;
+  padding-inline: var(--space-3);
   border: 0;
-  border-block-end: 2px solid transparent;
-  margin-block-end: -1px;
+  border-radius: var(--radius-control);
   background: transparent;
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 600;
   cursor: pointer;
 }
 .qcms-phasetab:hover {
-  color: var(--color-text);
-  background-color: var(--color-ghost-hover);
+  background-color: var(--color-surface-hover);
 }
 .qcms-phasetab[aria-selected="true"] {
-  color: var(--color-text);
-  border-block-end-color: var(--color-primary);
+  border-radius: 0;
+  box-shadow: inset 0 -3px 0 0 var(--color-primary);
+  background-color: var(--color-info-subtle);
+  color: var(--color-primary);
 }
 .qcms-phasetab[data-focus-visible] {
-  outline: 2px solid var(--color-primary);
-  outline-offset: -2px;
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .qcms-targets__step {
@@ -3781,7 +3860,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   display: flex;
   flex-direction: column;
   min-block-size: 0;
-  border-inline-start: 1px solid var(--color-border);
+  border-inline-start: 1px solid var(--color-border-strong);
   background-color: var(--color-surface);
 }
 .qcms-assistant[data-mode="dock"] {
@@ -3844,25 +3923,25 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   background-color: transparent;
 }
 .qcms-assistant__edge:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: -2px;
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 .qcms-assistant__header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  min-block-size: 44px;
-  padding-inline: 0.75rem;
+  gap: var(--space-2);
+  min-block-size: 48px;
+  padding-inline: var(--space-3);
   border-block-end: 1px solid var(--color-border);
 }
 .qcms-assistant__controls {
   display: flex;
   margin-inline-start: auto;
-  gap: 0.25rem;
+  gap: var(--space-1);
 }
 .qcms-assistant__help,
 .qcms-assistant__body {
-  padding: 0.75rem;
+  padding: var(--space-3);
 }
 /* The conversation is the panel's one scroll container; a second one here would stack scrollbars. */
 .qcms-assistant__body {
@@ -3874,12 +3953,12 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 .qcms-assistant__widths {
   display: flex;
-  gap: 0.25rem;
+  gap: var(--space-1);
   border: 0;
   padding: 0;
 }
 .qcms-assistant__note {
-  margin: 0 0 0.75rem;
+  margin: 0 0 var(--space-3);
   color: var(--color-text-muted);
   font-size: 13px;
 }
@@ -3887,13 +3966,13 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-block-size: 0;
   overflow-y: auto;
 }
 .qcms-assistant__turn {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 .qcms-assistant__turn[data-role="user"] {
   justify-content: flex-end;
@@ -3922,25 +4001,58 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   border-radius: var(--radius-card);
   background-color: var(--color-background-muted);
 }
+.qcms-assistant__turn[data-role="user"] .qcms-assistant__bubble {
+  border-color: var(--color-info-subtle);
+  background-color: var(--color-info-subtle);
+  color: var(--color-text);
+}
+.qcms-assistant__empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+.qcms-assistant__error {
+  display: flex;
+  align-items: start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-danger-subtle);
+  border-radius: var(--radius-card);
+  background-color: var(--color-danger-subtle);
+  color: var(--color-danger-fg);
+  font-size: 13px;
+  line-height: 18px;
+}
+:root.hc .qcms-assistant__error {
+  border-width: 2px;
+  border-color: var(--color-border-strong);
+}
+.qcms-assistant__error-mark {
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
+}
 .qcms-assistant__segments {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-inline-size: 0;
 }
 .qcms-assistant__composer {
   display: flex;
   flex: none;
   flex-direction: column;
-  gap: 0.5rem;
-  padding-block-start: 0.75rem;
+  gap: var(--space-2);
+  padding-block-start: var(--space-3);
 }
 .qcms-assistant__composer textarea {
   inline-size: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
-  padding: 0.5rem;
+  padding: var(--space-2);
   background-color: var(--color-surface);
   color: inherit;
 }
@@ -4839,7 +4951,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 .qcms-adrawer__foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--space-2);
   padding: var(--space-3);
   border-block-start: 1px solid var(--color-border);
@@ -4854,14 +4966,16 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   background-color: var(--color-surface);
   color: var(--color-text);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
+}
+.qcms-adrawer__reset {
+  align-self: flex-start;
 }
 .qcms-adrawer__done {
   border-color: var(--color-primary);
   background-color: var(--color-primary);
   color: var(--color-primary-foreground);
-  font-weight: 600;
 }
 .qcms-themes__action--danger {
   color: var(--color-danger-fg);
@@ -4880,7 +4994,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 .qcms-adrawer__url,
 .qcms-adrawer__name {
-  min-block-size: 32px;
+  min-block-size: var(--admin-control-h);
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
@@ -4902,7 +5016,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   background-color: var(--color-surface);
   color: var(--color-text);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
 }
 .qcms-adrawer__derive:disabled {

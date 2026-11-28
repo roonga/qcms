@@ -59,6 +59,7 @@ function handle(): ConversationHandle {
       turns = [...turns, ...next];
     },
     restart: () => undefined,
+    carryTo: () => undefined,
   };
 }
 

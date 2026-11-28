@@ -54,6 +54,8 @@ export interface ConversationHandle {
   readonly current: () => readonly AgentTurnRecord[];
   readonly append: (turns: readonly AgentTurnRecord[]) => void;
   readonly restart: () => void;
+  /** Copy this conversation to another tab-storage entry, so creating the form it is about does not end it. */
+  readonly carryTo: (storageKey: string) => void;
 }
 
 const INERT: ConversationHandle = {
@@ -65,6 +67,7 @@ const INERT: ConversationHandle = {
   current: () => [],
   append: () => undefined,
   restart: () => undefined,
+  carryTo: () => undefined,
 };
 
 const ConversationContext = createContext<ConversationHandle>(INERT);
@@ -161,8 +164,12 @@ export function ConversationProvider({
       restart: () => {
         replace(startConversation(subject, mint));
       },
+      carryTo: (key) => {
+        if (key === storageKey) return;
+        writeStored(key, held.current?.state ?? state, userId);
+      },
     };
-  }, [subject, owner, revision]);
+  }, [subject, owner, revision, storageKey, userId]);
 
   // Persisted after the read above, never during a render, so a fresh first render cannot
   // overwrite the entry it is about to restore.

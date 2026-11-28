@@ -195,8 +195,9 @@ export const previewDraftRoute = createRoute({
       description: "The compiled draft documents and the visible set for the given answers",
       content: { "application/json": { schema: PreviewDraftResponse } },
     },
-    // 422 carries the publish issues verbatim: previewing a draft that could not be
-    // published would misrepresent what a respondent would see.
+    // 422 carries the remaining issues verbatim: a draft that cannot compile has nothing to
+    // render. A pin to an unpublished question version is not one of them here, because the
+    // author is editing that version.
     ...errorResponses(400, 401, 404, 422),
   },
   ...withScopes("forms:write"),

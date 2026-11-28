@@ -590,6 +590,8 @@ QCMS enforces none of this and cannot: it terminates no TLS and owns no ingress 
 
 A draft is not a published version, so it has no portal address in any environment. The admin's live preview is `POST /forms/{id}/draft/preview` on the **admin** route group, behind the SEC-4 internal-token gate and the admin-auth gate, and it writes nothing: it compiles in memory and returns the documents. The portal serves only stored compiled snapshots (ADR-18), so there is no code path by which an unpublished definition reaches a respondent hostname, in `test` or in `prod`.
 
+That preview is also the one caller that compiles a pin to an unpublished question version (Code Owner, 2026-11-28, the Note on ADR-02): the same `validateDraft` with `allowUnpublishedPins` set. It is safe here for the reason above - it writes nothing and has no portal address - and it is the only tolerant call. Publish, release and the agent's own verdicts take the strict one, so the unpublished-pin set D3 binds the propose tool to is still the set the server's publish compile reports.
+
 The admin's own exposure is unchanged and is ADR-20's: in the solo topology the admin is a public hostname protected by TLS plus better-auth with TOTP (boundary B4, SEC-1); in the enterprise topology it is on the VPN or private network and is never routed from the internet (`docs/deploy-enterprise.md` section 2). Environments add nothing to the admin's reachability, because there is one admin for the installation and it is control plane in both senses: it edits the control-plane tables (`public` today, `control` under ADR-40) and it is the surface that decides releases.
 
 ### Egress is per environment

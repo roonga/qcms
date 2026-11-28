@@ -26,13 +26,18 @@ import {
 
 import "./preview-fonts.css";
 
+/* The form read is request-cached, so naming the form in the tab costs no second upstream call;
+   a read this caller cannot make leaves the route's own identifier. */
 export async function generateMetadata({
   params,
 }: {
   readonly params: Promise<{ formId: string }>;
 }): Promise<Metadata> {
   const { formId } = await params;
-  return pageMetadata(t("title.builder", { subject: formId }));
+  const session = await requireAdminSession();
+  const detail = await getForm(session, formId);
+  const subject = detail.ok ? builderFormName(detail.data) : formId;
+  return pageMetadata(t("title.builder", { subject }));
 }
 
 /* A caller who may not write the draft gets the same 404 as a form it cannot see, so the route
