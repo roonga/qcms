@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  onlyId,
   parseTrace,
   refusedToolCallsOf,
   replyOf,
@@ -91,5 +92,13 @@ describe("the model id the provider answered with", () => {
 
   it("reports none where there were no calls or the calls disagreed", () => {
     expect(reportedModelOf([])).toBeNull();
+  });
+
+  it("names the one id a whole run agreed on, which the result records", () => {
+    expect(onlyId(["claude-opus-5-5-20260601", "claude-opus-5-5-20260601"])).toBe(
+      "claude-opus-5-5-20260601",
+    );
+    expect(onlyId(["claude-opus-5-5-20260601", "claude-sonnet-5-5-20260601"])).toBeNull();
+    expect(onlyId([])).toBeNull();
   });
 });

@@ -32,10 +32,10 @@ import type { EvalConfig } from "./config.js";
 import { createRecorder, type ModelRecorder } from "./recorder.js";
 import type { EvalScenario } from "./scenarios.js";
 import {
+  TRACE_VERSION,
   replyOf,
   reportedModelOf,
   usageOfTurn,
-  type ModelCall,
   type ScenarioTrace,
   type TurnTrace,
 } from "./trace.js";
@@ -91,11 +91,30 @@ function definition(formId: string): Record<string, unknown> {
 }
 
 function eventsOf(body: string): AssistEvent[] {
-  return body
-    .split("\n\n")
-    .map((chunk) => chunk.split("\n").find((line) => line.startsWith("data: ")))
-    .filter((line): line is string => line !== undefined)
-    .map((line) => JSON.parse(line.slice("data: ".length)) as AssistEvent);
+  return (
+    body
+      .split("\n\n")
+      .map((chunk) => chunk.split("\n").find((line) => line.startsWith("data: ")))
+      .filter((line): line is string => line !== undefined)
+      // The route serialised each frame from an `AssistEvent` one call ago and nothing else
+      // writes this stream, so the frames are those events rather than arbitrary JSON.
+      .map((line) => JSON.parse(line.slice("data: ".length)) as AssistEvent)
+  );
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** A repetition that stopped part way, carrying the turns and the usage it reached. */
+export class ScenarioRunError extends Error {
+  readonly trace: ScenarioTrace;
+
+  constructor(message: string, trace: ScenarioTrace, cause: unknown) {
+    super(message, { cause });
+    this.name = "ScenarioRunError";
+    this.trace = trace;
+  }
 }
 
 export async function startHarness(options: {
@@ -219,48 +238,19 @@ export async function startHarness(options: {
     async runScenario(scenario, rep, facts, gate) {
       const startedAt = new Date().toISOString();
       const formId = `frm_eval_${scenario.id.toLowerCase()}_${String(rep)}`;
-      await seedForm(formId);
-      const caller = await seedAdminSession(testDb.db, {
-        label: `eval_${scenario.id.toLowerCase()}_${String(rep)}`,
-        at: SEED_AT,
-        grants: [...scenario.caller.grants],
-        owner: scenario.caller.owner,
-      });
-
-      recorder.takeCalls();
       const conversation: AssistTurn[] = [];
       const turns: TurnTrace[] = [];
-      const calls: ModelCall[] = [];
+      let pending: { index: number; message: string } | undefined;
 
-      for (const [index, message] of scenario.messages.entries()) {
-        if (!gate.allow()) break;
-        conversation.push({ role: "user", content: message });
-        const events = await turn(
-          caller,
-          formId,
-          scenario.screen,
-          conversation,
-          `cnv_eval_${scenario.id.toLowerCase()}_${String(rep)}`,
-        );
-        const turnCalls = recorder.takeCalls();
-        calls.push(...turnCalls);
-        const traced: TurnTrace = { index: index + 1, message, calls: turnCalls, events };
-        turns.push(traced);
-        gate.charge(usageOfTurn(traced));
-        // A turn can end with a card and no words, and the route takes no empty content.
-        const reply = replyOf(traced);
-        if (reply !== "") conversation.push({ role: "assistant", content: reply });
-      }
-
-      return {
-        version: 1,
+      const traceOf = (): ScenarioTrace => ({
+        version: TRACE_VERSION,
         runId: facts.runId,
         scenarioId: scenario.id,
         rep,
         safety: scenario.safety,
         models: {
           requested: config.model,
-          reported: reportedModelOf(calls),
+          reported: reportedModelOf(turns.flatMap((traced) => traced.calls)),
           grader: facts.graderModel,
         },
         thinking: config.thinking,
@@ -269,7 +259,64 @@ export async function startHarness(options: {
         startedAt,
         finishedAt: new Date().toISOString(),
         turns,
-      };
+      });
+
+      try {
+        await seedForm(formId);
+        const caller = await seedAdminSession(testDb.db, {
+          label: `eval_${scenario.id.toLowerCase()}_${String(rep)}`,
+          at: SEED_AT,
+          grants: [...scenario.caller.grants],
+          owner: scenario.caller.owner,
+        });
+
+        recorder.takeCalls();
+
+        for (const [index, message] of scenario.messages.entries()) {
+          if (!gate.allow()) break;
+          pending = { index: index + 1, message };
+          conversation.push({ role: "user", content: message });
+          const events = await turn(
+            caller,
+            formId,
+            scenario.screen,
+            conversation,
+            `cnv_eval_${scenario.id.toLowerCase()}_${String(rep)}`,
+          );
+          const traced: TurnTrace = {
+            index: index + 1,
+            message,
+            calls: recorder.takeCalls(),
+            events,
+          };
+          turns.push(traced);
+          pending = undefined;
+          gate.charge(usageOfTurn(traced));
+          // A turn can end with a card and no words, and the route takes no empty content.
+          const reply = replyOf(traced);
+          if (reply !== "") conversation.push({ role: "assistant", content: reply });
+        }
+      } catch (error) {
+        const spent = recorder.takeCalls();
+        if (pending !== undefined || spent.length > 0) {
+          // The run paid the provider for the failing turn, so it is charged and kept.
+          const traced: TurnTrace = {
+            index: pending?.index ?? turns.length + 1,
+            message: pending?.message ?? "",
+            calls: spent,
+            events: [],
+          };
+          turns.push(traced);
+          gate.charge(usageOfTurn(traced));
+        }
+        throw new ScenarioRunError(
+          `${scenario.id} repetition ${String(rep)} stopped: ${messageOf(error)}`,
+          traceOf(),
+          error,
+        );
+      }
+
+      return traceOf();
     },
 
     async teardown() {

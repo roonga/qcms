@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  MAX_TEXT,
   STATUS_FILE_NAME,
   createStatus,
   withScenario,
@@ -164,17 +165,27 @@ export interface StatusFile {
   set(id: string, patch: Record<string, unknown>, now: string): void;
 }
 
+/** The status file holds one short line with no address in it; a thrown message is neither. */
+export function statusNote(text: string): string {
+  const flat = text.replaceAll(/\s+/gu, " ").replaceAll("://", " ").trim();
+  return flat.length <= MAX_TEXT ? flat : `${flat.slice(0, MAX_TEXT - 3)}...`;
+}
+
 /**
- * The live status a monitor outside the run reads. `adminUrl` names where the turns run: this
- * layer drives the API in process, so there is no admin to point at.
+ * The live status a monitor outside the run reads, every write of it read for the key first.
+ * `adminUrl` names where the turns run: this layer drives the API in process, so there is no
+ * admin to point at.
  */
 export function openStatus(
   directory: string,
   run: { runId: string; startedAt: string; promptVersion: number; gitSha: string },
   scenarios: readonly EvalScenario[],
+  key: string,
 ): StatusFile {
   mkdirSync(directory, { recursive: true });
   const path = join(directory, STATUS_FILE_NAME);
+  const write = (value: Record<string, unknown>): string =>
+    writeStatus(path, value, (serialising) => keyFreeJson(path, serialising, key));
   let status = createStatus({
     runId: run.runId,
     startedAt: run.startedAt,
@@ -189,12 +200,12 @@ export function openStatus(
       budget: scenario.messages.length,
     })),
   });
-  writeStatus(path, status);
+  write(status);
   return {
     path,
     set(id, patch, now) {
       status = withScenario(status, id, patch, now);
-      writeStatus(path, status);
+      write(status);
     },
   };
 }

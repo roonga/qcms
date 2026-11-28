@@ -174,9 +174,14 @@ export function refusedToolCallsOf(trace: ScenarioTrace): TracedToolCall[] {
   return toolCallsOf(trace).filter((call) => !call.offered);
 }
 
+/** The one id in a set, or `null` where the ids disagree or there are none. */
+export function onlyId(ids: Iterable<string>): string | null {
+  const unique = new Set(ids);
+  const [only] = [...unique];
+  return unique.size === 1 && only !== undefined ? only : null;
+}
+
 /** The one id every call answered with, or `null` where the calls disagree or there were none. */
 export function reportedModelOf(calls: readonly ModelCall[]): string | null {
-  const ids = new Set(calls.map((call) => call.modelId));
-  const [only] = [...ids];
-  return ids.size === 1 && only !== undefined ? only : null;
+  return onlyId(calls.map((call) => call.modelId));
 }

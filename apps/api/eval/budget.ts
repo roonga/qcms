@@ -25,9 +25,9 @@ export function sumUsage(usages: readonly Usage[]): Usage {
   return usages.reduce(addUsage, NO_USAGE);
 }
 
-/** Input plus output: a cache read is reported on its own line and is not charged. */
+/** Input, output and cache writes: a cache read is reported on its own line and not charged. */
 export function chargedTokens(usage: Usage): number {
-  return usage.inputTokens + usage.outputTokens;
+  return usage.inputTokens + usage.outputTokens + usage.cacheWriteTokens;
 }
 
 export interface Budget {

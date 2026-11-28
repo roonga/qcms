@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -7,9 +7,12 @@ import { describe, expect, it } from "vitest";
 import {
   KEY_MISSING_MESSAGE,
   KEY_VARIABLE,
+  NOT_RUN_EXIT,
   PROJECT,
+  RESULTS_FILE_NAME,
   hasKey,
   main,
+  notRunCount,
   parseArgs,
   runEnv,
   runId,
@@ -127,6 +130,35 @@ describe("the run the command line hands to Vitest", () => {
     expect(passed.QCMS_EVAL_SCENARIOS).toBeUndefined();
     expect(passed.QCMS_EVAL_SAFETY_ONLY).toBeUndefined();
     expect(passed.QCMS_EVAL_REPS).toBeUndefined();
+  });
+
+  /** @returns the code the command line ends on after a run that wrote this summary. */
+  function codeAfter(summary: Record<string, number> | null): number {
+    return main([], {
+      directory: process.cwd(),
+      environment: withKey(),
+      now: NOW,
+      spawn: (_command, _args, options) => {
+        const passed = options as { env?: NodeJS.ProcessEnv };
+        const target = passed.env?.QCMS_EVAL_DIR;
+        if (target === undefined) throw new Error("the run was given no directory");
+        if (summary !== null) {
+          mkdirSync(target, { recursive: true });
+          writeFileSync(join(target, RESULTS_FILE_NAME), JSON.stringify({ summary }));
+        }
+        return { status: 0 };
+      },
+    });
+  }
+
+  it("stops with its own code when the cap left a repetition unrun", () => {
+    expect(codeAfter({ passed: 1, failed: 0, notRun: 2, safetyFailures: 0 })).toBe(NOT_RUN_EXIT);
+  });
+
+  it("passes a run that left nothing unrun, and one that wrote no result", () => {
+    expect(codeAfter({ passed: 3, failed: 0, notRun: 0, safetyFailures: 0 })).toBe(0);
+    expect(codeAfter(null)).toBe(0);
+    expect(notRunCount(scratchRoot())).toBe(0);
   });
 
   it("spawns the run in this lane's own scratch directory", () => {

@@ -1,17 +1,20 @@
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { validateStatus } from "../../../scripts/agent-review/eval-status.mjs";
+import { MAX_TEXT, validateStatus } from "../../../scripts/agent-review/eval-status.mjs";
 import { NO_USAGE, charge, newBudget } from "./budget.js";
 import {
+  RESULTS_FILE_NAME,
   buildResults,
   emptyResults,
   notRun,
   openStatus,
   repState,
+  statusNote,
   summarise,
   usageOfResults,
   withRep,
@@ -19,6 +22,15 @@ import {
   writeTrace,
 } from "./results.js";
 import type { EvalScenario } from "./scenarios.js";
+
+const CLI = fileURLToPath(new URL("../../../scripts/agent-eval.mjs", import.meta.url));
+
+const RUN = {
+  runId: "r1",
+  startedAt: "2026-07-20T00:00:00.000Z",
+  promptVersion: 38,
+  gitSha: "0".repeat(40),
+};
 
 const KEY = "synthetic-eval-key-6f21";
 
@@ -157,16 +169,7 @@ describe("the files a run leaves behind", () => {
   });
 
   it("keeps a live status file in the shape a monitor reads", () => {
-    const status = openStatus(
-      directory(),
-      {
-        runId: "r1",
-        startedAt: "2026-07-20T00:00:00.000Z",
-        promptVersion: 38,
-        gitSha: "0".repeat(40),
-      },
-      SCENARIOS,
-    );
+    const status = openStatus(directory(), RUN, SCENARIOS, KEY);
     status.set("S00", { state: "checked", turns: 1 }, "2026-07-20T00:01:00.000Z");
 
     const written: unknown = JSON.parse(readFileSync(status.path, "utf8"));
@@ -178,5 +181,36 @@ describe("the files a run leaves behind", () => {
         { id: "B09", state: "queued" },
       ],
     });
+  });
+
+  it("reads the status for the key, on the first write and on every update", () => {
+    expect(() => openStatus(directory(), { ...RUN, runId: KEY }, SCENARIOS, KEY)).toThrow(
+      "QCMS_AGENT_API_KEY",
+    );
+
+    const status = openStatus(directory(), RUN, SCENARIOS, KEY);
+
+    expect(() =>
+      status.set("S00", { state: "checked", note: `saw ${KEY}` }, "2026-07-20T00:01:00.000Z"),
+    ).toThrow("QCMS_AGENT_API_KEY");
+  });
+
+  it("names the result file the command line reads the not-run count back from", () => {
+    expect(readFileSync(CLI, "utf8")).toContain(`RESULTS_FILE_NAME = "${RESULTS_FILE_NAME}"`);
+  });
+});
+
+describe("the line a thrown message becomes in the status file", () => {
+  it("flattens it and drops the address the status file holds none of", () => {
+    expect(statusNote("the assist turn\n  answered 500 at http://127.0.0.1:3001/x")).toBe(
+      "the assist turn answered 500 at http 127.0.0.1:3001/x",
+    );
+  });
+
+  it("cuts one longer than the status file allows", () => {
+    const note = statusNote("the assist turn answered 500. ".repeat(40));
+
+    expect(note).toHaveLength(MAX_TEXT);
+    expect(note.endsWith("...")).toBe(true);
   });
 });

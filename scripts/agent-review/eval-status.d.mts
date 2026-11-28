@@ -37,7 +37,11 @@ export declare function validateStatus(value: unknown): string[];
 
 export declare function assertValid(value: unknown): Record<string, unknown>;
 
-export declare function writeStatus(path: string, status: Record<string, unknown>): string;
+export declare function writeStatus(
+  path: string,
+  status: Record<string, unknown>,
+  serialise?: (status: Record<string, unknown>) => string,
+): string;
 
 export declare function readStatus(path: string): Record<string, unknown>;
 

@@ -52,6 +52,18 @@
     "test": {
       "dependsOn": ["build"]
     },
+    // The eval tests import the shared text rules and the status writer from `scripts/`.
+    // Hash those modules as well as the package defaults to prevent stale green results.
+    "qcms-api#test": {
+      "dependsOn": ["build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/agent-text-checks.mjs",
+        "$TURBO_ROOT$/scripts/agent-eval.mjs",
+        "$TURBO_ROOT$/scripts/agent-review/terms.mjs",
+        "$TURBO_ROOT$/scripts/agent-review/eval-status.mjs"
+      ]
+    },
     // This test scans its importers, which dependency edges cannot reach.
     // Hash the scanned source trees as well as the package defaults to prevent stale green results.
     "@roonga/qcms-observability#test": {

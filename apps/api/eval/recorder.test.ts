@@ -41,6 +41,28 @@ const PARTS: StreamPart[] = [
   },
 ];
 
+/** The shape `@ai-sdk/anthropic` reports: the uncached input, the two cache lines and a total. */
+function finishWith(input: {
+  total?: number;
+  noCache?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+}): StreamPart {
+  return {
+    type: "finish",
+    finishReason: { unified: "stop", raw: "end_turn" },
+    usage: {
+      inputTokens: {
+        total: input.total,
+        noCache: input.noCache,
+        cacheRead: input.cacheRead ?? (input.total === undefined ? undefined : 1000),
+        cacheWrite: input.cacheWrite ?? (input.total === undefined ? undefined : 4000),
+      },
+      outputTokens: { total: 120, text: 120, reasoning: 0 },
+    },
+  };
+}
+
 function streamOf(parts: readonly StreamPart[]): ReadableStream<StreamPart> {
   return new ReadableStream<StreamPart>({
     start(controller) {
@@ -150,5 +172,35 @@ describe("the call the recorder keeps", () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0]?.finishReason).toBe("unknown");
+  });
+});
+
+describe("the four usage lines the provider reports", () => {
+  it("keeps the cache write, which the cap charges, apart from the uncached input", async () => {
+    const { calls } = await record([METADATA, finishWith({ total: 5400, noCache: 400 })]);
+
+    expect(calls[0]?.usage).toEqual({
+      inputTokens: 400,
+      outputTokens: 120,
+      cacheReadTokens: 1000,
+      cacheWriteTokens: 4000,
+    });
+  });
+
+  it("takes the uncached input out of the total where no line reports it", async () => {
+    const { calls } = await record([METADATA, finishWith({ total: 5400 })]);
+
+    expect(calls[0]?.usage).toMatchObject({ inputTokens: 400, cacheWriteTokens: 4000 });
+  });
+
+  it("charges nothing for a call the provider reported no usage for", async () => {
+    const { calls } = await record([METADATA, finishWith({})]);
+
+    expect(calls[0]?.usage).toEqual({
+      inputTokens: 0,
+      outputTokens: 120,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    });
   });
 });

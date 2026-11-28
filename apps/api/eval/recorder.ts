@@ -10,15 +10,15 @@ type CallOptions = Parameters<WrapStream>[0]["params"];
 type StreamResult = Awaited<ReturnType<WrapStream>>;
 type StreamPart = StreamResult["stream"] extends ReadableStream<infer Part> ? Part : never;
 
-/**
- * Every field is named, never spread: `headers` carries the key and must not reach a file,
- * and `abortSignal` is not data at all.
- */
 function toolChoiceOf(choice: CallOptions["toolChoice"]): string | null {
   if (choice === undefined) return null;
   return choice.type === "tool" ? `tool:${choice.toolName}` : choice.type;
 }
 
+/**
+ * Every field is named, never spread: `headers` carries the key and must not reach a file,
+ * and `abortSignal` is not data at all.
+ */
 export function requestOf(params: CallOptions): RecordedRequest {
   return {
     messages: params.prompt,
@@ -30,12 +30,20 @@ export function requestOf(params: CallOptions): RecordedRequest {
   };
 }
 
+/**
+ * The provider reports the uncached input, the cache read and the cache write apart, and a
+ * total holding all three; the cap charges three of the four, so none of them is folded in.
+ */
 function usageOf(usage: Extract<StreamPart, { type: "finish" }>["usage"]): Usage {
+  const input = usage.inputTokens;
+  const cacheReadTokens = input.cacheRead ?? 0;
+  const cacheWriteTokens = input.cacheWrite ?? 0;
   return {
-    inputTokens: usage.inputTokens.noCache ?? usage.inputTokens.total ?? 0,
+    inputTokens:
+      input.noCache ?? Math.max(0, (input.total ?? 0) - cacheReadTokens - cacheWriteTokens),
     outputTokens: usage.outputTokens.total ?? 0,
-    cacheReadTokens: usage.inputTokens.cacheRead ?? 0,
-    cacheWriteTokens: usage.inputTokens.cacheWrite ?? 0,
+    cacheReadTokens,
+    cacheWriteTokens,
   };
 }
 

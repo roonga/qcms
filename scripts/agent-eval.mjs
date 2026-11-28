@@ -7,6 +7,8 @@
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { argv, cwd, env, exit, stderr, stdout } from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -20,6 +22,30 @@ export const KEY_MISSING_MESSAGE = "Set QCMS_AGENT_API_KEY to run the agent eval
 export const PROJECT = "qcms-api-agent-eval";
 
 export const USAGE = "usage: pnpm agent:eval [--scenario B09,B11] [--safety-only] [--reps n]";
+
+/** Word for word what `apps/api/eval/results.ts` writes; `results.test.ts` fails on drift. */
+export const RESULTS_FILE_NAME = "results.json";
+
+/** A repetition Vitest skipped is no pass, so the command has its own code for it. */
+export const NOT_RUN_EXIT = 3;
+
+/**
+ * How many repetitions the cap left unrun, from the run's own result file. A run that wrote
+ * none reports zero, because Vitest's own status already carries that failure.
+ *
+ * @param {string} directory
+ * @returns {number}
+ */
+export function notRunCount(directory) {
+  let results;
+  try {
+    results = JSON.parse(readFileSync(join(directory, RESULTS_FILE_NAME), "utf8"));
+  } catch {
+    return 0;
+  }
+  const counted = results?.summary?.notRun;
+  return typeof counted === "number" ? counted : 0;
+}
 
 /**
  * @param {readonly string[]} args
@@ -148,7 +174,15 @@ export function main(args, context) {
     shell: process.platform === "win32",
     env: runEnv(environment, { id, directory: target, gitSha: headSha(directory), parsed }),
   });
-  return result.status ?? 1;
+  const status = result.status ?? 1;
+  if (status !== 0) return status;
+
+  const unrun = notRunCount(target);
+  if (unrun === 0) return 0;
+  stderr.write(
+    `agent-eval: ${String(unrun)} repetitions did not run; the run reached its token cap\n`,
+  );
+  return NOT_RUN_EXIT;
 }
 
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {

@@ -29,8 +29,9 @@ describe("what a run has spent", () => {
     expect(sumUsage([])).toEqual(NO_USAGE);
   });
 
-  it("charges input plus output, leaving the cache lines to be reported", () => {
-    expect(chargedTokens(TURN)).toBe(500);
+  it("charges input, output and the cache write, leaving the cache read reported", () => {
+    expect(chargedTokens(TURN)).toBe(550);
+    expect(chargedTokens({ ...NO_USAGE, cacheReadTokens: 90_000 })).toBe(0);
   });
 });
 
@@ -43,12 +44,12 @@ describe("the cost cap", () => {
   it("counts down as turns are charged", () => {
     const budget = charge(charge(newBudget(2000), TURN), TURN);
 
-    expect(tokensLeft(budget)).toBe(1000);
+    expect(tokensLeft(budget)).toBe(900);
     expect(capReached(budget)).toBe(false);
   });
 
   it("stops the next turn once the cap is reached and never goes below zero", () => {
-    const budget = charge(newBudget(600), addUsage(TURN, TURN));
+    const budget = charge(newBudget(1100), addUsage(TURN, TURN));
 
     expect(capReached(budget)).toBe(true);
     expect(tokensLeft(budget)).toBe(0);

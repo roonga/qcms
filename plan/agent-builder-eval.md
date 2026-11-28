@@ -75,7 +75,7 @@ Scoring:
 
 - Each scenario runs `N` times (default 3). Safety scenarios must pass every repetition; one failure is a red run.
 - Quality items report a pass rate per scenario and overall.
-- A run that hit the cost cap reports the remaining scenarios as not run, never as passed.
+- A run that hit the cost cap reports the remaining scenarios as not run, never as passed: the repetition is skipped rather than passed, and `pnpm agent:eval` stops with exit 3.
 
 ## Key handling
 
@@ -92,7 +92,7 @@ Scoring:
 
 ## Cost cap
 
-- `QCMS_EVAL_MAX_TOKENS` (default 3,000,000 input plus output across the run, cache reads counted at their own line; E4). Repetitions default to 3. The harness sums usage after every turn and stops starting new turns once the cap is reached.
+- `QCMS_EVAL_MAX_TOKENS` (default 3,000,000 input, output and cache-write tokens across the run, cache reads reported at their own line and uncapped; E4). Repetitions default to 3. The harness sums usage after every turn and stops starting new turns once the cap is reached.
 - Per turn: the production `QCMS_AGENT_MAX_STEPS` (default 8) stays the ceiling.
 - Prompt caching stays on, as in production, so repeated scenarios mostly pay cache-read rates.
 - Filters: `--scenario B09,B11`, `--safety-only`, `--reps 1`.
@@ -142,16 +142,16 @@ Follow-up outside this plan: builder pane support in `pnpm agent:converse`, so `
 
 Code Owner, 2026-11-27.
 
-| #   | Question            | Ruling                                                                                                                                                          |
-| --- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| E1  | Scope and layering  | A new in-process API layer beside the existing browser review.                                                                                                  |
-| E2  | Key variable        | `QCMS_AGENT_API_KEY`, never written to a file; header-free recorder; key-absent assertion on every result; unset stops with exit 2 naming `QCMS_AGENT_API_KEY`. |
-| E3  | Models              | Pinned defaults in the eval config (latest Opus under test, latest Sonnet grader); `QCMS_EVAL_MODEL` and `QCMS_EVAL_GRADER_MODEL` override. Eval tooling only.  |
-| E4  | Cost cap            | 3,000,000 tokens per run, 3 repetitions. The Code Owner sets the Anthropic workspace spend limit.                                                               |
-| E5  | CI                  | `workflow_dispatch` now; a weekly schedule later.                                                                                                               |
-| E6  | Prompt-version rule | A PR that bumps `SYSTEM_PROMPT_VERSION` is expected to attach an eval result and commit a baseline; not gated.                                                  |
-| E7  | Committed baselines | Commit summary baselines under `apps/api/eval/baselines/`.                                                                                                      |
-| E8  | Decision records    | No ADR or SEC note needed.                                                                                                                                      |
+| #   | Question            | Ruling                                                                                                                                                                                                                        |
+| --- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| E1  | Scope and layering  | A new in-process API layer beside the existing browser review.                                                                                                                                                                |
+| E2  | Key variable        | `QCMS_AGENT_API_KEY`, never written to a file; header-free recorder; key-absent assertion on every result; unset stops with exit 2 naming `QCMS_AGENT_API_KEY`.                                                               |
+| E3  | Models              | Pinned defaults in the eval config (latest Opus under test, latest Sonnet grader); `QCMS_EVAL_MODEL` and `QCMS_EVAL_GRADER_MODEL` override. Eval tooling only.                                                                |
+| E4  | Cost cap            | 3,000,000 tokens per run, 3 repetitions. The cap charges input, output and cache-write tokens; cache reads are reported on their own line and uncapped (2026-11-28). The Code Owner sets the Anthropic workspace spend limit. |
+| E5  | CI                  | `workflow_dispatch` now; a weekly schedule later.                                                                                                                                                                             |
+| E6  | Prompt-version rule | A PR that bumps `SYSTEM_PROMPT_VERSION` is expected to attach an eval result and commit a baseline; not gated.                                                                                                                |
+| E7  | Committed baselines | Commit summary baselines under `apps/api/eval/baselines/`.                                                                                                                                                                    |
+| E8  | Decision records    | No ADR or SEC note needed.                                                                                                                                                                                                    |
 
 ## Sources
 

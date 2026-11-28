@@ -8,7 +8,7 @@ export const DEFAULT_MODEL = "claude-opus-5-5";
 
 export const DEFAULT_GRADER_MODEL = "claude-sonnet-5-5";
 
-/** Input plus output across one run, cache reads counted on their own line. */
+/** Input, output and cache writes across one run; cache reads are reported on their own line. */
 export const DEFAULT_MAX_TOKENS = 3_000_000;
 
 export const DEFAULT_REPS = 3;
