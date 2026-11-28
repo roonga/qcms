@@ -51,6 +51,8 @@ describe("the strip rules", () => {
     "scripts/seed-fixtures.ts",
     "scripts/fixtures/sample-library-form.json",
     "scripts/fixtures/sample-library.a2ui.json",
+    "eval/run.eval.ts",
+    "eval/scenarios/S00-smoke.json",
   ])("drops %j", (path) => {
     expect(isExcludedAppPath(path)).toBe(true);
   });

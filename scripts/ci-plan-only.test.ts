@@ -756,9 +756,16 @@ describe("the end-to-end suites import nothing the classifier calls unneeded", (
     return seen;
   };
 
+  /** `apps/api/eval` is on-demand tooling: no CI suite builds it or runs it. */
+  const EVAL_TREE = "apps/api/eval/";
+
   const sources = (pattern: RegExp): string[] =>
     [...tracked].filter(
-      (file) => SOURCE.test(file) && pattern.test(file) && !/\.test\.tsx?$/.test(file),
+      (file) =>
+        SOURCE.test(file) &&
+        pattern.test(file) &&
+        !/\.test\.tsx?$/.test(file) &&
+        !file.startsWith(EVAL_TREE),
     );
 
   const buildScripts = (): string[] => {

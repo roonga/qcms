@@ -707,6 +707,7 @@ The pieces, all under `scripts/agent-review/`:
 - `rubric.md` - what a reviewer judges a transcript against: voice, the leading sentence, plans, honesty, safety, round trips, end state, and a section on card layout, status markers, spacing, focus and accessibility read from the screenshots. A line marked **auto** has a check behind it, so a reviewer confirms a finding rather than hunting for it.
 - `terms.mjs` - the words the assistant may never say and the branded id patterns, in one place. It restates the prompt's own `AVOID_WORDS` rather than importing it, because `apps/api` publishes `dist` and no tooling script may reach into it; `terms.test.ts` fails when the two drift apart.
 - `checks.mjs` - the deterministic half, and a command line.
+- `../agent-text-checks.mjs` - outside this directory on purpose: the text rules this layer and the agent builder eval (`apps/api/eval/`) both apply, so the two cannot drift apart.
 - `end-state.mjs` - reads the forms, versions, links and rules a run left behind, from the API, in every environment rather than only the one the run acted in.
 - `eval-status.mjs` - the run's own status file, written as it goes so a monitor can follow it.
 

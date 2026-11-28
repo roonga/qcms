@@ -3,5 +3,5 @@
   "compilerOptions": {
     "outDir": "dist"
   },
-  "include": ["src", "e2e", "scripts/*.ts"]
+  "include": ["src", "e2e", "eval", "scripts/*.ts"]
 }

@@ -95,7 +95,13 @@ export default tseslint.config(
   {
     // Fixture IPs and the SSRF guard's clear-text URLs are the point of those tests: the
     // guard can only be proved by feeding it a URL it must reject.
-    files: ["**/*.test.ts", "**/*.test.tsx", "**/*.integration.test.ts", "**/e2e/**/*.ts"],
+    files: [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.integration.test.ts",
+      "**/e2e/**/*.ts",
+      "**/eval/**/*.eval.ts",
+    ],
     rules: {
       "sonarjs/no-hardcoded-ip": "off",
       "sonarjs/no-clear-text-protocols": "off",

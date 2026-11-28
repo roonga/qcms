@@ -247,18 +247,28 @@ export function assertValid(value) {
 }
 
 /**
- * A reader polls this file, so it is replaced whole: written beside itself and renamed, which
- * is atomic within one directory.
- *
- * @param {string} path
  * @param {Record<string, unknown>} status
  * @returns {string}
  */
-export function writeStatus(path, status) {
+function statusJson(status) {
+  return `${JSON.stringify(status, null, 2)}\n`;
+}
+
+/**
+ * A reader polls this file, so it is replaced whole: written beside itself and renamed, which
+ * is atomic within one directory. A caller whose run holds a secret passes `serialise`, so the
+ * text is read for that secret before it reaches the disk.
+ *
+ * @param {string} path
+ * @param {Record<string, unknown>} status
+ * @param {(status: Record<string, unknown>) => string} [serialise]
+ * @returns {string}
+ */
+export function writeStatus(path, status, serialise = statusJson) {
   assertValid(status);
   mkdirSync(dirname(path), { recursive: true });
   const temporary = join(dirname(path), `.${STATUS_FILE_NAME}.${randomBytes(6).toString("hex")}`);
-  writeFileSync(temporary, `${JSON.stringify(status, null, 2)}\n`);
+  writeFileSync(temporary, serialise(status));
   renameSync(temporary, path);
   return path;
 }

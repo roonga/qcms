@@ -75,6 +75,20 @@ export default defineConfig({
           hookTimeout: 240_000,
         },
       },
+      // Real model, real money, on demand only: `pnpm agent:eval` runs this project and
+      // nothing else does, so it stays out of `pnpm test` and `pnpm verify`.
+      {
+        extends: true,
+        test: {
+          name: "qcms-api-agent-eval",
+          root: API_ROOT,
+          include: ["eval/**/*.eval.ts"],
+          // A turn waits on a real model, and a scenario runs several of them.
+          testTimeout: 600_000,
+          hookTimeout: 240_000,
+          fileParallelism: false,
+        },
+      },
       // Needs the Compose stack `pnpm qcms:scaffold-e2e` stands up, so it stays out of
       // `pnpm test`.
       {

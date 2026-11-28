@@ -134,7 +134,8 @@ const APP_EXCLUDED_PATHS = new Set([
   "scripts/seed-fixtures.ts",
 ]);
 
-const EXCLUDED_APP_DIRECTORIES = new Set(["e2e", "__snapshots__"]);
+/** `eval` is this repository's own agent eval: it reaches tooling the scaffold does not stamp. */
+const EXCLUDED_APP_DIRECTORIES = new Set(["e2e", "eval", "__snapshots__"]);
 
 /**
  * Dropped wholesale: the fixtures feed `scripts/seed-fixtures.ts`, which is itself dropped,
