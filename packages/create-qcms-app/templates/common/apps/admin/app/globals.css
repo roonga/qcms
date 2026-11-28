@@ -565,10 +565,13 @@ button {
   font-size: 1rem;
   font-weight: 600;
 }
+/* The pane body fills its pane so the assistant composer stays at the bottom of a short conversation. */
 .qcms-builder__pane-body {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: var(--space-3);
+  min-block-size: 0;
   padding: var(--space-3) var(--admin-section-pad);
 }
 .qcms-builder-edits {
@@ -599,6 +602,13 @@ button {
   font-size: 0.875rem;
   color: var(--color-text-muted);
 }
+.qcms-builder__tabs,
+.qcms-builder__tabpanel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-block-size: 0;
+}
 .qcms-builder__tablist {
   padding-inline: var(--admin-section-pad);
   background-color: var(--color-surface);
@@ -609,10 +619,6 @@ button {
   gap: var(--space-3);
   max-inline-size: 40rem;
   padding: var(--admin-section-pad);
-}
-.qcms-builder__pane-body--preview {
-  flex: 1 1 auto;
-  min-block-size: 0;
 }
 .qcms-builder-selection {
   display: flex;
