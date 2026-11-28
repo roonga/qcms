@@ -15,6 +15,9 @@ export default function adminNextConfig(phase: string): NextConfig {
   return {
     distDir: phase === PHASE_DEVELOPMENT_SERVER ? DEVELOPMENT_DIST_DIR : PRODUCTION_DIST_DIR,
     reactStrictMode: true,
+    /** The dev server's own indicator sits where the agent builder's composer now sits, bottom
+        inline-start, and intercepts clicks on Send under `next dev`. */
+    devIndicators: { position: "top-right" },
     turbopack: {
       root: WORKTREE_ROOT,
     },
